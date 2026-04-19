@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Wand2, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import heroImg from "@/assets/hero-slides.jpg";
 
@@ -50,11 +51,13 @@ export const Hero = () => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="mt-10 flex flex-col sm:flex-row gap-3 justify-center items-center"
           >
-            <Button variant="hero" size="xl" className="group">
-              Criar minha apresentação
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Button>
-            <Button variant="outline" size="xl">Ver exemplos</Button>
+            <Link to="/auth">
+              <Button variant="hero" size="xl" className="group">
+                Criar minha apresentação
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Button>
+            </Link>
+            <a href="#how"><Button variant="outline" size="xl">Ver como funciona</Button></a>
           </motion.div>
 
           <motion.p

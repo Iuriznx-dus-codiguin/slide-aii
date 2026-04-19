@@ -38,8 +38,8 @@ export const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" size="sm">Entrar</Button>
-          <Button variant="hero" size="sm">Começar grátis</Button>
+          <Link to="/auth"><Button variant="ghost" size="sm">Entrar</Button></Link>
+          <Link to="/auth"><Button variant="hero" size="sm">Começar grátis</Button></Link>
         </div>
 
         <button className="md:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
@@ -56,8 +56,8 @@ export const Navbar = () => {
               </a>
             ))}
             <div className="flex flex-col gap-2 pt-2">
-              <Button variant="ghost" size="sm">Entrar</Button>
-              <Button variant="hero" size="sm">Começar grátis</Button>
+              <Link to="/auth"><Button variant="ghost" size="sm" className="w-full">Entrar</Button></Link>
+              <Link to="/auth"><Button variant="hero" size="sm" className="w-full">Começar grátis</Button></Link>
             </div>
           </div>
         </div>

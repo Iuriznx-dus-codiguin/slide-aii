@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 export const CTA = () => {
@@ -29,10 +30,12 @@ export const CTA = () => {
               Crie hoje sua primeira apresentação com IA. Pré-visualize gratuitamente.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-              <Button size="xl" className="bg-white text-primary hover:bg-white/90 group">
-                Criar minha apresentação
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Button>
+              <Link to="/auth">
+                <Button size="xl" className="bg-white text-primary hover:bg-white/90 group">
+                  Criar minha apresentação
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
             </div>
           </div>
         </motion.div>

@@ -10,7 +10,7 @@ const tiers = [
     description: "Pague apenas pelo que usar. Ideal para apresentações esporádicas.",
     features: [
       "1 apresentação completa com IA",
-      "Até 20 slides por geração",
+      "Até 10 slides por geração",
       "Editor visual completo",
       "Exportar PDF e PPTX",
       "Link público compartilhável",
@@ -23,10 +23,10 @@ const tiers = [
     name: "Ilimitado",
     price: "49,90",
     period: "por mês",
-    description: "Para quem cria apresentações com frequência. Cancele quando quiser.",
+    description: "Para quem cria apresentações com frequência. Sem teste grátis. Cancele quando quiser.",
     features: [
       "Gerações ilimitadas com IA",
-      "Até 30 slides por apresentação",
+      "Até 10 slides por apresentação",
       "Editor visual completo",
       "Exportar PDF, PPTX e PNG",
       "Modo apresentador com timer",
