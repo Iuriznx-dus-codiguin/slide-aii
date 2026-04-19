@@ -14,7 +14,190 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      presentations: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          font_style: string | null
+          id: string
+          is_paid: boolean
+          is_password_protected: boolean
+          is_published: boolean
+          language: string | null
+          password_hash: string | null
+          slides_count: number
+          slug: string
+          theme: string | null
+          title: string
+          type: string | null
+          updated_at: string
+          user_id: string
+          view_count: number
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          font_style?: string | null
+          id?: string
+          is_paid?: boolean
+          is_password_protected?: boolean
+          is_published?: boolean
+          language?: string | null
+          password_hash?: string | null
+          slides_count?: number
+          slug: string
+          theme?: string | null
+          title: string
+          type?: string | null
+          updated_at?: string
+          user_id: string
+          view_count?: number
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          font_style?: string | null
+          id?: string
+          is_paid?: boolean
+          is_password_protected?: boolean
+          is_published?: boolean
+          language?: string | null
+          password_hash?: string | null
+          slides_count?: number
+          slug?: string
+          theme?: string | null
+          title?: string
+          type?: string | null
+          updated_at?: string
+          user_id?: string
+          view_count?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          generations_count: number
+          id: string
+          plan: string
+          role: string | null
+          total_views: number
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          generations_count?: number
+          id: string
+          plan?: string
+          role?: string | null
+          total_views?: number
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          generations_count?: number
+          id?: string
+          plan?: string
+          role?: string | null
+          total_views?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      slide_views: {
+        Row: {
+          created_at: string
+          id: string
+          presentation_id: string
+          user_agent: string | null
+          viewer_ip_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          presentation_id: string
+          user_agent?: string | null
+          viewer_ip_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          presentation_id?: string
+          user_agent?: string | null
+          viewer_ip_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slide_views_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slides: {
+        Row: {
+          animation_transition: string | null
+          background_color: string | null
+          background_image_url: string | null
+          content: Json
+          created_at: string
+          id: string
+          layout_template: string | null
+          position: number
+          presentation_id: string
+          slide_type: string
+          speaker_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          animation_transition?: string | null
+          background_color?: string | null
+          background_image_url?: string | null
+          content?: Json
+          created_at?: string
+          id?: string
+          layout_template?: string | null
+          position: number
+          presentation_id: string
+          slide_type?: string
+          speaker_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          animation_transition?: string | null
+          background_color?: string | null
+          background_image_url?: string | null
+          content?: Json
+          created_at?: string
+          id?: string
+          layout_template?: string | null
+          position?: number
+          presentation_id?: string
+          slide_type?: string
+          speaker_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slides_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
