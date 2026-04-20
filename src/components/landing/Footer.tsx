@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Sparkles, Twitter, Instagram, Linkedin, Github } from "lucide-react";
 
 export const Footer = () => {
@@ -34,7 +35,7 @@ export const Footer = () => {
             <ul className="space-y-2.5 text-sm text-muted-foreground">
               <li><a href="#features" className="hover:text-foreground transition-colors">Recursos</a></li>
               <li><a href="#pricing" className="hover:text-foreground transition-colors">Preços</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Templates</a></li>
+              <li><Link to="/templates" className="hover:text-foreground transition-colors">Templates</Link></li>
               <li><a href="#" className="hover:text-foreground transition-colors">Novidades</a></li>
             </ul>
           </div>

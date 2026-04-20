@@ -10,10 +10,11 @@ export const Navbar = () => {
   const [open, setOpen] = useState(false);
 
   const links = [
-    { href: "#how", label: "Como funciona" },
-    { href: "#features", label: "Recursos" },
-    { href: "#pricing", label: "Preços" },
-    { href: "#faq", label: "FAQ" },
+    { href: "#how", label: "Como funciona", to: null },
+    { href: "#features", label: "Recursos", to: null },
+    { href: "/templates", label: "Templates", to: "/templates" },
+    { href: "#pricing", label: "Preços", to: null },
+    { href: "#faq", label: "FAQ", to: null },
   ];
 
   return (
@@ -31,9 +32,11 @@ export const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-8">
           {links.map((l) => (
-            <a key={l.href} href={l.href} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              {l.label}
-            </a>
+            l.to ? (
+              <Link key={l.href} to={l.to} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</Link>
+            ) : (
+              <a key={l.href} href={l.href} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</a>
+            )
           ))}
         </div>
 
@@ -51,9 +54,11 @@ export const Navbar = () => {
         <div className="md:hidden border-t border-border/40 bg-background/95 backdrop-blur-md">
           <div className="container mx-auto px-6 py-4 flex flex-col gap-4">
             {links.map((l) => (
-              <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">
-                {l.label}
-              </a>
+              l.to ? (
+                <Link key={l.href} to={l.to} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">{l.label}</Link>
+              ) : (
+                <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">{l.label}</a>
+              )
             ))}
             <div className="flex flex-col gap-2 pt-2">
               <Link to="/auth"><Button variant="ghost" size="sm" className="w-full">Entrar</Button></Link>
