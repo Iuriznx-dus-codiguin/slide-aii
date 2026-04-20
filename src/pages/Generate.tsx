@@ -137,14 +137,8 @@ const Generate = () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
 
-    // Checagem silenciosa de limite (apenas plano free; pagos = ilimitado)
+    // [DEV] Limite de gerações desativado temporariamente para testes.
     try {
-      const { data: prof } = await supabase.from("profiles")
-        .select("plan,generations_count").eq("id", user.id).maybeSingle();
-      if (prof && (prof.plan === "free" || !prof.plan) && (prof.generations_count ?? 0) >= FREE_GENERATIONS_LIMIT) {
-        setShowLimitModal(true);
-        return;
-      }
     } catch (e) { /* não-bloqueante */ }
 
     setPhase("loading");
