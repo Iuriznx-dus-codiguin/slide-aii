@@ -12,6 +12,7 @@ import Onboarding from "./pages/Onboarding.tsx";
 import Generate from "./pages/Generate.tsx";
 import SlideViewer from "./pages/SlideViewer.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
+import Editor from "./pages/Editor.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/gerar" element={<ProtectedRoute><Generate /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/editor/:slug" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/slides/:slug" element={<SlideViewer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

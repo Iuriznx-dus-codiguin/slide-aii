@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { ExportMenu } from "@/components/ExportMenu";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -14,6 +15,8 @@ interface SlideRow { id: string; position: number; slide_type: string; layout_te
 const SlideViewer = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const autoPrint = searchParams.get("print") === "1";
   const [pres, setPres] = useState<Pres | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [idx, setIdx] = useState(0);
@@ -95,6 +98,14 @@ const SlideViewer = () => {
     return () => { window.removeEventListener("touchstart", onStart); window.removeEventListener("touchend", onEnd); };
   }, [next, prev]);
 
+  // Auto-print when arrived with ?print=1
+  useEffect(() => {
+    if (autoPrint && !loading && slides.length > 0) {
+      const t = setTimeout(() => window.print(), 800);
+      return () => clearTimeout(t);
+    }
+  }, [autoPrint, loading, slides.length]);
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!pres) return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -137,12 +148,10 @@ const SlideViewer = () => {
                   <a href={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">
                     <Button variant="outline" size="sm" className="w-full justify-start">Gerar QR Code</Button>
                   </a>
-                  <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => window.print()}>
-                    Exportar PDF (imprimir)
-                  </Button>
                 </div>
               </PopoverContent>
             </Popover>
+            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} slug={pres.slug} variant="ghost" size="sm" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               <span className="hidden md:inline ml-1">Apresentar</span>
@@ -187,6 +196,21 @@ const SlideViewer = () => {
       <div className={`fixed bottom-3 md:bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-opacity ${hideUI ? "opacity-0" : "opacity-100"}`}>
         {idx + 1} / {slides.length}
         {fullscreen && <span className="ml-2 opacity-60 hidden md:inline">• ESC para sair</span>}
+      </div>
+      {/* Hidden print-only deck — every slide becomes a printable A4-landscape page */}
+      <div className="hidden print:block" data-no-print="false">
+        {slides.map((s, i) => (
+          <div key={s.id} className="print-slide" style={{ width: 1920, height: 1080 }}>
+            <SlideRenderer
+              slide={s as any}
+              themeId={pres.theme}
+              fontId={pres.font_style}
+              dynamicTheme={s.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null}
+              index={i}
+              noAnimate
+            />
+          </div>
+        ))}
       </div>
     </div>
   );

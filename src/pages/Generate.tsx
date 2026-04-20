@@ -222,7 +222,7 @@ const Generate = () => {
       await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
 
       toast.success("Apresentação salva!");
-      navigate(mode === "view" ? `/slides/${slug}` : `/dashboard`);
+      navigate(mode === "view" ? `/slides/${slug}` : `/editor/${slug}`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao salvar");

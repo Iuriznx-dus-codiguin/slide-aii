@@ -173,3 +173,20 @@
     border: 1px solid hsl(var(--border) / 0.5);
   }
 }
+
+/* ========== Print: PDF export via window.print ========== */
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { background: #000 !important; margin: 0 !important; padding: 0 !important; }
+  .no-print, header, nav, footer, button, [data-no-print] { display: none !important; }
+  .print-slide {
+    width: 1920px !important;
+    height: 1080px !important;
+    page-break-after: always;
+    break-after: page;
+    overflow: hidden !important;
+    position: relative !important;
+    display: block !important;
+  }
+  .print-slide:last-child { page-break-after: auto; }
+}
