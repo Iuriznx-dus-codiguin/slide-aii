@@ -562,6 +562,25 @@ const Generate = () => {
           </div>
         </motion.div>
       </main>
+
+      {/* Modal de limite (apenas free) — escondido para usuários pagos */}
+      {showLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowLimitModal(false)}>
+          <div className="bg-card border border-border rounded-3xl p-8 max-w-md w-full shadow-elegant" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-primary mx-auto mb-4">
+              <Sparkles className="h-7 w-7 text-primary-foreground" />
+            </div>
+            <h3 className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</h3>
+            <p className="text-center text-muted-foreground mt-2 text-sm">
+              Você atingiu o limite de testes gratuitos. Assine o plano Ilimitado para criar quantas apresentações quiser.
+            </p>
+            <div className="flex gap-2 mt-6">
+              <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>
+              <Button variant="hero" className="flex-1" onClick={() => navigate("/#pricing")}>Ver planos</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
