@@ -147,8 +147,21 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
 
     const data = await aiResponse.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("AI did not return tool call");
-    const parsed = JSON.parse(toolCall.function.arguments);
+    if (!toolCall) {
+      console.error("chat-editor: no tool_call in response", JSON.stringify(data).slice(0, 500));
+      return new Response(JSON.stringify({ error: "A IA não retornou edição estruturada. Tente reformular a instrução." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error("chat-editor: tool args JSON parse failed", e, "len=", toolCall.function.arguments?.length);
+      return new Response(JSON.stringify({ error: "Resposta da IA truncada — tente uma instrução menor (ex: edite poucos slides por vez)." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
