@@ -98,6 +98,14 @@ const SlideViewer = () => {
     return () => { window.removeEventListener("touchstart", onStart); window.removeEventListener("touchend", onEnd); };
   }, [next, prev]);
 
+  // Auto-print when arrived with ?print=1
+  useEffect(() => {
+    if (autoPrint && !loading && slides.length > 0) {
+      const t = setTimeout(() => window.print(), 800);
+      return () => clearTimeout(t);
+    }
+  }, [autoPrint, loading, slides.length]);
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!pres) return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -189,8 +197,25 @@ const SlideViewer = () => {
         {idx + 1} / {slides.length}
         {fullscreen && <span className="ml-2 opacity-60 hidden md:inline">• ESC para sair</span>}
       </div>
+      {/* Hidden print-only deck — every slide becomes a printable A4-landscape page */}
+      <div className="hidden print:block" data-no-print="false">
+        {slides.map((s, i) => (
+          <div key={s.id} className="print-slide" style={{ width: 1920, height: 1080 }}>
+            <SlideRenderer
+              slide={s as any}
+              themeId={pres.theme}
+              fontId={pres.font_style}
+              dynamicTheme={s.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null}
+              index={i}
+              noAnimate
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
+
+export default SlideViewer;
 
 export default SlideViewer;
