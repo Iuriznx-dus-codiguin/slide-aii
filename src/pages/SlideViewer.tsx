@@ -217,5 +217,3 @@ const SlideViewer = () => {
 };
 
 export default SlideViewer;
-
-export default SlideViewer;
