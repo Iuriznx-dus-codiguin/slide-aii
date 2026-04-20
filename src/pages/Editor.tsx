@@ -249,6 +249,61 @@ const Editor = () => {
     return () => clearInterval(id);
   }, [pres, save]);
 
+  // Chat IA do editor manual — usa a mesma edge function chat-editor
+  const sendChat = async () => {
+    const instruction = chatInput.trim();
+    if (!instruction || chatBusy) return;
+    setChatInput("");
+    setChat((c) => [...c, { role: "user", content: instruction }]);
+    setChatBusy(true);
+    try {
+      // Mapear slides para o formato esperado pela edge function
+      const aiSlides = slides.map((s) => ({
+        slide_title: s.content?.headline || "",
+        slide_type: s.slide_type,
+        layout_template: s.layout_template,
+        animation: s.animation_transition || s.content?.animation || "fade",
+        ...s.content,
+        speaker_notes: s.speaker_notes || s.content?.speaker_notes,
+      }));
+      const { data, error } = await supabase.functions.invoke("chat-editor", {
+        body: { slides: aiSlides, dynamic_theme: dynamicTheme, instruction },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Aplicar updates: mantém ID e position originais por índice
+      pushSnapshot();
+      const updated = (data.slides as any[]).map((ns, i) => ({
+        id: slides[i]?.id ?? crypto.randomUUID(),
+        position: i,
+        slide_type: ns.slide_type ?? slides[i]?.slide_type ?? "content",
+        layout_template: ns.layout_template ?? slides[i]?.layout_template ?? "title-content",
+        animation_transition: ns.animation ?? slides[i]?.animation_transition ?? "fade",
+        speaker_notes: ns.speaker_notes ?? slides[i]?.speaker_notes ?? null,
+        content: {
+          ...slides[i]?.content,
+          headline: ns.headline, subtitle: ns.subtitle, body_text: ns.body_text,
+          bullets: ns.bullets, stat_value: ns.stat_value, stat_label: ns.stat_label,
+          quote_text: ns.quote_text, quote_author: ns.quote_author,
+          image_query: ns.image_query, image_strategy: ns.image_strategy,
+          image_url: ns.image_url ?? slides[i]?.content?.image_url,
+          ai_image_prompt: ns.ai_image_prompt, chart: ns.chart, animation: ns.animation,
+          dynamic_theme: i === 0 ? (data.dynamic_theme ?? dynamicTheme) : undefined,
+        },
+      }));
+      skipNextSnapshot.current = true;
+      setSlides(updated as any);
+      setChat((c) => [...c, { role: "assistant", content: data.assistant_message || "Pronto, atualizei!" }]);
+    } catch (e: any) {
+      console.error(e);
+      setChat((c) => [...c, { role: "assistant", content: "Não consegui aplicar essa mudança. Tenta reformular?" }]);
+      toast.error(e.message || "Erro no chat");
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
