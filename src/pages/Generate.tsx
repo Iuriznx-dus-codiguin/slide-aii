@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Loader2, ArrowLeft, Send, ChevronLeft, ChevronRight, Edit3, Save, Wand2, Image as ImageIcon, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
+import { TEMPLATES } from "@/lib/templates";
 import { SlideRenderer, type SlideContent } from "@/components/SlideRenderer";
+
+// Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
+const FREE_GENERATIONS_LIMIT = 1;
 
 const STEPS = [
   "Pesquisando o tema...",
@@ -54,8 +58,10 @@ interface ChatMessage {
 const Generate = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<"form" | "loading" | "preview">("form");
   const [stepIdx, setStepIdx] = useState(0);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -79,6 +85,23 @@ const Generate = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { document.title = "Criar apresentação — SlideAI"; }, []);
+
+  // Pré-preencher a partir de ?template=ID
+  useEffect(() => {
+    const tplId = searchParams.get("template");
+    if (!tplId) return;
+    const tpl = TEMPLATES.find((t) => t.id === tplId);
+    if (!tpl) return;
+    setTitle(tpl.seed.title);
+    setDescription(tpl.seed.description);
+    setSlidesCount(Math.min(10, tpl.seed.slidesCount));
+    setType(tpl.seed.type);
+    setTheme(tpl.seed.theme);
+    setFontStyle(tpl.seed.fontStyle);
+    setIncludeCharts(tpl.seed.includeCharts);
+    setIncludeImages(tpl.seed.includeImages);
+    toast.success(`Template "${tpl.title}" carregado — ajuste e gere!`);
+  }, [searchParams]);
 
   useEffect(() => {
     if (phase !== "loading") return;
@@ -113,6 +136,16 @@ const Generate = () => {
   const handleGenerate = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
+
+    // Checagem silenciosa de limite (apenas plano free; pagos = ilimitado)
+    try {
+      const { data: prof } = await supabase.from("profiles")
+        .select("plan,generations_count").eq("id", user.id).maybeSingle();
+      if (prof && (prof.plan === "free" || !prof.plan) && (prof.generations_count ?? 0) >= FREE_GENERATIONS_LIMIT) {
+        setShowLimitModal(true);
+        return;
+      }
+    } catch (e) { /* não-bloqueante */ }
 
     setPhase("loading");
     setStepIdx(0);
