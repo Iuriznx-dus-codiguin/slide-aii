@@ -1,3 +1,5 @@
+// Generate presentation: structured JSON output with dynamic theme + per-slide
+// animation suggestions + image queries (resolved by /fetch-image afterwards).
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -9,13 +11,27 @@ interface GenerateRequest {
   slidesCount: number;
   type: string;
   language: string;
-  theme: string;
+  theme: string; // preset id OR "auto"
   fontStyle: string;
   includeCharts: boolean;
   includeImages: boolean;
 }
 
-const SYSTEM_PROMPT = `Você é um especialista em criar apresentações profissionais. Gere apresentações estruturadas em JSON válido seguindo exatamente o schema definido pela ferramenta. Crie conteúdo rico, claro e bem estruturado em PORTUGUÊS BRASILEIRO (a menos que o idioma solicitado seja diferente). Cada slide deve ter conteúdo substancial e útil — não use placeholders.`;
+const SYSTEM_PROMPT = `Você é um especialista em design de apresentações de altíssimo nível, com experiência equivalente a um diretor criativo da Apple, Stripe ou Pitch.com.
+
+Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, com conteúdo profundo, bem pesquisado, narrativa clara e direção de arte coesa.
+
+REGRAS CRÍTICAS:
+1. ESCREVA EM PORTUGUÊS BRASILEIRO de forma natural, profissional e fluida (a menos que o idioma solicitado seja outro).
+2. Cada slide tem PROPÓSITO NARRATIVO claro — nada de placeholders ou texto genérico.
+3. Use dados, estatísticas, comparações, números reais sempre que fizer sentido.
+4. Varie os layouts. NUNCA repita o mesmo layout em slides consecutivos.
+5. Varie animações entre slides para criar ritmo (fade, slide-up, slide-left, slide-right, zoom-in, blur-in, stagger-up, reveal-mask, rotate-in, bounce-in).
+6. Para CADA slide, sugira uma image_query MUITO ESPECÍFICA em INGLÊS (vai ser usada no Pexels). Para conteúdo extremamente específico (logos, símbolos próprios, diagramas), marque image_strategy="ai" para gerar com IA.
+7. Tema dinâmico (dynamic_theme): se o usuário pediu tema "auto", você DEVE devolver no campo dynamic_theme do PRIMEIRO slide um objeto com cores em hex (bg, text, accent, accent2) que reflitam o assunto. Ex: tema sobre Espanha → cores da bandeira (#AA151B vermelho, #F1BF00 amarelo) com bg escuro elegante. Tema sobre oceano → tons de azul profundo. Tema sobre tecnologia → dark com accent neon. As cores devem ter ALTO CONTRASTE entre bg e text.
+8. Bullets devem ser curtos (no máximo 12 palavras), começar por verbo ou substantivo forte, sem emojis.
+9. Conclusão sempre tem call-to-action ou síntese poderosa, nunca é vazia.
+10. quote slides citam pessoas reais relevantes ao tema, com autor verificável.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -26,26 +42,47 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const slidesCount = Math.max(3, Math.min(10, body.slidesCount || 8));
+    const isAutoTheme = body.theme === "auto";
 
-    const userPrompt = `Crie uma apresentação completa sobre:
+    const userPrompt = `Crie uma apresentação completa, rica e visualmente impressionante.
+
 TÍTULO: ${body.title}
-DESCRIÇÃO: ${body.description || "(não fornecida)"}
+DESCRIÇÃO: ${body.description || "(o usuário não detalhou — você decide o que abordar de forma clara e útil)"}
 TIPO: ${body.type}
 IDIOMA: ${body.language}
 NÚMERO DE SLIDES: exatamente ${slidesCount}
-INCLUIR GRÁFICOS: ${body.includeCharts ? "sim" : "não"}
-INCLUIR SUGESTÕES DE IMAGEM: ${body.includeImages ? "sim" : "não"}
+INCLUIR GRÁFICOS: ${body.includeCharts ? "sim — use ao menos 1 gráfico relevante (bar, line, pie, donut ou area) com dados realistas" : "não"}
+INCLUIR IMAGENS: ${body.includeImages ? "sim — TODOS os slides de conteúdo devem ter image_query específica" : "apenas se essencial"}
+${isAutoTheme ? `TEMA DINÂMICO: o usuário pediu paleta exclusiva. Você DEVE devolver dynamic_theme no primeiro slide com cores em hex que reflitam visualmente o assunto "${body.title}".` : `TEMA: paleta pré-definida pelo usuário (não preencher dynamic_theme).`}
 
-Estrutura sugerida: slide 1 = capa (title_slide), slide 2 = introdução, slides intermediários = conteúdo/dados, slide final = conclusão.`;
+ESTRUTURA RECOMENDADA (${slidesCount} slides):
+- Slide 1: title_slide (capa impactante com headline poderoso e subtítulo)
+- Slide 2: introdução / contexto
+- Slides intermediários: alternar entre content, bullet_points, data_chart, image_text, quote
+- Slide final: conclusion (síntese + call-to-action)
+
+Mantenha narrativa coesa. Cada slide flui para o próximo.`;
 
     const tools = [{
       type: "function",
       function: {
         name: "create_presentation",
-        description: "Cria a estrutura completa de uma apresentação",
+        description: "Cria a estrutura completa de uma apresentação profissional",
         parameters: {
           type: "object",
           properties: {
+            dynamic_theme: {
+              type: "object",
+              description: "Paleta dinâmica baseada no tema (apenas se solicitado tema auto)",
+              properties: {
+                name: { type: "string" },
+                bg: { type: "string", description: "cor de fundo em hex #RRGGBB" },
+                text: { type: "string", description: "cor de texto em hex #RRGGBB" },
+                accent: { type: "string", description: "cor de destaque em hex" },
+                accent2: { type: "string", description: "cor secundária em hex (opcional)" },
+                surface: { type: "string", description: "cor de superfície/cards em hex (opcional)" },
+              },
+            },
             slides: {
               type: "array",
               items: {
@@ -53,34 +90,39 @@ Estrutura sugerida: slide 1 = capa (title_slide), slide 2 = introdução, slides
                 properties: {
                   slide_title: { type: "string" },
                   slide_type: { type: "string", enum: ["title_slide", "content", "bullet_points", "quote", "image_text", "data_chart", "section_divider", "conclusion"] },
-                  layout_template: { type: "string", enum: ["title-only", "title-content", "two-columns", "image-right", "image-left", "full-image", "quote", "data-chart"] },
-                  headline: { type: "string", description: "Título principal exibido" },
-                  subtitle: { type: "string", description: "Subtítulo opcional" },
-                  body_text: { type: "string", description: "Texto descritivo (pode ser vazio)" },
-                  bullets: { type: "array", items: { type: "string" }, description: "Lista de bullets se aplicável" },
-                  quote_text: { type: "string", description: "Para slides de citação" },
+                  layout_template: { type: "string", enum: ["title-only", "title-content", "two-columns", "image-right", "image-left", "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight"] },
+                  animation: { type: "string", enum: ["fade", "slide-up", "slide-left", "slide-right", "zoom-in", "blur-in", "stagger-up", "reveal-mask", "rotate-in", "bounce-in"] },
+                  headline: { type: "string" },
+                  subtitle: { type: "string" },
+                  body_text: { type: "string" },
+                  bullets: { type: "array", items: { type: "string" } },
+                  stat_value: { type: "string", description: "Para stat-highlight: o número grande (ex: '78%')" },
+                  stat_label: { type: "string", description: "Para stat-highlight: a descrição do número" },
+                  quote_text: { type: "string" },
                   quote_author: { type: "string" },
-                  speaker_notes: { type: "string", description: "Notas do apresentador" },
-                  suggested_image_query: { type: "string", description: "Query para buscar imagem" },
+                  speaker_notes: { type: "string" },
+                  image_query: { type: "string", description: "Query MUITO específica em INGLÊS para Pexels (ex: 'spanish flag waving sunset', 'modern data center server room')" },
+                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "pexels = buscar foto real, ai = gerar com IA, none = sem imagem" },
+                  ai_image_prompt: { type: "string", description: "Se image_strategy='ai', prompt detalhado em inglês para geração de imagem (estilo, iluminação, composição)" },
                   chart: {
                     type: "object",
                     properties: {
                       type: { type: "string", enum: ["bar", "line", "pie", "donut", "area"] },
                       labels: { type: "array", items: { type: "string" } },
                       values: { type: "array", items: { type: "number" } },
-                      title: { type: "string" }
-                    }
-                  }
+                      title: { type: "string" },
+                    },
+                  },
                 },
-                required: ["slide_title", "slide_type", "layout_template", "headline", "speaker_notes"],
-                additionalProperties: false
-              }
-            }
+                required: ["slide_title", "slide_type", "layout_template", "animation", "headline", "speaker_notes", "image_strategy"],
+                additionalProperties: false,
+              },
+            },
           },
           required: ["slides"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
     }];
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -90,7 +132,7 @@ Estrutura sugerida: slide 1 = capa (title_slide), slide 2 = introdução, slides
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
@@ -123,7 +165,10 @@ Estrutura sugerida: slide 1 = capa (title_slide), slide 2 = introdução, slides
     if (!toolCall) throw new Error("AI did not return tool call");
     const parsed = JSON.parse(toolCall.function.arguments);
 
-    return new Response(JSON.stringify({ slides: parsed.slides }), {
+    return new Response(JSON.stringify({
+      slides: parsed.slides,
+      dynamic_theme: parsed.dynamic_theme ?? null,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

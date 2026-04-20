@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Loader2, ArrowLeft } from "lucide-react";
+import { Sparkles, Loader2, ArrowLeft, Send, ChevronLeft, ChevronRight, Edit3, Save, Wand2, Image as ImageIcon, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,48 +9,112 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { generateSlug, THEMES, FONTS } from "@/lib/slugify";
+import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
+import { SlideRenderer, type SlideContent } from "@/components/SlideRenderer";
 
 const STEPS = [
-  "Analisando o tema...",
-  "Estruturando os slides...",
-  "Buscando dados relevantes...",
-  "Adicionando elementos visuais...",
-  "Finalizando apresentação...",
+  "Pesquisando o tema...",
+  "Estruturando narrativa...",
+  "Definindo direção visual...",
+  "Buscando imagens reais...",
+  "Adicionando animações...",
+  "Finalizando...",
 ];
+
+interface AISlide {
+  slide_title: string;
+  slide_type: string;
+  layout_template: string;
+  animation: string;
+  headline?: string;
+  subtitle?: string;
+  body_text?: string;
+  bullets?: string[];
+  stat_value?: string;
+  stat_label?: string;
+  quote_text?: string;
+  quote_author?: string;
+  speaker_notes?: string;
+  image_query?: string;
+  image_strategy?: "pexels" | "ai" | "none";
+  ai_image_prompt?: string;
+  image_url?: string | null;
+  chart?: { type: string; labels: string[]; values: number[]; title?: string };
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 const Generate = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [generating, setGenerating] = useState(false);
+  const [phase, setPhase] = useState<"form" | "loading" | "preview">("form");
   const [stepIdx, setStepIdx] = useState(0);
 
+  // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [slidesCount, setSlidesCount] = useState(8);
   const [type, setType] = useState("Corporativo");
   const [language, setLanguage] = useState("pt-BR");
-  const [theme, setTheme] = useState("profissional-azul");
+  const [theme, setTheme] = useState("auto");
   const [fontStyle, setFontStyle] = useState("modern-sans");
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
 
+  // Preview state
+  const [slides, setSlides] = useState<AISlide[]>([]);
+  const [dynamicTheme, setDynamicTheme] = useState<Partial<ThemeColors> | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => { document.title = "Criar apresentação — SlideAI"; }, []);
 
   useEffect(() => {
-    if (!generating) return;
-    const id = setInterval(() => setStepIdx((i) => Math.min(i + 1, STEPS.length - 1)), 1500);
+    if (phase !== "loading") return;
+    const id = setInterval(() => setStepIdx((i) => Math.min(i + 1, STEPS.length - 1)), 2000);
     return () => clearInterval(id);
-  }, [generating]);
+  }, [phase]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
+
+  // Resolve images for slides (Pexels/AI) in parallel after generation
+  const resolveImages = async (slidesList: AISlide[]) => {
+    const updated = await Promise.all(slidesList.map(async (s) => {
+      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) return s;
+      try {
+        const { data } = await supabase.functions.invoke("fetch-image", {
+          body: {
+            query: s.image_query,
+            ai_prompt: s.ai_image_prompt,
+            strategy: s.image_strategy,
+            orientation: "landscape",
+          },
+        });
+        return { ...s, image_url: data?.url ?? null };
+      } catch (e) {
+        console.warn("Image fetch failed", e);
+        return s;
+      }
+    }));
+    return updated;
+  };
 
   const handleGenerate = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
 
-    setGenerating(true);
+    setPhase("loading");
     setStepIdx(0);
 
     try {
@@ -62,51 +126,293 @@ const Generate = () => {
       if (data?.error) throw new Error(data.error);
       if (!data?.slides?.length) throw new Error("Nenhum slide gerado");
 
+      setStepIdx(3);
+      const withImages = includeImages ? await resolveImages(data.slides) : data.slides;
+      setSlides(withImages);
+      setDynamicTheme(data.dynamic_theme ?? null);
+      setStepIdx(STEPS.length - 1);
+      setChat([{
+        role: "assistant",
+        content: `Pronto! Criei ${withImages.length} slides${data.dynamic_theme ? " com paleta exclusiva baseada no tema" : ""}. Posso ajustar qualquer coisa — peça em linguagem natural (ex: "deixa o slide 3 mais técnico", "muda o tom para mais formal", "adiciona um gráfico no slide 5").`
+      }]);
+      setPhase("preview");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Erro ao gerar apresentação");
+      setPhase("form");
+    }
+  };
+
+  const handleChat = async () => {
+    const instruction = chatInput.trim();
+    if (!instruction || isEditing) return;
+    setChatInput("");
+    setChat((c) => [...c, { role: "user", content: instruction }]);
+    setIsEditing(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("chat-editor", {
+        body: { slides, dynamic_theme: dynamicTheme, instruction },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Detect slides whose image_query changed (or whose image_url was wiped) — re-fetch
+      const newSlides: AISlide[] = data.slides;
+      const merged = await Promise.all(newSlides.map(async (newS, i) => {
+        const oldS = slides[i];
+        const queryChanged = oldS?.image_query !== newS.image_query;
+        const stratChanged = oldS?.image_strategy !== newS.image_strategy;
+        const needsRefresh = (queryChanged || stratChanged) && newS.image_strategy && newS.image_strategy !== "none" && newS.image_query;
+        if (needsRefresh) {
+          try {
+            const { data: imgData } = await supabase.functions.invoke("fetch-image", {
+              body: { query: newS.image_query, ai_prompt: newS.ai_image_prompt, strategy: newS.image_strategy, orientation: "landscape" },
+            });
+            return { ...newS, image_url: imgData?.url ?? null };
+          } catch { return newS; }
+        }
+        return { ...newS, image_url: newS.image_url ?? oldS?.image_url ?? null };
+      }));
+
+      setSlides(merged);
+      if (data.dynamic_theme) setDynamicTheme(data.dynamic_theme);
+      setChat((c) => [...c, { role: "assistant", content: data.assistant_message || "Pronto, atualizei!" }]);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Erro ao processar edição");
+      setChat((c) => [...c, { role: "assistant", content: "Não consegui aplicar essa mudança. Tenta reformular?" }]);
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const persistAndOpen = async (mode: "view" | "edit") => {
+    if (!user || !slides.length) return;
+    setSaving(true);
+    try {
       const slug = generateSlug(title);
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
         user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
-        slug, slides_count: data.slides.length, is_paid: true, is_published: true,
+        slug, slides_count: slides.length, is_paid: true, is_published: true,
       }).select().single();
       if (pErr) throw pErr;
 
-      const slidesToInsert = data.slides.map((s: any, idx: number) => ({
+      const slidesToInsert = slides.map((s, idx) => ({
         presentation_id: pres.id,
         position: idx,
         slide_type: s.slide_type,
         layout_template: s.layout_template,
         speaker_notes: s.speaker_notes,
-        animation_transition: "fade",
+        animation_transition: s.animation || "fade",
         content: {
           headline: s.headline, subtitle: s.subtitle, body_text: s.body_text,
-          bullets: s.bullets, quote_text: s.quote_text, quote_author: s.quote_author,
-          suggested_image_query: s.suggested_image_query, chart: s.chart,
+          bullets: s.bullets, stat_value: s.stat_value, stat_label: s.stat_label,
+          quote_text: s.quote_text, quote_author: s.quote_author,
+          image_query: s.image_query, image_strategy: s.image_strategy,
+          image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
+          chart: s.chart, animation: s.animation,
+          dynamic_theme: idx === 0 ? dynamicTheme : undefined,
         },
       }));
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
       if (sErr) throw sErr;
 
-      await supabase.rpc as any;
-      // increment via direct update
       const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
       await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
 
-      toast.success("Apresentação gerada!");
-      navigate(`/slides/${slug}`);
+      toast.success("Apresentação salva!");
+      navigate(mode === "view" ? `/slides/${slug}` : `/dashboard`);
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || "Erro ao gerar apresentação");
-      setGenerating(false);
+      toast.error(e.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
     }
   };
 
+  // ───────────────────────── PREVIEW PHASE (chat + slide) ─────────────────────────
+  if (phase === "preview" && slides.length > 0) {
+    const currentContent: SlideContent = {
+      ...slides[currentSlide],
+      animation: slides[currentSlide].animation,
+    } as SlideContent;
+    const slideForRender = {
+      slide_type: slides[currentSlide].slide_type,
+      layout_template: slides[currentSlide].layout_template,
+      content: currentContent,
+    };
+
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <header className="border-b border-border flex-shrink-0">
+          <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span>
+            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <span className="font-display font-bold truncate">{title}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => persistAndOpen("edit")} disabled={saving}>
+                <Edit3 className="h-4 w-4" /> <span className="hidden sm:inline">Editar manualmente</span>
+              </Button>
+              <Button variant="hero" size="sm" onClick={() => persistAndOpen("view")} disabled={saving}>
+                <Save className="h-4 w-4" /> Salvar e abrir
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          {/* Chat panel */}
+          <aside className="lg:w-[380px] xl:w-[420px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-border flex flex-col bg-card/30 max-h-[40vh] lg:max-h-none">
+            <div className="px-4 py-3 border-b border-border flex items-center gap-2 flex-shrink-0">
+              <MessageSquare className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">Assistente IA</span>
+            </div>
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {chat.map((m, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                      m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                    }`}>
+                      {m.content}
+                    </div>
+                  </motion.div>
+                ))}
+                {isEditing && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted px-3 py-2 rounded-2xl text-sm flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Aplicando...
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+            </ScrollArea>
+            <div className="p-3 border-t border-border flex-shrink-0">
+              <div className="flex gap-2">
+                <Textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChat(); } }}
+                  placeholder="Ex: deixa o slide 3 mais visual"
+                  rows={2}
+                  className="resize-none text-sm"
+                  disabled={isEditing}
+                />
+                <Button size="icon" variant="hero" onClick={handleChat} disabled={isEditing || !chatInput.trim()} className="self-end h-10 w-10">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {["Mais visual", "Tom mais formal", "Resumir tudo", "Adicionar gráfico"].map((q) => (
+                  <button key={q} onClick={() => setChatInput(q)} disabled={isEditing}
+                    className="text-[11px] px-2 py-1 rounded-full bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50">
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* Preview panel */}
+          <main className="flex-1 flex flex-col bg-muted/20 overflow-hidden min-h-0">
+            <div className="flex-1 flex items-center justify-center p-3 md:p-6 min-h-0 overflow-hidden">
+              <div className="w-full max-w-[1400px] aspect-video relative shadow-elegant rounded-2xl overflow-hidden bg-black">
+                <AnimatePresence mode="wait">
+                  <motion.div key={currentSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="absolute inset-0">
+                    <SlideRenderer slide={slideForRender} themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={currentSlide} />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+            {/* Slide thumbnails */}
+            <div className="border-t border-border bg-card/40 px-3 py-2 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setCurrentSlide((i) => Math.max(0, i - 1))} disabled={currentSlide === 0}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <ScrollArea className="flex-1">
+                  <div className="flex gap-2 pb-1">
+                    {slides.map((s, i) => (
+                      <button key={i} onClick={() => setCurrentSlide(i)}
+                        className={`flex-shrink-0 w-28 aspect-video rounded-lg border-2 transition-all overflow-hidden relative ${
+                          i === currentSlide ? "border-primary shadow-glow" : "border-border hover:border-muted-foreground/40"
+                        }`}>
+                        <div className="absolute inset-0 pointer-events-none">
+                          <div className="origin-top-left scale-[0.058] w-[1920px] h-[1080px]">
+                            <SlideRenderer
+                              slide={{ slide_type: s.slide_type, layout_template: s.layout_template, content: s as any }}
+                              themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} noAnimate
+                            />
+                          </div>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 text-center">
+                          {i + 1}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setCurrentSlide((i) => Math.min(slides.length - 1, i + 1))} disabled={currentSlide === slides.length - 1}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // ───────────────────────── LOADING PHASE ─────────────────────────
+  if (phase === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background relative">
+        <div className="absolute inset-0 bg-gradient-glow opacity-30 pointer-events-none" />
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative max-w-md w-full">
+          <div className="text-center mb-8">
+            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+              className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-gradient-primary shadow-glow mb-6">
+              <Sparkles className="h-10 w-10 text-primary-foreground" />
+            </motion.div>
+            <h2 className="font-display text-3xl font-bold">Criando sua apresentação</h2>
+            <p className="text-muted-foreground mt-2">Pesquisando, escrevendo e ilustrando em segundos...</p>
+          </div>
+          <div className="space-y-2">
+            {STEPS.map((s, i) => (
+              <motion.div key={s} initial={{ opacity: 0.3 }} animate={{ opacity: i <= stepIdx ? 1 : 0.4 }}
+                className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
+                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${
+                  i < stepIdx ? "bg-primary text-primary-foreground" : i === stepIdx ? "bg-primary/20" : "bg-muted"
+                }`}>
+                  {i < stepIdx ? "✓" : i === stepIdx ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : ""}
+                </div>
+                <span className="text-sm">{s}</span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ───────────────────────── FORM PHASE ─────────────────────────
   return (
     <div className="min-h-screen bg-background relative">
       <div className="absolute inset-0 bg-gradient-glow opacity-30 pointer-events-none" />
 
       <header className="relative border-b border-border">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Dashboard
+            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span>
           </button>
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center"><Sparkles className="h-4 w-4 text-primary-foreground" /></div>
@@ -115,126 +421,113 @@ const Generate = () => {
         </div>
       </header>
 
-      <main className="relative container mx-auto px-6 py-12 max-w-3xl">
-        <AnimatePresence mode="wait">
-          {!generating ? (
-            <motion.div key="form" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="text-center mb-10">
-                <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 uppercase tracking-wider">Gerador IA</div>
-                <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Crie sua <span className="text-gradient">apresentação</span></h1>
-                <p className="mt-4 text-muted-foreground">Descreva o tema e a IA fará o resto.</p>
+      <main className="relative container mx-auto px-4 md:px-6 py-8 md:py-12 max-w-3xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="text-center mb-8 md:mb-10">
+            <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 uppercase tracking-wider">Gerador IA</div>
+            <h1 className="font-display text-3xl md:text-5xl font-bold tracking-tight">Crie sua <span className="text-gradient">apresentação</span></h1>
+            <p className="mt-3 text-sm md:text-base text-muted-foreground">Descreva o tema. A IA escreve, ilustra e desenha — você refina via chat.</p>
+          </div>
+
+          <div className="bg-card border border-border rounded-3xl p-5 md:p-8 shadow-elegant space-y-5 md:space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Título / Tema *</Label>
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: História da Espanha medieval" maxLength={150} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="desc">Descrição (opcional)</Label>
+              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Foque em algum aspecto, público-alvo, tom desejado..." rows={3} maxLength={1000} />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Número de slides</Label>
+                <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
+              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={10} step={1} />
+              <p className="text-xs text-muted-foreground">Limite máximo: 10 slides por geração.</p>
+            </div>
 
-              <div className="bg-card border border-border rounded-3xl p-8 shadow-elegant space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Título / Tema *</Label>
-                  <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Inteligência Artificial no Marketing Digital" maxLength={150} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="desc">Descrição detalhada (opcional)</Label>
-                  <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Explorar como ferramentas de IA estão transformando estratégias de marketing, com exemplos práticos e estatísticas recentes." rows={4} maxLength={1000} />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Número de slides</Label>
-                    <span className="text-sm font-semibold text-primary">{slidesCount} slides</span>
-                  </div>
-                  <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={10} step={1} />
-                  <p className="text-xs text-muted-foreground">Limite máximo: 10 slides por geração.</p>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Select value={type} onValueChange={setType}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["Acadêmico", "Escolar", "Corporativo", "Marketing", "Criativo", "Científico", "Pitch de negócios"].map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Idioma</Label>
-                    <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pt-BR">Português</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="es">Español</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Paleta de cores</Label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {Object.entries(THEMES).map(([id, t]) => (
-                      <button key={id} type="button" onClick={() => setTheme(id)}
-                        className={`aspect-square rounded-xl border-2 transition-all ${theme === id ? "border-primary scale-105" : "border-border"}`}
-                        style={{ background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)` }}
-                        title={t.name} />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["Acadêmico", "Escolar", "Corporativo", "Marketing", "Criativo", "Científico", "Pitch de negócios"].map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Estilo de fonte</Label>
-                  <Select value={fontStyle} onValueChange={setFontStyle}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(FONTS).map(([id, f]) => <SelectItem key={id} value={id}>{f.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl border border-border p-4">
-                  <div>
-                    <div className="font-medium">Incluir gráficos e dados</div>
-                    <div className="text-xs text-muted-foreground">A IA criará visualizações quando relevante</div>
-                  </div>
-                  <Switch checked={includeCharts} onCheckedChange={setIncludeCharts} />
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-border p-4">
-                  <div>
-                    <div className="font-medium">Sugerir imagens ilustrativas</div>
-                    <div className="text-xs text-muted-foreground">Sugestões para cada slide</div>
-                  </div>
-                  <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
-                </div>
-
-                <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate}>
-                  <Sparkles className="h-4 w-4" /> Gerar apresentação
-                </Button>
+                  </SelectContent>
+                </Select>
               </div>
-            </motion.div>
-          ) : (
-            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-20">
-              <div className="text-center max-w-md mx-auto">
-                <div className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-gradient-primary shadow-glow mb-6">
-                  <Loader2 className="h-10 w-10 text-primary-foreground animate-spin" />
-                </div>
-                <h2 className="font-display text-3xl font-bold mb-3">Criando sua apresentação</h2>
-                <p className="text-muted-foreground mb-8">Isso pode levar alguns segundos...</p>
-                <div className="space-y-3 text-left">
-                  {STEPS.map((s, i) => (
-                    <motion.div key={s} initial={{ opacity: 0.3 }} animate={{ opacity: i <= stepIdx ? 1 : 0.3 }}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
-                      <div className={`h-6 w-6 rounded-full flex items-center justify-center ${i < stepIdx ? "bg-primary text-primary-foreground" : i === stepIdx ? "bg-primary/20" : "bg-muted"}`}>
-                        {i < stepIdx ? "✓" : i === stepIdx ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : ""}
-                      </div>
-                      <span className="text-sm">{s}</span>
-                    </motion.div>
-                  ))}
-                </div>
+              <div className="space-y-2">
+                <Label>Idioma</Label>
+                <Select value={language} onValueChange={setLanguage}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pt-BR">Português</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="es">Español</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Tema visual</Label>
+                {theme === "auto" && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-primary font-medium">
+                    <Wand2 className="h-3 w-3" /> A IA escolherá as cores
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {Object.entries(THEMES).map(([id, t]) => (
+                  <button key={id} type="button" onClick={() => setTheme(id)}
+                    className={`aspect-square rounded-xl border-2 transition-all relative overflow-hidden ${theme === id ? "border-primary scale-105 shadow-glow" : "border-border hover:border-muted-foreground/40"}`}
+                    style={ id === "auto" ? { background: "conic-gradient(from 0deg, #ff5e5b, #f9c74f, #43aa8b, #277da1, #9d4edd, #ff5e5b)" } : { background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)` }}
+                    title={t.name}>
+                    {id === "auto" && <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-white drop-shadow" />}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">{THEMES[theme]?.name}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Estilo de fonte</Label>
+              <Select value={fontStyle} onValueChange={setFontStyle}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FONTS).map(([id, f]) => <SelectItem key={id} value={id}>{f.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">Gráficos & dados</div>
+                  <div className="text-[11px] text-muted-foreground">A IA cria visualizações</div>
+                </div>
+                <Switch checked={includeCharts} onCheckedChange={setIncludeCharts} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">Imagens reais</div>
+                  <div className="text-[11px] text-muted-foreground">Pexels + IA</div>
+                </div>
+                <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
+              </div>
+            </div>
+
+            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate}>
+              <Sparkles className="h-4 w-4" /> Gerar apresentação
+            </Button>
+          </div>
+        </motion.div>
       </main>
     </div>
   );
