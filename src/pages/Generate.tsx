@@ -138,8 +138,6 @@ const Generate = () => {
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
 
     // [DEV] Limite de gerações desativado temporariamente para testes.
-    try {
-    } catch (e) { /* não-bloqueante */ }
 
     setPhase("loading");
     setStepIdx(0);
