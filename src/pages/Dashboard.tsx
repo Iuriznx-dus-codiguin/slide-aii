@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText } from "lucide-react";
+import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil } from "lucide-react";
+import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,10 +107,14 @@ const Dashboard = () => {
                     <span>{p.slides_count} slides</span>
                     <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span>
                   </div>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-1.5 mt-3">
                     <Link to={`/slides/${p.slug}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-3 w-3" /> Ver</Button>
                     </Link>
+                    <Link to={`/editor/${p.slug}`}>
+                      <Button variant="ghost" size="sm" title="Editar"><Pencil className="h-4 w-4" /></Button>
+                    </Link>
+                    <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label="" />
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
                     </Button>
