@@ -40,7 +40,7 @@ interface Props {
 }
 
 /** Animation variants library. */
-const getMotionProps = (preset: string | undefined, noAnimate: boolean) => {
+const getMotionProps = (preset: string | undefined, noAnimate: boolean): any => {
   if (noAnimate) return { initial: false, animate: { opacity: 1 } };
   const p = preset ?? "fade";
   const t = { duration: 0.6, ease: [0.19, 1, 0.22, 1] as any };
