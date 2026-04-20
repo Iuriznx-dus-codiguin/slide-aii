@@ -20,7 +20,27 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { slides, instruction, dynamic_theme } = await req.json();
+    const rawBody = await req.text();
+    if (!rawBody) {
+      return new Response(JSON.stringify({ error: "Corpo da requisição vazio" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let parsedBody: any;
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error("chat-editor: failed to parse request body", parseErr, "len=", rawBody.length);
+      return new Response(JSON.stringify({ error: "JSON da requisição inválido" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { slides, instruction, dynamic_theme } = parsedBody ?? {};
+    if (!instruction || !Array.isArray(slides)) {
+      return new Response(JSON.stringify({ error: "Faltam campos: slides[] e instruction" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -127,8 +147,21 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
 
     const data = await aiResponse.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("AI did not return tool call");
-    const parsed = JSON.parse(toolCall.function.arguments);
+    if (!toolCall) {
+      console.error("chat-editor: no tool_call in response", JSON.stringify(data).slice(0, 500));
+      return new Response(JSON.stringify({ error: "A IA não retornou edição estruturada. Tente reformular a instrução." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error("chat-editor: tool args JSON parse failed", e, "len=", toolCall.function.arguments?.length);
+      return new Response(JSON.stringify({ error: "Resposta da IA truncada — tente uma instrução menor (ex: edite poucos slides por vez)." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
