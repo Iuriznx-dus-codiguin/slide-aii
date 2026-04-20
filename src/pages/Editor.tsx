@@ -361,6 +361,12 @@ const Editor = () => {
             <span className="text-[11px] text-muted-foreground hidden md:inline">
               {saving ? "Salvando..." : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Não salvo"}
             </span>
+            <Button variant={inlineEdit ? "hero" : "ghost"} size="sm" onClick={() => setInlineEdit((v) => !v)} title="Editar texto direto no canvas">
+              <Pencil className="h-4 w-4" /> <span className="hidden md:inline">Inline</span>
+            </Button>
+            <Button variant={chatOpen ? "hero" : "ghost"} size="sm" onClick={() => setChatOpen((v) => !v)} title="Assistente IA">
+              <MessageSquare className="h-4 w-4" /> <span className="hidden md:inline">IA</span>
+            </Button>
             <Link to={`/slides/${pres.slug}`} target="_blank">
               <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
             </Link>
@@ -400,7 +406,7 @@ const Editor = () => {
           <div className="min-h-full flex items-center justify-center p-6">
             {current && (
               <div
-                className="shadow-elegant rounded-2xl overflow-hidden bg-black flex-shrink-0"
+                className="shadow-elegant rounded-2xl overflow-hidden bg-black flex-shrink-0 relative"
                 style={{ width: `${1280 * zoom}px`, height: `${720 * zoom}px` }}
               >
                 <div className="origin-top-left" style={{ transform: `scale(${zoom * (1280/1920)})`, width: 1920, height: 1080 }}>
@@ -410,10 +416,84 @@ const Editor = () => {
                     index={activeIdx} noAnimate
                   />
                 </div>
+
+                {/* Overlay de edição inline — campos sobrepostos com fundo translúcido */}
+                {inlineEdit && (
+                  <div className="absolute inset-0 flex flex-col p-4 gap-2 bg-black/50 backdrop-blur-sm">
+                    <div className="flex items-center justify-between text-white text-xs mb-1">
+                      <span className="flex items-center gap-1.5"><Pencil className="h-3 w-3" /> Edição inline ativa</span>
+                      <button onClick={() => setInlineEdit(false)} className="hover:bg-white/10 rounded p-1"><X className="h-3 w-3" /></button>
+                    </div>
+                    <input
+                      value={c.headline || ""}
+                      onChange={(e) => updateContent(activeIdx, { headline: e.target.value })}
+                      placeholder="Título do slide"
+                      className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-2xl font-bold placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <input
+                      value={c.subtitle || ""}
+                      onChange={(e) => updateContent(activeIdx, { subtitle: e.target.value })}
+                      placeholder="Subtítulo"
+                      className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-base placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <textarea
+                      value={c.body_text || ""}
+                      onChange={(e) => updateContent(activeIdx, { body_text: e.target.value })}
+                      placeholder="Texto principal"
+                      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
         </main>
+
+        {/* AI Assistant drawer (esquerda do inspector) */}
+        {chatOpen && (
+          <aside className="w-72 md:w-80 border-l border-border bg-card/40 flex flex-col flex-shrink-0">
+            <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <MessageSquare className="h-3.5 w-3.5 text-primary" /> Assistente IA
+              </span>
+              <button onClick={() => setChatOpen(false)} className="hover:bg-muted rounded p-1"><X className="h-3 w-3" /></button>
+            </div>
+            <ScrollArea className="flex-1 px-3 py-3">
+              <div className="space-y-3">
+                {chat.length === 0 && (
+                  <div className="text-xs text-muted-foreground text-center py-6">
+                    Peça mudanças em linguagem natural.<br />
+                    Ex: <em>"deixa o slide 3 mais visual"</em>, <em>"resume tudo"</em>.
+                  </div>
+                )}
+                {chat.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[88%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {chatBusy && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted px-3 py-2 rounded-2xl text-xs flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Aplicando...
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+            <div className="p-2 border-t border-border">
+              <div className="flex gap-1.5">
+                <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                  placeholder="Ex: tom mais formal" rows={2} className="resize-none text-xs" disabled={chatBusy} />
+                <Button size="icon" variant="hero" onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="self-end h-9 w-9">
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </aside>
+        )}
 
         {/* Right: inspector */}
         <aside className="w-72 md:w-80 border-l border-border bg-card/30 flex flex-col flex-shrink-0">
