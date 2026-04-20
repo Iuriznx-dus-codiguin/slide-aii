@@ -20,7 +20,27 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { slides, instruction, dynamic_theme } = await req.json();
+    const rawBody = await req.text();
+    if (!rawBody) {
+      return new Response(JSON.stringify({ error: "Corpo da requisição vazio" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let parsedBody: any;
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error("chat-editor: failed to parse request body", parseErr, "len=", rawBody.length);
+      return new Response(JSON.stringify({ error: "JSON da requisição inválido" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { slides, instruction, dynamic_theme } = parsedBody ?? {};
+    if (!instruction || !Array.isArray(slides)) {
+      return new Response(JSON.stringify({ error: "Faltam campos: slides[] e instruction" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
