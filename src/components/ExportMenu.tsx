@@ -1,17 +1,17 @@
-// Reusable export dropdown — used in SlideViewer and Dashboard.
+// Reusable export dropdown — PPTX, PDF e PNG.
 import { useState } from "react";
-import { Download, FileDown, Loader2, Printer } from "lucide-react";
+import { Download, FileDown, Loader2, Printer, ImageDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { exportPresentationToPptx } from "@/lib/exportPptx";
 import { toast } from "sonner";
+import html2canvas from "html2canvas";
 
 interface Props {
   presentationId: string;
   title: string;
   themeId: string;
-  /** if provided we navigate the user to the slug for PDF print */
   slug?: string;
   variant?: "default" | "ghost" | "outline";
   size?: "sm" | "default" | "icon";
@@ -42,11 +42,40 @@ export const ExportMenu = ({ presentationId, title, themeId, slug, variant = "ou
   };
 
   const handlePdf = () => {
-    // The viewer already has print CSS that turns each slide into a printable page.
     if (slug && !window.location.pathname.startsWith(`/slides/${slug}`)) {
       window.open(`/slides/${slug}?print=1`, "_blank");
     } else {
       window.print();
+    }
+  };
+
+  // Captura PNG do slide atualmente visível no viewer (se houver) ou abre tab para capturar
+  const handlePng = async () => {
+    setBusy(true);
+    try {
+      // Se estamos no viewer, capturamos o canvas visível
+      const target = document.querySelector<HTMLElement>("[data-export-target='slide']");
+      if (target) {
+        const canvas = await html2canvas(target, { backgroundColor: "#000", scale: 2, useCORS: true });
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `${title.replace(/\s+/g, "-")}.png`; a.click();
+          URL.revokeObjectURL(url);
+          toast.success("PNG salvo!");
+        });
+      } else if (slug) {
+        toast.message("Abra o visualizador para exportar PNG");
+        window.open(`/slides/${slug}`, "_blank");
+      } else {
+        toast.error("Não foi possível capturar PNG aqui");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao gerar PNG");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -58,12 +87,15 @@ export const ExportMenu = ({ presentationId, title, themeId, slug, variant = "ou
           {size !== "icon" && <span className="ml-1">{label}</span>}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem onClick={handlePptx} disabled={busy}>
           <FileDown className="h-4 w-4 mr-2" /> PowerPoint (.pptx)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handlePdf}>
           <Printer className="h-4 w-4 mr-2" /> PDF (imprimir)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handlePng} disabled={busy}>
+          <ImageDown className="h-4 w-4 mr-2" /> Imagem (.png)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -14,6 +14,8 @@ import SlideViewer from "./pages/SlideViewer.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Editor from "./pages/Editor.tsx";
 import SettingsPage from "./pages/Settings.tsx";
+import Templates from "./pages/Templates.tsx";
+import Presenter from "./pages/Presenter.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -34,7 +36,9 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/editor/:slug" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="/templates" element={<Templates />} />
             <Route path="/slides/:slug" element={<SlideViewer />} />
+            <Route path="/slides/:slug/apresentador" element={<Presenter />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
