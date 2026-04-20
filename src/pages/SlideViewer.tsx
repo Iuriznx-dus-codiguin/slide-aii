@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { ExportMenu } from "@/components/ExportMenu";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -14,6 +15,8 @@ interface SlideRow { id: string; position: number; slide_type: string; layout_te
 const SlideViewer = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const autoPrint = searchParams.get("print") === "1";
   const [pres, setPres] = useState<Pres | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [idx, setIdx] = useState(0);
@@ -137,12 +140,10 @@ const SlideViewer = () => {
                   <a href={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">
                     <Button variant="outline" size="sm" className="w-full justify-start">Gerar QR Code</Button>
                   </a>
-                  <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => window.print()}>
-                    Exportar PDF (imprimir)
-                  </Button>
                 </div>
               </PopoverContent>
             </Popover>
+            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} slug={pres.slug} variant="ghost" size="sm" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               <span className="hidden md:inline ml-1">Apresentar</span>
