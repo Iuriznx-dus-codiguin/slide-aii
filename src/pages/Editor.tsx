@@ -99,6 +99,11 @@ const Editor = () => {
   const [zoom, setZoom] = useState(0.7);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const [inlineEdit, setInlineEdit] = useState(false);
 
   // Undo/redo stacks (snapshots of full slides array)
   const undoStack = useRef<SlideRow[][]>([]);
