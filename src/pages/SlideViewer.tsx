@@ -13,6 +13,29 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 interface Pres { id: string; title: string; description: string | null; theme: string; font_style: string; slug: string; }
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; }
 
+/** Camera-style transition between slides: pan + zoom + blur. */
+const CinematicSlideStage = ({ current, pres, dynamicTheme, idx }: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
+  const prevIdxRef = useRef(idx);
+  const direction = pickCameraDirection(prevIdxRef.current, idx);
+  useEffect(() => { prevIdxRef.current = idx; }, [idx]);
+  const v = cameraVariants(direction);
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={current?.id ?? idx}
+        initial={v.initial}
+        animate={v.animate}
+        exit={v.exit}
+        transition={cameraTransition}
+        className="absolute inset-0"
+        style={{ transformPerspective: 1200, willChange: "transform, opacity, filter" }}
+      >
+        {current && <SlideRenderer slide={current as any} themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme} index={idx} />}
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 const SlideViewer = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
