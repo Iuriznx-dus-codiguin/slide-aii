@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { cameraVariants, cameraTransition, pickCameraDirection } from "@/lib/animations";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,29 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 interface Pres { id: string; title: string; description: string | null; theme: string; font_style: string; slug: string; }
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; }
+
+/** Camera-style transition between slides: pan + zoom + blur. */
+const CinematicSlideStage = ({ current, pres, dynamicTheme, idx }: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
+  const prevIdxRef = useRef(idx);
+  const direction = pickCameraDirection(prevIdxRef.current, idx);
+  useEffect(() => { prevIdxRef.current = idx; }, [idx]);
+  const v = cameraVariants(direction);
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={current?.id ?? idx}
+        initial={v.initial}
+        animate={v.animate}
+        exit={v.exit}
+        transition={cameraTransition}
+        className="absolute inset-0"
+        style={{ transformPerspective: 1200, willChange: "transform, opacity, filter" }}
+      >
+        {current && <SlideRenderer slide={current as any} themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme} index={idx} />}
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 const SlideViewer = () => {
   const { slug } = useParams();
@@ -169,11 +193,7 @@ const SlideViewer = () => {
             ? { width: "min(100vw, calc(100vh * 16 / 9))", height: "min(100vh, calc(100vw * 9 / 16))" }
             : { width: "100%", maxWidth: "1400px", aspectRatio: "16 / 9" }}
         >
-          <AnimatePresence mode="wait">
-            <motion.div key={current?.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0">
-              {current && <SlideRenderer slide={current as any} themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme} index={idx} />}
-            </motion.div>
-          </AnimatePresence>
+          <CinematicSlideStage current={current} pres={pres} dynamicTheme={dynamicTheme} idx={idx} />
 
           {!fullscreen && (
             <Link to="/" className="absolute bottom-3 right-3 text-[10px] bg-black/50 text-white px-2 py-1 rounded-full backdrop-blur hover:bg-black/70 flex items-center gap-1 z-10">

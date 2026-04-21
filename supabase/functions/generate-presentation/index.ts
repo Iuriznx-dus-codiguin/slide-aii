@@ -1,5 +1,6 @@
 // Generate presentation: structured JSON output with dynamic theme + per-slide
-// animation suggestions + image queries (resolved by /fetch-image afterwards).
+// animation suggestions + cover variant + image queries.
+// FASE 1: gemini-2.5-pro + prompt reforçado + 6 cover variants.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -17,21 +18,29 @@ interface GenerateRequest {
   includeImages: boolean;
 }
 
-const SYSTEM_PROMPT = `Você é um especialista em design de apresentações de altíssimo nível, com experiência equivalente a um diretor criativo da Apple, Stripe ou Pitch.com.
+const SYSTEM_PROMPT = `Você é um diretor criativo sênior + pesquisador de conteúdo, com experiência equivalente à equipe de design da Apple, Stripe, Pitch.com ou Tome.
 
-Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, com conteúdo profundo, bem pesquisado, narrativa clara e direção de arte coesa.
+Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, COM CONTEÚDO PROFUNDO, BEM PESQUISADO, NARRATIVA EDITORIAL e DIREÇÃO DE ARTE COESA.
 
-REGRAS CRÍTICAS:
+REGRAS CRÍTICAS DE CONTEÚDO:
 1. ESCREVA EM PORTUGUÊS BRASILEIRO de forma natural, profissional e fluida (a menos que o idioma solicitado seja outro).
-2. Cada slide tem PROPÓSITO NARRATIVO claro — nada de placeholders ou texto genérico.
-3. Use dados, estatísticas, comparações, números reais sempre que fizer sentido.
-4. Varie os layouts. NUNCA repita o mesmo layout em slides consecutivos.
-5. Varie animações entre slides para criar ritmo (fade, slide-up, slide-left, slide-right, zoom-in, blur-in, stagger-up, reveal-mask, rotate-in, bounce-in).
-6. Para CADA slide, sugira uma image_query MUITO ESPECÍFICA em INGLÊS (vai ser usada no Pexels). Para conteúdo extremamente específico (logos, símbolos próprios, diagramas), marque image_strategy="ai" para gerar com IA.
-7. Tema dinâmico (dynamic_theme): se o usuário pediu tema "auto", você DEVE devolver no campo dynamic_theme do PRIMEIRO slide um objeto com cores em hex (bg, text, accent, accent2) que reflitam o assunto. Ex: tema sobre Espanha → cores da bandeira (#AA151B vermelho, #F1BF00 amarelo) com bg escuro elegante. Tema sobre oceano → tons de azul profundo. Tema sobre tecnologia → dark com accent neon. As cores devem ter ALTO CONTRASTE entre bg e text.
-8. Bullets devem ser curtos (no máximo 12 palavras), começar por verbo ou substantivo forte, sem emojis.
-9. Conclusão sempre tem call-to-action ou síntese poderosa, nunca é vazia.
-10. quote slides citam pessoas reais relevantes ao tema, com autor verificável.`;
+2. Cada slide tem PROPÓSITO NARRATIVO claro — nada de placeholders, "Lorem", "exemplo aqui", ou texto genérico.
+3. **Use SEMPRE dados reais, estatísticas verificáveis, números concretos, anos, nomes de empresas, exemplos de mercado.** Quando citar uma estatística, mencione brevemente a fonte ou o ano (ex: "78% segundo McKinsey 2024", "USD 2,3 trilhões — Statista 2023"). Se não souber dado preciso, use estimativas razoáveis sinalizadas ("aproximadamente", "estimado em").
+4. Bullets devem ser CURTOS (no máximo 14 palavras), começar por verbo forte ou substantivo concreto, sem emojis. NUNCA bullets vazios ou repetitivos.
+5. Cada slide deve trazer informação NOVA — proibido repetir a mesma ideia em slides diferentes.
+6. Conclusão sempre traz síntese poderosa + call-to-action concreto.
+7. Quote slides citam pessoas REAIS verificáveis (com cargo/contexto), relacionadas ao tema. Sem citações inventadas.
+
+REGRAS DE DESIGN/MOTION:
+8. Varie os layouts. NUNCA repita o mesmo layout em slides consecutivos.
+9. Para o slide de capa (slide_type=title_slide), ESCOLHA OBRIGATORIAMENTE um cover_variant entre: split-hero, typographic-bold, full-bleed-image, minimal-centered, asymmetric-grid, gradient-mesh. A escolha deve refletir o tom do tema:
+   - assuntos visuais/inspiracionais → full-bleed-image (com imagem)
+   - tecnologia/dados/finance → asymmetric-grid ou typographic-bold
+   - editorial/educacional → split-hero ou minimal-centered
+   - branding/criativo/colorido → gradient-mesh
+10. Varie animações entre slides (fade, slide-up, blur-in, zoom-in, stagger-up, reveal-mask, etc.) — cria ritmo cinematográfico.
+11. Para CADA slide, sugira uma image_query MUITO ESPECÍFICA em INGLÊS (será usada no Pexels). Para conteúdo extremamente específico (logos, símbolos próprios, diagramas), use image_strategy="ai".
+12. Tema dinâmico (dynamic_theme): se o usuário pediu tema "auto", você DEVE devolver no PRIMEIRO slide um objeto dynamic_theme com cores em hex (bg, text, accent, accent2) que reflitam o assunto. Ex: tema sobre Espanha → vermelho #AA151B + amarelo #F1BF00 + bg escuro elegante. Tecnologia → dark com accent neon. Garanta ALTO CONTRASTE entre bg e text (mínimo WCAG AA).`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -41,33 +50,33 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const slidesCount = Math.max(3, Math.min(10, body.slidesCount || 8));
+    const slidesCount = Math.max(3, Math.min(12, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
 
-    const userPrompt = `Crie uma apresentação completa, rica e visualmente impressionante.
+    const userPrompt = `Crie uma apresentação completa, rica em conteúdo verificável e visualmente impressionante.
 
 TÍTULO: ${body.title}
-DESCRIÇÃO: ${body.description || "(o usuário não detalhou — você decide o que abordar de forma clara e útil)"}
+DESCRIÇÃO: ${body.description || "(o usuário não detalhou — pesquise mentalmente o assunto e decida o que abordar de forma clara, útil e densa)"}
 TIPO: ${body.type}
 IDIOMA: ${body.language}
 NÚMERO DE SLIDES: exatamente ${slidesCount}
-INCLUIR GRÁFICOS: ${body.includeCharts ? "sim — use ao menos 1 gráfico relevante (bar, line, pie, donut ou area) com dados realistas" : "não"}
-INCLUIR IMAGENS: ${body.includeImages ? "sim — TODOS os slides de conteúdo devem ter image_query específica" : "apenas se essencial"}
+INCLUIR GRÁFICOS: ${body.includeCharts ? "sim — use ao menos 1 gráfico relevante (bar, line, pie, donut ou area) com dados realistas e fonte mencionada na descrição" : "não"}
+INCLUIR IMAGENS: ${body.includeImages ? "sim — TODOS os slides de conteúdo devem ter image_query específica em inglês" : "apenas se essencial"}
 ${isAutoTheme ? `TEMA DINÂMICO: o usuário pediu paleta exclusiva. Você DEVE devolver dynamic_theme no primeiro slide com cores em hex que reflitam visualmente o assunto "${body.title}".` : `TEMA: paleta pré-definida pelo usuário (não preencher dynamic_theme).`}
 
 ESTRUTURA RECOMENDADA (${slidesCount} slides):
-- Slide 1: title_slide (capa impactante com headline poderoso e subtítulo)
-- Slide 2: introdução / contexto
-- Slides intermediários: alternar entre content, bullet_points, data_chart, image_text, quote
-- Slide final: conclusion (síntese + call-to-action)
+- Slide 1: title_slide com cover_variant escolhido (capa impactante, headline poderoso e subtítulo)
+- Slide 2: introdução / contexto com dados de mercado ou histórico
+- Slides intermediários: alternar entre content denso, bullet_points, data_chart com fonte, image_text, quote real, stat_highlight com número marcante
+- Slide final: conclusion (síntese + call-to-action concreto)
 
-Mantenha narrativa coesa. Cada slide flui para o próximo.`;
+Mantenha narrativa coesa: cada slide flui para o próximo. Densidade > superficialidade.`;
 
     const tools = [{
       type: "function",
       function: {
         name: "create_presentation",
-        description: "Cria a estrutura completa de uma apresentação profissional",
+        description: "Cria a estrutura completa de uma apresentação profissional com pesquisa densa e direção de arte coesa",
         parameters: {
           type: "object",
           properties: {
@@ -91,19 +100,24 @@ Mantenha narrativa coesa. Cada slide flui para o próximo.`;
                   slide_title: { type: "string" },
                   slide_type: { type: "string", enum: ["title_slide", "content", "bullet_points", "quote", "image_text", "data_chart", "section_divider", "conclusion"] },
                   layout_template: { type: "string", enum: ["title-only", "title-content", "two-columns", "image-right", "image-left", "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight"] },
+                  cover_variant: {
+                    type: "string",
+                    enum: ["split-hero", "typographic-bold", "full-bleed-image", "minimal-centered", "asymmetric-grid", "gradient-mesh"],
+                    description: "OBRIGATÓRIO para slides title_slide. Escolha que reflita o tom do tema.",
+                  },
                   animation: { type: "string", enum: ["fade", "slide-up", "slide-left", "slide-right", "zoom-in", "blur-in", "stagger-up", "reveal-mask", "rotate-in", "bounce-in"] },
                   headline: { type: "string" },
                   subtitle: { type: "string" },
                   body_text: { type: "string" },
                   bullets: { type: "array", items: { type: "string" } },
-                  stat_value: { type: "string", description: "Para stat-highlight: o número grande (ex: '78%')" },
-                  stat_label: { type: "string", description: "Para stat-highlight: a descrição do número" },
+                  stat_value: { type: "string", description: "Para stat-highlight: o número grande (ex: '78%', '2.3M')" },
+                  stat_label: { type: "string", description: "Para stat-highlight: a descrição do número, citando fonte se possível" },
                   quote_text: { type: "string" },
                   quote_author: { type: "string" },
                   speaker_notes: { type: "string" },
-                  image_query: { type: "string", description: "Query MUITO específica em INGLÊS para Pexels (ex: 'spanish flag waving sunset', 'modern data center server room')" },
+                  image_query: { type: "string", description: "Query MUITO específica em INGLÊS para Pexels" },
                   image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "pexels = buscar foto real, ai = gerar com IA, none = sem imagem" },
-                  ai_image_prompt: { type: "string", description: "Se image_strategy='ai', prompt detalhado em inglês para geração de imagem (estilo, iluminação, composição)" },
+                  ai_image_prompt: { type: "string", description: "Se image_strategy='ai', prompt detalhado em inglês" },
                   chart: {
                     type: "object",
                     properties: {
@@ -132,14 +146,15 @@ Mantenha narrativa coesa. Cada slide flui para o próximo.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        // Pro = pesquisa mais densa, raciocínio melhor, dados mais verossímeis
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
         tools,
         tool_choice: { type: "function", function: { name: "create_presentation" } },
-        max_completion_tokens: 16384,
+        max_completion_tokens: 24000,
       }),
     });
 
@@ -183,6 +198,14 @@ Mantenha narrativa coesa. Cada slide flui para o próximo.`;
       return new Response(JSON.stringify({ error: "A IA não gerou nenhum slide. Tente reformular o título." }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Garantir que o primeiro slide title_slide tenha cover_variant; se não, atribui um por hash do título
+    const COVERS = ["split-hero", "typographic-bold", "full-bleed-image", "minimal-centered", "asymmetric-grid", "gradient-mesh"];
+    const firstTitle = parsed.slides.find((s: any) => s.slide_type === "title_slide");
+    if (firstTitle && !firstTitle.cover_variant) {
+      const h = (body.title || "").split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+      firstTitle.cover_variant = COVERS[h % COVERS.length];
     }
 
     return new Response(JSON.stringify({
