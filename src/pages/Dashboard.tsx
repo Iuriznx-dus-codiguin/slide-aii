@@ -8,8 +8,13 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { SlideRenderer } from "@/components/SlideRenderer";
 
-interface Pres { id: string; title: string; slug: string; slides_count: number; view_count: number; created_at: string; theme: string; }
+interface Pres {
+  id: string; title: string; slug: string; slides_count: number; view_count: number;
+  created_at: string; theme: string; font_style: string;
+  cover?: { slide_type: string; layout_template: string; content: any } | null;
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,11 +29,20 @@ const Dashboard = () => {
   const load = async () => {
     if (!user) return;
     const { data } = await supabase.from("presentations")
-      .select("id,title,slug,slides_count,view_count,created_at,theme")
+      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style")
       .eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false });
-    const items = (data as Pres[]) ?? [];
-    setList(items);
-    setStats({ total: items.length, views: items.reduce((s, p) => s + (p.view_count || 0), 0) });
+    const items = (data as any[]) ?? [];
+
+    // Buscar a capa (primeiro slide) de cada apresentação em paralelo
+    const withCovers = await Promise.all(items.map(async (p) => {
+      const { data: cov } = await supabase.from("slides")
+        .select("slide_type,layout_template,content")
+        .eq("presentation_id", p.id).order("position").limit(1).maybeSingle();
+      return { ...p, cover: cov ?? null };
+    }));
+
+    setList(withCovers as Pres[]);
+    setStats({ total: withCovers.length, views: withCovers.reduce((s, p) => s + (p.view_count || 0), 0) });
     setLoading(false);
   };
 
@@ -92,36 +106,66 @@ const Dashboard = () => {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((p, i) => (
-              <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-                className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-elegant transition-all">
-                <Link to={`/slides/${p.slug}`} className="block aspect-video relative bg-gradient-card overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-primary opacity-20" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Sparkles className="h-12 w-12 text-primary opacity-40 group-hover:scale-110 transition-transform" />
+            {filtered.map((p, i) => {
+              const dyn = p.cover?.content?.dynamic_theme ?? null;
+              return (
+                <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                  className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-elegant transition-all">
+                  <Link to={`/slides/${p.slug}`} className="block aspect-video relative overflow-hidden bg-black">
+                    {p.cover ? (
+                      <div className="absolute inset-0 pointer-events-none">
+                        {/* Render real cover slide scaled down (1920x1080 → card width) */}
+                        <div
+                          className="origin-top-left"
+                          style={{
+                            width: 1920,
+                            height: 1080,
+                            transform: "scale(var(--cover-scale))",
+                            // CSS var lets us recompute on resize via container query if needed; default 0.21 fits ~400px wide cards
+                            ['--cover-scale' as any]: '0.21',
+                          }}
+                        >
+                          <SlideRenderer
+                            slide={p.cover as any}
+                            themeId={p.theme}
+                            fontId={p.font_style || "modern-sans"}
+                            dynamicTheme={dyn}
+                            noAnimate
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-card">
+                        <div className="absolute inset-0 bg-gradient-primary opacity-20" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Sparkles className="h-12 w-12 text-primary opacity-40" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                  <div className="p-4">
+                    <h3 className="font-semibold truncate">{p.title}</h3>
+                    <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                      <span>{p.slides_count} slides</span>
+                      <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span>
+                    </div>
+                    <div className="flex gap-1.5 mt-3">
+                      <Link to={`/slides/${p.slug}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-3 w-3" /> Ver</Button>
+                      </Link>
+                      <Link to={`/editor/${p.slug}`}>
+                        <Button variant="ghost" size="sm" title="Editar"><Pencil className="h-4 w-4" /></Button>
+                      </Link>
+                      <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label="" />
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </Link>
-                <div className="p-4">
-                  <h3 className="font-semibold truncate">{p.title}</h3>
-                  <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                    <span>{p.slides_count} slides</span>
-                    <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span>
-                  </div>
-                  <div className="flex gap-1.5 mt-3">
-                    <Link to={`/slides/${p.slug}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-3 w-3" /> Ver</Button>
-                    </Link>
-                    <Link to={`/editor/${p.slug}`}>
-                      <Button variant="ghost" size="sm" title="Editar"><Pencil className="h-4 w-4" /></Button>
-                    </Link>
-                    <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label="" />
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </main>

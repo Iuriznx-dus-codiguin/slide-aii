@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Presentation } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
@@ -98,21 +98,6 @@ const SlideViewer = () => {
     return () => { window.removeEventListener("touchstart", onStart); window.removeEventListener("touchend", onEnd); };
   }, [next, prev]);
 
-  // Receber comandos do modo Apresentador via BroadcastChannel
-  useEffect(() => {
-    if (!slug) return;
-    const ch = new BroadcastChannel(`slideai-${slug}`);
-    ch.onmessage = (e) => {
-      if (e.data?.type === "goto" && typeof e.data.idx === "number") setIdx(e.data.idx);
-    };
-    return () => ch.close();
-  }, [slug]);
-
-  const openPresenter = () => {
-    if (!slug) return;
-    window.open(`/slides/${slug}/apresentador`, "_blank", "width=1280,height=800");
-  };
-
   // Auto-print when arrived with ?print=1
   useEffect(() => {
     if (autoPrint && !loading && slides.length > 0) {
@@ -167,10 +152,6 @@ const SlideViewer = () => {
               </PopoverContent>
             </Popover>
             <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} slug={pres.slug} variant="ghost" size="sm" />
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={openPresenter} title="Modo apresentador">
-              <Presentation className="h-4 w-4" />
-              <span className="hidden md:inline ml-1">Apresentador</span>
-            </Button>
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               <span className="hidden md:inline ml-1">Apresentar</span>

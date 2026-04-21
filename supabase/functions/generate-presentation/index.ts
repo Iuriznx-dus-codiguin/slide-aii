@@ -132,13 +132,14 @@ Mantenha narrativa coesa. Cada slide flui para o próximo.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
         tools,
         tool_choice: { type: "function", function: { name: "create_presentation" } },
+        max_completion_tokens: 16384,
       }),
     });
 
@@ -162,8 +163,27 @@ Mantenha narrativa coesa. Cada slide flui para o próximo.`;
 
     const data = await aiResponse.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("AI did not return tool call");
-    const parsed = JSON.parse(toolCall.function.arguments);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (!toolCall) {
+      console.error("generate-presentation: no tool_call. finish=", finishReason, "raw=", JSON.stringify(data).slice(0, 800));
+      return new Response(JSON.stringify({ error: "A IA não retornou estrutura. Tente reduzir o número de slides ou desativar imagens." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error("generate-presentation: tool args JSON parse failed (likely truncation). finish=", finishReason, "len=", toolCall.function.arguments?.length);
+      return new Response(JSON.stringify({ error: "Resposta da IA truncada. Reduza o número de slides ou tente novamente." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!Array.isArray(parsed.slides) || parsed.slides.length === 0) {
+      return new Response(JSON.stringify({ error: "A IA não gerou nenhum slide. Tente reformular o título." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({
       slides: parsed.slides,

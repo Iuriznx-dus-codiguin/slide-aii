@@ -153,17 +153,45 @@ const Generate = () => {
 
       setStepIdx(3);
       const withImages = includeImages ? await resolveImages(data.slides) : data.slides;
-      setSlides(withImages);
-      setDynamicTheme(data.dynamic_theme ?? null);
+      const dyn = data.dynamic_theme ?? null;
       setStepIdx(STEPS.length - 1);
-      setChat([{
-        role: "assistant",
-        content: `Pronto! Criei ${withImages.length} slides${data.dynamic_theme ? " com paleta exclusiva baseada no tema" : ""}. Posso ajustar qualquer coisa — peça em linguagem natural (ex: "deixa o slide 3 mais técnico", "muda o tom para mais formal", "adiciona um gráfico no slide 5").`
-      }]);
-      setPhase("preview");
+
+      // Auto-salvar e abrir DIRETO no editor (sem fase de preview/chat)
+      const slug = generateSlug(title);
+      const { data: pres, error: pErr } = await supabase.from("presentations").insert({
+        user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
+        slug, slides_count: withImages.length, is_paid: true, is_published: true,
+      }).select().single();
+      if (pErr) throw pErr;
+
+      const slidesToInsert = withImages.map((s: AISlide, idx: number) => ({
+        presentation_id: pres.id,
+        position: idx,
+        slide_type: s.slide_type,
+        layout_template: s.layout_template,
+        speaker_notes: s.speaker_notes,
+        animation_transition: s.animation || "fade",
+        content: {
+          headline: s.headline, subtitle: s.subtitle, body_text: s.body_text,
+          bullets: s.bullets, stat_value: s.stat_value, stat_label: s.stat_label,
+          quote_text: s.quote_text, quote_author: s.quote_author,
+          image_query: s.image_query, image_strategy: s.image_strategy,
+          image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
+          chart: s.chart, animation: s.animation,
+          dynamic_theme: idx === 0 ? dyn : undefined,
+        },
+      }));
+      const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
+      if (sErr) throw sErr;
+
+      const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
+      await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
+
+      toast.success(`${withImages.length} slides criados!`);
+      navigate(`/editor/${slug}`);
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || "Erro ao gerar apresentação");
+      toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
       setPhase("form");
     }
   };
