@@ -177,8 +177,7 @@ const Generate = () => {
           quote_text: s.quote_text, quote_author: s.quote_author,
           image_query: s.image_query, image_strategy: s.image_strategy,
           image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
-          chart: s.chart, animation: s.animation,
-          dynamic_theme: idx === 0 ? dyn : undefined,
+          chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
         },
       }));
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
@@ -264,8 +263,7 @@ const Generate = () => {
           quote_text: s.quote_text, quote_author: s.quote_author,
           image_query: s.image_query, image_strategy: s.image_strategy,
           image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
-          chart: s.chart, animation: s.animation,
-          dynamic_theme: idx === 0 ? dynamicTheme : undefined,
+          chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
         },
       }));
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
