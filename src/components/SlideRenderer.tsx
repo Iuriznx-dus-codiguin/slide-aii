@@ -376,66 +376,11 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
     );
   }
 
-  /* ---------- DATA CHART (timeline própria) ---------- */
+  /* ---------- DATA CHART ---------- */
   if (isChart && c.chart) {
-    const tl = buildChartScenario(c.bullets?.length ?? 0);
-    const ctrl = useTimeline(tl, { skip: noAnimate });
-    return (
-      <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-        <div>
-          <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-          {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
-        </div>
-        <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6">
-          <div className="col-span-7 min-h-0">
-            <motion.div {...ctrl.motionProps("chart")} className="h-full">
-              {renderChart()}
-            </motion.div>
-          </div>
-          <div className="col-span-5 flex flex-col justify-center">
-            {c.body_text && <p className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</p>}
-            {c.bullets && c.bullets.length > 0 && (
-              <ul className="space-y-3">
-                {c.bullets.map((b, i) => (
-                  <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-2 text-[1.2vw]">
-                    <span className="mt-[0.6em] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
-                    <span className="leading-snug">{b}</span>
-                  </motion.li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} />;
   }
 
-  /* ---------- DEFAULT: title + content + bullets (timeline própria) ---------- */
-  const defaultTl = buildEditorialScenario(c.bullets?.length ?? 0);
-  const defaultCtrl = useTimeline(defaultTl, { skip: noAnimate });
-  return (
-    <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-      <div>
-        <motion.h2 {...defaultCtrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3.2vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-        {c.subtitle && <motion.p {...defaultCtrl.motionProps("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
-      </div>
-      <div className="flex-1 mt-6 flex flex-col justify-center">
-        {c.body_text && (
-          <motion.p {...defaultCtrl.motionProps("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
-            {c.body_text}
-          </motion.p>
-        )}
-        {c.bullets && c.bullets.length > 0 && (
-          <ul className="space-y-4">
-            {c.bullets.map((b, i) => (
-              <motion.li key={i} {...defaultCtrl.motionProps(`bullet-${i}`)} className="flex items-start gap-4 text-[1.4vw]">
-                <span className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45" style={{ background: theme.accent }} />
-                <span className="leading-snug">{b}</span>
-              </motion.li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
+  /* ---------- DEFAULT ---------- */
+  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
 };
