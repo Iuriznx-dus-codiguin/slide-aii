@@ -10,8 +10,10 @@
 // ============================================================
 
 import { motion } from "framer-motion";
+import { animated } from "@react-spring/web";
 import { useMorphPath, useMorphProgress, rectPath, barPath } from "@/lib/morphing";
-import { parseNumberFromString, useAnimatedNumber, formatAnimatedNumber } from "@/lib/animations";
+import { parseNumberFromString, formatAnimatedNumber } from "@/lib/animations";
+import { useSpringNumber } from "@/lib/physics";
 
 interface MorphingNumberToBarProps {
   /** Valor final, ex: "78%" ou "1.2M". */
