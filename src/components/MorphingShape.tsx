@@ -43,7 +43,8 @@ export const MorphingNumberToBar = ({
 }: MorphingNumberToBarProps) => {
   const parsed = parseNumberFromString(value);
   const numTarget = parsed?.num ?? 0;
-  const animatedNum = useAnimatedNumber(numTarget, 1500, !noAnimate);
+  // Física: spring real com massa/tensão (em vez de tween linear).
+  const springValue = useSpringNumber(numTarget, { delay: 200, enabled: !noAnimate });
 
   // Path "from" = silhueta retangular grande do número
   const fromPath = rectPath(width * 0.05, height * 0.2, width * 0.55, height * 0.6, 16);
@@ -57,9 +58,8 @@ export const MorphingNumberToBar = ({
   });
   const d = useMorphPath(fromPath, toPath, noAnimate ? 1 : progress);
 
-  const display = parsed
-    ? `${parsed.prefix}${formatAnimatedNumber(animatedNum, numTarget)}${parsed.suffix}`
-    : value;
+  const formatVal = (v: number) =>
+    parsed ? `${parsed.prefix}${formatAnimatedNumber(v, numTarget)}${parsed.suffix}` : value;
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
@@ -84,12 +84,12 @@ export const MorphingNumberToBar = ({
         animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
         transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
       >
-        <span
+        <animated.span
           className="font-extrabold leading-none tracking-tighter"
           style={{ color, fontSize: "clamp(80px, 14vw, 220px)" }}
         >
-          {display}
-        </span>
+          {springValue.to((v) => formatVal(v))}
+        </animated.span>
         {label && (
           <motion.span
             className="mt-4 opacity-80 text-center max-w-[80%] leading-snug"
