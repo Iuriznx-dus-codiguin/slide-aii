@@ -24,6 +24,8 @@ import {
   buildChartScenario,
   buildStatScenario,
   buildQuoteScenario,
+  applyIntent,
+  type AnimationIntent,
 } from "@/lib/timeline";
 import { sharedId } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
@@ -43,6 +45,8 @@ export interface SlideContent {
   image_url?: string | null;
   ai_image_prompt?: string;
   animation?: string;
+  /** IA contextual: papel narrativo da animação (Fase 2.5). */
+  animation_intent?: AnimationIntent;
   /** Novo: variante de capa (apenas title slides). */
   cover_variant?: CoverVariant;
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
