@@ -318,59 +318,14 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
     );
   }
 
-  /* ---------- QUOTE (timeline própria) ---------- */
+  /* ---------- QUOTE ---------- */
   if (isQuote && c.quote_text) {
-    const tl = buildQuoteScenario();
-    const ctrl = useTimeline(tl, { skip: noAnimate });
-    return (
-      <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
-        <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 0.04, scale: 1 }} transition={{ duration: 1.5, ease: EASE.editorial as any }} className="absolute inset-0" style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}, transparent 60%)` }} />
-        <div className="text-center max-w-5xl relative z-10">
-          <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent }}>"</motion.div>
-          <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic">{c.quote_text}</motion.p>
-          {c.quote_author && (
-            <motion.div {...ctrl.motionProps("author")} className="mt-10 flex items-center justify-center gap-4">
-              <div className="h-px w-12" style={{ background: theme.accent }} />
-              <p className="text-[1.3vw] tracking-wide uppercase opacity-80">{c.quote_author}</p>
-              <div className="h-px w-12" style={{ background: theme.accent }} />
-            </motion.div>
-          )}
-        </div>
-      </div>
-    );
+    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
   }
 
   /* ---------- STAT HIGHLIGHT (morph número→barra) ---------- */
   if (isStat) {
-    const tl = buildStatScenario();
-    const ctrl = useTimeline(tl, { skip: noAnimate });
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
-        <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 0.08 }} transition={{ duration: 1.4, ease: EASE.editorial as any }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vh] h-[80vh] rounded-full" style={{ background: `radial-gradient(circle, ${theme.accent}, transparent 60%)`, filter: "blur(40px)" }} />
-        <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
-          {c.subtitle && (
-            <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">
-              {c.subtitle}
-            </motion.p>
-          )}
-          <motion.div
-            {...ctrl.motionProps("stat")}
-            layoutId={sharedId("stat", c.stat_value)}
-            className="w-full"
-            style={{ height: "min(50vh, 360px)" }}
-          >
-            <MorphingNumberToBar
-              value={c.stat_value!}
-              color={theme.accent}
-              noAnimate={noAnimate}
-            />
-          </motion.div>
-          <motion.p {...ctrl.motionProps("label")} className="mt-8 text-[2vw] max-w-3xl text-center opacity-90 leading-snug">
-            {c.stat_label || c.headline}
-          </motion.p>
-        </div>
-      </div>
-    );
+    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
   }
 
   /* ---------- CENTERED / SECTION DIVIDER ---------- */
