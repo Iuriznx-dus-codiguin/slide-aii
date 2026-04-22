@@ -17,6 +17,15 @@ import {
   parseNumberFromString, useAnimatedNumber, formatAnimatedNumber, EASE,
   type CinematicPreset,
 } from "@/lib/animations";
+import {
+  useTimeline,
+  buildEditorialScenario,
+  buildChartScenario,
+  buildStatScenario,
+  buildQuoteScenario,
+} from "@/lib/timeline";
+import { sharedId } from "@/lib/morphing";
+import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
 
 export interface SlideContent {
