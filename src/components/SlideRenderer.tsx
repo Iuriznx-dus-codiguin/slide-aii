@@ -6,6 +6,7 @@
 // 6 capas novas + Ken Burns nos fundos com imagem).
 // ============================================================
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
