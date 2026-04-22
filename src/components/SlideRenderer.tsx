@@ -306,64 +306,65 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
     );
   }
 
-  /* ---------- DATA CHART (com build progressivo) ---------- */
+  /* ---------- DATA CHART (timeline própria) ---------- */
   if (isChart && c.chart) {
-    const dataPreset = PRESETS["data-build"];
+    const tl = buildChartScenario(c.bullets?.length ?? 0);
+    const ctrl = useTimeline(tl, { skip: noAnimate });
     return (
       <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-        <motion.div {...motionMode} variants={dataPreset.container}>
-          <motion.h2 variants={dataPreset.item} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-          {c.subtitle && <motion.p variants={dataPreset.item} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
-        </motion.div>
+        <div>
+          <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+          {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+        </div>
         <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6">
           <div className="col-span-7 min-h-0">
-            <motion.div initial={{ opacity: 0, y: 30, filter: "blur(10px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.3, duration: 0.8, ease: EASE.editorial as any }} className="h-full">
+            <motion.div {...ctrl.motionProps("chart")} className="h-full">
               {renderChart()}
             </motion.div>
           </div>
-          <motion.div {...motionMode} variants={dataPreset.container} className="col-span-5 flex flex-col justify-center">
-            {c.body_text && <motion.p variants={dataPreset.item} className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
+          <div className="col-span-5 flex flex-col justify-center">
+            {c.body_text && <p className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</p>}
             {c.bullets && c.bullets.length > 0 && (
               <ul className="space-y-3">
                 {c.bullets.map((b, i) => (
-                  <motion.li key={i} variants={dataPreset.item} className="flex items-start gap-2 text-[1.2vw]">
+                  <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-2 text-[1.2vw]">
                     <span className="mt-[0.6em] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
                     <span className="leading-snug">{b}</span>
                   </motion.li>
                 ))}
               </ul>
             )}
-          </motion.div>
+          </div>
         </div>
       </div>
     );
   }
 
-  /* ---------- DEFAULT: title + content + bullets ---------- */
+  /* ---------- DEFAULT: title + content + bullets (timeline própria) ---------- */
+  const defaultTl = buildEditorialScenario(c.bullets?.length ?? 0);
+  const defaultCtrl = useTimeline(defaultTl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-      <motion.div {...motionMode} variants={variants.container}>
-        <motion.h2 variants={variants.item} className="text-[3.2vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-        {c.subtitle && <motion.p variants={variants.item} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
-      </motion.div>
+      <div>
+        <motion.h2 {...defaultCtrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3.2vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+        {c.subtitle && <motion.p {...defaultCtrl.motionProps("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+      </div>
       <div className="flex-1 mt-6 flex flex-col justify-center">
-        <motion.div {...motionMode} variants={variants.container}>
-          {c.body_text && (
-            <motion.p variants={variants.item} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
-              {c.body_text}
-            </motion.p>
-          )}
-          {c.bullets && c.bullets.length > 0 && (
-            <ul className="space-y-4">
-              {c.bullets.map((b, i) => (
-                <motion.li key={i} variants={variants.item} className="flex items-start gap-4 text-[1.4vw]">
-                  <span className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45" style={{ background: theme.accent }} />
-                  <span className="leading-snug">{b}</span>
-                </motion.li>
-              ))}
-            </ul>
-          )}
-        </motion.div>
+        {c.body_text && (
+          <motion.p {...defaultCtrl.motionProps("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
+            {c.body_text}
+          </motion.p>
+        )}
+        {c.bullets && c.bullets.length > 0 && (
+          <ul className="space-y-4">
+            {c.bullets.map((b, i) => (
+              <motion.li key={i} {...defaultCtrl.motionProps(`bullet-${i}`)} className="flex items-start gap-4 text-[1.4vw]">
+                <span className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45" style={{ background: theme.accent }} />
+                <span className="leading-snug">{b}</span>
+              </motion.li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
