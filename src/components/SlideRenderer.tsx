@@ -6,6 +6,7 @@
 // 6 capas novas + Ken Burns nos fundos com imagem).
 // ============================================================
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
@@ -17,6 +18,15 @@ import {
   parseNumberFromString, useAnimatedNumber, formatAnimatedNumber, EASE,
   type CinematicPreset,
 } from "@/lib/animations";
+import {
+  useTimeline,
+  buildEditorialScenario,
+  buildChartScenario,
+  buildStatScenario,
+  buildQuoteScenario,
+} from "@/lib/timeline";
+import { sharedId } from "@/lib/morphing";
+import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
 
 export interface SlideContent {
@@ -72,6 +82,120 @@ const AnimatedStat = ({ value, color, enabled }: { value: string; color: string;
       {formatAnimatedNumber(animated, parsed.num)}
       {parsed.suffix}
     </span>
+  );
+};
+
+/* ---------- Subcomponentes com timeline (Rules of Hooks safe) ---------- */
+
+interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
+const QuoteSlide = ({ c, theme, containerStyle, noAnimate }: QuoteSlideProps) => {
+  const tl = useMemo(() => buildQuoteScenario(), []);
+  const ctrl = useTimeline(tl, { skip: noAnimate });
+  return (
+    <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
+      <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 0.04, scale: 1 }} transition={{ duration: 1.5, ease: EASE.editorial as any }} className="absolute inset-0" style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}, transparent 60%)` }} />
+      <div className="text-center max-w-5xl relative z-10">
+        <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent }}>"</motion.div>
+        <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic">{c.quote_text}</motion.p>
+        {c.quote_author && (
+          <motion.div {...ctrl.motionProps("author")} className="mt-10 flex items-center justify-center gap-4">
+            <div className="h-px w-12" style={{ background: theme.accent }} />
+            <p className="text-[1.3vw] tracking-wide uppercase opacity-80">{c.quote_author}</p>
+            <div className="h-px w-12" style={{ background: theme.accent }} />
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
+const StatSlide = ({ c, theme, containerStyle, noAnimate }: StatSlideProps) => {
+  const tl = useMemo(() => buildStatScenario(), []);
+  const ctrl = useTimeline(tl, { skip: noAnimate });
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
+      <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 0.08 }} transition={{ duration: 1.4, ease: EASE.editorial as any }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vh] h-[80vh] rounded-full" style={{ background: `radial-gradient(circle, ${theme.accent}, transparent 60%)`, filter: "blur(40px)" }} />
+      <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
+        {c.subtitle && (
+          <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
+        )}
+        <motion.div
+          {...ctrl.motionProps("stat")}
+          layoutId={sharedId("stat", c.stat_value)}
+          className="w-full"
+          style={{ height: "min(50vh, 360px)" }}
+        >
+          <MorphingNumberToBar value={c.stat_value!} color={theme.accent} noAnimate={noAnimate} />
+        </motion.div>
+        <motion.p {...ctrl.motionProps("label")} className="mt-8 text-[2vw] max-w-3xl text-center opacity-90 leading-snug">
+          {c.stat_label || c.headline}
+        </motion.p>
+      </div>
+    </div>
+  );
+};
+
+interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; }
+const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart }: ChartSlideProps) => {
+  const tl = useMemo(() => buildChartScenario(c.bullets?.length ?? 0), [c.bullets?.length]);
+  const ctrl = useTimeline(tl, { skip: noAnimate });
+  return (
+    <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
+      <div>
+        <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+      </div>
+      <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6">
+        <div className="col-span-7 min-h-0">
+          <motion.div {...ctrl.motionProps("chart")} className="h-full">{renderChart()}</motion.div>
+        </div>
+        <div className="col-span-5 flex flex-col justify-center">
+          {c.body_text && <p className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</p>}
+          {c.bullets && c.bullets.length > 0 && (
+            <ul className="space-y-3">
+              {c.bullets.map((b, i) => (
+                <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-2 text-[1.2vw]">
+                  <span className="mt-[0.6em] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
+                  <span className="leading-snug">{b}</span>
+                </motion.li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
+const DefaultSlide = ({ c, theme, containerStyle, noAnimate }: DefaultSlideProps) => {
+  const tl = useMemo(() => buildEditorialScenario(c.bullets?.length ?? 0), [c.bullets?.length]);
+  const ctrl = useTimeline(tl, { skip: noAnimate });
+  return (
+    <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
+      <div>
+        <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3.2vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+      </div>
+      <div className="flex-1 mt-6 flex flex-col justify-center">
+        {c.body_text && (
+          <motion.p {...ctrl.motionProps("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
+            {c.body_text}
+          </motion.p>
+        )}
+        {c.bullets && c.bullets.length > 0 && (
+          <ul className="space-y-4">
+            {c.bullets.map((b, i) => (
+              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-4 text-[1.4vw]">
+                <span className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45" style={{ background: theme.accent }} />
+                <span className="leading-snug">{b}</span>
+              </motion.li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -196,42 +320,12 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- QUOTE ---------- */
   if (isQuote && c.quote_text) {
-    const quotePreset = PRESETS["quote-spotlight"];
-    return (
-      <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
-        <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 0.04, scale: 1 }} transition={{ duration: 1.5, ease: EASE.editorial as any }} className="absolute inset-0" style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}, transparent 60%)` }} />
-        <motion.div {...motionMode} variants={quotePreset.container} className="text-center max-w-5xl relative z-10">
-          <motion.div variants={quotePreset.item} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, opacity: 0.4 }}>"</motion.div>
-          <motion.p variants={quotePreset.item} className="text-[3vw] font-light leading-[1.25] italic">{c.quote_text}</motion.p>
-          {c.quote_author && (
-            <motion.div variants={quotePreset.item} className="mt-10 flex items-center justify-center gap-4">
-              <div className="h-px w-12" style={{ background: theme.accent }} />
-              <p className="text-[1.3vw] tracking-wide uppercase opacity-80">{c.quote_author}</p>
-              <div className="h-px w-12" style={{ background: theme.accent }} />
-            </motion.div>
-          )}
-        </motion.div>
-      </div>
-    );
+    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
   }
 
-  /* ---------- STAT HIGHLIGHT (com counter animado!) ---------- */
+  /* ---------- STAT HIGHLIGHT (morph número→barra) ---------- */
   if (isStat) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
-        <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 0.08 }} transition={{ duration: 1.4, ease: EASE.editorial as any }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vh] h-[80vh] rounded-full" style={{ background: `radial-gradient(circle, ${theme.accent}, transparent 60%)`, filter: "blur(40px)" }} />
-        <motion.div {...motionMode} variants={PRESETS["data-build"].container} className="text-center relative z-10">
-          {c.subtitle && <motion.p variants={PRESETS["data-build"].item} className="text-[1.4vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
-          <motion.div
-            variants={PRESETS["data-build"].item}
-            className="text-[14vw] font-extrabold leading-none tracking-tighter"
-          >
-            <AnimatedStat value={c.stat_value!} color={theme.accent} enabled={!noAnimate} />
-          </motion.div>
-          <motion.p variants={PRESETS["data-build"].item} className="mt-8 text-[2vw] max-w-3xl mx-auto opacity-90 leading-snug">{c.stat_label || c.headline}</motion.p>
-        </motion.div>
-      </div>
-    );
+    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
   }
 
   /* ---------- CENTERED / SECTION DIVIDER ---------- */
@@ -282,65 +376,11 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
     );
   }
 
-  /* ---------- DATA CHART (com build progressivo) ---------- */
+  /* ---------- DATA CHART ---------- */
   if (isChart && c.chart) {
-    const dataPreset = PRESETS["data-build"];
-    return (
-      <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-        <motion.div {...motionMode} variants={dataPreset.container}>
-          <motion.h2 variants={dataPreset.item} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-          {c.subtitle && <motion.p variants={dataPreset.item} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
-        </motion.div>
-        <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6">
-          <div className="col-span-7 min-h-0">
-            <motion.div initial={{ opacity: 0, y: 30, filter: "blur(10px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.3, duration: 0.8, ease: EASE.editorial as any }} className="h-full">
-              {renderChart()}
-            </motion.div>
-          </div>
-          <motion.div {...motionMode} variants={dataPreset.container} className="col-span-5 flex flex-col justify-center">
-            {c.body_text && <motion.p variants={dataPreset.item} className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
-            {c.bullets && c.bullets.length > 0 && (
-              <ul className="space-y-3">
-                {c.bullets.map((b, i) => (
-                  <motion.li key={i} variants={dataPreset.item} className="flex items-start gap-2 text-[1.2vw]">
-                    <span className="mt-[0.6em] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
-                    <span className="leading-snug">{b}</span>
-                  </motion.li>
-                ))}
-              </ul>
-            )}
-          </motion.div>
-        </div>
-      </div>
-    );
+    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} />;
   }
 
-  /* ---------- DEFAULT: title + content + bullets ---------- */
-  return (
-    <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-      <motion.div {...motionMode} variants={variants.container}>
-        <motion.h2 variants={variants.item} className="text-[3.2vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-        {c.subtitle && <motion.p variants={variants.item} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
-      </motion.div>
-      <div className="flex-1 mt-6 flex flex-col justify-center">
-        <motion.div {...motionMode} variants={variants.container}>
-          {c.body_text && (
-            <motion.p variants={variants.item} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
-              {c.body_text}
-            </motion.p>
-          )}
-          {c.bullets && c.bullets.length > 0 && (
-            <ul className="space-y-4">
-              {c.bullets.map((b, i) => (
-                <motion.li key={i} variants={variants.item} className="flex items-start gap-4 text-[1.4vw]">
-                  <span className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45" style={{ background: theme.accent }} />
-                  <span className="leading-snug">{b}</span>
-                </motion.li>
-              ))}
-            </ul>
-          )}
-        </motion.div>
-      </div>
-    </div>
-  );
+  /* ---------- DEFAULT ---------- */
+  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
 };
