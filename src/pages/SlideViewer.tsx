@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { cameraVariants, cameraTransition, pickCameraDirection } from "@/lib/animations";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,19 +20,21 @@ const CinematicSlideStage = ({ current, pres, dynamicTheme, idx }: { current?: S
   useEffect(() => { prevIdxRef.current = idx; }, [idx]);
   const v = cameraVariants(direction);
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={current?.id ?? idx}
-        initial={v.initial}
-        animate={v.animate}
-        exit={v.exit}
-        transition={cameraTransition}
-        className="absolute inset-0"
-        style={{ transformPerspective: 1200, willChange: "transform, opacity, filter" }}
-      >
-        {current && <SlideRenderer slide={current as any} themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme} index={idx} />}
-      </motion.div>
-    </AnimatePresence>
+    <LayoutGroup id="slide-shared-layout">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={current?.id ?? idx}
+          initial={v.initial}
+          animate={v.animate}
+          exit={v.exit}
+          transition={cameraTransition}
+          className="absolute inset-0"
+          style={{ transformPerspective: 1200, willChange: "transform, opacity, filter" }}
+        >
+          {current && <SlideRenderer slide={current as any} themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme} index={idx} />}
+        </motion.div>
+      </AnimatePresence>
+    </LayoutGroup>
   );
 };
 
