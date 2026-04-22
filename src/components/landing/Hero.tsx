@@ -1,8 +1,19 @@
 import { motion } from "framer-motion";
+import { animated } from "@react-spring/web";
 import { ArrowRight, Sparkles, Wand2, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useSpringHover } from "@/lib/physics";
 import heroImg from "@/assets/hero-slides.jpg";
+
+const SpringWrap = ({ children, hoverY = -2 }: { children: React.ReactNode; hoverY?: number }) => {
+  const { bind, style } = useSpringHover({ hoverScale: 1.04, pressScale: 0.96, hoverY });
+  return (
+    <animated.div style={style} {...bind} className="inline-block">
+      {children}
+    </animated.div>
+  );
+};
 
 export const Hero = () => {
   return (
@@ -20,7 +31,7 @@ export const Hero = () => {
             className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-6"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Powered by Lovable AI
+            Powered by Gemini 2.5 PRO
           </motion.div>
 
           <motion.h1
@@ -52,12 +63,18 @@ export const Hero = () => {
             className="mt-10 flex flex-col sm:flex-row gap-3 justify-center items-center"
           >
             <Link to="/auth">
-              <Button variant="hero" size="xl" className="group">
-                Criar minha apresentação
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Button>
+              <SpringWrap hoverY={-3}>
+                <Button variant="hero" size="xl" className="group">
+                  Criar minha apresentação
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </SpringWrap>
             </Link>
-            <a href="#how"><Button variant="outline" size="xl">Ver como funciona</Button></a>
+            <a href="#how">
+              <SpringWrap>
+                <Button variant="outline" size="xl">Ver como funciona</Button>
+              </SpringWrap>
+            </a>
           </motion.div>
 
           <motion.p

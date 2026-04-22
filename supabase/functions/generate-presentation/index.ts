@@ -39,8 +39,16 @@ REGRAS DE DESIGN/MOTION:
    - editorial/educacional → split-hero ou minimal-centered
    - branding/criativo/colorido → gradient-mesh
 10. Varie animações entre slides (fade, slide-up, blur-in, zoom-in, stagger-up, reveal-mask, etc.) — cria ritmo cinematográfico.
-11. Para CADA slide, sugira uma image_query MUITO ESPECÍFICA em INGLÊS (será usada no Pexels). Para conteúdo extremamente específico (logos, símbolos próprios, diagramas), use image_strategy="ai".
-12. Tema dinâmico (dynamic_theme): se o usuário pediu tema "auto", você DEVE devolver no PRIMEIRO slide um objeto dynamic_theme com cores em hex (bg, text, accent, accent2) que reflitam o assunto. Ex: tema sobre Espanha → vermelho #AA151B + amarelo #F1BF00 + bg escuro elegante. Tecnologia → dark com accent neon. Garanta ALTO CONTRASTE entre bg e text (mínimo WCAG AA).`;
+11. Para CADA slide, defina OBRIGATORIAMENTE um animation_intent que sinaliza o "papel narrativo" da animação:
+    - "hero-impact" → capas e statements fortes (entrada lenta, escala dramática)
+    - "narrative-build" → conteúdo de storytelling com sequência editorial (cascata suave)
+    - "data-reveal" → gráficos e estatísticas (build progressivo, físico)
+    - "emphasis-stat" → números grandes que precisam impacto visual (overshoot, peso)
+    - "quote-spotlight" → citações com tom contemplativo (lento, com foco)
+    - "section-break" → divisores (reveal de cortina, dramático)
+    - "calm-fade" → conteúdo neutro, leve (fade simples)
+12. Para CADA slide, sugira uma image_query MUITO ESPECÍFICA em INGLÊS (será usada no Pexels). Para conteúdo extremamente específico (logos, símbolos próprios, diagramas), use image_strategy="ai".
+13. Tema dinâmico (dynamic_theme): se o usuário pediu tema "auto", você DEVE devolver no PRIMEIRO slide um objeto dynamic_theme com cores em hex (bg, text, accent, accent2) que reflitam o assunto. Ex: tema sobre Espanha → vermelho #AA151B + amarelo #F1BF00 + bg escuro elegante. Tecnologia → dark com accent neon. Garanta ALTO CONTRASTE entre bg e text (mínimo WCAG AA).`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -106,6 +114,11 @@ Mantenha narrativa coesa: cada slide flui para o próximo. Densidade > superfici
                     description: "OBRIGATÓRIO para slides title_slide. Escolha que reflita o tom do tema.",
                   },
                   animation: { type: "string", enum: ["fade", "slide-up", "slide-left", "slide-right", "zoom-in", "blur-in", "stagger-up", "reveal-mask", "rotate-in", "bounce-in"] },
+                  animation_intent: {
+                    type: "string",
+                    enum: ["hero-impact", "narrative-build", "data-reveal", "emphasis-stat", "quote-spotlight", "section-break", "calm-fade"],
+                    description: "OBRIGATÓRIO. Papel narrativo da animação — o frontend mapeia para cenário cinematográfico.",
+                  },
                   headline: { type: "string" },
                   subtitle: { type: "string" },
                   body_text: { type: "string" },
@@ -128,7 +141,7 @@ Mantenha narrativa coesa: cada slide flui para o próximo. Densidade > superfici
                     },
                   },
                 },
-                required: ["slide_title", "slide_type", "layout_template", "animation", "headline", "speaker_notes", "image_strategy"],
+                required: ["slide_title", "slide_type", "layout_template", "animation", "animation_intent", "headline", "speaker_notes", "image_strategy"],
                 additionalProperties: false,
               },
             },

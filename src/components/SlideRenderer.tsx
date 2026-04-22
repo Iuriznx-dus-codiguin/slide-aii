@@ -24,6 +24,8 @@ import {
   buildChartScenario,
   buildStatScenario,
   buildQuoteScenario,
+  applyIntent,
+  type AnimationIntent,
 } from "@/lib/timeline";
 import { sharedId } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
@@ -43,6 +45,8 @@ export interface SlideContent {
   image_url?: string | null;
   ai_image_prompt?: string;
   animation?: string;
+  /** IA contextual: papel narrativo da animação (Fase 2.5). */
+  animation_intent?: AnimationIntent;
   /** Novo: variante de capa (apenas title slides). */
   cover_variant?: CoverVariant;
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
@@ -89,7 +93,7 @@ const AnimatedStat = ({ value, color, enabled }: { value: string; color: string;
 
 interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
 const QuoteSlide = ({ c, theme, containerStyle, noAnimate }: QuoteSlideProps) => {
-  const tl = useMemo(() => buildQuoteScenario(), []);
+  const tl = useMemo(() => applyIntent(buildQuoteScenario(), c.animation_intent ?? "quote-spotlight"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
@@ -111,7 +115,7 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate }: QuoteSlideProps) =>
 
 interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
 const StatSlide = ({ c, theme, containerStyle, noAnimate }: StatSlideProps) => {
-  const tl = useMemo(() => buildStatScenario(), []);
+  const tl = useMemo(() => applyIntent(buildStatScenario(), c.animation_intent ?? "emphasis-stat"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
@@ -138,7 +142,10 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate }: StatSlideProps) => {
 
 interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; }
 const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart }: ChartSlideProps) => {
-  const tl = useMemo(() => buildChartScenario(c.bullets?.length ?? 0), [c.bullets?.length]);
+  const tl = useMemo(
+    () => applyIntent(buildChartScenario(c.bullets?.length ?? 0), c.animation_intent ?? "data-reveal"),
+    [c.bullets?.length, c.animation_intent]
+  );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
@@ -170,7 +177,10 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart }: ChartS
 
 interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
 const DefaultSlide = ({ c, theme, containerStyle, noAnimate }: DefaultSlideProps) => {
-  const tl = useMemo(() => buildEditorialScenario(c.bullets?.length ?? 0), [c.bullets?.length]);
+  const tl = useMemo(
+    () => applyIntent(buildEditorialScenario(c.bullets?.length ?? 0), c.animation_intent ?? "narrative-build"),
+    [c.bullets?.length, c.animation_intent]
+  );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>

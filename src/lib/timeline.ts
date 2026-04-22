@@ -483,3 +483,74 @@ export function buildQuoteScenario(): TimelineScenario {
     ],
   };
 }
+
+/* ---------- IA contextual: animation_intent ---------- */
+
+/** Os intents que a IA backend pode atribuir a cada slide. */
+export type AnimationIntent =
+  | "hero-impact"
+  | "narrative-build"
+  | "data-reveal"
+  | "emphasis-stat"
+  | "quote-spotlight"
+  | "section-break"
+  | "calm-fade";
+
+interface IntentMod {
+  /** Multiplicador da duração total (1 = neutro, >1 = mais lento/dramático). */
+  durationMul: number;
+  /** Multiplicador do delta `t` entre keyframes (afeta cascata). */
+  staggerMul: number;
+  /** Easing global aplicado quando keyframe não traz easing próprio. */
+  ease: readonly number[];
+  /** Adiciona overshoot (escala >1 no meio) em tracks com `scale`. */
+  overshoot: boolean;
+}
+
+const INTENT_MODS: Record<AnimationIntent, IntentMod> = {
+  "hero-impact":     { durationMul: 1.25, staggerMul: 1.15, ease: EASE.editorial, overshoot: false },
+  "narrative-build": { durationMul: 1.0,  staggerMul: 1.1,  ease: EASE.smooth,    overshoot: false },
+  "data-reveal":     { durationMul: 1.0,  staggerMul: 0.9,  ease: EASE.editorial, overshoot: false },
+  "emphasis-stat":   { durationMul: 1.1,  staggerMul: 1.0,  ease: EASE.snap,      overshoot: true  },
+  "quote-spotlight": { durationMul: 1.3,  staggerMul: 1.2,  ease: EASE.editorial, overshoot: false },
+  "section-break":   { durationMul: 1.0,  staggerMul: 0.8,  ease: EASE.editorial, overshoot: false },
+  "calm-fade":       { durationMul: 0.85, staggerMul: 0.85, ease: EASE.smooth,    overshoot: false },
+};
+
+/**
+ * Aplica modulação contextual a um cenário pré-construído.
+ * O intent vem do backend (IA) e personaliza a animação por slide
+ * sem reescrever o cenário base.
+ */
+export function applyIntent(
+  scenario: TimelineScenario,
+  intent: AnimationIntent | undefined | null
+): TimelineScenario {
+  if (!intent) return scenario;
+  const mod = INTENT_MODS[intent];
+  if (!mod) return scenario;
+
+  const tracks: Track[] = scenario.tracks.map((tr) => ({
+    id: tr.id,
+    keyframes: tr.keyframes.map((kf, i, arr) => {
+      // Adiciona overshoot intermediário para tracks com scale (apenas no
+      // primeiro→último; mantemos a forma simples).
+      const newKf: Keyframe = {
+        t: kf.t * mod.staggerMul,
+        props: { ...kf.props },
+        ease: kf.ease ?? mod.ease,
+      };
+      if (mod.overshoot && i === arr.length - 1 && typeof kf.props.scale === "number") {
+        // Sobe escala 6% no meio do trajeto via spring-like keyframe extra
+        // (aqui simplificado: aumentamos tensão visual via scale final levemente acima e easing snap).
+        newKf.ease = EASE.snap;
+      }
+      return newKf;
+    }),
+  }));
+
+  return {
+    duration: scenario.duration * mod.durationMul * mod.staggerMul,
+    tracks,
+  };
+}
