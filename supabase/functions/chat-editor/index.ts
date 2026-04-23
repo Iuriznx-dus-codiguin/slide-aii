@@ -41,8 +41,10 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const useOpenAI = !!OPENAI_API_KEY;
+    if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");
 
     const userPrompt = `ESTADO ATUAL DA APRESENTAÇÃO (JSON):
 ${JSON.stringify({ dynamic_theme, slides }, null, 2)}
@@ -113,11 +115,18 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       },
     }];
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const endpoint = useOpenAI
+      ? "https://api.openai.com/v1/chat/completions"
+      : "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const authKey = useOpenAI ? OPENAI_API_KEY! : LOVABLE_API_KEY!;
+    // ChatGPT 5.2 para edições com instrução textual; fallback Gemini Flash.
+    const model = useOpenAI ? "gpt-5.2" : "google/gemini-2.5-flash";
+
+    const aiResponse = await fetch(endpoint, {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${authKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
