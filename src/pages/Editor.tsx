@@ -370,7 +370,7 @@ const Editor = () => {
             <Link to={`/slides/${pres.slug}`} target="_blank">
               <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
             </Link>
-            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} slug={pres.slug} />
+            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} />
             <Button variant="hero" size="sm" onClick={() => save()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
             </Button>
