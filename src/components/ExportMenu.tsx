@@ -1,10 +1,11 @@
 // Reusable export dropdown — PPTX, PDF e PNG.
 import { useState } from "react";
-import { Download, FileDown, Loader2, Printer, ImageDown } from "lucide-react";
+import { Download, FileDown, Loader2, FileText, ImageDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { exportPresentationToPptx } from "@/lib/exportPptx";
+import { exportPresentationToPdf } from "@/lib/exportPdf";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
 
@@ -12,40 +13,64 @@ interface Props {
   presentationId: string;
   title: string;
   themeId: string;
+  fontId?: string;
   slug?: string;
   variant?: "default" | "ghost" | "outline";
   size?: "sm" | "default" | "icon";
   label?: string;
 }
 
-export const ExportMenu = ({ presentationId, title, themeId, slug, variant = "outline", size = "sm", label = "Exportar" }: Props) => {
+export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", slug, variant = "outline", size = "sm", label = "Exportar" }: Props) => {
   const [busy, setBusy] = useState(false);
+
+  const fetchSlides = async () => {
+    const { data: rows, error } = await supabase
+      .from("slides")
+      .select("position,slide_type,layout_template,speaker_notes,content")
+      .eq("presentation_id", presentationId)
+      .order("position");
+    if (error) throw error;
+    return rows ?? [];
+  };
 
   const handlePptx = async () => {
     setBusy(true);
+    const t = toast.loading("Gerando PPTX…");
     try {
-      const { data: rows, error } = await supabase
-        .from("slides")
-        .select("position,slide_type,layout_template,speaker_notes,content")
-        .eq("presentation_id", presentationId)
-        .order("position");
-      if (error) throw error;
-      if (!rows?.length) { toast.error("Nenhum slide encontrado"); return; }
+      const rows = await fetchSlides();
+      if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
       await exportPresentationToPptx({ title, themeId, slides: rows as any });
-      toast.success("PPTX gerado!");
+      toast.success("PPTX gerado!", { id: t });
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || "Erro ao exportar PPTX");
+      toast.error(e.message || "Erro ao exportar PPTX", { id: t });
     } finally {
       setBusy(false);
     }
   };
 
-  const handlePdf = () => {
-    if (slug && !window.location.pathname.startsWith(`/slides/${slug}`)) {
-      window.open(`/slides/${slug}?print=1`, "_blank");
-    } else {
-      window.print();
+  const handlePdf = async () => {
+    setBusy(true);
+    const t = toast.loading("Renderizando PDF (0%)…");
+    try {
+      const rows = await fetchSlides();
+      if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      await exportPresentationToPdf({
+        title,
+        themeId,
+        fontId,
+        slides: rows as any,
+        onProgress: (cur, total) => {
+          const pct = Math.round((cur / total) * 100);
+          toast.loading(`Renderizando PDF (${pct}%)…`, { id: t });
+        },
+      });
+      toast.success("PDF gerado!", { id: t });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Erro ao exportar PDF", { id: t });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -53,7 +78,6 @@ export const ExportMenu = ({ presentationId, title, themeId, slug, variant = "ou
   const handlePng = async () => {
     setBusy(true);
     try {
-      // Se estamos no viewer, capturamos o canvas visível
       const target = document.querySelector<HTMLElement>("[data-export-target='slide']");
       if (target) {
         const canvas = await html2canvas(target, { backgroundColor: "#000", scale: 2, useCORS: true });
@@ -91,8 +115,8 @@ export const ExportMenu = ({ presentationId, title, themeId, slug, variant = "ou
         <DropdownMenuItem onClick={handlePptx} disabled={busy}>
           <FileDown className="h-4 w-4 mr-2" /> PowerPoint (.pptx)
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handlePdf}>
-          <Printer className="h-4 w-4 mr-2" /> PDF (imprimir)
+        <DropdownMenuItem onClick={handlePdf} disabled={busy}>
+          <FileText className="h-4 w-4 mr-2" /> PDF (alta fidelidade)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handlePng} disabled={busy}>
           <ImageDown className="h-4 w-4 mr-2" /> Imagem (.png)
