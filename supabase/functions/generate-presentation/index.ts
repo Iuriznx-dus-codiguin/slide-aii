@@ -155,15 +155,23 @@ Mantenha narrativa coesa: cada slide flui para o próximo. Densidade > superfici
       },
     }];
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Endpoint + auth + modelo dependem do provider
+    const endpoint = useOpenAI
+      ? "https://api.openai.com/v1/chat/completions"
+      : "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const authKey = useOpenAI ? OPENAI_API_KEY! : LOVABLE_API_KEY!;
+    // ChatGPT 5.2 (modelo mais recente disponível) para conteúdos longos/pesquisa.
+    // Fallback Gemini 2.5 PRO via Lovable AI Gateway se não houver OPENAI_API_KEY.
+    const model = useOpenAI ? "gpt-5.2" : "google/gemini-2.5-pro";
+
+    const aiResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${authKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // Pro = pesquisa mais densa, raciocínio melhor, dados mais verossímeis
-        model: "google/gemini-2.5-pro",
+        model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
