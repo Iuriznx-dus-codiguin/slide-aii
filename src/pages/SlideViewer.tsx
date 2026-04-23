@@ -177,7 +177,7 @@ const SlideViewer = () => {
                 </div>
               </PopoverContent>
             </Popover>
-            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} slug={pres.slug} variant="ghost" size="sm" />
+            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               <span className="hidden md:inline ml-1">Apresentar</span>
