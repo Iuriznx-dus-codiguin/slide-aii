@@ -259,29 +259,68 @@ export function useTimeline(
       if (!track || track.keyframes.length === 0) {
         return { initial: {}, animate: {}, transition: {} as Transition };
       }
-      // Estratégia: usa Framer Motion para fazer a interpolação fim-a-fim
-      // em uma única transição com keyframes nativos (mais performático que
-      // re-render a cada frame). O sampling do hook é útil apenas para
-      // scrubbing/edição; em playback normal, deixamos Framer otimizar.
-      const initial = propsToMotionStyle(track.keyframes[0].props);
-      const last = track.keyframes[track.keyframes.length - 1].props;
-      const animate = skipAll ? propsToMotionStyle(last) : propsToMotionStyle(last);
+
+      // ============================================================
+      // ESTRATÉGIA (corrigida em Fase 2.5):
+      //   • `initial` = estado do PRIMEIRO keyframe (oculto/início).
+      //   • `animate` = arrays de valores que começam IDÊNTICOS ao
+      //     initial (em times[0]=0) e progridem até o último keyframe
+      //     em times[N]=1. Se o primeiro keyframe começa em t>0, o
+      //     elemento permanece "escondido" até esse momento (hold).
+      //   • `times` é estritamente crescente em [0,1].
+      //
+      // Bug anterior: times começava em t/duration (ex: 0.06 para um
+      // subtítulo que começa em 0.2s) sem um valor em 0, fazendo Framer
+      // interpolar o `initial` (props oculto) → primeiro keyframe (também
+      // oculto) → final, mas re-renderizando como "saída e re-entrada"
+      // visível porque o initial era aplicado depois do mount.
+      // ============================================================
+
+      const firstProps = track.keyframes[0].props;
+      const initial = propsToMotionStyle(firstProps);
+
+      if (skipAll) {
+        const lastProps = track.keyframes[track.keyframes.length - 1].props;
+        return {
+          initial: propsToMotionStyle(lastProps),
+          animate: propsToMotionStyle(lastProps),
+          transition: { duration: 0 } as Transition,
+        };
+      }
+
+      // Se o primeiro keyframe não está em t=0, prepend um "hold"
+      // virtual que mantém o elemento no estado inicial até esse momento.
+      const needsHold = track.keyframes[0].t > 0.0001;
+      const effectiveKfs = needsHold
+        ? [{ t: 0, props: firstProps, ease: track.keyframes[0].ease }, ...track.keyframes]
+        : track.keyframes;
+
+      // Garante último keyframe em t=duration (extrapola hold no fim).
+      const lastKf = effectiveKfs[effectiveKfs.length - 1];
+      const fullKfs = lastKf.t < scenario.duration - 0.0001
+        ? [...effectiveKfs, { t: scenario.duration, props: lastKf.props, ease: lastKf.ease }]
+        : effectiveKfs;
 
       // Constrói arrays de keyframes para cada propriedade conhecida
       const propKeys: Array<keyof TimelineProps> = [
         "opacity", "x", "y", "scale", "rotate", "rotateX", "rotateY", "blur", "clipInset",
       ];
       const animValues: Record<string, any> = {};
-      const times: number[] = track.keyframes.map((k) => k.t / scenario.duration);
+      const times: number[] = fullKfs.map((k) => Math.min(1, Math.max(0, k.t / scenario.duration)));
+
+      // Garante times estritamente crescente (Framer reclama de duplicatas)
+      for (let i = 1; i < times.length; i++) {
+        if (times[i] <= times[i - 1]) times[i] = Math.min(1, times[i - 1] + 0.0001);
+      }
 
       for (const key of propKeys) {
-        const arr = track.keyframes.map((k) => (k.props as any)[key]);
+        const arr = fullKfs.map((k) => (k.props as any)[key]);
         if (arr.every((v) => v === undefined)) continue;
-        // Substitui undefined pelo valor do vizinho (carry-forward)
-        let last: any = arr.find((v) => v !== undefined) ?? 0;
+        // Carry-forward: undefined herda valor anterior
+        let lastVal: any = arr.find((v) => v !== undefined) ?? 0;
         const filled = arr.map((v) => {
-          if (v !== undefined) { last = v; return v; }
-          return last;
+          if (v !== undefined) { lastVal = v; return v; }
+          return lastVal;
         });
         if (key === "blur") {
           animValues.filter = filled.map((v) => `blur(${v}px)`);
@@ -292,17 +331,15 @@ export function useTimeline(
         }
       }
 
-      const transition: Transition = skipAll
-        ? { duration: 0 }
-        : {
-            duration: scenario.duration / speed,
-            times,
-            ease: EASE.editorial as any,
-          };
+      const transition: Transition = {
+        duration: scenario.duration / speed,
+        times,
+        ease: EASE.editorial as any,
+      };
 
       return {
         initial,
-        animate: skipAll ? animate : animValues,
+        animate: animValues,
         transition,
       };
     },
