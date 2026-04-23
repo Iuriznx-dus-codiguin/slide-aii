@@ -55,8 +55,11 @@ Deno.serve(async (req) => {
 
   try {
     const body: GenerateRequest = await req.json();
+    // Prioridade: ChatGPT externo (OPENAI_API_KEY) → fallback Lovable AI Gateway.
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const useOpenAI = !!OPENAI_API_KEY;
+    if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");
 
     const slidesCount = Math.max(3, Math.min(12, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
