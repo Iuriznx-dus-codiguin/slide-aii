@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { cameraVariants, cameraTransition, pickCameraDirection } from "@/lib/animations";
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
@@ -10,9 +10,15 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { CinematicHUD, actForSlide, type NarrativeAct } from "@/components/CinematicHUD";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-interface Pres { id: string; title: string; description: string | null; theme: string; font_style: string; slug: string; }
-interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; }
+interface Pres {
+  id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
+  include_speeches?: boolean; presenters_names?: string[];
+}
+interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
+interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
 
 /** Camera-style transition between slides: pan + zoom + blur. */
 const CinematicSlideStage = ({ current, pres, dynamicTheme, idx }: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
