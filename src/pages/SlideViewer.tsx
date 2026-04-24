@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { cameraVariants, cameraTransition, pickCameraDirection } from "@/lib/animations";
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
@@ -10,9 +10,15 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { CinematicHUD, actForSlide, type NarrativeAct } from "@/components/CinematicHUD";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-interface Pres { id: string; title: string; description: string | null; theme: string; font_style: string; slug: string; }
-interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; }
+interface Pres {
+  id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
+  include_speeches?: boolean; presenters_names?: string[];
+}
+interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
+interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
 
 /** Camera-style transition between slides: pan + zoom + blur. */
 const CinematicSlideStage = ({ current, pres, dynamicTheme, idx }: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
@@ -54,12 +60,12 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug").eq("slug", slug).maybeSingle();
+      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
-      setPres(p as Pres);
+      setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as Pres);
       document.title = `${p.title} — SlideAI`;
-      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content").eq("presentation_id", p.id).order("position");
-      setSlides((s as any) ?? []);
+      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content,presenters_data").eq("presentation_id", p.id).order("position");
+      setSlides(((s as any[]) ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })) as any);
       setLoading(false);
       supabase.from("slide_views").insert({ presentation_id: p.id, user_agent: navigator.userAgent }).then(() => {});
     })();
@@ -178,6 +184,9 @@ const SlideViewer = () => {
                 </div>
               </PopoverContent>
             </Popover>
+            {pres.include_speeches && (
+              <PresenterNotesPopover slide={current} presentersNames={pres.presenters_names ?? []} />
+            )}
             <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -185,6 +194,13 @@ const SlideViewer = () => {
             </Button>
           </div>
         </header>
+      )}
+
+      {/* Floating presenter notes button (visible during fullscreen presentation) */}
+      {fullscreen && pres.include_speeches && (
+        <div className={`fixed top-4 right-4 z-50 transition-opacity ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+          <PresenterNotesPopover slide={current} presentersNames={pres.presenters_names ?? []} floating />
+        </div>
       )}
 
       {/* Slide canvas — fullscreen: 100vw/100vh com letterbox 16:9 */}
@@ -246,6 +262,109 @@ const SlideViewer = () => {
         ))}
       </div>
     </div>
+  );
+};
+
+/** Popover compacto para consultar falas/notas do slide atual durante a apresentação. */
+const PresenterNotesPopover = ({
+  slide,
+  presentersNames,
+  floating,
+}: {
+  slide?: SlideRow;
+  presentersNames: string[];
+  floating?: boolean;
+}) => {
+  const existing = (slide?.presenters_data ?? []) as PresenterEntry[];
+  const presenters: PresenterEntry[] =
+    presentersNames.length > 0
+      ? presentersNames.map((name, i) => {
+          const found = existing.find((e) => e.name === name) ?? existing[i];
+          return found
+            ? { ...found, name }
+            : { id: `${i}`, name, technical_notes: "", exact_speech: "", transition_anchor: "" };
+        })
+      : existing;
+
+  const triggerCls = floating
+    ? "h-10 w-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur border border-white/15 text-white flex items-center justify-center shadow-elegant"
+    : "";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        {floating ? (
+          <button className={triggerCls} title="Consultar falas e notas">
+            <Users className="h-4 w-4" />
+          </button>
+        ) : (
+          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" title="Consultar falas e notas">
+            <Users className="h-4 w-4" />
+            <span className="hidden md:inline ml-1">Falas</span>
+          </Button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-[380px] p-0" align="end">
+        <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Users className="h-3.5 w-3.5 text-primary" /> Falas & Notas
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Slide {(slide?.position ?? 0) + 1}
+          </span>
+        </div>
+        {presenters.length === 0 ? (
+          <div className="p-4 text-xs text-muted-foreground text-center">
+            Nenhuma fala registrada para este slide.
+          </div>
+        ) : (
+          <Tabs defaultValue={presenters[0].id} className="flex flex-col">
+            <TabsList
+              className="mx-2 mt-2 grid"
+              style={{ gridTemplateColumns: `repeat(${presenters.length}, minmax(0, 1fr))` }}
+            >
+              {presenters.map((p) => (
+                <TabsTrigger key={p.id} value={p.id} className="text-[11px] truncate">
+                  {p.name || "Apresentador"}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <ScrollArea className="max-h-[60vh]">
+              {presenters.map((p) => (
+                <TabsContent key={p.id} value={p.id} className="px-3 py-3 space-y-3 mt-0">
+                  {p.transition_anchor && (
+                    <div className="text-[11px] italic text-muted-foreground border-l-2 border-primary/40 pl-2">
+                      ↪ {p.transition_anchor}
+                    </div>
+                  )}
+                  {p.exact_speech && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-primary font-semibold">🎤 Fala exata</div>
+                      <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap bg-muted/40 rounded-md p-2">
+                        {p.exact_speech}
+                      </p>
+                    </div>
+                  )}
+                  {p.technical_notes && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">📚 Nota técnica</div>
+                      <p className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                        {p.technical_notes}
+                      </p>
+                    </div>
+                  )}
+                  {!p.exact_speech && !p.technical_notes && !p.transition_anchor && (
+                    <div className="text-xs text-muted-foreground text-center py-4">
+                      Nenhuma anotação para {p.name}.
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </ScrollArea>
+          </Tabs>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 };
 

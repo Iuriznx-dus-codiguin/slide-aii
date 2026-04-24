@@ -14,8 +14,9 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowLeft, Save, Undo2, Redo2, Plus, Trash2, ZoomIn, ZoomOut, Play,
   Type, Image as ImageIcon, Wand2, Layout as LayoutIcon, FileText, Loader2,
-  GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X,
+  GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users,
 } from "lucide-react";
+import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,10 +48,12 @@ interface SlideRow {
   animation_transition: string;
   speaker_notes: string | null;
   content: any;
+  presenters_data?: PresenterEntry[];
 }
 
 interface Pres {
   id: string; title: string; slug: string; theme: string; font_style: string;
+  include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
 }
 
 const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme }: any) => {
@@ -100,6 +103,7 @@ const Editor = () => {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -119,13 +123,22 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
-      setPres(p as Pres);
+      const presLoaded = {
+        ...p,
+        presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [],
+      } as Pres;
+      setPres(presLoaded);
       const { data: s } = await supabase.from("slides")
-        .select("id,position,slide_type,layout_template,animation_transition,speaker_notes,content")
+        .select("id,position,slide_type,layout_template,animation_transition,speaker_notes,content,presenters_data")
         .eq("presentation_id", p.id).order("position");
-      setSlides((s as SlideRow[]) ?? []);
+      const normalized = ((s as any[]) ?? []).map((row) => ({
+        ...row,
+        presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [],
+      })) as SlideRow[];
+      setSlides(normalized);
+      if (presLoaded.include_speeches) setNotesOpen(true);
       setLoading(false);
     })();
   }, [slug]);
@@ -156,6 +169,15 @@ const Editor = () => {
     setSlides((prev) => {
       const copy = [...prev];
       copy[idx] = { ...copy[idx], content: { ...copy[idx].content, ...patch } };
+      return copy;
+    });
+  };
+
+  const updatePresenters = (idx: number, presenters: PresenterEntry[]) => {
+    pushSnapshot();
+    setSlides((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], presenters_data: presenters };
       return copy;
     });
   };
@@ -226,6 +248,7 @@ const Editor = () => {
         animation_transition: s.animation_transition || "fade",
         speaker_notes: s.speaker_notes || null,
         content: s.content || {},
+        presenters_data: (s.presenters_data ?? []) as any,
       }));
       const { error } = await supabase.from("slides").insert(rows);
       if (error) throw error;
@@ -367,6 +390,15 @@ const Editor = () => {
             <Button variant={chatOpen ? "hero" : "ghost"} size="sm" onClick={() => setChatOpen((v) => !v)} title="Assistente IA">
               <MessageSquare className="h-4 w-4" /> <span className="hidden md:inline">IA</span>
             </Button>
+            {pres.include_speeches && (
+              <Button
+                variant={notesOpen ? "hero" : "ghost"} size="sm"
+                onClick={() => setNotesOpen((v) => !v)}
+                title="Falas e notas por apresentador"
+              >
+                <Users className="h-4 w-4" /> <span className="hidden md:inline">Falas</span>
+              </Button>
+            )}
             <Link to={`/slides/${pres.slug}`} target="_blank">
               <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
             </Link>
@@ -493,6 +525,18 @@ const Editor = () => {
               </div>
             </div>
           </aside>
+        )}
+
+        {/* Presenter Notes Panel — apenas quando include_speeches está ativo */}
+        {notesOpen && pres.include_speeches && current && (
+          <PresenterNotesPanel
+            slides={slides.map((s) => ({ headline: s.content?.headline, presenters_data: s.presenters_data ?? [] }))}
+            activeIdx={activeIdx}
+            presentationTitle={pres.title}
+            presentersNames={pres.presenters_names ?? []}
+            onUpdate={updatePresenters}
+            onClose={() => setNotesOpen(false)}
+          />
         )}
 
         {/* Right: inspector */}
