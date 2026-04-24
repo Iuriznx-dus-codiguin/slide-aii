@@ -527,6 +527,18 @@ const Editor = () => {
           </aside>
         )}
 
+        {/* Presenter Notes Panel — apenas quando include_speeches está ativo */}
+        {notesOpen && pres.include_speeches && current && (
+          <PresenterNotesPanel
+            slides={slides.map((s) => ({ headline: s.content?.headline, presenters_data: s.presenters_data ?? [] }))}
+            activeIdx={activeIdx}
+            presentationTitle={pres.title}
+            presentersNames={pres.presenters_names ?? []}
+            onUpdate={updatePresenters}
+            onClose={() => setNotesOpen(false)}
+          />
+        )}
+
         {/* Right: inspector */}
         <aside className="w-72 md:w-80 border-l border-border bg-card/30 flex flex-col flex-shrink-0">
           {current && (
