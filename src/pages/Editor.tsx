@@ -390,6 +390,15 @@ const Editor = () => {
             <Button variant={chatOpen ? "hero" : "ghost"} size="sm" onClick={() => setChatOpen((v) => !v)} title="Assistente IA">
               <MessageSquare className="h-4 w-4" /> <span className="hidden md:inline">IA</span>
             </Button>
+            {pres.include_speeches && (
+              <Button
+                variant={notesOpen ? "hero" : "ghost"} size="sm"
+                onClick={() => setNotesOpen((v) => !v)}
+                title="Falas e notas por apresentador"
+              >
+                <Users className="h-4 w-4" /> <span className="hidden md:inline">Falas</span>
+              </Button>
+            )}
             <Link to={`/slides/${pres.slug}`} target="_blank">
               <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
             </Link>
