@@ -239,6 +239,7 @@ const Editor = () => {
         animation_transition: s.animation_transition || "fade",
         speaker_notes: s.speaker_notes || null,
         content: s.content || {},
+        presenters_data: (s.presenters_data ?? []) as any,
       }));
       const { error } = await supabase.from("slides").insert(rows);
       if (error) throw error;
