@@ -173,6 +173,15 @@ const Editor = () => {
     });
   };
 
+  const updatePresenters = (idx: number, presenters: PresenterEntry[]) => {
+    pushSnapshot();
+    setSlides((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], presenters_data: presenters };
+      return copy;
+    });
+  };
+
   const undo = () => {
     const last = undoStack.current.pop();
     if (!last) return;
