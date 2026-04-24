@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import { ExportMenu } from "@/components/ExportMenu";
+import { CinematicHUD, actForSlide, type NarrativeAct } from "@/components/CinematicHUD";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -215,11 +216,20 @@ const SlideViewer = () => {
         </button>
       </main>
 
-      {/* Bottom counter */}
-      <div className={`fixed bottom-3 md:bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-opacity ${hideUI ? "opacity-0" : "opacity-100"}`}>
-        {idx + 1} / {slides.length}
-        {fullscreen && <span className="ml-2 opacity-60 hidden md:inline">• ESC para sair</span>}
-      </div>
+      {/* Cinematic HUD — Progress Tracker global com glow + ato narrativo */}
+      <CinematicHUD
+        total={slides.length}
+        current={idx}
+        onJump={setIdx}
+        hidden={hideUI}
+        accent={dynamicTheme?.accent ?? "#A855F7"}
+        acts={slides.map((s, i) => actForSlide(i, slides.length, s.slide_type)) as NarrativeAct[]}
+      />
+      {fullscreen && !hideUI && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 text-[10px] uppercase tracking-[0.3em] text-white/40 pointer-events-none">
+          ESC para sair
+        </div>
+      )}
       {/* Hidden print-only deck — every slide becomes a printable A4-landscape page */}
       <div className="hidden print:block" data-no-print="false">
         {slides.map((s, i) => (

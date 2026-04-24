@@ -74,6 +74,12 @@ const Generate = () => {
   const [fontStyle, setFontStyle] = useState("modern-sans");
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
+  // DNA narrativo (Fase 2.5+)
+  const [persona, setPersona] = useState<string>("educator");
+  const [depthLevel, setDepthLevel] = useState<string>("high-level");
+  const [presentersCount, setPresentersCount] = useState(1);
+  const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
+  const [includeSpeeches, setIncludeSpeeches] = useState(false);
 
   // Preview state
   const [slides, setSlides] = useState<AISlide[]>([]);
@@ -145,7 +151,11 @@ const Generate = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("generate-presentation", {
-        body: { title, description, slidesCount, type, language, theme, fontStyle, includeCharts, includeImages },
+        body: {
+          title, description, slidesCount, type, language, theme, fontStyle,
+          includeCharts, includeImages,
+          persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+        },
       });
 
       if (error) throw error;
@@ -162,7 +172,11 @@ const Generate = () => {
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
         user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
         slug, slides_count: withImages.length, is_paid: true, is_published: true,
-      }).select().single();
+        persona, depth_level: depthLevel,
+        presenters_count: presentersCount,
+        presenters_names: presentersNames,
+        include_speeches: includeSpeeches,
+      } as any).select().single();
       if (pErr) throw pErr;
 
       const slidesToInsert = withImages.map((s: AISlide, idx: number) => ({
@@ -172,6 +186,7 @@ const Generate = () => {
         layout_template: s.layout_template,
         speaker_notes: s.speaker_notes,
         animation_transition: s.animation || "fade",
+        presenters_data: (s as any).presenters_data ?? [],
         content: {
           headline: s.headline, subtitle: s.subtitle, body_text: s.body_text,
           bullets: s.bullets, stat_value: s.stat_value, stat_label: s.stat_label,
@@ -179,8 +194,11 @@ const Generate = () => {
           image_query: s.image_query, image_strategy: s.image_strategy,
           image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
           chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
+          narrative_act: (s as any).narrative_act,
+          animation_intent: (s as any).animation_intent,
+          dynamic_theme: idx === 0 ? dyn : undefined,
         },
-      }));
+      })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
       if (sErr) throw sErr;
 
@@ -572,6 +590,62 @@ const Generate = () => {
                   <div className="text-[11px] text-muted-foreground">Pexels + IA</div>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
+              </div>
+            </div>
+
+            {/* DNA narrativo (Fase 2.5) */}
+            <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label>Persona do orador</Label>
+                <Select value={persona} onValueChange={setPersona}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="educator">Educador (didático)</SelectItem>
+                    <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
+                    <SelectItem value="inspirational-leader">Líder inspiracional</SelectItem>
+                    <SelectItem value="salesperson">Vendedor (dor→solução)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Profundidade</Label>
+                <Select value={depthLevel} onValueChange={setDepthLevel}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="high-level">Executivo (high-level)</SelectItem>
+                    <SelectItem value="deep-dive">Operacional (deep-dive)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Apresentadores</Label>
+                <span className="text-sm font-semibold text-primary">{presentersCount}</span>
+              </div>
+              <Slider value={[presentersCount]} onValueChange={([v]) => {
+                setPresentersCount(v);
+                setPresentersNames((prev) => {
+                  const next = [...prev];
+                  while (next.length < v) next.push(`Apresentador ${next.length + 1}`);
+                  return next.slice(0, v);
+                });
+              }} min={1} max={4} step={1} />
+              {presentersCount > 1 && (
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {Array.from({ length: presentersCount }).map((_, i) => (
+                    <Input key={i} value={presentersNames[i] ?? ""} placeholder={`Nome ${i + 1}`}
+                      onChange={(e) => setPresentersNames((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })} />
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">Gerar falas e notas</div>
+                  <div className="text-[11px] text-muted-foreground">Script literal + estudo aprofundado por apresentador</div>
+                </div>
+                <Switch checked={includeSpeeches} onCheckedChange={setIncludeSpeeches} />
               </div>
             </div>
 
