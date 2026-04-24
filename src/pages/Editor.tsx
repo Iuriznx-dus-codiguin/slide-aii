@@ -48,10 +48,12 @@ interface SlideRow {
   animation_transition: string;
   speaker_notes: string | null;
   content: any;
+  presenters_data?: PresenterEntry[];
 }
 
 interface Pres {
   id: string; title: string; slug: string; theme: string; font_style: string;
+  include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
 }
 
 const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme }: any) => {
