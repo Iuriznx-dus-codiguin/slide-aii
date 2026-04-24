@@ -123,13 +123,22 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
-      setPres(p as Pres);
+      const presLoaded = {
+        ...p,
+        presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [],
+      } as Pres;
+      setPres(presLoaded);
       const { data: s } = await supabase.from("slides")
-        .select("id,position,slide_type,layout_template,animation_transition,speaker_notes,content")
+        .select("id,position,slide_type,layout_template,animation_transition,speaker_notes,content,presenters_data")
         .eq("presentation_id", p.id).order("position");
-      setSlides((s as SlideRow[]) ?? []);
+      const normalized = ((s as any[]) ?? []).map((row) => ({
+        ...row,
+        presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [],
+      })) as SlideRow[];
+      setSlides(normalized);
+      if (presLoaded.include_speeches) setNotesOpen(true);
       setLoading(false);
     })();
   }, [slug]);
