@@ -60,12 +60,12 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug").eq("slug", slug).maybeSingle();
+      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
-      setPres(p as Pres);
+      setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as Pres);
       document.title = `${p.title} — SlideAI`;
-      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content").eq("presentation_id", p.id).order("position");
-      setSlides((s as any) ?? []);
+      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content,presenters_data").eq("presentation_id", p.id).order("position");
+      setSlides(((s as any[]) ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })) as any);
       setLoading(false);
       supabase.from("slide_views").insert({ presentation_id: p.id, user_agent: navigator.userAgent }).then(() => {});
     })();
