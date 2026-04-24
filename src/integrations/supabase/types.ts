@@ -18,14 +18,19 @@ export type Database = {
         Row: {
           created_at: string
           deleted_at: string | null
+          depth_level: string | null
           description: string | null
           font_style: string | null
           id: string
+          include_speeches: boolean
           is_paid: boolean
           is_password_protected: boolean
           is_published: boolean
           language: string | null
           password_hash: string | null
+          persona: string | null
+          presenters_count: number
+          presenters_names: Json | null
           slides_count: number
           slug: string
           theme: string | null
@@ -38,14 +43,19 @@ export type Database = {
         Insert: {
           created_at?: string
           deleted_at?: string | null
+          depth_level?: string | null
           description?: string | null
           font_style?: string | null
           id?: string
+          include_speeches?: boolean
           is_paid?: boolean
           is_password_protected?: boolean
           is_published?: boolean
           language?: string | null
           password_hash?: string | null
+          persona?: string | null
+          presenters_count?: number
+          presenters_names?: Json | null
           slides_count?: number
           slug: string
           theme?: string | null
@@ -58,14 +68,19 @@ export type Database = {
         Update: {
           created_at?: string
           deleted_at?: string | null
+          depth_level?: string | null
           description?: string | null
           font_style?: string | null
           id?: string
+          include_speeches?: boolean
           is_paid?: boolean
           is_password_protected?: boolean
           is_published?: boolean
           language?: string | null
           password_hash?: string | null
+          persona?: string | null
+          presenters_count?: number
+          presenters_names?: Json | null
           slides_count?: number
           slug?: string
           theme?: string | null
@@ -156,6 +171,7 @@ export type Database = {
           layout_template: string | null
           position: number
           presentation_id: string
+          presenters_data: Json | null
           slide_type: string
           speaker_notes: string | null
           updated_at: string
@@ -170,6 +186,7 @@ export type Database = {
           layout_template?: string | null
           position: number
           presentation_id: string
+          presenters_data?: Json | null
           slide_type?: string
           speaker_notes?: string | null
           updated_at?: string
@@ -184,6 +201,7 @@ export type Database = {
           layout_template?: string | null
           position?: number
           presentation_id?: string
+          presenters_data?: Json | null
           slide_type?: string
           speaker_notes?: string | null
           updated_at?: string
