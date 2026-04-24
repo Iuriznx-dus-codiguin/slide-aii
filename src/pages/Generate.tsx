@@ -593,6 +593,62 @@ const Generate = () => {
               </div>
             </div>
 
+            {/* DNA narrativo (Fase 2.5) */}
+            <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label>Persona do orador</Label>
+                <Select value={persona} onValueChange={setPersona}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="educator">Educador (didático)</SelectItem>
+                    <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
+                    <SelectItem value="inspirational-leader">Líder inspiracional</SelectItem>
+                    <SelectItem value="salesperson">Vendedor (dor→solução)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Profundidade</Label>
+                <Select value={depthLevel} onValueChange={setDepthLevel}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="high-level">Executivo (high-level)</SelectItem>
+                    <SelectItem value="deep-dive">Operacional (deep-dive)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Apresentadores</Label>
+                <span className="text-sm font-semibold text-primary">{presentersCount}</span>
+              </div>
+              <Slider value={[presentersCount]} onValueChange={([v]) => {
+                setPresentersCount(v);
+                setPresentersNames((prev) => {
+                  const next = [...prev];
+                  while (next.length < v) next.push(`Apresentador ${next.length + 1}`);
+                  return next.slice(0, v);
+                });
+              }} min={1} max={4} step={1} />
+              {presentersCount > 1 && (
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {Array.from({ length: presentersCount }).map((_, i) => (
+                    <Input key={i} value={presentersNames[i] ?? ""} placeholder={`Nome ${i + 1}`}
+                      onChange={(e) => setPresentersNames((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })} />
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">Gerar falas e notas</div>
+                  <div className="text-[11px] text-muted-foreground">Script literal + estudo aprofundado por apresentador</div>
+                </div>
+                <Switch checked={includeSpeeches} onCheckedChange={setIncludeSpeeches} />
+              </div>
+            </div>
+
             <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate}>
               <Sparkles className="h-4 w-4" /> Gerar apresentação
             </Button>
