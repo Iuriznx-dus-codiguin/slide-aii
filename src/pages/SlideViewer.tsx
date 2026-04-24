@@ -265,4 +265,107 @@ const SlideViewer = () => {
   );
 };
 
+/** Popover compacto para consultar falas/notas do slide atual durante a apresentação. */
+const PresenterNotesPopover = ({
+  slide,
+  presentersNames,
+  floating,
+}: {
+  slide?: SlideRow;
+  presentersNames: string[];
+  floating?: boolean;
+}) => {
+  const existing = (slide?.presenters_data ?? []) as PresenterEntry[];
+  const presenters: PresenterEntry[] =
+    presentersNames.length > 0
+      ? presentersNames.map((name, i) => {
+          const found = existing.find((e) => e.name === name) ?? existing[i];
+          return found
+            ? { ...found, name }
+            : { id: `${i}`, name, technical_notes: "", exact_speech: "", transition_anchor: "" };
+        })
+      : existing;
+
+  const triggerCls = floating
+    ? "h-10 w-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur border border-white/15 text-white flex items-center justify-center shadow-elegant"
+    : "";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        {floating ? (
+          <button className={triggerCls} title="Consultar falas e notas">
+            <Users className="h-4 w-4" />
+          </button>
+        ) : (
+          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" title="Consultar falas e notas">
+            <Users className="h-4 w-4" />
+            <span className="hidden md:inline ml-1">Falas</span>
+          </Button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-[380px] p-0" align="end">
+        <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Users className="h-3.5 w-3.5 text-primary" /> Falas & Notas
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Slide {(slide?.position ?? 0) + 1}
+          </span>
+        </div>
+        {presenters.length === 0 ? (
+          <div className="p-4 text-xs text-muted-foreground text-center">
+            Nenhuma fala registrada para este slide.
+          </div>
+        ) : (
+          <Tabs defaultValue={presenters[0].id} className="flex flex-col">
+            <TabsList
+              className="mx-2 mt-2 grid"
+              style={{ gridTemplateColumns: `repeat(${presenters.length}, minmax(0, 1fr))` }}
+            >
+              {presenters.map((p) => (
+                <TabsTrigger key={p.id} value={p.id} className="text-[11px] truncate">
+                  {p.name || "Apresentador"}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <ScrollArea className="max-h-[60vh]">
+              {presenters.map((p) => (
+                <TabsContent key={p.id} value={p.id} className="px-3 py-3 space-y-3 mt-0">
+                  {p.transition_anchor && (
+                    <div className="text-[11px] italic text-muted-foreground border-l-2 border-primary/40 pl-2">
+                      ↪ {p.transition_anchor}
+                    </div>
+                  )}
+                  {p.exact_speech && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-primary font-semibold">🎤 Fala exata</div>
+                      <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap bg-muted/40 rounded-md p-2">
+                        {p.exact_speech}
+                      </p>
+                    </div>
+                  )}
+                  {p.technical_notes && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">📚 Nota técnica</div>
+                      <p className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                        {p.technical_notes}
+                      </p>
+                    </div>
+                  )}
+                  {!p.exact_speech && !p.technical_notes && !p.transition_anchor && (
+                    <div className="text-xs text-muted-foreground text-center py-4">
+                      Nenhuma anotação para {p.name}.
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </ScrollArea>
+          </Tabs>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export default SlideViewer;
