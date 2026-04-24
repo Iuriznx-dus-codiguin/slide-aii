@@ -74,6 +74,12 @@ const Generate = () => {
   const [fontStyle, setFontStyle] = useState("modern-sans");
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
+  // DNA narrativo (Fase 2.5+)
+  const [persona, setPersona] = useState<string>("educator");
+  const [depthLevel, setDepthLevel] = useState<string>("high-level");
+  const [presentersCount, setPresentersCount] = useState(1);
+  const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
+  const [includeSpeeches, setIncludeSpeeches] = useState(false);
 
   // Preview state
   const [slides, setSlides] = useState<AISlide[]>([]);
@@ -145,7 +151,11 @@ const Generate = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("generate-presentation", {
-        body: { title, description, slidesCount, type, language, theme, fontStyle, includeCharts, includeImages },
+        body: {
+          title, description, slidesCount, type, language, theme, fontStyle,
+          includeCharts, includeImages,
+          persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+        },
       });
 
       if (error) throw error;
@@ -162,7 +172,11 @@ const Generate = () => {
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
         user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
         slug, slides_count: withImages.length, is_paid: true, is_published: true,
-      }).select().single();
+        persona, depth_level: depthLevel,
+        presenters_count: presentersCount,
+        presenters_names: presentersNames,
+        include_speeches: includeSpeeches,
+      } as any).select().single();
       if (pErr) throw pErr;
 
       const slidesToInsert = withImages.map((s: AISlide, idx: number) => ({
@@ -172,6 +186,7 @@ const Generate = () => {
         layout_template: s.layout_template,
         speaker_notes: s.speaker_notes,
         animation_transition: s.animation || "fade",
+        presenters_data: (s as any).presenters_data ?? [],
         content: {
           headline: s.headline, subtitle: s.subtitle, body_text: s.body_text,
           bullets: s.bullets, stat_value: s.stat_value, stat_label: s.stat_label,
@@ -179,8 +194,11 @@ const Generate = () => {
           image_query: s.image_query, image_strategy: s.image_strategy,
           image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
           chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
+          narrative_act: (s as any).narrative_act,
+          animation_intent: (s as any).animation_intent,
+          dynamic_theme: idx === 0 ? dyn : undefined,
         },
-      }));
+      })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
       if (sErr) throw sErr;
 
