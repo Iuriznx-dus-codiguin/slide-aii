@@ -14,8 +14,9 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowLeft, Save, Undo2, Redo2, Plus, Trash2, ZoomIn, ZoomOut, Play,
   Type, Image as ImageIcon, Wand2, Layout as LayoutIcon, FileText, Loader2,
-  GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X,
+  GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users,
 } from "lucide-react";
+import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
