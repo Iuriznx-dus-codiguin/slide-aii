@@ -339,7 +339,7 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
           subtitle: c.subtitle,
           imageUrl: c.image_url,
           theme,
-          fontFamily: font.family,
+          fontFamily: displayFont,
         })}
       </div>
     );
