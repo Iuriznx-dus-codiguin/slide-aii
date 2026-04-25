@@ -30,6 +30,7 @@ import {
 import { sharedId } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
+import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdrop";
 
 export interface SlideContent {
   headline?: string;
