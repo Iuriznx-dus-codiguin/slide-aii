@@ -9,7 +9,7 @@ const corsHeaders = {
 interface FetchImageBody {
   query?: string;
   ai_prompt?: string;
-  strategy: "pexels" | "ai" | "none";
+  strategy: "pexels" | "ai" | "none" | "video";
   orientation?: "landscape" | "portrait" | "square";
 }
 
@@ -24,6 +24,39 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ url: null }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (strategy === "video") {
+      const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
+      if (!PEXELS_API_KEY) {
+        return new Response(JSON.stringify({ url: null, error: "PEXELS_API_KEY not configured" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const q = encodeURIComponent(body.query || "abstract motion");
+      const r = await fetch(`https://api.pexels.com/videos/search?query=${q}&per_page=8&orientation=landscape&size=medium`, {
+        headers: { Authorization: PEXELS_API_KEY },
+      });
+      if (!r.ok) {
+        console.error("Pexels videos error:", r.status, await r.text());
+        return new Response(JSON.stringify({ url: null, error: "Pexels videos error" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const data = await r.json();
+      // Pega o vídeo curto (<= 20s) com melhor resolução em mp4
+      const video = (data.videos ?? []).find((v: any) => v.duration && v.duration <= 25) ?? data.videos?.[0];
+      const file = video?.video_files?.find((f: any) => f.file_type === "video/mp4" && f.width && f.width <= 1920 && f.width >= 960)
+        ?? video?.video_files?.find((f: any) => f.file_type === "video/mp4")
+        ?? video?.video_files?.[0];
+      const url = file?.link ?? null;
+      const poster = video?.image ?? null;
+      return new Response(JSON.stringify({
+        url, poster,
+        photographer: video?.user?.name ?? null,
+        photographer_url: video?.user?.url ?? null,
+        duration: video?.duration ?? null,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (strategy === "pexels") {
