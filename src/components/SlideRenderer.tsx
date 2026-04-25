@@ -362,21 +362,22 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- QUOTE ---------- */
   if (isQuote && c.quote_text) {
-    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
+    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} />;
   }
 
   /* ---------- STAT HIGHLIGHT (morph número→barra) ---------- */
   if (isStat) {
-    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
+    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} />;
   }
 
   /* ---------- CENTERED / SECTION DIVIDER ---------- */
   if (isCentered) {
     return (
-      <div className="w-full h-full flex items-center justify-center p-[6%] text-center" style={containerStyle}>
-        <motion.div {...motionMode} variants={variants.container}>
+      <div className="w-full h-full flex items-center justify-center p-[6%] text-center relative overflow-hidden" style={containerStyle}>
+        <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.5} orbCount={3} />
+        <motion.div {...motionMode} variants={variants.container} className="relative z-10">
           {c.subtitle && <motion.p variants={variants.item} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
-          <motion.h1 variants={variants.item} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight">{c.headline}</motion.h1>
+          <motion.h1 variants={variants.item} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>
           {c.body_text && <motion.p variants={variants.item} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
           <motion.div variants={variants.item} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
         </motion.div>
@@ -420,9 +421,9 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- DATA CHART ---------- */
   if (isChart && c.chart) {
-    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} />;
+    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} />;
   }
 
   /* ---------- DEFAULT ---------- */
-  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} />;
+  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} />;
 };
