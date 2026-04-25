@@ -33,12 +33,13 @@ export const THEMES: Record<string, ThemeColors> = {
   "rose-gold": { bg: "#1C1018", text: "#FFE4E6", accent: "#F43F5E", name: "Rose Gold" },
 };
 
-export const FONTS: Record<string, { family: string; name: string }> = {
-  "modern-sans": { family: "'Plus Jakarta Sans', sans-serif", name: "Modern Sans" },
-  "classic-serif": { family: "'Playfair Display', 'Georgia', serif", name: "Classic Serif" },
-  "bold-display": { family: "'Inter', sans-serif", name: "Bold Display" },
-  "minimal-clean": { family: "'Inter', system-ui, sans-serif", name: "Minimal Clean" },
-  "editorial": { family: "'Cormorant Garamond', 'Georgia', serif", name: "Editorial" },
+/** Display font: distinta para títulos. Body permanece sans neutra. */
+export const FONTS: Record<string, { family: string; name: string; display?: string }> = {
+  "modern-sans":   { family: "'Plus Jakarta Sans', sans-serif", display: "'Bricolage Grotesque', 'Plus Jakarta Sans', sans-serif", name: "Modern Sans" },
+  "classic-serif": { family: "'Playfair Display', 'Georgia', serif", display: "'Fraunces', 'Playfair Display', serif", name: "Classic Serif" },
+  "bold-display":  { family: "'Inter', sans-serif", display: "'Bricolage Grotesque', 'Inter', sans-serif", name: "Bold Display" },
+  "minimal-clean": { family: "'Inter', system-ui, sans-serif", display: "'Space Grotesk', 'Inter', system-ui, sans-serif", name: "Minimal Clean" },
+  "editorial":     { family: "'Cormorant Garamond', 'Georgia', serif", display: "'Fraunces', 'Cormorant Garamond', serif", name: "Editorial" },
 };
 
 /**
