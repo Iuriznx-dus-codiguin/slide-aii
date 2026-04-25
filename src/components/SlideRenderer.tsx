@@ -242,7 +242,9 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont }: Defa
 export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false }: Props) => {
   const theme = resolveTheme(themeId, dynamicTheme);
   const font = FONTS[fontId] ?? FONTS["modern-sans"];
+  const displayFont = font.display ?? font.family;
   const c = slide.content || {};
+  const videoQuery = videoQueryForSlide(c);
 
   // Escolha do preset cinematográfico:
   // 1) se a IA setou animation, mapeia legacy → preset
