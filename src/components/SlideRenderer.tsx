@@ -92,16 +92,16 @@ const AnimatedStat = ({ value, color, enabled }: { value: string; color: string;
 
 /* ---------- Subcomponentes com timeline (Rules of Hooks safe) ---------- */
 
-interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
-const QuoteSlide = ({ c, theme, containerStyle, noAnimate }: QuoteSlideProps) => {
+interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; }
+const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: QuoteSlideProps) => {
   const tl = useMemo(() => applyIntent(buildQuoteScenario(), c.animation_intent ?? "quote-spotlight"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
-      <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 0.04, scale: 1 }} transition={{ duration: 1.5, ease: EASE.editorial as any }} className="absolute inset-0" style={{ background: `radial-gradient(circle at 30% 20%, ${theme.accent}, transparent 60%)` }} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.6} orbCount={3} />
       <div className="text-center max-w-5xl relative z-10">
-        <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent }}>"</motion.div>
-        <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic">{c.quote_text}</motion.p>
+        <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
+        <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic" style={{ fontFamily: displayFont }}>{c.quote_text}</motion.p>
         {c.quote_author && (
           <motion.div {...ctrl.motionProps("author")} className="mt-10 flex items-center justify-center gap-4">
             <div className="h-px w-12" style={{ background: theme.accent }} />
@@ -114,13 +114,13 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate }: QuoteSlideProps) =>
   );
 };
 
-interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
-const StatSlide = ({ c, theme, containerStyle, noAnimate }: StatSlideProps) => {
+interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; }
+const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: StatSlideProps) => {
   const tl = useMemo(() => applyIntent(buildStatScenario(), c.animation_intent ?? "emphasis-stat"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
-      <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 0.08 }} transition={{ duration: 1.4, ease: EASE.editorial as any }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vh] h-[80vh] rounded-full" style={{ background: `radial-gradient(circle, ${theme.accent}, transparent 60%)`, filter: "blur(40px)" }} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.55} orbCount={4} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
           <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
@@ -129,7 +129,7 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate }: StatSlideProps) => {
           {...ctrl.motionProps("stat")}
           layoutId={sharedId("stat", c.stat_value)}
           className="w-full"
-          style={{ height: "min(50vh, 360px)" }}
+          style={{ height: "min(50vh, 360px)", fontFamily: displayFont }}
         >
           <MorphingNumberToBar value={c.stat_value!} color={theme.accent} noAnimate={noAnimate} />
         </motion.div>
@@ -141,22 +141,32 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate }: StatSlideProps) => {
   );
 };
 
-interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; }
-const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart }: ChartSlideProps) => {
+interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; displayFont: string; }
+const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayFont }: ChartSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildChartScenario(c.bullets?.length ?? 0), c.animation_intent ?? "data-reveal"),
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
-    <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-      <div>
-        <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+    <div className="w-full h-full flex flex-col p-[5%] relative" style={containerStyle}>
+      <div className="relative z-10">
+        <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
         {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
       </div>
-      <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6">
+      <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6 relative z-10">
         <div className="col-span-7 min-h-0">
-          <motion.div {...ctrl.motionProps("chart")} className="h-full">{renderChart()}</motion.div>
+          <motion.div
+            {...ctrl.motionProps("chart")}
+            className="h-full rounded-2xl p-3"
+            style={{
+              background: `linear-gradient(135deg, ${theme.bg}99 0%, ${theme.accent}10 100%)`,
+              backdropFilter: "blur(8px)",
+              border: `1px solid ${theme.accent}20`,
+            }}
+          >
+            {renderChart()}
+          </motion.div>
         </div>
         <div className="col-span-5 flex flex-col justify-center">
           {c.body_text && <p className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</p>}
@@ -176,20 +186,39 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart }: ChartS
   );
 };
 
-interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; }
-const DefaultSlide = ({ c, theme, containerStyle, noAnimate }: DefaultSlideProps) => {
+interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; }
+const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont }: DefaultSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildEditorialScenario(c.bullets?.length ?? 0), c.animation_intent ?? "narrative-build"),
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
+  // Word-by-word stagger no headline (kinetic type)
+  const headlineWords = (c.headline ?? "").split(" ");
   return (
-    <div className="w-full h-full flex flex-col p-[5%]" style={containerStyle}>
-      <div>
-        <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3.2vw] font-bold leading-tight" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+    <div className="w-full h-full flex flex-col p-[5%] relative" style={containerStyle}>
+      <div className="relative z-10">
+        <motion.h2
+          {...ctrl.motionProps("title")}
+          layoutId={sharedId("title", c.headline?.slice(0, 24))}
+          className="text-[3.2vw] font-bold leading-[1.05] tracking-tight"
+          style={{ color: theme.accent, fontFamily: displayFont, perspective: 1000 }}
+        >
+          {headlineWords.map((w, i) => (
+            <motion.span
+              key={i}
+              initial={noAnimate ? false : { opacity: 0, y: 24, rotateX: -30 }}
+              animate={{ opacity: 1, y: 0, rotateX: 0 }}
+              transition={{ duration: 0.7, delay: 0.25 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+              className="inline-block mr-[0.25em]"
+            >
+              {w}
+            </motion.span>
+          ))}
+        </motion.h2>
         {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
       </div>
-      <div className="flex-1 mt-6 flex flex-col justify-center">
+      <div className="flex-1 mt-6 flex flex-col justify-center relative z-10">
         {c.body_text && (
           <motion.p {...ctrl.motionProps("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
             {c.body_text}
