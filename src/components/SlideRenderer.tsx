@@ -31,6 +31,7 @@ import { sharedId } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
 import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdrop";
+import { useImageInsight } from "@/lib/imageAnalysis";
 
 export interface SlideContent {
   headline?: string;
@@ -347,17 +348,7 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- FULL IMAGE (slide normal com fundo de imagem) ---------- */
   if (layout === "full-image" && c.image_url) {
-    return (
-      <div className="relative w-full h-full overflow-hidden" style={containerStyle}>
-        <motion.img src={c.image_url} alt={c.headline || ""} className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
-        <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${hexToRgba(theme.bg, 0.85)} 0%, ${hexToRgba(theme.bg, 0.4)} 100%)` }} />
-        <motion.div {...motionMode} variants={variants.container} className="relative h-full flex flex-col justify-end p-[5%]">
-          <motion.div variants={variants.item} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
-          <motion.h1 variants={variants.item} className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight max-w-[80%]">{c.headline}</motion.h1>
-          {c.subtitle && <motion.p variants={variants.item} className="mt-4 text-[2vw] md:text-[1.8vw] opacity-90 max-w-[70%]">{c.subtitle}</motion.p>}
-        </motion.div>
-      </div>
-    );
+    return <FullImageSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} />;
   }
 
   /* ---------- QUOTE ---------- */
@@ -385,38 +376,9 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
     );
   }
 
-  /* ---------- IMAGE-LEFT / IMAGE-RIGHT ---------- */
+  /* ---------- IMAGE-LEFT / IMAGE-RIGHT (Smart Layout: anti-overlap) ---------- */
   if (hasImage && (layout === "image-right" || layout === "image-left")) {
-    const imageSide = layout === "image-right" ? "right" : "left";
-    return (
-      <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[4%]" style={containerStyle}>
-        {imageSide === "left" && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
-            <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
-          </motion.div>
-        )}
-        <motion.div {...motionMode} variants={variants.container} className={`col-span-7 flex flex-col justify-center ${imageSide === "left" ? "" : "pr-[2%]"}`}>
-          <motion.h2 variants={variants.item} className="text-[3.5vw] font-bold leading-tight mb-4" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-          {c.subtitle && <motion.p variants={variants.item} className="text-[1.6vw] opacity-75 mb-6">{c.subtitle}</motion.p>}
-          {c.body_text && <motion.p variants={variants.item} className="text-[1.3vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
-          {c.bullets && c.bullets.length > 0 && (
-            <ul className="space-y-3">
-              {c.bullets.map((b, i) => (
-                <motion.li key={i} variants={variants.item} className="flex items-start gap-3 text-[1.3vw]">
-                  <span className="mt-[0.6em] h-2 w-2 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
-                  <span className="leading-snug">{b}</span>
-                </motion.li>
-              ))}
-            </ul>
-          )}
-        </motion.div>
-        {imageSide === "right" && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
-            <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
-          </motion.div>
-        )}
-      </div>
-    );
+    return <ImageSplitSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} requestedSide={layout === "image-right" ? "right" : "left"} />;
   }
 
   /* ---------- DATA CHART ---------- */
