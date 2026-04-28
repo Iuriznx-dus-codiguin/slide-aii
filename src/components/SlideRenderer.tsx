@@ -348,17 +348,7 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- FULL IMAGE (slide normal com fundo de imagem) ---------- */
   if (layout === "full-image" && c.image_url) {
-    return (
-      <div className="relative w-full h-full overflow-hidden" style={containerStyle}>
-        <motion.img src={c.image_url} alt={c.headline || ""} className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
-        <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${hexToRgba(theme.bg, 0.85)} 0%, ${hexToRgba(theme.bg, 0.4)} 100%)` }} />
-        <motion.div {...motionMode} variants={variants.container} className="relative h-full flex flex-col justify-end p-[5%]">
-          <motion.div variants={variants.item} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
-          <motion.h1 variants={variants.item} className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight max-w-[80%]">{c.headline}</motion.h1>
-          {c.subtitle && <motion.p variants={variants.item} className="mt-4 text-[2vw] md:text-[1.8vw] opacity-90 max-w-[70%]">{c.subtitle}</motion.p>}
-        </motion.div>
-      </div>
-    );
+    return <FullImageSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} />;
   }
 
   /* ---------- QUOTE ---------- */
