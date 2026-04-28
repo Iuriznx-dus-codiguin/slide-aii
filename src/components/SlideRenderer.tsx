@@ -240,6 +240,85 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont }: Defa
   );
 };
 
+/* ---------- Smart Layout: Image Split (anti-overlap) ---------- */
+interface ImageSplitProps {
+  c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties;
+  variants: any; motionMode: any; requestedSide: "left" | "right";
+}
+const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, requestedSide }: ImageSplitProps) => {
+  const insight = useImageInsight(c.image_url ?? null);
+  // Imagem fica do lado OPOSTO ao "safeSide" (onde há área plana p/ texto dentro da img),
+  // garantindo que o foco visual da imagem não fique grudado no texto.
+  const imageSide: "left" | "right" = insight
+    ? (insight.safeSide === "left" ? "right" : "left")
+    : requestedSide;
+  return (
+    <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[4%]" style={containerStyle}>
+      {imageSide === "left" && (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
+          <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
+        </motion.div>
+      )}
+      <motion.div {...motionMode} variants={variants.container} className={`col-span-7 flex flex-col justify-center ${imageSide === "left" ? "" : "pr-[2%]"}`}>
+        <motion.h2 variants={variants.item} className="text-[3.5vw] font-bold leading-tight mb-4" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+        {c.subtitle && <motion.p variants={variants.item} className="text-[1.6vw] opacity-75 mb-6">{c.subtitle}</motion.p>}
+        {c.body_text && <motion.p variants={variants.item} className="text-[1.3vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
+        {c.bullets && c.bullets.length > 0 && (
+          <ul className="space-y-3">
+            {c.bullets.map((b, i) => (
+              <motion.li key={i} variants={variants.item} className="flex items-start gap-3 text-[1.3vw]">
+                <span className="mt-[0.6em] h-2 w-2 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
+                <span className="leading-snug">{b}</span>
+              </motion.li>
+            ))}
+          </ul>
+        )}
+      </motion.div>
+      {imageSide === "right" && (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
+          <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
+/* ---------- Smart Layout: Full Image com Auto-Contraste WCAG ---------- */
+interface FullImageProps {
+  c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties;
+  variants: any; motionMode: any;
+}
+const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: FullImageProps) => {
+  const insight = useImageInsight(c.image_url ?? null);
+  const anchor = insight?.safeAnchor ?? "bottom-left";
+  const textColor = insight?.textColor ?? "#FFFFFF";
+  const overlayColor = insight?.overlay.color ?? "#000000";
+  const overlayAlpha = insight?.overlay.alpha ?? 0.5;
+  const anchorClass = {
+    "top-left": "items-start justify-start text-left",
+    "top-right": "items-start justify-end text-right",
+    "bottom-left": "items-end justify-start text-left",
+    "bottom-right": "items-end justify-end text-right",
+    "center": "items-center justify-center text-center",
+  }[anchor];
+  const gradientDir = anchor.includes("right") ? "to left" : anchor.includes("left") ? "to right" : "to top";
+  return (
+    <div className="relative w-full h-full overflow-hidden" style={containerStyle}>
+      <motion.img src={c.image_url!} alt={c.headline || ""} className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
+      <div className="absolute inset-0" style={{
+        background: `linear-gradient(${gradientDir}, ${hexToRgba(overlayColor, overlayAlpha)} 0%, ${hexToRgba(overlayColor, overlayAlpha * 0.3)} 55%, transparent 90%)`,
+      }} />
+      <motion.div {...motionMode} variants={variants.container} className={`relative h-full flex flex-col p-[5%] ${anchorClass}`} style={{ color: textColor }}>
+        <div className={`flex flex-col ${anchor.includes("right") ? "items-end" : anchor === "center" ? "items-center" : "items-start"} max-w-[80%]`}>
+          <motion.div variants={variants.item} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
+          <motion.h1 variants={variants.item} className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight" style={{ color: textColor }}>{c.headline}</motion.h1>
+          {c.subtitle && <motion.p variants={variants.item} className="mt-4 text-[2vw] md:text-[1.8vw] opacity-90" style={{ color: textColor }}>{c.subtitle}</motion.p>}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false }: Props) => {
   const theme = resolveTheme(themeId, dynamicTheme);
   const font = FONTS[fontId] ?? FONTS["modern-sans"];

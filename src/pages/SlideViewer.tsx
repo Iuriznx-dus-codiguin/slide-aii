@@ -239,7 +239,7 @@ const SlideViewer = () => {
         onJump={setIdx}
         hidden={hideUI}
         accent={dynamicTheme?.accent ?? "#A855F7"}
-        acts={slides.map((s, i) => actForSlide(i, slides.length, s.slide_type)) as NarrativeAct[]}
+        acts={slides.map((s, i) => ((s as any).content?.narrative_act as NarrativeAct) ?? actForSlide(i, slides.length, s.slide_type)) as NarrativeAct[]}
       />
       {fullscreen && !hideUI && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 text-[10px] uppercase tracking-[0.3em] text-white/40 pointer-events-none">
