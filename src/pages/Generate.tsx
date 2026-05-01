@@ -641,7 +641,7 @@ const Generate = () => {
                   while (next.length < v) next.push(`Apresentador ${next.length + 1}`);
                   return next.slice(0, v);
                 });
-              }} min={1} max={4} step={1} />
+              }} min={1} max={8} step={1} />
               {presentersCount > 1 && (
                 <div className="grid sm:grid-cols-2 gap-2">
                   {Array.from({ length: presentersCount }).map((_, i) => (
