@@ -1,8 +1,7 @@
 // ============================================================
-// SlideAI — Presenter Notes Panel (Fase A)
+// SlideAI — Presenter Speeches Panel
 // ------------------------------------------------------------
 // Painel lateral do Editor para visualizar/editar:
-//   • Notas técnicas (estudo aprofundado por apresentador)
 //   • Fala exata (script literal por apresentador)
 //   • Âncoras de transição entre apresentadores
 //
@@ -20,6 +19,7 @@ import { Download, Printer, Users, X } from "lucide-react";
 export interface PresenterEntry {
   id: string;
   name: string;
+  /** @deprecated mantido por compatibilidade com dados antigos; não exibido nem editado */
   technical_notes?: string;
   exact_speech?: string;
   transition_anchor?: string;
@@ -55,7 +55,7 @@ function buildFullScript(
   slides: Array<{ headline?: string; presenters_data?: PresenterEntry[] }>,
 ): string {
   const parts: string[] = [];
-  parts.push(`# ${title}\n# Roteiro de apresentação completo\n`);
+  parts.push(`# ${title}\n# Roteiro de falas — apresentação completa\n`);
   slides.forEach((s, i) => {
     parts.push(`\n══════════════════════════════════════════`);
     parts.push(`SLIDE ${i + 1} — ${s.headline ?? "(sem título)"}`);
@@ -67,12 +67,8 @@ function buildFullScript(
       presenters.forEach((p) => {
         parts.push(`\n► ${p.name || "Apresentador"}`);
         if (p.transition_anchor) parts.push(`  ↪ ${p.transition_anchor}`);
-        if (p.technical_notes) {
-          parts.push(`\n  📚 NOTA TÉCNICA (para estudo):`);
-          parts.push(p.technical_notes.split("\n").map((l) => `     ${l}`).join("\n"));
-        }
         if (p.exact_speech) {
-          parts.push(`\n  🎤 FALA EXATA:`);
+          parts.push(`\n  🎤 FALA:`);
           parts.push(p.exact_speech.split("\n").map((l) => `     ${l}`).join("\n"));
         }
       });
@@ -93,7 +89,6 @@ function printScript(title: string, slides: Array<{ headline?: string; presenter
       h3{font-size:14px;margin-top:18px;color:#444;text-transform:uppercase;letter-spacing:0.05em}
       .pres{margin-top:14px;padding-left:14px;border-left:3px solid #ddd}
       .anchor{font-style:italic;color:#666;font-size:13px;margin-bottom:8px}
-      .note{background:#fffbe8;padding:10px 14px;border-radius:6px;font-size:14px}
       .speech{background:#eef6ff;padding:10px 14px;border-radius:6px;font-size:15px;font-weight:500;margin-top:8px}
       .slide-no{color:#A855F7;font-weight:bold}
       @media print{body{margin:20px}h2{break-before:page}}
@@ -105,7 +100,6 @@ function printScript(title: string, slides: Array<{ headline?: string; presenter
         <div class="pres">
           <h3>${p.name || "Apresentador"}</h3>
           ${p.transition_anchor ? `<div class="anchor">↪ ${p.transition_anchor}</div>` : ""}
-          ${p.technical_notes ? `<div class="note"><strong>Nota técnica:</strong><br>${p.technical_notes.replace(/\n/g, "<br>")}</div>` : ""}
           ${p.exact_speech ? `<div class="speech"><strong>Fala:</strong><br>${p.exact_speech.replace(/\n/g, "<br>")}</div>` : ""}
         </div>
       `).join("")}
@@ -133,7 +127,7 @@ export const PresenterNotesPanel = ({
       const found = existing.find((e) => e.name === name) ?? existing[i];
       return found
         ? { ...found, name }
-        : { id: crypto.randomUUID(), name, technical_notes: "", exact_speech: "", transition_anchor: "" };
+        : { id: crypto.randomUUID(), name, exact_speech: "", transition_anchor: "" };
     });
     return merged.length > 0 ? merged : existing;
   }, [current, presentersNames]);
@@ -149,7 +143,7 @@ export const PresenterNotesPanel = ({
     <aside className="w-80 md:w-96 border-l border-border bg-card/40 flex flex-col flex-shrink-0">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <Users className="h-3.5 w-3.5 text-primary" /> Falas & Notas
+          <Users className="h-3.5 w-3.5 text-primary" /> Falas dos apresentadores
         </span>
         <div className="flex items-center gap-1">
           <Button
@@ -205,18 +199,6 @@ export const PresenterNotesPanel = ({
                     rows={2}
                     placeholder='Ex: "Agora, Maria explicará a parte técnica."'
                     className="text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] flex items-center gap-1">
-                    📚 Nota técnica (estudo aprofundado)
-                  </Label>
-                  <Textarea
-                    value={p.technical_notes || ""}
-                    onChange={(e) => updatePresenter(p.id, { technical_notes: e.target.value })}
-                    rows={6}
-                    placeholder="Conteúdo aprofundado para o apresentador estudar..."
-                    className="text-xs leading-relaxed"
                   />
                 </div>
                 <div className="space-y-1.5">
