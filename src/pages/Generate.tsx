@@ -230,7 +230,12 @@ const Generate = () => {
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
         user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
         slug, slides_count: slides.length, is_paid: true, is_published: true,
-      }).select().single();
+        persona,
+        depth_level: depthLevel,
+        presenters_count: presentersCount,
+        presenters_names: presentersNames,
+        include_speeches: includeSpeeches,
+      } as any).select().single();
       if (pErr) throw pErr;
 
       const slidesToInsert = slides.map((s, idx) => ({
@@ -240,6 +245,7 @@ const Generate = () => {
         layout_template: s.layout_template,
         speaker_notes: s.speaker_notes,
         animation_transition: s.animation || "fade",
+        presenters_data: (s as any).presenters_data ?? [],
         content: {
           headline: s.headline, subtitle: s.subtitle, body_text: s.body_text,
           bullets: s.bullets, stat_value: s.stat_value, stat_label: s.stat_label,
@@ -247,10 +253,17 @@ const Generate = () => {
           image_query: s.image_query, image_strategy: s.image_strategy,
           image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
           chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
+          narrative_act: (s as any).narrative_act,
+          animation_intent: (s as any).animation_intent,
+          dynamic_theme: idx === 0 ? dynamicTheme : undefined,
         },
-      }));
+      })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
-      if (sErr) throw sErr;
+      if (sErr) {
+        // Rollback: evita apresentações órfãs sem slides no banco
+        await supabase.from("presentations").delete().eq("id", pres.id);
+        throw sErr;
+      }
 
       const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
       await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
