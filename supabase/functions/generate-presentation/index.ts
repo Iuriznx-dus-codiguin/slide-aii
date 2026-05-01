@@ -324,7 +324,6 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
           return {
             id: crypto.randomUUID(),
             name,
-            technical_notes: found.technical_notes || "",
             exact_speech: found.exact_speech || "",
             transition_anchor: found.transition_anchor || "",
           };
