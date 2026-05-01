@@ -1,8 +1,7 @@
 // ============================================================
-// SlideAI — Presenter Notes Panel (Fase A)
+// SlideAI — Presenter Speeches Panel
 // ------------------------------------------------------------
 // Painel lateral do Editor para visualizar/editar:
-//   • Notas técnicas (estudo aprofundado por apresentador)
 //   • Fala exata (script literal por apresentador)
 //   • Âncoras de transição entre apresentadores
 //
