@@ -203,18 +203,6 @@ export const PresenterNotesPanel = ({
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] flex items-center gap-1">
-                    📚 Nota técnica (estudo aprofundado)
-                  </Label>
-                  <Textarea
-                    value={p.technical_notes || ""}
-                    onChange={(e) => updatePresenter(p.id, { technical_notes: e.target.value })}
-                    rows={6}
-                    placeholder="Conteúdo aprofundado para o apresentador estudar..."
-                    className="text-xs leading-relaxed"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] flex items-center gap-1">
                     🎤 Fala exata (script literal)
                   </Label>
                   <Textarea
