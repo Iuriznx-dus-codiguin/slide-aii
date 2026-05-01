@@ -96,12 +96,11 @@ REGRAS DE DESIGN/MOTION:
 10. Tema dinâmico: se tema "auto", devolva no PRIMEIRO slide um dynamic_theme com cores hex (bg, text, accent, accent2) refletindo o assunto. Mínimo WCAG AA.
 
 ${speeches ? `═══════════════════════════════════════════════════
-PASSO D — FALAS E NOTAS DOS APRESENTADORES (OPCIONAL ATIVADO)
+PASSO D — FALAS DOS APRESENTADORES (OPCIONAL ATIVADO)
 ═══════════════════════════════════════════════════
 Para CADA slide preencha presenters_data com UM objeto por apresentador (${presenters} no total):
 - name: nome do apresentador (use a lista acima)
-- technical_notes: PARÁGRAFO DENSO (60-150 palavras) com conteúdo aprofundado para o apresentador ESTUDAR sua parte. Inclua dados, contexto histórico, exemplos.
-- exact_speech: SCRIPT LITERAL (40-100 palavras) — palavra por palavra do que será dito em pé. Linguagem natural, primeira pessoa, parágrafo único.
+- exact_speech: SCRIPT LITERAL (60-140 palavras) — palavra por palavra do que será dito em pé. Linguagem natural, primeira pessoa, parágrafo único, fluido, com transições orgânicas.
 - transition_anchor: opcional. Se houver troca de apresentador a partir deste slide, escreva a frase de handoff (ex: "Agora, ${presenterList[0] ?? "[Nome]"}, vai mostrar os números").
 
 ${presenters > 1 ? `Distribua os slides EQUITATIVAMENTE entre os ${presenters} apresentadores. Cada slide pode ter apenas UM apresentador como "voz principal" — coloque os outros com fala vazia naquele slide ou repita o último apresentador para continuidade. Crie pelo menos 2 transições explícitas ao longo da apresentação.` : ""}` : ""}`;
