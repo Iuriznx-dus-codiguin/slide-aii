@@ -305,6 +305,38 @@ const Generate = () => {
               <span className="font-display font-bold truncate">{title}</span>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                onClick={async () => {
+                  const t = toast.loading("Renderizando PDF (0%)…");
+                  try {
+                    const rows = slides.map((s, idx) => ({
+                      position: idx,
+                      slide_type: s.slide_type,
+                      layout_template: s.layout_template,
+                      content: {
+                        ...s,
+                        dynamic_theme: idx === 0 ? dynamicTheme : undefined,
+                      },
+                    }));
+                    await exportPresentationToPdf({
+                      title, themeId: theme, fontId: fontStyle, slides: rows as any,
+                      dynamicTheme,
+                      onProgress: (cur, total) => {
+                        const pct = Math.round((cur / total) * 100);
+                        toast.loading(`Renderizando PDF (${pct}%)…`, { id: t });
+                      },
+                    });
+                    toast.success("PDF gerado!", { id: t });
+                  } catch (e: any) {
+                    console.error(e);
+                    toast.error(e.message || "Erro ao exportar PDF", { id: t });
+                  }
+                }}
+                disabled={saving}
+              >
+                <FileDown className="h-4 w-4" /> <span className="hidden sm:inline">PDF</span>
+              </Button>
               <Button variant="outline" size="sm" onClick={() => persistAndOpen("edit")} disabled={saving}>
                 <Edit3 className="h-4 w-4" /> <span className="hidden sm:inline">Editar manualmente</span>
               </Button>
