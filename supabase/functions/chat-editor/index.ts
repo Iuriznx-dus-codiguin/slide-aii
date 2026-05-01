@@ -119,23 +119,35 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       ? "https://api.openai.com/v1/chat/completions"
       : "https://ai.gateway.lovable.dev/v1/chat/completions";
     const authKey = useOpenAI ? OPENAI_API_KEY! : LOVABLE_API_KEY!;
-    // ChatGPT 5.2 para edições com instrução textual; fallback Gemini Flash.
-    const model = useOpenAI ? "gpt-5.2" : "google/gemini-2.5-flash";
+    // ChatGPT 4.1-mini para edições com instrução textual; fallback Gemini Flash.
+    const model = useOpenAI ? "gpt-4.1-mini" : "google/gemini-2.5-flash";
 
-    const aiResponse = await fetch(endpoint, {
+    const requestPayload = {
+      model,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      tools,
+      tool_choice: { type: "function", function: { name: "update_presentation" } },
+      max_completion_tokens: 16384,
+    };
+
+    let aiResponse = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${authKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        tools,
-        tool_choice: { type: "function", function: { name: "update_presentation" } },
-        max_completion_tokens: 16384,
-      }),
+      body: JSON.stringify(requestPayload),
     });
+
+    // Fallback automático para Gemini se OpenAI falhar com erro recuperável
+    if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
+      console.warn("chat-editor: OpenAI falhou status", aiResponse.status, "— fallback Gemini");
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...requestPayload, model: "google/gemini-2.5-flash" }),
+      });
+    }
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
@@ -171,6 +183,14 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       return new Response(JSON.stringify({ error: "Resposta da IA truncada — tente uma instrução menor (ex: edite poucos slides por vez)." }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Guarda contra truncação silenciosa: se a IA devolver menos slides do que o original,
+    // preserva os slides ausentes para não apagar conteúdo do usuário.
+    if (Array.isArray(parsed.slides) && parsed.slides.length < slides.length) {
+      for (let i = parsed.slides.length; i < slides.length; i++) {
+        parsed.slides.push(slides[i]);
+      }
     }
 
     return new Response(JSON.stringify(parsed), {

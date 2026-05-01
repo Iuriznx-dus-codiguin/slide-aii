@@ -234,26 +234,38 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
       ? "https://api.openai.com/v1/chat/completions"
       : "https://ai.gateway.lovable.dev/v1/chat/completions";
     const authKey = useOpenAI ? OPENAI_API_KEY! : LOVABLE_API_KEY!;
-    const model = useOpenAI ? "gpt-5.2" : "google/gemini-2.5-pro";
+    const model = useOpenAI ? "gpt-4.1" : "google/gemini-2.5-pro";
 
-    const aiResponse = await fetch(endpoint, {
+    const requestPayload = {
+      model,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT(body) },
+        { role: "user", content: userPrompt },
+      ],
+      tools,
+      tool_choice: { type: "function", function: { name: "create_presentation" } },
+      // Falas dobram o tamanho do payload — aumenta budget quando ativadas.
+      max_completion_tokens: body.includeSpeeches ? 32000 : 24000,
+    };
+
+    let aiResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${authKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT(body) },
-          { role: "user", content: userPrompt },
-        ],
-        tools,
-        tool_choice: { type: "function", function: { name: "create_presentation" } },
-        // Falas dobram o tamanho do payload — aumenta budget quando ativadas.
-        max_completion_tokens: body.includeSpeeches ? 32000 : 24000,
-      }),
+      body: JSON.stringify(requestPayload),
     });
+
+    // Fallback automático para Gemini se OpenAI falhar com erro recuperável
+    if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
+      console.warn("OpenAI falhou com status", aiResponse.status, "— tentando fallback Gemini");
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...requestPayload, model: "google/gemini-2.5-pro" }),
+      });
+    }
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
