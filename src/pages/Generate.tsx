@@ -110,11 +110,7 @@ const Generate = () => {
     toast.success(`Template "${tpl.title}" carregado — ajuste e gere!`);
   }, [searchParams]);
 
-  useEffect(() => {
-    if (phase !== "loading") return;
-    const id = setInterval(() => setStepIdx((i) => Math.min(i + 1, STEPS.length - 1)), 2000);
-    return () => clearInterval(id);
-  }, [phase]);
+  // Steps são controlados manualmente nos pontos reais do fluxo (ver handleGenerate).
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
