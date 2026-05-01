@@ -185,6 +185,14 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       });
     }
 
+    // Guarda contra truncação silenciosa: se a IA devolver menos slides do que o original,
+    // preserva os slides ausentes para não apagar conteúdo do usuário.
+    if (Array.isArray(parsed.slides) && parsed.slides.length < slides.length) {
+      for (let i = parsed.slides.length; i < slides.length; i++) {
+        parsed.slides.push(slides[i]);
+      }
+    }
+
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
