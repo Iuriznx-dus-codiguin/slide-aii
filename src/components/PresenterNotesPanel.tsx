@@ -55,7 +55,7 @@ function buildFullScript(
   slides: Array<{ headline?: string; presenters_data?: PresenterEntry[] }>,
 ): string {
   const parts: string[] = [];
-  parts.push(`# ${title}\n# Roteiro de apresentação completo\n`);
+  parts.push(`# ${title}\n# Roteiro de falas — apresentação completa\n`);
   slides.forEach((s, i) => {
     parts.push(`\n══════════════════════════════════════════`);
     parts.push(`SLIDE ${i + 1} — ${s.headline ?? "(sem título)"}`);
@@ -67,12 +67,8 @@ function buildFullScript(
       presenters.forEach((p) => {
         parts.push(`\n► ${p.name || "Apresentador"}`);
         if (p.transition_anchor) parts.push(`  ↪ ${p.transition_anchor}`);
-        if (p.technical_notes) {
-          parts.push(`\n  📚 NOTA TÉCNICA (para estudo):`);
-          parts.push(p.technical_notes.split("\n").map((l) => `     ${l}`).join("\n"));
-        }
         if (p.exact_speech) {
-          parts.push(`\n  🎤 FALA EXATA:`);
+          parts.push(`\n  🎤 FALA:`);
           parts.push(p.exact_speech.split("\n").map((l) => `     ${l}`).join("\n"));
         }
       });
