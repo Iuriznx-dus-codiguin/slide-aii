@@ -143,7 +143,7 @@ export const PresenterNotesPanel = ({
     <aside className="w-80 md:w-96 border-l border-border bg-card/40 flex flex-col flex-shrink-0">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <Users className="h-3.5 w-3.5 text-primary" /> Falas & Notas
+          <Users className="h-3.5 w-3.5 text-primary" /> Falas dos apresentadores
         </span>
         <div className="flex items-center gap-1">
           <Button
