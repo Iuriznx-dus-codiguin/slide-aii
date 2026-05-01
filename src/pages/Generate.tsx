@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Loader2, ArrowLeft, Send, ChevronLeft, ChevronRight, Edit3, Save, Wand2, Image as ImageIcon, MessageSquare } from "lucide-react";
+import { Sparkles, Loader2, ArrowLeft, Send, ChevronLeft, ChevronRight, Edit3, Save, Wand2, Image as ImageIcon, MessageSquare, FileDown } from "lucide-react";
+import { exportPresentationToPdf } from "@/lib/exportPdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
