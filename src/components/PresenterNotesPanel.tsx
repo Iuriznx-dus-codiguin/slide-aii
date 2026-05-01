@@ -19,6 +19,7 @@ import { Download, Printer, Users, X } from "lucide-react";
 export interface PresenterEntry {
   id: string;
   name: string;
+  /** @deprecated mantido por compatibilidade com dados antigos; não exibido nem editado */
   technical_notes?: string;
   exact_speech?: string;
   transition_anchor?: string;
