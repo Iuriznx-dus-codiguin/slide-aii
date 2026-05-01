@@ -210,8 +210,7 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
                       type: "object",
                       properties: {
                         name: { type: "string" },
-                        technical_notes: { type: "string", description: "60-150 palavras — conteúdo aprofundado para estudo." },
-                        exact_speech: { type: "string", description: "40-100 palavras — script literal em primeira pessoa." },
+                        exact_speech: { type: "string", description: "60-140 palavras — script literal em primeira pessoa, fluido." },
                         transition_anchor: { type: "string", description: "Frase de handoff (ex: 'Agora, Ana mostrará...')" },
                       },
                       required: ["name"],
