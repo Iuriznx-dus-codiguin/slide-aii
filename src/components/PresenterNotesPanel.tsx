@@ -127,7 +127,7 @@ export const PresenterNotesPanel = ({
       const found = existing.find((e) => e.name === name) ?? existing[i];
       return found
         ? { ...found, name }
-        : { id: crypto.randomUUID(), name, technical_notes: "", exact_speech: "", transition_anchor: "" };
+        : { id: crypto.randomUUID(), name, exact_speech: "", transition_anchor: "" };
     });
     return merged.length > 0 ? merged : existing;
   }, [current, presentersNames]);
