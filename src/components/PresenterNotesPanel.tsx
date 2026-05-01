@@ -89,7 +89,6 @@ function printScript(title: string, slides: Array<{ headline?: string; presenter
       h3{font-size:14px;margin-top:18px;color:#444;text-transform:uppercase;letter-spacing:0.05em}
       .pres{margin-top:14px;padding-left:14px;border-left:3px solid #ddd}
       .anchor{font-style:italic;color:#666;font-size:13px;margin-bottom:8px}
-      .note{background:#fffbe8;padding:10px 14px;border-radius:6px;font-size:14px}
       .speech{background:#eef6ff;padding:10px 14px;border-radius:6px;font-size:15px;font-weight:500;margin-top:8px}
       .slide-no{color:#A855F7;font-weight:bold}
       @media print{body{margin:20px}h2{break-before:page}}
@@ -101,7 +100,6 @@ function printScript(title: string, slides: Array<{ headline?: string; presenter
         <div class="pres">
           <h3>${p.name || "Apresentador"}</h3>
           ${p.transition_anchor ? `<div class="anchor">↪ ${p.transition_anchor}</div>` : ""}
-          ${p.technical_notes ? `<div class="note"><strong>Nota técnica:</strong><br>${p.technical_notes.replace(/\n/g, "<br>")}</div>` : ""}
           ${p.exact_speech ? `<div class="speech"><strong>Fala:</strong><br>${p.exact_speech.replace(/\n/g, "<br>")}</div>` : ""}
         </div>
       `).join("")}
