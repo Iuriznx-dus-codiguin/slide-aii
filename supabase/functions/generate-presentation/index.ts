@@ -221,7 +221,7 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
                       type: "object",
                       properties: {
                         name: { type: "string" },
-                        exact_speech: { type: "string", description: "60-140 palavras — script literal em primeira pessoa, fluido." },
+                        exact_speech: { type: "string", description: "40-80 palavras — script CONCISO em primeira pessoa, em 3 movimentos (abertura, ponto principal, gancho). Vazio se este apresentador não fala neste slide." },
                         transition_anchor: { type: "string", description: "Frase de handoff (ex: 'Agora, Ana mostrará...')" },
                       },
                       required: ["name"],
