@@ -525,8 +525,8 @@ const Generate = () => {
                 <Label>Número de slides</Label>
                 <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
-              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={10} step={1} />
-              <p className="text-xs text-muted-foreground">Limite máximo: 10 slides por geração.</p>
+              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={20} step={1} />
+              <p className="text-xs text-muted-foreground">De 3 a 20 slides — recomendado entre 6 e 12 para máxima coesão narrativa.</p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
