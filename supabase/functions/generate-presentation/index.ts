@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     const useOpenAI = !!OPENAI_API_KEY;
     if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");
 
-    const slidesCount = Math.max(3, Math.min(12, body.slidesCount || 8));
+    const slidesCount = Math.max(3, Math.min(20, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
     const presenters = Math.max(1, body.presentersCount ?? 1);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
