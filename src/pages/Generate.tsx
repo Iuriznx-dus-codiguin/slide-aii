@@ -652,8 +652,8 @@ const Generate = () => {
               )}
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
-                  <div className="font-medium text-sm">Gerar falas e notas</div>
-                  <div className="text-[11px] text-muted-foreground">Script literal + estudo aprofundado por apresentador</div>
+                  <div className="font-medium text-sm">Gerar falas dos apresentadores</div>
+                  <div className="text-[11px] text-muted-foreground">Script conciso (40-80 palavras) por slide, distribuído em blocos</div>
                 </div>
                 <Switch checked={includeSpeeches} onCheckedChange={setIncludeSpeeches} />
               </div>
