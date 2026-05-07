@@ -87,23 +87,34 @@ REGRAS CRÍTICAS DE CONTEÚDO:
 3. Use SEMPRE dados reais com fonte. Bullets ≤14 palavras, verbo forte ou substantivo concreto.
 4. Cada slide traz informação NOVA — proibido repetir.
 5. Quote slides citam pessoas REAIS verificáveis com cargo/contexto.
+6. PROFUNDIDADE: subtitle e body_text devem ser SUBSTANTIVOS — não preencher com chavões. Se o slide não pede texto longo, deixe vazio em vez de inventar.
+7. COESÃO ENTRE SLIDES: cada slide refere-se ao anterior com uma ponte lógica (causa→efeito, problema→solução, conceito→exemplo).
 
 REGRAS DE DESIGN/MOTION:
-6. Varie layouts. NUNCA repita layout em slides consecutivos.
-7. Para title_slide, escolha cover_variant entre split-hero, typographic-bold, full-bleed-image, minimal-centered, asymmetric-grid, gradient-mesh.
-8. Para CADA slide defina animation_intent: hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade.
-9. Para CADA slide com imagem, sugira image_query MUITO ESPECÍFICA em INGLÊS.
-10. Tema dinâmico: se tema "auto", devolva no PRIMEIRO slide um dynamic_theme com cores hex (bg, text, accent, accent2) refletindo o assunto. Mínimo WCAG AA.
+8. Varie layouts. NUNCA repita layout em slides consecutivos.
+9. Para title_slide, escolha cover_variant entre split-hero, typographic-bold, full-bleed-image, minimal-centered, asymmetric-grid, gradient-mesh.
+10. Para CADA slide defina animation_intent: hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade.
+11. Para CADA slide com imagem, sugira image_query MUITO ESPECÍFICA em INGLÊS.
+12. Tema dinâmico: se tema "auto", devolva no PRIMEIRO slide um dynamic_theme com cores hex (bg, text, accent, accent2) refletindo o assunto. Mínimo WCAG AA.
 
 ${speeches ? `═══════════════════════════════════════════════════
 PASSO D — FALAS DOS APRESENTADORES (OPCIONAL ATIVADO)
 ═══════════════════════════════════════════════════
-Para CADA slide preencha presenters_data com UM objeto por apresentador (${presenters} no total):
-- name: nome do apresentador (use a lista acima)
-- exact_speech: SCRIPT LITERAL (60-140 palavras) — palavra por palavra do que será dito em pé. Linguagem natural, primeira pessoa, parágrafo único, fluido, com transições orgânicas.
-- transition_anchor: opcional. Se houver troca de apresentador a partir deste slide, escreva a frase de handoff (ex: "Agora, ${presenterList[0] ?? "[Nome]"}, vai mostrar os números").
+REGRAS DE FALA — CONCISÃO E ORDEM SÃO PRIORIDADE MÁXIMA:
 
-${presenters > 1 ? `Distribua os slides EQUITATIVAMENTE entre os ${presenters} apresentadores. Cada slide pode ter apenas UM apresentador como "voz principal" — coloque os outros com fala vazia naquele slide ou repita o último apresentador para continuidade. Crie pelo menos 2 transições explícitas ao longo da apresentação.` : ""}` : ""}`;
+Para CADA slide preencha presenters_data com UM objeto por apresentador (${presenters} no total), NA ORDEM EXATA da lista acima: ${presenterList.join(" → ") || "Apresentador 1"}.
+
+Cada entrada deve conter:
+- name: nome do apresentador (use a lista acima na MESMA ORDEM em todos os slides)
+- exact_speech: SCRIPT CONCISO (40-80 palavras MÁXIMO) — falado em primeira pessoa, direto ao ponto, SEM enrolação. Estruture em 3 movimentos curtos: (1) abertura/contexto em 1 frase, (2) ponto principal em 1-2 frases, (3) gancho para o próximo slide em 1 frase. Linguagem natural de palco — frases curtas, ritmo conversacional.
+- transition_anchor: APENAS quando o próximo slide muda de apresentador. Frase curta de handoff (ex: "Agora, ${presenterList[1] ?? "[Nome]"}, vai mostrar os números"). Caso contrário, deixe vazio.
+
+REGRAS DE DISTRIBUIÇÃO:
+- APENAS UM apresentador "fala" por slide. Os demais devem ter exact_speech VAZIO ("") naquele slide.
+- Distribua os slides EQUITATIVAMENTE — cada apresentador deve falar em ~${Math.ceil(req.slidesCount / Math.max(1, presenters))} slides.
+- Alterne em BLOCOS de 2-3 slides (não 1-1-1) — dá ritmo de palco e evita troca-troca cansativo.
+- ${presenters > 1 ? `Crie pelo menos ${Math.min(presenters, 3)} transições explícitas (transition_anchor preenchido) ao longo da apresentação.` : "Apresentador único — transition_anchor sempre vazio."}
+- A ORDEM dos objetos em presenters_data deve ser SEMPRE a mesma em todos os slides — isso é crítico para o painel de roteiro.` : ""}`;
 };
 
 Deno.serve(async (req) => {
@@ -116,7 +127,7 @@ Deno.serve(async (req) => {
     const useOpenAI = !!OPENAI_API_KEY;
     if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");
 
-    const slidesCount = Math.max(3, Math.min(12, body.slidesCount || 8));
+    const slidesCount = Math.max(3, Math.min(20, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
     const presenters = Math.max(1, body.presentersCount ?? 1);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
@@ -210,7 +221,7 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
                       type: "object",
                       properties: {
                         name: { type: "string" },
-                        exact_speech: { type: "string", description: "60-140 palavras — script literal em primeira pessoa, fluido." },
+                        exact_speech: { type: "string", description: "40-80 palavras — script CONCISO em primeira pessoa, em 3 movimentos (abertura, ponto principal, gancho). Vazio se este apresentador não fala neste slide." },
                         transition_anchor: { type: "string", description: "Frase de handoff (ex: 'Agora, Ana mostrará...')" },
                       },
                       required: ["name"],

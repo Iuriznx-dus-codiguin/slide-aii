@@ -179,42 +179,55 @@ export const PresenterNotesPanel = ({
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="flex-shrink-0 mx-2 mt-2 grid" style={{ gridTemplateColumns: `repeat(${presenters.length}, minmax(0, 1fr))` }}>
-            {presenters.map((p) => (
-              <TabsTrigger key={p.id} value={p.id} className="text-[11px] truncate">
-                {p.name || "Apresentador"}
-              </TabsTrigger>
-            ))}
+            {presenters.map((p, i) => {
+              const speaks = (p.exact_speech || "").trim().length > 0;
+              return (
+                <TabsTrigger key={p.id} value={p.id} className="text-[11px] truncate gap-1">
+                  <span className="opacity-60">{i + 1}.</span> {p.name || "Apresentador"}
+                  {speaks && <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" title="Fala neste slide" />}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
           <ScrollArea className="flex-1">
-            {presenters.map((p) => (
-              <TabsContent key={p.id} value={p.id} className="px-3 py-3 space-y-3 mt-0">
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] flex items-center gap-1">
-                    Âncora de transição
-                    <span className="text-muted-foreground font-normal">(handoff entre apresentadores)</span>
-                  </Label>
-                  <Textarea
-                    value={p.transition_anchor || ""}
-                    onChange={(e) => updatePresenter(p.id, { transition_anchor: e.target.value })}
-                    rows={2}
-                    placeholder='Ex: "Agora, Maria explicará a parte técnica."'
-                    className="text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] flex items-center gap-1">
-                    🎤 Fala exata (script literal)
-                  </Label>
-                  <Textarea
-                    value={p.exact_speech || ""}
-                    onChange={(e) => updatePresenter(p.id, { exact_speech: e.target.value })}
-                    rows={8}
-                    placeholder="O que será dito palavra por palavra..."
-                    className="text-xs leading-relaxed font-medium"
-                  />
-                </div>
-              </TabsContent>
-            ))}
+            {presenters.map((p) => {
+              const wordCount = (p.exact_speech || "").trim().split(/\s+/).filter(Boolean).length;
+              const wordOk = wordCount === 0 || (wordCount >= 20 && wordCount <= 100);
+              return (
+                <TabsContent key={p.id} value={p.id} className="px-3 py-3 space-y-3 mt-0">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] flex items-center gap-1">
+                      Âncora de transição
+                      <span className="text-muted-foreground font-normal">(handoff entre apresentadores)</span>
+                    </Label>
+                    <Textarea
+                      value={p.transition_anchor || ""}
+                      onChange={(e) => updatePresenter(p.id, { transition_anchor: e.target.value })}
+                      rows={2}
+                      placeholder='Ex: "Agora, Maria explicará a parte técnica."'
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] flex items-center gap-1">
+                        🎤 Fala (40-80 palavras)
+                      </Label>
+                      <span className={`text-[10px] font-mono ${wordOk ? "text-muted-foreground" : "text-destructive"}`}>
+                        {wordCount} palavras
+                      </span>
+                    </div>
+                    <Textarea
+                      value={p.exact_speech || ""}
+                      onChange={(e) => updatePresenter(p.id, { exact_speech: e.target.value })}
+                      rows={8}
+                      placeholder="Abertura curta → ponto principal → gancho para o próximo slide..."
+                      className="text-xs leading-relaxed font-medium"
+                    />
+                  </div>
+                </TabsContent>
+              );
+            })}
           </ScrollArea>
         </Tabs>
       )}
