@@ -168,10 +168,11 @@ const Generate = () => {
       setSlides(withImages);
       setChat([{
         role: "assistant",
-        content: `Sua apresentação com ${withImages.length} slides está pronta! Me diga o que ajustar — ex: "deixa o slide 2 mais visual" ou "adiciona um gráfico no slide 4".`,
+        content: `Sua apresentação com ${withImages.length} slides está pronta!`,
       }]);
       setStepIdx(STEPS.length - 1);
-      setPhase("preview");
+      // Auto-abrir o editor manual com a aba de edição de conteúdo já ativa.
+      await persistAndOpenWith("edit", withImages, dyn);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
