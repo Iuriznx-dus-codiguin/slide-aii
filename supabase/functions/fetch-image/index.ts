@@ -11,6 +11,8 @@ interface FetchImageBody {
   ai_prompt?: string;
   strategy: "pexels" | "ai" | "none" | "video";
   orientation?: "landscape" | "portrait" | "square";
+  /** URLs já em uso na apresentação — Pexels evitará reutilizá-las. */
+  avoid_urls?: string[];
 }
 
 Deno.serve(async (req) => {
