@@ -187,17 +187,55 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
   );
 };
 
-interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; }
-const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont }: DefaultSlideProps) => {
+interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; }
+const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: DefaultSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildEditorialScenario(c.bullets?.length ?? 0), c.animation_intent ?? "narrative-build"),
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
-  // Word-by-word stagger no headline (kinetic type)
   const headlineWords = (c.headline ?? "").split(" ");
+  const hasImage = !!c.image_url;
   return (
-    <div className="w-full h-full flex flex-col p-[5%] relative" style={containerStyle}>
+    <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
+      {/* Quando não há imagem, enriquecemos com backdrop animado + formas decorativas */}
+      {!hasImage && (
+        <>
+          <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.3} orbCount={3} />
+          {/* Linhas decorativas animadas (lado direito) */}
+          {!noAnimate && (
+            <svg className="absolute -right-10 top-0 h-full w-1/3 opacity-[0.15] pointer-events-none" viewBox="0 0 200 600" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="ln" x1="0" x2="1">
+                  <stop offset="0%" stopColor={theme.accent} stopOpacity="0" />
+                  <stop offset="60%" stopColor={theme.accent} stopOpacity="1" />
+                  <stop offset="100%" stopColor={theme.accent} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <motion.line
+                  key={i}
+                  x1="0" x2="200" y1={80 + i * 110} y2={80 + i * 110}
+                  stroke="url(#ln)" strokeWidth="1.2"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 1.6, delay: 0.3 + i * 0.15, ease: [0.22, 1, 0.36, 1] }}
+                />
+              ))}
+            </svg>
+          )}
+          {/* Marcador de canto */}
+          <motion.div
+            className="absolute top-[5%] right-[5%] flex items-center gap-2 z-10"
+            initial={noAnimate ? false : { opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, delay: 0.4 }}
+          >
+            <div className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
+            <div className="h-px w-10" style={{ background: theme.accent, opacity: 0.5 }} />
+          </motion.div>
+        </>
+      )}
       <div className="relative z-10">
         <motion.h2
           {...ctrl.motionProps("title")}
@@ -229,7 +267,13 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont }: Defa
           <ul className="space-y-4">
             {c.bullets.map((b, i) => (
               <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-4 text-[1.4vw]">
-                <span className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45" style={{ background: theme.accent }} />
+                <motion.span
+                  className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45"
+                  style={{ background: theme.accent }}
+                  initial={noAnimate ? false : { scale: 0, rotate: 0 }}
+                  animate={{ scale: 1, rotate: 45 }}
+                  transition={{ duration: 0.4, delay: 0.5 + i * 0.08, type: "spring", stiffness: 220 }}
+                />
                 <span className="leading-snug">{b}</span>
               </motion.li>
             ))}
