@@ -102,7 +102,7 @@ const Generate = () => {
     if (!tpl) return;
     setTitle(tpl.seed.title);
     setDescription(tpl.seed.description);
-    setSlidesCount(Math.min(20, tpl.seed.slidesCount));
+    setSlidesCount(Math.min(15, tpl.seed.slidesCount));
     setType(tpl.seed.type);
     setTheme(tpl.seed.theme);
     setFontStyle(tpl.seed.fontStyle);
