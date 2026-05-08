@@ -102,7 +102,7 @@ const Generate = () => {
     if (!tpl) return;
     setTitle(tpl.seed.title);
     setDescription(tpl.seed.description);
-    setSlidesCount(Math.min(20, tpl.seed.slidesCount));
+    setSlidesCount(Math.min(15, tpl.seed.slidesCount));
     setType(tpl.seed.type);
     setTheme(tpl.seed.theme);
     setFontStyle(tpl.seed.fontStyle);
@@ -115,26 +115,44 @@ const Generate = () => {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
-  // Resolve images for slides (Pexels/AI) in parallel after generation
+  // Resolve images for slides (Pexels/AI) sequentially, evitando duplicação de URLs.
   const resolveImages = async (slidesList: AISlide[]) => {
-    const updated = await Promise.all(slidesList.map(async (s) => {
-      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) return s;
+    const usedUrls = new Set<string>();
+    const usedQueries = new Set<string>();
+    const result: AISlide[] = [];
+    for (let i = 0; i < slidesList.length; i++) {
+      const s = slidesList[i];
+      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) {
+        result.push(s);
+        continue;
+      }
+      // Se a query exata já foi usada, adiciona um qualificador para variar.
+      let query = s.image_query;
+      if (usedQueries.has(query.toLowerCase())) {
+        const suffixes = ["wide angle", "close up", "different perspective", "alternative", "minimal", "cinematic"];
+        query = `${query} ${suffixes[i % suffixes.length]}`;
+      }
+      usedQueries.add(query.toLowerCase());
       try {
         const { data } = await supabase.functions.invoke("fetch-image", {
           body: {
-            query: s.image_query,
-            ai_prompt: s.ai_image_prompt,
-            strategy: s.image_strategy,
-            orientation: "landscape",
+            query, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, orientation: "landscape",
+            avoid_urls: Array.from(usedUrls),
           },
         });
-        return { ...s, image_url: data?.url ?? null };
+        let url = data?.url ?? null;
+        if (url && usedUrls.has(url)) {
+          // tentou e veio duplicado — segue sem imagem para evitar repetir
+          url = null;
+        }
+        if (url) usedUrls.add(url);
+        result.push({ ...s, image_url: url });
       } catch (e) {
         console.warn("Image fetch failed", e);
-        return s;
+        result.push(s);
       }
-    }));
-    return updated;
+    }
+    return result;
   };
 
   const handleGenerate = async () => {
@@ -168,10 +186,11 @@ const Generate = () => {
       setSlides(withImages);
       setChat([{
         role: "assistant",
-        content: `Sua apresentação com ${withImages.length} slides está pronta! Me diga o que ajustar — ex: "deixa o slide 2 mais visual" ou "adiciona um gráfico no slide 4".`,
+        content: `Sua apresentação com ${withImages.length} slides está pronta!`,
       }]);
       setStepIdx(STEPS.length - 1);
-      setPhase("preview");
+      // Auto-abrir o editor manual com a aba de edição de conteúdo já ativa.
+      await persistAndOpenWith("edit", withImages, dyn);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
@@ -223,14 +242,18 @@ const Generate = () => {
     }
   };
 
-  const persistAndOpen = async (mode: "view" | "edit") => {
-    if (!user || !slides.length) return;
+  const persistAndOpenWith = async (
+    mode: "view" | "edit",
+    slidesArg: AISlide[],
+    dynArg: Partial<ThemeColors> | null,
+  ) => {
+    if (!user || !slidesArg.length) return;
     setSaving(true);
     try {
       const slug = generateSlug(title);
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
         user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
-        slug, slides_count: slides.length, is_paid: true, is_published: true,
+        slug, slides_count: slidesArg.length, is_paid: true, is_published: true,
         persona,
         depth_level: depthLevel,
         presenters_count: presentersCount,
@@ -239,7 +262,7 @@ const Generate = () => {
       } as any).select().single();
       if (pErr) throw pErr;
 
-      const slidesToInsert = slides.map((s, idx) => ({
+      const slidesToInsert = slidesArg.map((s, idx) => ({
         presentation_id: pres.id,
         position: idx,
         slide_type: s.slide_type,
@@ -256,12 +279,11 @@ const Generate = () => {
           chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
           narrative_act: (s as any).narrative_act,
           animation_intent: (s as any).animation_intent,
-          dynamic_theme: idx === 0 ? dynamicTheme : undefined,
+          dynamic_theme: idx === 0 ? dynArg : undefined,
         },
       })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
       if (sErr) {
-        // Rollback: evita apresentações órfãs sem slides no banco
         await supabase.from("presentations").delete().eq("id", pres.id);
         throw sErr;
       }
@@ -269,7 +291,7 @@ const Generate = () => {
       const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
       await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
 
-      toast.success("Apresentação salva!");
+      toast.success("Apresentação criada! Abrindo editor…");
       navigate(mode === "view" ? `/slides/${slug}` : `/editor/${slug}`);
     } catch (e: any) {
       console.error(e);
@@ -278,6 +300,8 @@ const Generate = () => {
       setSaving(false);
     }
   };
+
+  const persistAndOpen = (mode: "view" | "edit") => persistAndOpenWith(mode, slides, dynamicTheme);
 
   // ───────────────────────── PREVIEW PHASE (chat + slide) ─────────────────────────
   if (phase === "preview" && slides.length > 0) {
@@ -525,8 +549,8 @@ const Generate = () => {
                 <Label>Número de slides</Label>
                 <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
-              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={20} step={1} />
-              <p className="text-xs text-muted-foreground">De 3 a 20 slides — recomendado entre 6 e 12 para máxima coesão narrativa.</p>
+              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={15} step={1} />
+              <p className="text-xs text-muted-foreground">De 3 a 15 slides — recomendado entre 6 e 12 para máxima coesão narrativa.</p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">

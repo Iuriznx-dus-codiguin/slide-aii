@@ -14,7 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Printer, Users, X } from "lucide-react";
+import { Download, Printer, Users, X, FileDown, FileText } from "lucide-react";
+import { exportScriptToPdf, exportScriptToDocx } from "@/lib/exportScript";
 
 export interface PresenterEntry {
   id: string;
@@ -148,7 +149,21 @@ export const PresenterNotesPanel = ({
         <div className="flex items-center gap-1">
           <Button
             size="icon" variant="ghost" className="h-7 w-7"
-            title="Exportar roteiro completo (.txt)"
+            title="Exportar roteiro em PDF (com numeração e contagem de palavras)"
+            onClick={() => exportScriptToPdf(presentationTitle, slides as any)}
+          >
+            <FileDown className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon" variant="ghost" className="h-7 w-7"
+            title="Exportar roteiro em DOCX (Word)"
+            onClick={() => exportScriptToDocx(presentationTitle, slides as any)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon" variant="ghost" className="h-7 w-7"
+            title="Exportar TXT simples"
             onClick={() => downloadTxt(`${presentationTitle}-roteiro.txt`, buildFullScript(presentationTitle, slides))}
           >
             <Download className="h-3.5 w-3.5" />

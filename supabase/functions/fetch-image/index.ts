@@ -11,6 +11,8 @@ interface FetchImageBody {
   ai_prompt?: string;
   strategy: "pexels" | "ai" | "none" | "video";
   orientation?: "landscape" | "portrait" | "square";
+  /** URLs já em uso na apresentação — Pexels evitará reutilizá-las. */
+  avoid_urls?: string[];
 }
 
 Deno.serve(async (req) => {
@@ -68,7 +70,7 @@ Deno.serve(async (req) => {
       }
       const q = encodeURIComponent(body.query || "abstract");
       const orientation = body.orientation || "landscape";
-      const r = await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=5&orientation=${orientation}`, {
+      const r = await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=15&orientation=${orientation}`, {
         headers: { Authorization: PEXELS_API_KEY },
       });
       if (!r.ok) {
@@ -79,7 +81,13 @@ Deno.serve(async (req) => {
         });
       }
       const data = await r.json();
-      const photo = data.photos?.[0];
+      const avoid = new Set((body.avoid_urls ?? []).map((u) => u));
+      const photos = (data.photos ?? []) as any[];
+      // Tenta achar a primeira foto cujo URL não esteja na blacklist.
+      const photo = photos.find((p) => {
+        const candidate = p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? "";
+        return candidate && !avoid.has(candidate);
+      }) ?? photos[0];
       const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
       return new Response(JSON.stringify({
         url,
