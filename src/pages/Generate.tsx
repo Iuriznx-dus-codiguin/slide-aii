@@ -115,26 +115,44 @@ const Generate = () => {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
-  // Resolve images for slides (Pexels/AI) in parallel after generation
+  // Resolve images for slides (Pexels/AI) sequentially, evitando duplicação de URLs.
   const resolveImages = async (slidesList: AISlide[]) => {
-    const updated = await Promise.all(slidesList.map(async (s) => {
-      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) return s;
+    const usedUrls = new Set<string>();
+    const usedQueries = new Set<string>();
+    const result: AISlide[] = [];
+    for (let i = 0; i < slidesList.length; i++) {
+      const s = slidesList[i];
+      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) {
+        result.push(s);
+        continue;
+      }
+      // Se a query exata já foi usada, adiciona um qualificador para variar.
+      let query = s.image_query;
+      if (usedQueries.has(query.toLowerCase())) {
+        const suffixes = ["wide angle", "close up", "different perspective", "alternative", "minimal", "cinematic"];
+        query = `${query} ${suffixes[i % suffixes.length]}`;
+      }
+      usedQueries.add(query.toLowerCase());
       try {
         const { data } = await supabase.functions.invoke("fetch-image", {
           body: {
-            query: s.image_query,
-            ai_prompt: s.ai_image_prompt,
-            strategy: s.image_strategy,
-            orientation: "landscape",
+            query, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, orientation: "landscape",
+            avoid_urls: Array.from(usedUrls),
           },
         });
-        return { ...s, image_url: data?.url ?? null };
+        let url = data?.url ?? null;
+        if (url && usedUrls.has(url)) {
+          // tentou e veio duplicado — segue sem imagem para evitar repetir
+          url = null;
+        }
+        if (url) usedUrls.add(url);
+        result.push({ ...s, image_url: url });
       } catch (e) {
         console.warn("Image fetch failed", e);
-        return s;
+        result.push(s);
       }
-    }));
-    return updated;
+    }
+    return result;
   };
 
   const handleGenerate = async () => {
