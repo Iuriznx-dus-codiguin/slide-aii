@@ -510,5 +510,5 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   }
 
   /* ---------- DEFAULT ---------- */
-  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} />;
+  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} />;
 };
