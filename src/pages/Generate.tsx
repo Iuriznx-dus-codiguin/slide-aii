@@ -224,14 +224,18 @@ const Generate = () => {
     }
   };
 
-  const persistAndOpen = async (mode: "view" | "edit") => {
-    if (!user || !slides.length) return;
+  const persistAndOpenWith = async (
+    mode: "view" | "edit",
+    slidesArg: AISlide[],
+    dynArg: Partial<ThemeColors> | null,
+  ) => {
+    if (!user || !slidesArg.length) return;
     setSaving(true);
     try {
       const slug = generateSlug(title);
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
         user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
-        slug, slides_count: slides.length, is_paid: true, is_published: true,
+        slug, slides_count: slidesArg.length, is_paid: true, is_published: true,
         persona,
         depth_level: depthLevel,
         presenters_count: presentersCount,
@@ -240,7 +244,7 @@ const Generate = () => {
       } as any).select().single();
       if (pErr) throw pErr;
 
-      const slidesToInsert = slides.map((s, idx) => ({
+      const slidesToInsert = slidesArg.map((s, idx) => ({
         presentation_id: pres.id,
         position: idx,
         slide_type: s.slide_type,
@@ -257,12 +261,11 @@ const Generate = () => {
           chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
           narrative_act: (s as any).narrative_act,
           animation_intent: (s as any).animation_intent,
-          dynamic_theme: idx === 0 ? dynamicTheme : undefined,
+          dynamic_theme: idx === 0 ? dynArg : undefined,
         },
       })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
       if (sErr) {
-        // Rollback: evita apresentações órfãs sem slides no banco
         await supabase.from("presentations").delete().eq("id", pres.id);
         throw sErr;
       }
@@ -270,7 +273,7 @@ const Generate = () => {
       const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
       await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
 
-      toast.success("Apresentação salva!");
+      toast.success("Apresentação criada! Abrindo editor…");
       navigate(mode === "view" ? `/slides/${slug}` : `/editor/${slug}`);
     } catch (e: any) {
       console.error(e);
@@ -279,6 +282,8 @@ const Generate = () => {
       setSaving(false);
     }
   };
+
+  const persistAndOpen = (mode: "view" | "edit") => persistAndOpenWith(mode, slides, dynamicTheme);
 
   // ───────────────────────── PREVIEW PHASE (chat + slide) ─────────────────────────
   if (phase === "preview" && slides.length > 0) {
