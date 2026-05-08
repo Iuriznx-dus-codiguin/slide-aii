@@ -286,6 +286,15 @@ const PresenterNotesPopover = ({
         })
       : existing;
 
+  // Aba ativa: segue automaticamente o apresentador que FALA neste slide.
+  // Se ninguém fala (ou há vários), volta ao primeiro com fala.
+  const activeSpeakerId = useMemo(() => {
+    const speaking = presenters.find((p) => (p.exact_speech || "").trim().length > 0);
+    return speaking?.id ?? presenters[0]?.id ?? "0";
+  }, [presenters]);
+  const [tab, setTab] = useState<string>(activeSpeakerId);
+  useEffect(() => { setTab(activeSpeakerId); }, [activeSpeakerId]);
+
   const triggerCls = floating
     ? "h-10 w-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur border border-white/15 text-white flex items-center justify-center shadow-elegant"
     : "";
@@ -318,7 +327,7 @@ const PresenterNotesPopover = ({
             Nenhuma fala registrada para este slide.
           </div>
         ) : (
-          <Tabs defaultValue={presenters[0].id} className="flex flex-col">
+          <Tabs value={tab} onValueChange={setTab} className="flex flex-col">
             <TabsList
               className="mx-2 mt-2 grid"
               style={{ gridTemplateColumns: `repeat(${presenters.length}, minmax(0, 1fr))` }}
