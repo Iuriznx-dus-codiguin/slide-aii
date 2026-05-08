@@ -14,7 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Printer, Users, X } from "lucide-react";
+import { Download, Printer, Users, X, FileDown, FileText } from "lucide-react";
+import { exportScriptToPdf, exportScriptToDocx } from "@/lib/exportScript";
 
 export interface PresenterEntry {
   id: string;
