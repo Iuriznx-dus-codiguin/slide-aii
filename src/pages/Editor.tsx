@@ -410,22 +410,24 @@ const Editor = () => {
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left: thumbnails */}
-        <aside className="w-44 md:w-52 border-r border-border bg-card/30 flex flex-col flex-shrink-0">
-          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+        {/* Left: thumbnails — vertical em ≥lg, horizontal em <lg */}
+        <aside className="lg:w-44 xl:w-52 border-b lg:border-b-0 lg:border-r border-border bg-card/30 flex lg:flex-col flex-shrink-0">
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between lg:w-auto w-full">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Slides</span>
             <Button size="icon" variant="ghost" className="h-6 w-6" onClick={addSlide}><Plus className="h-3.5 w-3.5" /></Button>
           </div>
           <ScrollArea className="flex-1">
-            <div className="p-2 space-y-2">
+            <div className="p-2 flex lg:flex-col gap-2 lg:space-y-0">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={slides.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   {slides.map((s, i) => (
-                    <SortableThumb key={s.id} slide={s} idx={i} active={i === activeIdx}
-                      onClick={() => setActiveIdx(i)} onDelete={() => deleteSlide(i)}
-                      themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
-                    />
+                    <div key={s.id} className="lg:w-auto w-32 flex-shrink-0">
+                      <SortableThumb slide={s} idx={i} active={i === activeIdx}
+                        onClick={() => setActiveIdx(i)} onDelete={() => deleteSlide(i)}
+                        themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
+                      />
+                    </div>
                   ))}
                 </SortableContext>
               </DndContext>
