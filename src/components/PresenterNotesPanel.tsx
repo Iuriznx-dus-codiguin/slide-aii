@@ -133,7 +133,15 @@ export const PresenterNotesPanel = ({
     return merged.length > 0 ? merged : existing;
   }, [current, presentersNames]);
 
-  const [activeTab, setActiveTab] = useState(presenters[0]?.id ?? "0");
+  // Aba ativa por índice — segue automaticamente o apresentador que fala neste slide.
+  const speakingIdx = useMemo(() => {
+    const idx = presenters.findIndex((p) => (p.exact_speech || "").trim().length > 0);
+    return idx >= 0 ? idx : 0;
+  }, [presenters]);
+  const [activeTab, setActiveTab] = useState<string>(String(speakingIdx));
+  // Quando muda o slide ativo (activeIdx), reseta para o falante.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useMemo(() => { setActiveTab(String(speakingIdx)); }, [activeIdx]);
 
   const updatePresenter = (presenterId: string, patch: Partial<PresenterEntry>) => {
     const updated = presenters.map((p) => (p.id === presenterId ? { ...p, ...patch } : p));
