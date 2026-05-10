@@ -8,7 +8,7 @@
 // NUNCA renderizado dentro do slide — só no editor.
 // Inclui exportar (TXT) e imprimir (script formatado).
 // ============================================================
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -139,9 +139,7 @@ export const PresenterNotesPanel = ({
     return idx >= 0 ? idx : 0;
   }, [presenters]);
   const [activeTab, setActiveTab] = useState<string>(String(speakingIdx));
-  // Quando muda o slide ativo (activeIdx), reseta para o falante.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useMemo(() => { setActiveTab(String(speakingIdx)); }, [activeIdx]);
+  useEffect(() => { setActiveTab(String(speakingIdx)); }, [speakingIdx, activeIdx]);
 
   const updatePresenter = (presenterId: string, patch: Partial<PresenterEntry>) => {
     const updated = presenters.map((p) => (p.id === presenterId ? { ...p, ...patch } : p));
