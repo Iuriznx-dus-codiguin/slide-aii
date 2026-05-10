@@ -286,14 +286,15 @@ const PresenterNotesPopover = ({
         })
       : existing;
 
-  // Aba ativa: segue automaticamente o apresentador que FALA neste slide.
-  // Se ninguém fala (ou há vários), volta ao primeiro com fala.
-  const activeSpeakerId = useMemo(() => {
-    const speaking = presenters.find((p) => (p.exact_speech || "").trim().length > 0);
-    return speaking?.id ?? presenters[0]?.id ?? "0";
+  // Aba ativa por ÍNDICE (estável entre slides). O índice do apresentador
+  // que de fato fala neste slide; se ninguém fala, mantém o primeiro.
+  const activeIndex = useMemo(() => {
+    const idx = presenters.findIndex((p) => (p.exact_speech || "").trim().length > 0);
+    return idx >= 0 ? idx : 0;
   }, [presenters]);
-  const [tab, setTab] = useState<string>(activeSpeakerId);
-  useEffect(() => { setTab(activeSpeakerId); }, [activeSpeakerId]);
+  const [tab, setTab] = useState<string>(String(activeIndex));
+  // Reseta sempre que o slide muda (mesmo se o índice continuar igual).
+  useEffect(() => { setTab(String(activeIndex)); }, [activeIndex, slide?.id]);
 
   const triggerCls = floating
     ? "h-10 w-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur border border-white/15 text-white flex items-center justify-center shadow-elegant"
