@@ -101,6 +101,8 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQue
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.6} orbCount={3} />
+      <OrbitalRings theme={theme} noAnimate={noAnimate} position="center" intensity={0.7} />
+      <CornerBrackets theme={theme} noAnimate={noAnimate} />
       <div className="text-center max-w-5xl relative z-10">
         <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
         <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic" style={{ fontFamily: displayFont }}>{c.quote_text}</motion.p>
@@ -123,6 +125,8 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuer
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.55} orbCount={4} />
+      <DotGrid theme={theme} noAnimate={noAnimate} intensity={0.6} />
+      <FloatingShapes theme={theme} noAnimate={noAnimate} intensity={0.7} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
           <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
@@ -151,7 +155,8 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
-    <div className="w-full h-full flex flex-col p-[5%] relative" style={containerStyle}>
+    <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
+      <DotGrid theme={theme} noAnimate={noAnimate} intensity={0.4} cols={18} rows={10} />
       <div className="relative z-10">
         <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
         {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
