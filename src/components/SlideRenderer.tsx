@@ -31,6 +31,7 @@ import { sharedId } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
 import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdrop";
+import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines } from "@/components/SlideDecorations";
 import { useImageInsight } from "@/lib/imageAnalysis";
 
 export interface SlideContent {
