@@ -305,7 +305,9 @@ const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, reque
     ? (insight.safeSide === "left" ? "right" : "left")
     : requestedSide;
   return (
-    <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[4%]" style={containerStyle}>
+    <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[4%] relative overflow-hidden" style={containerStyle}>
+      <CornerBrackets theme={theme} noAnimate={false} intensity={0.5} />
+      <OrbitalRings theme={theme} noAnimate={false} position={imageSide === "left" ? "right" : "left"} intensity={0.35} />
       {imageSide === "left" && (
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
           <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
@@ -360,6 +362,7 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: Full
       <div className="absolute inset-0" style={{
         background: `linear-gradient(${gradientDir}, ${hexToRgba(overlayColor, overlayAlpha)} 0%, ${hexToRgba(overlayColor, overlayAlpha * 0.3)} 55%, transparent 90%)`,
       }} />
+      <CornerBrackets theme={theme} intensity={0.7} />
       <motion.div {...motionMode} variants={variants.container} className={`relative h-full flex flex-col p-[5%] ${anchorClass}`} style={{ color: textColor }}>
         <div className={`flex flex-col ${anchor.includes("right") ? "items-end" : anchor === "center" ? "items-center" : "items-start"} max-w-[80%]`}>
           <motion.div variants={variants.item} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
