@@ -119,10 +119,10 @@ export const FloatingShapes = ({ theme, noAnimate, intensity = 1 }: BaseProps) =
   const reduce = useReducedMotion();
   const skip = noAnimate || reduce;
   const stroke = theme.accent;
-  const float = (delay: number, range = 14) =>
+  const float = (delay: number, range = 14): any =>
     skip ? {} : {
       animate: { y: [0, -range, 0], rotate: [0, 6, 0] },
-      transition: { duration: 9 + delay, repeat: Infinity, ease: "easeInOut", delay },
+      transition: { duration: 9 + delay, repeat: Infinity, ease: "easeInOut" as const, delay },
     };
   return (
     <div className="absolute inset-0 pointer-events-none z-[1]" style={{ opacity: 0.45 * intensity }} aria-hidden>
