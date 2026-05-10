@@ -203,7 +203,7 @@ export const PresenterNotesPanel = ({
             {presenters.map((p, i) => {
               const speaks = (p.exact_speech || "").trim().length > 0;
               return (
-                <TabsTrigger key={p.id} value={p.id} className="text-[11px] truncate gap-1">
+                <TabsTrigger key={i} value={String(i)} className="text-[11px] truncate gap-1">
                   <span className="opacity-60">{i + 1}.</span> {p.name || "Apresentador"}
                   {speaks && <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" title="Fala neste slide" />}
                 </TabsTrigger>
@@ -211,11 +211,11 @@ export const PresenterNotesPanel = ({
             })}
           </TabsList>
           <ScrollArea className="flex-1">
-            {presenters.map((p) => {
+            {presenters.map((p, i) => {
               const wordCount = (p.exact_speech || "").trim().split(/\s+/).filter(Boolean).length;
               const wordOk = wordCount === 0 || (wordCount >= 20 && wordCount <= 100);
               return (
-                <TabsContent key={p.id} value={p.id} className="px-3 py-3 space-y-3 mt-0">
+                <TabsContent key={i} value={String(i)} className="px-3 py-3 space-y-3 mt-0">
                   <div className="space-y-1.5">
                     <Label className="text-[11px] flex items-center gap-1">
                       Âncora de transição
