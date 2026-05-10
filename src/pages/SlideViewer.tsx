@@ -314,7 +314,7 @@ const PresenterNotesPopover = ({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-[380px] p-0" align="end">
+      <PopoverContent className="w-[calc(100vw-1.5rem)] sm:w-[380px] p-0" align="end">
         <div className="px-3 py-2 border-b border-border flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Users className="h-3.5 w-3.5 text-primary" /> Falas & Notas
@@ -333,15 +333,19 @@ const PresenterNotesPopover = ({
               className="mx-2 mt-2 grid"
               style={{ gridTemplateColumns: `repeat(${presenters.length}, minmax(0, 1fr))` }}
             >
-              {presenters.map((p) => (
-                <TabsTrigger key={p.id} value={p.id} className="text-[11px] truncate">
-                  {p.name || "Apresentador"}
-                </TabsTrigger>
-              ))}
+              {presenters.map((p, i) => {
+                const speaks = (p.exact_speech || "").trim().length > 0;
+                return (
+                  <TabsTrigger key={i} value={String(i)} className="text-[11px] truncate gap-1">
+                    <span className="opacity-60">{i + 1}.</span> {p.name || "Apresentador"}
+                    {speaks && <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
             <ScrollArea className="max-h-[60vh]">
-              {presenters.map((p) => (
-                <TabsContent key={p.id} value={p.id} className="px-3 py-3 space-y-3 mt-0">
+              {presenters.map((p, i) => (
+                <TabsContent key={i} value={String(i)} className="px-3 py-3 space-y-3 mt-0">
                   {p.transition_anchor && (
                     <div className="text-[11px] italic text-muted-foreground border-l-2 border-primary/40 pl-2">
                       ↪ {p.transition_anchor}
