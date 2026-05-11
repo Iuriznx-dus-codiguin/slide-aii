@@ -1,6 +1,6 @@
 // Generate presentation: estrutura completa com DNA narrativo,
 // Círculo Narrativo (Hook→Tensão→Jornada→Prova→Clímax), multi-apresentador
-// e falas opcionais. Motor híbrido: GPT-5.2 (OpenAI) primário; Gemini 2.5 Pro fallback.
+// e falas opcionais. Motor híbrido: GPT-4.1 (OpenAI) primário; Gemini 2.5 Pro fallback.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -16,7 +16,6 @@ interface GenerateRequest {
   fontStyle: string;
   includeCharts: boolean;
   includeImages: boolean;
-  // Fase 2.5+: DNA da apresentação
   persona?: "technical-authority" | "inspirational-leader" | "salesperson" | "educator";
   depthLevel?: "high-level" | "deep-dive";
   presentersCount?: number;
@@ -50,71 +49,103 @@ const SYSTEM_PROMPT = (req: GenerateRequest) => {
 
   return `Você é um diretor criativo sênior + pesquisador + roteirista de palco, com experiência equivalente à equipe de design da Apple, Stripe, Pitch.com e à direção de TED Talks.
 
-Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, COM CONTEÚDO PROFUNDO, PESQUISA DENSA, NARRATIVA EDITORIAL e DIREÇÃO DE ARTE COESA.
+Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, COM CONTEÚDO PROFUNDO, PESQUISA DENSA, NARRATIVA EDITORIAL e DIREÇÃO DE ARTE COESA — mesmo quando o título é curto ou a descrição é vaga.
 
 ═══════════════════════════════════════════════════
-PASSO A — DIAGNÓSTICO DE DNA DA APRESENTAÇÃO
+PASSO 0 — ÂNCORA TEMÁTICA (CRÍTICO)
 ═══════════════════════════════════════════════════
-PERSONA DO ORADOR: ${persona}
+ANTES de criar qualquer slide, faça internamente:
+1. Identifique o ASSUNTO CENTRAL exato do título "${req.title}".
+2. Defina 5-8 SUBTEMAS específicos diretamente derivados desse assunto (não genéricos).
+3. TODOS os slides devem orbitar esse assunto — proibido divagar para temas tangenciais ou genéricos.
+4. Se o título for curto/ambíguo, INTERPRETE da forma mais comum/útil para o público "${req.type}" e mantenha consistência absoluta do início ao fim.
+5. CADA headline deve conter palavra-chave do tema OU ser uma referência direta a um dos subtemas.
+6. Se em dúvida entre dois ângulos, escolha o mais ESPECÍFICO e mantenha-o.
+
+═══════════════════════════════════════════════════
+PASSO A — DIAGNÓSTICO DE DNA
+═══════════════════════════════════════════════════
+PERSONA: ${persona}
 PROFUNDIDADE: ${depth}
 APRESENTADORES (${presenters}): ${presenterList.length ? presenterList.join(", ") : "Apresentador único"}
-${presenters > 1 ? `→ Crie "ÂNCORAS DE TRANSIÇÃO" entre apresentadores (ex: "Agora, ${presenterList[1] ?? "[Nome]"}, explicará a parte técnica"). Divida a carga de fala de forma EQUITATIVA — alterne quem fala em cada slide.` : ""}
+${presenters > 1 ? `→ Crie "ÂNCORAS DE TRANSIÇÃO" entre apresentadores. Divida fala EQUITATIVAMENTE em blocos de 2-3 slides.` : ""}
 
 ═══════════════════════════════════════════════════
-PASSO B — ARQUITETURA DE ROTEIRO (CÍRCULO NARRATIVO)
+PASSO B — CÍRCULO NARRATIVO
 ═══════════════════════════════════════════════════
-Distribua os ${req.slidesCount} slides nas 5 fases narrativas:
-1. GANCHO (1-2 slides iniciais): Quebrar o padrão, prender atenção em 10s. Imagem alto impacto + frase minimalista provocativa.
-2. TENSÃO (1-2 slides): Apresentar problema/oportunidade. Gráfico dinâmico ou tipografia bold em larga escala.
-3. JORNADA (40-50% dos slides): Conteúdo dividido em blocos lógicos. Use section_divider como marcos.
-4. PROVA (1-2 slides): Dados, depoimentos, evidências. Layouts limpos, tabelas estilizadas, bullets animados, quotes reais.
-5. CLÍMAX (1 slide final): Solução + CTA concreto. Fundo escuro, texto em destaque.
-
-Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax}.
+Distribua os ${req.slidesCount} slides em 5 fases: hook (1-2) → tension (1-2) → journey (40-50%) → proof (1-2) → climax (1).
+Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo).
 
 ═══════════════════════════════════════════════════
-PASSO C — REFINAMENTO (PESQUISA SINTÉTICA)
+PASSO C — REGRA DE OURO: TODO SLIDE É COMPLETO
 ═══════════════════════════════════════════════════
-- ANALOGIAS VISUAIS: Tema "Cibersegurança" → "Imunidade digital", redes neurais. NÃO use clichês (cadeados).
-- DADOS REAIS: Sempre cite fonte/ano (ex: "78% — McKinsey 2024"). Se não souber, sinalize ("estimado em").
-- VOCABULÁRIO: ajuste pelo TIPO (${req.type}) — KPIs/EBITDA para negócios, metodologias para academia.
-- MICRO-COPY: Títulos curtos (máx 5 palavras). Texto longo vai para speaker_notes ou exact_speech.
-- SMART ICONS: Mantenha peso de linha consistente (não misture filled + outline).
+NENHUM slide pode ser "magro". Cada slide DEVE combinar pelo menos 3 dos elementos:
+A) Headline forte (2-6 palavras)
+B) Subtitle contextualizando (8-14 palavras)
+C) Body_text rico (40-90 palavras quando há espaço — NÃO deixe vazio em slides de texto)
+D) Bullets densos (3-5 itens, 8-16 palavras cada, com verbo forte e dado/exemplo concreto)
+E) Stat_value + stat_label (quando há número impactante real)
+F) Quote_text + quote_author (real, verificável)
+G) Chart com dados realistas + fonte
+H) Imagem (Pexels primeiro; AI só se conceito abstrato/impossível de fotografar)
+I) visual_accents (lista de elementos visuais sugeridos: "orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form")
+
+→ Slide com APENAS headline+subtitle = PROIBIDO. Encha com body_text + bullets ou stat ou quote.
+→ Varie a combinação a cada slide — não repita o mesmo "preset" 2x seguidas.
+
+═══════════════════════════════════════════════════
+PASSO D — DENSIDADE DE TEXTO E TIPOGRAFIA
+═══════════════════════════════════════════════════
+- Headline: 2-6 palavras, máximo 40 caracteres. Letra GRANDE no design.
+- Subtitle: 8-14 palavras, complementa o headline com ângulo específico.
+- Body_text: parágrafo de 40-90 palavras quando o layout pede texto longo (centered, content, image-right/left). Use frases curtas e ritmo claro.
+- Bullets: 3-5 itens densos. Cada item começa com verbo ou substantivo concreto + dado/contexto.
+- APROVEITE O ESPAÇO: slides de texto puro (sem imagem) DEVEM ter body_text robusto + bullets — não deixe vazio o lado direito/esquerdo.
+- Slides com imagem podem ter texto mais enxuto (subtitle + 3 bullets).
+
+═══════════════════════════════════════════════════
+PASSO E — VARIAÇÃO INTENCIONAL DE LAYOUTS
+═══════════════════════════════════════════════════
+- Alterne layouts a cada slide. NUNCA repita layout consecutivo.
+- Distribua entre: title-content, two-columns, image-right, image-left, full-image, quote, data-chart, centered, stat-highlight.
+- Para CADA slide defina visual_accents (1-3 itens) que combinem com o conteúdo:
+  * stat/data → "dot-grid", "wave-form"
+  * quote → "orbital-rings", "corner-brackets"
+  * section_divider/conclusion → "orbital-rings", "diagonal-lines"
+  * texto puro → "floating-shapes", "diagonal-lines"
+  * imagem → "corner-brackets"
+- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — alterne para criar ritmo.
+
+═══════════════════════════════════════════════════
+PASSO F — IMAGENS (PEXELS PRIMEIRO)
+═══════════════════════════════════════════════════
+- image_strategy = "pexels" para 90% dos slides com imagem. Use "ai" SOMENTE quando o conceito for abstrato/impossível (ex: "rede neural simbólica", "futuro hipotético").
+- image_query: query MUITO específica em INGLÊS, 3-6 palavras com substantivos visuais concretos (ex: "engineer reviewing code on dark monitor", NÃO "technology").
+- ai_image_prompt: SEMPRE preencha como FALLBACK — descrição cinematográfica em inglês caso Pexels falhe.
+- NUNCA repita a MESMA query — varie ângulo, contexto, sujeito.
+- Para títulos curtos/ambíguos: ancore a query no SUBTEMA específico do slide, não no título genérico.
 
 REGRAS CRÍTICAS DE CONTEÚDO:
-1. ESCREVA EM ${req.language === "en" ? "INGLÊS" : req.language === "es" ? "ESPANHOL" : "PORTUGUÊS BRASILEIRO"} natural, profissional, fluido.
-2. Cada slide tem PROPÓSITO NARRATIVO claro — NUNCA placeholders ou "Lorem".
-3. Use SEMPRE dados reais com fonte. Bullets ≤14 palavras, verbo forte ou substantivo concreto.
-4. Cada slide traz informação NOVA — proibido repetir.
-5. Quote slides citam pessoas REAIS verificáveis com cargo/contexto.
-6. PROFUNDIDADE: subtitle e body_text devem ser SUBSTANTIVOS — não preencher com chavões. Se o slide não pede texto longo, deixe vazio em vez de inventar.
-7. COESÃO ENTRE SLIDES: cada slide refere-se ao anterior com uma ponte lógica (causa→efeito, problema→solução, conceito→exemplo).
-
-REGRAS DE DESIGN/MOTION:
-8. Varie layouts. NUNCA repita layout em slides consecutivos.
+1. Idioma: ${req.language === "en" ? "INGLÊS" : req.language === "es" ? "ESPANHOL" : "PORTUGUÊS BRASILEIRO"} natural, profissional, fluido.
+2. Cada slide com PROPÓSITO claro — NUNCA placeholders ou "Lorem".
+3. Dados reais com fonte/ano (ex: "78% — McKinsey 2024"). Se incerto, use "estimado em".
+4. Bullets ≤16 palavras, verbo forte ou substantivo concreto.
+5. Quote_author = pessoa REAL verificável com cargo/contexto.
+6. COESÃO: cada slide é PONTE lógica do anterior.
+7. ÂNCORA TEMÁTICA: nenhum slide pode fugir do assunto central definido no Passo 0.
+8. Tema dinâmico: se "auto", devolva no PRIMEIRO slide um dynamic_theme com cores hex (bg, text, accent, accent2) refletindo o assunto. Mínimo WCAG AA.
 9. Para title_slide, escolha cover_variant entre split-hero, typographic-bold, full-bleed-image, minimal-centered, asymmetric-grid, gradient-mesh.
-10. Para CADA slide defina animation_intent: hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade.
-11. Para CADA slide com imagem, sugira image_query MUITO ESPECÍFICA em INGLÊS.
-12. Tema dinâmico: se tema "auto", devolva no PRIMEIRO slide um dynamic_theme com cores hex (bg, text, accent, accent2) refletindo o assunto. Mínimo WCAG AA.
 
 ${speeches ? `═══════════════════════════════════════════════════
-PASSO D — FALAS DOS APRESENTADORES (OPCIONAL ATIVADO)
+PASSO G — FALAS DOS APRESENTADORES
 ═══════════════════════════════════════════════════
-REGRAS DE FALA — CONCISÃO E ORDEM SÃO PRIORIDADE MÁXIMA:
+Para CADA slide preencha presenters_data com UM objeto por apresentador (${presenters}), NA ORDEM EXATA: ${presenterList.join(" → ") || "Apresentador 1"}.
 
-Para CADA slide preencha presenters_data com UM objeto por apresentador (${presenters} no total), NA ORDEM EXATA da lista acima: ${presenterList.join(" → ") || "Apresentador 1"}.
-
-Cada entrada deve conter:
-- name: nome do apresentador (use a lista acima na MESMA ORDEM em todos os slides)
-- exact_speech: SCRIPT CONCISO (40-80 palavras MÁXIMO) — falado em primeira pessoa, direto ao ponto, SEM enrolação. Estruture em 3 movimentos curtos: (1) abertura/contexto em 1 frase, (2) ponto principal em 1-2 frases, (3) gancho para o próximo slide em 1 frase. Linguagem natural de palco — frases curtas, ritmo conversacional.
-- transition_anchor: APENAS quando o próximo slide muda de apresentador. Frase curta de handoff (ex: "Agora, ${presenterList[1] ?? "[Nome]"}, vai mostrar os números"). Caso contrário, deixe vazio.
-
-REGRAS DE DISTRIBUIÇÃO:
-- APENAS UM apresentador "fala" por slide. Os demais devem ter exact_speech VAZIO ("") naquele slide.
-- Distribua os slides EQUITATIVAMENTE — cada apresentador deve falar em ~${Math.ceil(req.slidesCount / Math.max(1, presenters))} slides.
-- Alterne em BLOCOS de 2-3 slides (não 1-1-1) — dá ritmo de palco e evita troca-troca cansativo.
-- ${presenters > 1 ? `Crie pelo menos ${Math.min(presenters, 3)} transições explícitas (transition_anchor preenchido) ao longo da apresentação.` : "Apresentador único — transition_anchor sempre vazio."}
-- A ORDEM dos objetos em presenters_data deve ser SEMPRE a mesma em todos os slides — isso é crítico para o painel de roteiro.` : ""}`;
+- name: nome do apresentador.
+- exact_speech: SCRIPT CONCISO (40-80 palavras) em primeira pessoa, 3 movimentos: (1) abertura, (2) ponto principal, (3) gancho para próximo slide. APENAS UM apresentador fala por slide; demais ficam com exact_speech="".
+- transition_anchor: APENAS quando o próximo slide muda de apresentador.
+- Distribua em BLOCOS de 2-3 slides — cada apresentador em ~${Math.ceil(req.slidesCount / Math.max(1, presenters))} slides.
+- ${presenters > 1 ? `Crie pelo menos ${Math.min(presenters, 3)} transition_anchor explícitos.` : "Apresentador único — transition_anchor sempre vazio."}` : ""}`;
 };
 
 Deno.serve(async (req) => {
@@ -136,16 +167,20 @@ Deno.serve(async (req) => {
     const userPrompt = `Crie uma apresentação completa, rica em conteúdo verificável, narrativamente coesa e visualmente impressionante.
 
 TÍTULO: ${body.title}
-DESCRIÇÃO: ${body.description || "(o usuário não detalhou — pesquise mentalmente o assunto e decida o que abordar de forma clara, útil e densa)"}
+DESCRIÇÃO: ${body.description || "(o usuário não detalhou — interprete o título da forma mais útil para o público-alvo, defina os subtemas internamente e MANTENHA TOTAL CONSISTÊNCIA com o assunto central em TODOS os slides)"}
 TIPO: ${body.type}
 IDIOMA: ${body.language}
 NÚMERO DE SLIDES: exatamente ${slidesCount}
-INCLUIR GRÁFICOS: ${body.includeCharts ? "sim — use ao menos 1 gráfico relevante (bar, line, pie, donut ou area) com dados realistas e fonte mencionada" : "não"}
-INCLUIR IMAGENS: ${body.includeImages ? "sim — TODOS os slides de conteúdo devem ter image_query específica em inglês" : "apenas se essencial"}
-${isAutoTheme ? `TEMA DINÂMICO: devolva dynamic_theme no primeiro slide com cores hex que reflitam visualmente "${body.title}".` : "TEMA: paleta pré-definida pelo usuário (não preencher dynamic_theme)."}
-${body.includeSpeeches ? `FALAS: ATIVADAS. Preencha presenters_data em CADA slide para ${presenters} apresentador(es): ${presenterNames.join(", ")}.` : "FALAS: desativadas — não preencha presenters_data."}
+INCLUIR GRÁFICOS: ${body.includeCharts ? "sim — use ao menos 1-2 gráficos (bar, line, pie, donut ou area) com dados realistas e fonte" : "não"}
+INCLUIR IMAGENS: ${body.includeImages ? "sim — TODOS os slides de conteúdo devem ter image_query (Pexels primeiro) e ai_image_prompt como fallback" : "não — compense com visual_accents densos"}
+${isAutoTheme ? `TEMA DINÂMICO: devolva dynamic_theme no primeiro slide refletindo "${body.title}".` : "TEMA: paleta fixa pelo usuário."}
+${body.includeSpeeches ? `FALAS: ATIVADAS para ${presenters} apresentador(es): ${presenterNames.join(", ")}.` : "FALAS: desativadas."}
 
-Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jornada→Prova→Clímax). Densidade > superficialidade.`;
+LEMBRETE CRÍTICO:
+- TODO slide deve ser COMPLETO e DENSO (3+ elementos do checklist do Passo C).
+- VARIE layout, animation_intent e visual_accents a cada slide.
+- ANCORE-SE no assunto central — proibido divagar.
+- Densidade de texto > superficialidade. Aproveite o espaço inteligentemente.`;
 
     const tools = [{
       type: "function",
@@ -160,11 +195,11 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
               description: "Paleta dinâmica baseada no tema (apenas se solicitado tema auto)",
               properties: {
                 name: { type: "string" },
-                bg: { type: "string", description: "cor de fundo em hex #RRGGBB" },
-                text: { type: "string", description: "cor de texto em hex #RRGGBB" },
-                accent: { type: "string", description: "cor de destaque em hex" },
-                accent2: { type: "string", description: "cor secundária em hex (opcional)" },
-                surface: { type: "string", description: "cor de superfície/cards em hex (opcional)" },
+                bg: { type: "string" },
+                text: { type: "string" },
+                accent: { type: "string" },
+                accent2: { type: "string" },
+                surface: { type: "string" },
               },
             },
             slides: {
@@ -191,18 +226,23 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
                     enum: ["hook", "tension", "journey", "proof", "climax"],
                     description: "OBRIGATÓRIO. Posição no Círculo Narrativo.",
                   },
-                  headline: { type: "string", description: "Curto e impactante. Máx 5 palavras quando possível." },
-                  subtitle: { type: "string" },
-                  body_text: { type: "string" },
-                  bullets: { type: "array", items: { type: "string" } },
+                  visual_accents: {
+                    type: "array",
+                    description: "1-3 elementos decorativos/visuais. Combine com o conteúdo. Varie a cada slide.",
+                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form"] },
+                  },
+                  headline: { type: "string", description: "2-6 palavras, máx 40 chars. Contém palavra-chave do tema." },
+                  subtitle: { type: "string", description: "8-14 palavras, complementa headline." },
+                  body_text: { type: "string", description: "40-90 palavras quando layout pede texto longo (centered, content, columns)." },
+                  bullets: { type: "array", items: { type: "string" }, description: "3-5 itens densos, 8-16 palavras cada." },
                   stat_value: { type: "string" },
                   stat_label: { type: "string" },
                   quote_text: { type: "string" },
-                  quote_author: { type: "string" },
-                  speaker_notes: { type: "string", description: "Notas gerais do orador (resumo curto, 1-2 frases)." },
-                  image_query: { type: "string", description: "Query MUITO específica em INGLÊS para Pexels" },
-                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"] },
-                  ai_image_prompt: { type: "string" },
+                  quote_author: { type: "string", description: "Pessoa real verificável." },
+                  speaker_notes: { type: "string", description: "Resumo curto (1-2 frases) das notas do orador." },
+                  image_query: { type: "string", description: "Query MUITO específica em INGLÊS (3-6 palavras concretas) para Pexels." },
+                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "Default: 'pexels'. Use 'ai' apenas para conceitos abstratos." },
+                  ai_image_prompt: { type: "string", description: "SEMPRE preencha — fallback caso Pexels falhe." },
                   chart: {
                     type: "object",
                     properties: {
@@ -215,20 +255,20 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
                   presenters_data: {
                     type: "array",
                     description: body.includeSpeeches
-                      ? `OBRIGATÓRIO se falas estiverem ativadas. Um objeto por apresentador (${presenters} no total).`
-                      : "Opcional. Só preencher se falas ativadas.",
+                      ? `OBRIGATÓRIO. Um objeto por apresentador (${presenters}).`
+                      : "Opcional.",
                     items: {
                       type: "object",
                       properties: {
                         name: { type: "string" },
-                        exact_speech: { type: "string", description: "40-80 palavras — script CONCISO em primeira pessoa, em 3 movimentos (abertura, ponto principal, gancho). Vazio se este apresentador não fala neste slide." },
-                        transition_anchor: { type: "string", description: "Frase de handoff (ex: 'Agora, Ana mostrará...')" },
+                        exact_speech: { type: "string" },
+                        transition_anchor: { type: "string" },
                       },
                       required: ["name"],
                     },
                   },
                 },
-                required: ["slide_title", "slide_type", "layout_template", "animation", "animation_intent", "narrative_act", "headline", "speaker_notes", "image_strategy"],
+                required: ["slide_title", "slide_type", "layout_template", "animation", "animation_intent", "narrative_act", "headline", "subtitle", "speaker_notes", "image_strategy", "visual_accents"],
                 additionalProperties: false,
               },
             },
@@ -253,8 +293,8 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
       ],
       tools,
       tool_choice: { type: "function", function: { name: "create_presentation" } },
-      // Falas dobram o tamanho do payload — aumenta budget quando ativadas.
-      max_completion_tokens: body.includeSpeeches ? 32000 : 24000,
+      // Aumentado: prompt mais denso pede payload mais robusto.
+      max_completion_tokens: body.includeSpeeches ? 40000 : 32000,
     };
 
     let aiResponse = await fetch(endpoint, {
@@ -266,7 +306,6 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
       body: JSON.stringify(requestPayload),
     });
 
-    // Fallback automático para Gemini se OpenAI falhar com erro recuperável
     if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
       console.warn("OpenAI falhou com status", aiResponse.status, "— tentando fallback Gemini");
       aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -325,6 +364,21 @@ Mantenha narrativa coesa seguindo o Círculo Narrativo (Gancho→Tensão→Jorna
       const h = (body.title || "").split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
       firstTitle.cover_variant = COVERS[h % COVERS.length];
     }
+
+    // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
+    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern"];
+    parsed.slides = parsed.slides.map((s: any, i: number) => {
+      const accents = Array.isArray(s.visual_accents) && s.visual_accents.length > 0
+        ? s.visual_accents
+        : [ACCENT_POOL[i % ACCENT_POOL.length], ACCENT_POOL[(i + 3) % ACCENT_POOL.length]];
+      // Pexels-first se houver query e estrategia ausente
+      let strategy = s.image_strategy ?? (s.image_query ? "pexels" : "none");
+      if (strategy === "ai" && body.includeImages && s.image_query) {
+        // Mantém preferência do modelo, mas o fetch-image fará Pexels-first internamente.
+        strategy = "ai";
+      }
+      return { ...s, visual_accents: accents, image_strategy: strategy };
+    });
 
     // Garante presenters_data normalizado quando falas ativadas
     if (body.includeSpeeches) {
