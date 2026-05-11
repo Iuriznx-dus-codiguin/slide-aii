@@ -50,6 +50,7 @@ interface AISlide {
   image_url?: string | null;
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
   cover_variant?: "split-hero" | "typographic-bold" | "full-bleed-image" | "minimal-centered" | "asymmetric-grid" | "gradient-mesh";
+  visual_accents?: ("orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form")[];
 }
 
 interface ChatMessage {
