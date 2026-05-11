@@ -150,8 +150,7 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuer
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.55} orbCount={4} />
-      <DotGrid theme={theme} noAnimate={noAnimate} intensity={0.6} />
-      <FloatingShapes theme={theme} noAnimate={noAnimate} intensity={0.7} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["dot-grid", "floating-shapes"]} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
           <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
