@@ -34,6 +34,8 @@ import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdro
 import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines } from "@/components/SlideDecorations";
 import { useImageInsight } from "@/lib/imageAnalysis";
 
+export type VisualAccent = "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form";
+
 export interface SlideContent {
   headline?: string;
   subtitle?: string;
@@ -48,12 +50,36 @@ export interface SlideContent {
   image_url?: string | null;
   ai_image_prompt?: string;
   animation?: string;
-  /** IA contextual: papel narrativo da animação (Fase 2.5). */
   animation_intent?: AnimationIntent;
-  /** Novo: variante de capa (apenas title slides). */
   cover_variant?: CoverVariant;
+  /** IA: elementos visuais decorativos sugeridos. */
+  visual_accents?: VisualAccent[];
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
 }
+
+/** Renderiza acentos visuais sugeridos pela IA, com fallback para defaults por tipo. */
+const AccentLayer = ({ accents, theme, noAnimate, defaults = [] }: {
+  accents?: VisualAccent[]; theme: ThemeColors; noAnimate: boolean; defaults?: VisualAccent[];
+}) => {
+  const list = (accents && accents.length > 0 ? accents : defaults).slice(0, 3);
+  return (
+    <>
+      {list.map((a, i) => {
+        const intensity = 0.45 + i * 0.1;
+        switch (a) {
+          case "orbital-rings": return <OrbitalRings key={i} theme={theme} noAnimate={noAnimate} position={i % 2 === 0 ? "right" : "left"} intensity={intensity} />;
+          case "dot-grid": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "floating-shapes": return <FloatingShapes key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "diagonal-lines": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "corner-brackets": return <CornerBrackets key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "data-pattern": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} cols={20} rows={12} intensity={intensity * 0.8} />;
+          case "wave-form": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity * 0.9} />;
+          default: return null;
+        }
+      })}
+    </>
+  );
+};
 
 export interface SlideData {
   slide_type: string;
