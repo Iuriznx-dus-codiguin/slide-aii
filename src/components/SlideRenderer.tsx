@@ -180,7 +180,7 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
-      <DotGrid theme={theme} noAnimate={noAnimate} intensity={0.4} cols={18} rows={10} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["data-pattern", "wave-form"]} />
       <div className="relative z-10">
         <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
         {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
