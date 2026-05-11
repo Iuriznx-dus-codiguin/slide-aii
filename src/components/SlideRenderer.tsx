@@ -34,6 +34,8 @@ import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdro
 import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines } from "@/components/SlideDecorations";
 import { useImageInsight } from "@/lib/imageAnalysis";
 
+export type VisualAccent = "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form";
+
 export interface SlideContent {
   headline?: string;
   subtitle?: string;
@@ -48,12 +50,36 @@ export interface SlideContent {
   image_url?: string | null;
   ai_image_prompt?: string;
   animation?: string;
-  /** IA contextual: papel narrativo da animação (Fase 2.5). */
   animation_intent?: AnimationIntent;
-  /** Novo: variante de capa (apenas title slides). */
   cover_variant?: CoverVariant;
+  /** IA: elementos visuais decorativos sugeridos. */
+  visual_accents?: VisualAccent[];
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
 }
+
+/** Renderiza acentos visuais sugeridos pela IA, com fallback para defaults por tipo. */
+const AccentLayer = ({ accents, theme, noAnimate, defaults = [] }: {
+  accents?: VisualAccent[]; theme: ThemeColors; noAnimate: boolean; defaults?: VisualAccent[];
+}) => {
+  const list = (accents && accents.length > 0 ? accents : defaults).slice(0, 3);
+  return (
+    <>
+      {list.map((a, i) => {
+        const intensity = 0.45 + i * 0.1;
+        switch (a) {
+          case "orbital-rings": return <OrbitalRings key={i} theme={theme} noAnimate={noAnimate} position={i % 2 === 0 ? "right" : "left"} intensity={intensity} />;
+          case "dot-grid": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "floating-shapes": return <FloatingShapes key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "diagonal-lines": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "corner-brackets": return <CornerBrackets key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "data-pattern": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} cols={20} rows={12} intensity={intensity * 0.8} />;
+          case "wave-form": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity * 0.9} />;
+          default: return null;
+        }
+      })}
+    </>
+  );
+};
 
 export interface SlideData {
   slide_type: string;
@@ -101,8 +127,7 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQue
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.6} orbCount={3} />
-      <OrbitalRings theme={theme} noAnimate={noAnimate} position="center" intensity={0.7} />
-      <CornerBrackets theme={theme} noAnimate={noAnimate} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["orbital-rings", "corner-brackets"]} />
       <div className="text-center max-w-5xl relative z-10">
         <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
         <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic" style={{ fontFamily: displayFont }}>{c.quote_text}</motion.p>
@@ -125,8 +150,7 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuer
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.55} orbCount={4} />
-      <DotGrid theme={theme} noAnimate={noAnimate} intensity={0.6} />
-      <FloatingShapes theme={theme} noAnimate={noAnimate} intensity={0.7} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["dot-grid", "floating-shapes"]} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
           <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
@@ -156,7 +180,7 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
   const ctrl = useTimeline(tl, { skip: noAnimate });
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
-      <DotGrid theme={theme} noAnimate={noAnimate} intensity={0.4} cols={18} rows={10} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["data-pattern", "wave-form"]} />
       <div className="relative z-10">
         <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
         {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
@@ -240,10 +264,10 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
             <div className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
             <div className="h-px w-10" style={{ background: theme.accent, opacity: 0.5 }} />
           </motion.div>
-          <FloatingShapes theme={theme} noAnimate={noAnimate} intensity={0.55} />
+          <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["floating-shapes", "diagonal-lines"]} />
         </>
       )}
-      {hasImage && <CornerBrackets theme={theme} noAnimate={noAnimate} intensity={0.6} />}
+      {hasImage && <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["corner-brackets"]} />}
       <div className="relative z-10">
         <motion.h2
           {...ctrl.motionProps("title")}
@@ -499,10 +523,8 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   if (isCentered) {
     return (
       <div className="w-full h-full flex items-center justify-center p-[6%] text-center relative overflow-hidden" style={containerStyle}>
-        <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.5} orbCount={3} />
-        <DiagonalLines theme={theme} noAnimate={noAnimate} intensity={0.7} />
-        <OrbitalRings theme={theme} noAnimate={noAnimate} position="center" intensity={0.5} />
-        <CornerBrackets theme={theme} noAnimate={noAnimate} intensity={0.6} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.5} orbCount={3} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["diagonal-lines", "orbital-rings", "corner-brackets"]} />
         <motion.div {...motionMode} variants={variants.container} className="relative z-10">
           {c.subtitle && <motion.p variants={variants.item} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
           <motion.h1 variants={variants.item} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>

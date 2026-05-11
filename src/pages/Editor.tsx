@@ -312,6 +312,7 @@ const Editor = () => {
           image_query: ns.image_query, image_strategy: ns.image_strategy,
           image_url: ns.image_url ?? slides[i]?.content?.image_url,
           ai_image_prompt: ns.ai_image_prompt, chart: ns.chart, animation: ns.animation,
+          visual_accents: (ns as any).visual_accents ?? (slides[i]?.content as any)?.visual_accents,
           dynamic_theme: i === 0 ? (data.dynamic_theme ?? dynamicTheme) : undefined,
         },
       }));

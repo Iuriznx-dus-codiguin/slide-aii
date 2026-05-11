@@ -83,12 +83,40 @@ Deno.serve(async (req) => {
       const data = await r.json();
       const avoid = new Set((body.avoid_urls ?? []).map((u) => u));
       const photos = (data.photos ?? []) as any[];
-      // Tenta achar a primeira foto cujo URL não esteja na blacklist.
       const photo = photos.find((p) => {
         const candidate = p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? "";
         return candidate && !avoid.has(candidate);
       }) ?? photos[0];
       const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
+      // Fallback: se Pexels não retornou nada útil, tenta gerar via IA usando ai_prompt|query.
+      if (!url) {
+        const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+        if (LOVABLE_API_KEY) {
+          try {
+            const prompt = body.ai_prompt || body.query || "abstract editorial composition";
+            const ai = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash-image",
+                messages: [{ role: "user", content: `${prompt}. Cinematic, professional, presentation hero image.` }],
+                modalities: ["image", "text"],
+              }),
+            });
+            if (ai.ok) {
+              const aiData = await ai.json();
+              const aiUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
+              if (aiUrl) {
+                return new Response(JSON.stringify({ url: aiUrl, source: "ai-fallback" }), {
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+              }
+            }
+          } catch (e) {
+            console.warn("AI fallback after Pexels miss failed:", e);
+          }
+        }
+      }
       return new Response(JSON.stringify({
         url,
         photographer: photo?.photographer ?? null,
@@ -97,6 +125,39 @@ Deno.serve(async (req) => {
     }
 
     if (strategy === "ai") {
+      // PEXELS-FIRST: tenta Pexels mesmo quando estratégia é "ai" — só recorre à IA se Pexels não retornar nada útil.
+      const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
+      if (PEXELS_API_KEY && body.query) {
+        try {
+          const q = encodeURIComponent(body.query);
+          const orientation = body.orientation || "landscape";
+          const r0 = await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=15&orientation=${orientation}`, {
+            headers: { Authorization: PEXELS_API_KEY },
+          });
+          if (r0.ok) {
+            const data0 = await r0.json();
+            const avoid = new Set((body.avoid_urls ?? []).map((u) => u));
+            const photos = (data0.photos ?? []) as any[];
+            const photo = photos.find((p) => {
+              const candidate = p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? "";
+              return candidate && !avoid.has(candidate);
+            });
+            if (photo) {
+              const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
+              if (url) {
+                return new Response(JSON.stringify({
+                  url, source: "pexels-fallback",
+                  photographer: photo?.photographer ?? null,
+                  photographer_url: photo?.photographer_url ?? null,
+                }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Pexels-first fallback failed, going to AI:", e);
+        }
+      }
+
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
       const prompt = body.ai_prompt || body.query || "abstract beautiful illustration";

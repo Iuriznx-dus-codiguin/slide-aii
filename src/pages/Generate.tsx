@@ -50,6 +50,7 @@ interface AISlide {
   image_url?: string | null;
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
   cover_variant?: "split-hero" | "typographic-bold" | "full-bleed-image" | "minimal-centered" | "asymmetric-grid" | "gradient-mesh";
+  visual_accents?: ("orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form")[];
 }
 
 interface ChatMessage {
@@ -277,6 +278,7 @@ const Generate = () => {
           image_query: s.image_query, image_strategy: s.image_strategy,
           image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
           chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
+          visual_accents: (s as any).visual_accents,
           narrative_act: (s as any).narrative_act,
           animation_intent: (s as any).animation_intent,
           dynamic_theme: idx === 0 ? dynArg : undefined,
