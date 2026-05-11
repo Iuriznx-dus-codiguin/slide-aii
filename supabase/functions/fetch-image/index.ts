@@ -83,12 +83,40 @@ Deno.serve(async (req) => {
       const data = await r.json();
       const avoid = new Set((body.avoid_urls ?? []).map((u) => u));
       const photos = (data.photos ?? []) as any[];
-      // Tenta achar a primeira foto cujo URL não esteja na blacklist.
       const photo = photos.find((p) => {
         const candidate = p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? "";
         return candidate && !avoid.has(candidate);
       }) ?? photos[0];
       const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
+      // Fallback: se Pexels não retornou nada útil, tenta gerar via IA usando ai_prompt|query.
+      if (!url) {
+        const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+        if (LOVABLE_API_KEY) {
+          try {
+            const prompt = body.ai_prompt || body.query || "abstract editorial composition";
+            const ai = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash-image",
+                messages: [{ role: "user", content: `${prompt}. Cinematic, professional, presentation hero image.` }],
+                modalities: ["image", "text"],
+              }),
+            });
+            if (ai.ok) {
+              const aiData = await ai.json();
+              const aiUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
+              if (aiUrl) {
+                return new Response(JSON.stringify({ url: aiUrl, source: "ai-fallback" }), {
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+              }
+            }
+          } catch (e) {
+            console.warn("AI fallback after Pexels miss failed:", e);
+          }
+        }
+      }
       return new Response(JSON.stringify({
         url,
         photographer: photo?.photographer ?? null,
