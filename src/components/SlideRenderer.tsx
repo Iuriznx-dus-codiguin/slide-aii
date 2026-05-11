@@ -264,10 +264,10 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
             <div className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
             <div className="h-px w-10" style={{ background: theme.accent, opacity: 0.5 }} />
           </motion.div>
-          <FloatingShapes theme={theme} noAnimate={noAnimate} intensity={0.55} />
+          <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["floating-shapes", "diagonal-lines"]} />
         </>
       )}
-      {hasImage && <CornerBrackets theme={theme} noAnimate={noAnimate} intensity={0.6} />}
+      {hasImage && <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["corner-brackets"]} />}
       <div className="relative z-10">
         <motion.h2
           {...ctrl.motionProps("title")}
