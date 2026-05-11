@@ -127,8 +127,7 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQue
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.6} orbCount={3} />
-      <OrbitalRings theme={theme} noAnimate={noAnimate} position="center" intensity={0.7} />
-      <CornerBrackets theme={theme} noAnimate={noAnimate} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["orbital-rings", "corner-brackets"]} />
       <div className="text-center max-w-5xl relative z-10">
         <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
         <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic" style={{ fontFamily: displayFont }}>{c.quote_text}</motion.p>
