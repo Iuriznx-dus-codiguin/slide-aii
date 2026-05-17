@@ -725,8 +725,8 @@ const Generate = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate}>
-              <Sparkles className="h-4 w-4" /> Gerar apresentação
+            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate} disabled={!canGenerate}>
+              <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Em breve"}
             </Button>
           </div>
         </motion.div>
