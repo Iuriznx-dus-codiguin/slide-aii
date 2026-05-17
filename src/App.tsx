@@ -15,7 +15,9 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Editor from "./pages/Editor.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import Templates from "./pages/Templates.tsx";
+import DevDashboard from "./pages/DevDashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import { DevModePanel } from "./components/DevModePanel";
 
 const queryClient = new QueryClient();
 
@@ -36,10 +38,12 @@ const App = () => (
             <Route path="/editor/:slug" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/templates" element={<Templates />} />
+            <Route path="/__dev" element={<ProtectedRoute><DevDashboard /></ProtectedRoute>} />
             <Route path="/slides/:slug" element={<SlideViewer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <DevModePanel />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

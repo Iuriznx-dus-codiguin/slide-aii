@@ -21,6 +21,8 @@ interface GenerateRequest {
   presentersCount?: number;
   presentersNames?: string[];
   includeSpeeches?: boolean;
+  image_budget_mode?: "economy" | "balanced" | "premium";
+  force_pexels_only?: boolean;
 }
 
 const personaGuide = (p?: string) => {
@@ -367,16 +369,16 @@ LEMBRETE CRÍTICO:
 
     // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
     const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern"];
+    const budgetMode = body.image_budget_mode ?? "balanced";
+    const pexelsOnly = body.force_pexels_only || budgetMode === "economy";
     parsed.slides = parsed.slides.map((s: any, i: number) => {
       const accents = Array.isArray(s.visual_accents) && s.visual_accents.length > 0
         ? s.visual_accents
         : [ACCENT_POOL[i % ACCENT_POOL.length], ACCENT_POOL[(i + 3) % ACCENT_POOL.length]];
-      // Pexels-first se houver query e estrategia ausente
       let strategy = s.image_strategy ?? (s.image_query ? "pexels" : "none");
-      if (strategy === "ai" && body.includeImages && s.image_query) {
-        // Mantém preferência do modelo, mas o fetch-image fará Pexels-first internamente.
-        strategy = "ai";
-      }
+      // Modo economia / dev override: nunca usar IA para imagens.
+      if (pexelsOnly && strategy === "ai") strategy = "pexels";
+      // Modo premium: respeita "ai" do modelo (já é o comportamento padrão).
       return { ...s, visual_accents: accents, image_strategy: strategy };
     });
 

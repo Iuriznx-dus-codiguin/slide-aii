@@ -13,10 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useDeveloperRole } from "@/hooks/useDeveloperRole";
+import { loadDevSettings, estimateGenerationCost } from "@/lib/devSettings";
 import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRenderer, type SlideContent } from "@/components/SlideRenderer";
+import { Lock } from "lucide-react";
 
 // Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
 const FREE_GENERATIONS_LIMIT = 1;
@@ -61,10 +64,14 @@ interface ChatMessage {
 const Generate = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isDeveloper } = useDeveloperRole();
   const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<"form" | "loading" | "preview">("form");
   const [stepIdx, setStepIdx] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const devSettings = loadDevSettings();
+  // Bloqueio: só usuários com role developer/admin podem gerar enquanto MVP.
+  const canGenerate = isDeveloper;
 
   // Form state
   const [title, setTitle] = useState("");
@@ -159,8 +166,10 @@ const Generate = () => {
   const handleGenerate = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
-
-    // [DEV] Limite de gerações desativado temporariamente para testes.
+    if (!canGenerate) {
+      toast.error("Geração disponível apenas para desenvolvedores no momento.");
+      return;
+    }
 
     setPhase("loading");
     setStepIdx(0);
@@ -171,6 +180,8 @@ const Generate = () => {
           title, description, slidesCount, type, language, theme, fontStyle,
           includeCharts, includeImages,
           persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+          image_budget_mode: devSettings.imageBudgetMode,
+          force_pexels_only: devSettings.forcePexelsOnly,
         },
       });
 
@@ -535,6 +546,35 @@ const Generate = () => {
             <p className="mt-3 text-sm md:text-base text-muted-foreground">Descreva o tema. A IA escreve, ilustra e desenha — você refina via chat.</p>
           </div>
 
+          {!canGenerate && (
+            <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 md:p-5 flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold">Geração indisponível no momento</p>
+                <p className="text-muted-foreground mt-1">
+                  Estamos finalizando o MVP. As assinaturas serão liberadas em breve — fique de olho no seu e-mail.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {canGenerate && devSettings.showCostOverlay && (() => {
+            const est = estimateGenerationCost(slidesCount, includeImages, devSettings.imageBudgetMode);
+            const overBudget = est.totalUsd > devSettings.maxBudgetUsd;
+            return (
+              <div className={`mb-6 rounded-2xl border p-3 md:p-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono ${overBudget ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30"}`}>
+                <span className="uppercase tracking-wider text-muted-foreground">Dev · estimativa</span>
+                <span>${est.totalUsd.toFixed(3)}</span>
+                <span className="text-muted-foreground">~{Math.round(est.seconds)}s</span>
+                <span className="text-muted-foreground">Pexels {est.imagesPexels} · IA {est.imagesAi}</span>
+                <span className="text-muted-foreground">modo: {devSettings.imageBudgetMode}</span>
+                {overBudget && <span className="text-destructive font-semibold">⚠ acima do teto ${devSettings.maxBudgetUsd.toFixed(2)}</span>}
+              </div>
+            );
+          })()}
+
           <div className="bg-card border border-border rounded-3xl p-5 md:p-8 shadow-elegant space-y-5 md:space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Título / Tema *</Label>
@@ -685,8 +725,8 @@ const Generate = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate}>
-              <Sparkles className="h-4 w-4" /> Gerar apresentação
+            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate} disabled={!canGenerate}>
+              <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Em breve"}
             </Button>
           </div>
         </motion.div>
