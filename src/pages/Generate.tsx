@@ -13,10 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useDeveloperRole } from "@/hooks/useDeveloperRole";
+import { loadDevSettings, estimateGenerationCost } from "@/lib/devSettings";
 import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRenderer, type SlideContent } from "@/components/SlideRenderer";
+import { Lock } from "lucide-react";
 
 // Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
 const FREE_GENERATIONS_LIMIT = 1;
@@ -61,10 +64,14 @@ interface ChatMessage {
 const Generate = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isDeveloper } = useDeveloperRole();
   const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<"form" | "loading" | "preview">("form");
   const [stepIdx, setStepIdx] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const devSettings = loadDevSettings();
+  // Bloqueio: só usuários com role developer/admin podem gerar enquanto MVP.
+  const canGenerate = isDeveloper;
 
   // Form state
   const [title, setTitle] = useState("");
@@ -159,8 +166,10 @@ const Generate = () => {
   const handleGenerate = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
-
-    // [DEV] Limite de gerações desativado temporariamente para testes.
+    if (!canGenerate) {
+      toast.error("Geração disponível apenas para desenvolvedores no momento.");
+      return;
+    }
 
     setPhase("loading");
     setStepIdx(0);
@@ -171,6 +180,8 @@ const Generate = () => {
           title, description, slidesCount, type, language, theme, fontStyle,
           includeCharts, includeImages,
           persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+          image_budget_mode: devSettings.imageBudgetMode,
+          force_pexels_only: devSettings.forcePexelsOnly,
         },
       });
 
