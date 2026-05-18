@@ -22,7 +22,7 @@ interface GenerateRequest {
   presentersNames?: string[];
   includeSpeeches?: boolean;
   image_budget_mode?: "economy" | "balanced" | "premium";
-  force_pexels_only?: boolean;
+  max_budget_usd?: number;
 }
 
 const personaGuide = (p?: string) => {
@@ -369,8 +369,11 @@ LEMBRETE CRÍTICO:
 
     // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
     const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern"];
-    const budgetMode = body.image_budget_mode ?? "balanced";
-    const pexelsOnly = body.force_pexels_only || budgetMode === "economy";
+    // Modo derivado do teto único quando fornecido; fallback para o enviado.
+    const budgetMode = typeof body.max_budget_usd === "number"
+      ? (body.max_budget_usd <= 0.15 ? "economy" : body.max_budget_usd <= 0.45 ? "balanced" : "premium")
+      : (body.image_budget_mode ?? "balanced");
+    const pexelsOnly = budgetMode === "economy";
     parsed.slides = parsed.slides.map((s: any, i: number) => {
       const accents = Array.isArray(s.visual_accents) && s.visual_accents.length > 0
         ? s.visual_accents
