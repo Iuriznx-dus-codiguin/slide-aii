@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { loadDevSettings, estimateGenerationCost } from "@/lib/devSettings";
+import { estimateGenerationCost, modeFromBudget, modeLabel } from "@/lib/devSettings";
+import { useDevSettings } from "@/hooks/useDevSettings";
 
 interface Metrics {
   totalPresentations: number;
@@ -78,8 +79,9 @@ const DevDashboard = () => {
   if (roleLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   if (!isDeveloper) return <Navigate to="/" replace />;
 
-  const settings = loadDevSettings();
-  const sampleEstimate = estimateGenerationCost(10, true, settings.imageBudgetMode);
+  const settings = useDevSettings();
+  const derivedMode = modeFromBudget(settings.maxBudgetUsd);
+  const sampleEstimate = estimateGenerationCost(10, true, derivedMode);
 
   return (
     <div className="min-h-screen bg-background">
@@ -114,9 +116,8 @@ const DevDashboard = () => {
                   <CardTitle className="text-base">Configuração atual de geração</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <Row k="Modo de orçamento" v={settings.imageBudgetMode} />
                   <Row k="Teto por geração" v={`$${settings.maxBudgetUsd.toFixed(2)}`} />
-                  <Row k="Forçar Pexels-only" v={settings.forcePexelsOnly ? "sim" : "não"} />
+                  <Row k="Modo derivado" v={modeLabel(derivedMode)} />
                   <Row k="Bypass paywall" v={settings.bypassPaywall ? "sim" : "não"} />
                   <div className="pt-3 border-t border-border space-y-1 font-mono text-xs">
                     <Row k="Estimativa 10 slides" v={`$${sampleEstimate.totalUsd.toFixed(3)} · ${Math.round(sampleEstimate.seconds)}s`} />

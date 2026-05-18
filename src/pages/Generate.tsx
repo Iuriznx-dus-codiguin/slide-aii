@@ -14,7 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
-import { loadDevSettings, estimateGenerationCost } from "@/lib/devSettings";
+import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
+import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
@@ -69,7 +70,7 @@ const Generate = () => {
   const [phase, setPhase] = useState<"form" | "loading" | "preview">("form");
   const [stepIdx, setStepIdx] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const devSettings = loadDevSettings();
+  const devSettings = useDevSettings();
   // Bloqueio: só usuários com role developer/admin podem gerar enquanto MVP.
   const canGenerate = isDeveloper;
 
@@ -180,8 +181,8 @@ const Generate = () => {
           title, description, slidesCount, type, language, theme, fontStyle,
           includeCharts, includeImages,
           persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
-          image_budget_mode: devSettings.imageBudgetMode,
-          force_pexels_only: devSettings.forcePexelsOnly,
+          image_budget_mode: modeFromBudget(devSettings.maxBudgetUsd),
+          max_budget_usd: devSettings.maxBudgetUsd,
         },
       });
 
@@ -561,7 +562,7 @@ const Generate = () => {
           )}
 
           {canGenerate && devSettings.showCostOverlay && (() => {
-            const est = estimateGenerationCost(slidesCount, includeImages, devSettings.imageBudgetMode);
+            const est = estimateGenerationCost(slidesCount, includeImages, devSettings.maxBudgetUsd);
             const overBudget = est.totalUsd > devSettings.maxBudgetUsd;
             return (
               <div className={`mb-6 rounded-2xl border p-3 md:p-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono ${overBudget ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30"}`}>
@@ -569,8 +570,9 @@ const Generate = () => {
                 <span>${est.totalUsd.toFixed(3)}</span>
                 <span className="text-muted-foreground">~{Math.round(est.seconds)}s</span>
                 <span className="text-muted-foreground">Pexels {est.imagesPexels} · IA {est.imagesAi}</span>
-                <span className="text-muted-foreground">modo: {devSettings.imageBudgetMode}</span>
-                {overBudget && <span className="text-destructive font-semibold">⚠ acima do teto ${devSettings.maxBudgetUsd.toFixed(2)}</span>}
+                <span className="text-muted-foreground">modo: {est.mode}</span>
+                <span className="text-muted-foreground">teto: ${devSettings.maxBudgetUsd.toFixed(2)}</span>
+                {overBudget && <span className="text-destructive font-semibold">⚠ acima do teto</span>}
               </div>
             );
           })()}
