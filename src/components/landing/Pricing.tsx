@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button";
 
 type Cycle = "monthly" | "yearly";
 
+export const CHECKOUT_URLS = {
+  single: "https://pay.cakto.com.br/qw6rzxx_856330",
+  monthly: "https://pay.cakto.com.br/yw7ej87_856334",
+  yearly: "https://pay.cakto.com.br/m6z7n3k_856339",
+};
+
 const monthly = {
   name: "Ilimitado",
   price: "49,90",
@@ -12,6 +18,7 @@ const monthly = {
   description: "Para quem cria apresentações com frequência. Cancele quando quiser.",
   cta: "Assinar plano mensal",
   badge: "Mais popular",
+  href: CHECKOUT_URLS.monthly,
 };
 
 const yearly = {
@@ -22,6 +29,7 @@ const yearly = {
   cta: "Assinar plano anual",
   badge: "4 meses grátis",
   monthlyEquivalent: "33,16",
+  href: CHECKOUT_URLS.yearly,
 };
 
 const features = [
@@ -35,8 +43,8 @@ const features = [
 ];
 
 const perGen = {
-  name: "Por geração",
-  price: "19,90",
+  name: "Geração única",
+  price: "14,90",
   period: "por apresentação",
   description: "Pague apenas pelo que usar. Ideal para apresentações esporádicas.",
   features: [
@@ -47,6 +55,7 @@ const perGen = {
     "Acesso vitalício à apresentação",
   ],
   cta: "Criar apresentação",
+  href: CHECKOUT_URLS.single,
 };
 
 export const Pricing = () => {
@@ -111,7 +120,9 @@ export const Pricing = () => {
               <span className="font-display text-5xl font-extrabold tracking-tight">{perGen.price}</span>
               <span className="text-sm text-muted-foreground">/ {perGen.period}</span>
             </div>
-            <Button variant="outline" size="lg" className="w-full mt-6">{perGen.cta}</Button>
+            <Button asChild variant="outline" size="lg" className="w-full mt-6">
+              <a href={perGen.href} target="_blank" rel="noopener noreferrer">{perGen.cta}</a>
+            </Button>
             <ul className="mt-8 space-y-3">
               {perGen.features.map((f) => (
                 <li key={f} className="flex items-start gap-3 text-sm">
@@ -154,7 +165,9 @@ export const Pricing = () => {
               </p>
             )}
 
-            <Button variant="hero" size="lg" className="w-full mt-6">{sub.cta}</Button>
+            <Button asChild variant="hero" size="lg" className="w-full mt-6">
+              <a href={sub.href} target="_blank" rel="noopener noreferrer">{sub.cta}</a>
+            </Button>
 
             <ul className="mt-8 space-y-3">
               {features.map((f) => (

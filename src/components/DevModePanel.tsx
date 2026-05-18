@@ -1,18 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Terminal, X, Gauge, DollarSign, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { Terminal, X, DollarSign, Image as ImageIcon, ExternalLink, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
-import { loadDevSettings, saveDevSettings, estimateGenerationCost, type DevSettings, type BudgetMode } from "@/lib/devSettings";
+import { useDevSettings } from "@/hooks/useDevSettings";
+import {
+  saveDevSettings,
+  estimateGenerationCost,
+  modeFromBudget,
+  modeLabel,
+  modeDescription,
+  type DevSettings,
+} from "@/lib/devSettings";
 
 export const DevModePanel = () => {
   const { isDeveloper } = useDeveloperRole();
   const [open, setOpen] = useState(false);
-  const [s, setS] = useState<DevSettings>(() => loadDevSettings());
+  const s = useDevSettings();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -25,15 +33,12 @@ export const DevModePanel = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [isDeveloper]);
 
-  const update = (patch: Partial<DevSettings>) => {
-    const next = { ...s, ...patch };
-    setS(next);
-    saveDevSettings(next);
-  };
+  const update = (patch: Partial<DevSettings>) => saveDevSettings({ ...s, ...patch });
 
   if (!isDeveloper) return null;
 
-  const sample = estimateGenerationCost(10, true, s.imageBudgetMode);
+  const mode = modeFromBudget(s.maxBudgetUsd);
+  const sample = estimateGenerationCost(10, true, mode);
 
   return (
     <>
@@ -75,51 +80,27 @@ export const DevModePanel = () => {
                 <p className="text-xs text-muted-foreground">Permite gerar sem cobrança/checagem de plano.</p>
               </section>
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Forçar somente Pexels</Label>
-                  <Switch checked={s.forcePexelsOnly} onCheckedChange={(v) => update({ forcePexelsOnly: v })} />
-                </div>
-                <p className="text-xs text-muted-foreground">Custo zero de imagem. Sem fallback de IA.</p>
-              </section>
-
-              <section className="space-y-3">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Gauge className="h-3 w-3" /> Modo de orçamento de imagem
-                </Label>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["economy", "balanced", "premium"] as BudgetMode[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => update({ imageBudgetMode: m })}
-                      className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                        s.imageBudgetMode === m
-                          ? "bg-foreground text-background border-foreground"
-                          : "border-border hover:bg-muted"
-                      }`}
-                    >
-                      {m === "economy" ? "Economia" : m === "balanced" ? "Balanceado" : "Premium"}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground leading-snug">
-                  {s.imageBudgetMode === "economy" && "100% Pexels. Sem IA. Qualidade depende do banco."}
-                  {s.imageBudgetMode === "balanced" && "Pexels-first com ~15% fallback IA para conceitos abstratos."}
-                  {s.imageBudgetMode === "premium" && "Pexels com ~40% IA para visuais autorais."}
-                </p>
-              </section>
-
-              <section className="space-y-3">
+              <section className="space-y-3 p-3 rounded-lg border border-border bg-gradient-to-br from-primary/5 to-transparent">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                     <DollarSign className="h-3 w-3" /> Teto por geração
                   </Label>
-                  <span className="text-xs font-mono">${s.maxBudgetUsd.toFixed(2)}</span>
+                  <span className="text-sm font-mono font-semibold">${s.maxBudgetUsd.toFixed(2)}</span>
                 </div>
                 <Slider
                   value={[s.maxBudgetUsd]} min={0.05} max={2} step={0.05}
                   onValueChange={(v) => update({ maxBudgetUsd: v[0] })}
                 />
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>$0.05 · Economia</span>
+                  <span>$0.45 · Balanceado</span>
+                  <span>$2.00 · Premium</span>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Gauge className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold">{modeLabel(mode)}</span>
+                  <span className="text-[11px] text-muted-foreground leading-snug">— {modeDescription(mode)}</span>
+                </div>
               </section>
 
               <section className="space-y-2 p-3 rounded-lg border border-border bg-muted/30">
@@ -129,7 +110,7 @@ export const DevModePanel = () => {
                 <div className="space-y-1 font-mono text-xs">
                   <div className="flex justify-between"><span className="text-muted-foreground">Texto IA</span><span>${sample.textUsd.toFixed(3)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Pexels ({sample.imagesPexels})</span><span>$0.000</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">IA imagem ({sample.imagesAi})</span><span>${(sample.imagesAi * 0.039).toFixed(3)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">IA imagem ({sample.imagesAi})</span><span>${sample.imageUsd.toFixed(3)}</span></div>
                   <div className="flex justify-between font-semibold pt-1 border-t border-border"><span>Total</span><span>${sample.totalUsd.toFixed(3)}</span></div>
                   <div className="flex justify-between text-muted-foreground"><span>Tempo</span><span>~{Math.round(sample.seconds)}s</span></div>
                 </div>
