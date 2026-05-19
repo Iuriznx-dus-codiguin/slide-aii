@@ -62,7 +62,7 @@ export const Hero = () => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="mt-10 flex flex-col sm:flex-row gap-3 justify-center items-center"
           >
-            <Link to="/auth">
+            <Link to="/gerar">
               <SpringWrap hoverY={-3}>
                 <Button variant="hero" size="xl" className="group">
                   Criar minha apresentação
