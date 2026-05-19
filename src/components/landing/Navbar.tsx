@@ -12,7 +12,6 @@ export const Navbar = () => {
   const links = [
     { href: "#how", label: "Como funciona", to: null },
     { href: "#features", label: "Recursos", to: null },
-    { href: "/templates", label: "Templates", to: "/templates" },
     { href: "#pricing", label: "Preços", to: null },
     { href: "#faq", label: "FAQ", to: null },
   ];
@@ -42,7 +41,7 @@ export const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-3">
           <Link to="/auth"><Button variant="ghost" size="sm">Entrar</Button></Link>
-          <Link to="/auth"><Button variant="hero" size="sm">Começar grátis</Button></Link>
+          <Link to="/gerar"><Button variant="hero" size="sm">Criar apresentação</Button></Link>
         </div>
 
         <button className="md:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
@@ -62,7 +61,7 @@ export const Navbar = () => {
             ))}
             <div className="flex flex-col gap-2 pt-2">
               <Link to="/auth"><Button variant="ghost" size="sm" className="w-full">Entrar</Button></Link>
-              <Link to="/auth"><Button variant="hero" size="sm" className="w-full">Começar grátis</Button></Link>
+              <Link to="/gerar"><Button variant="hero" size="sm" className="w-full">Criar apresentação</Button></Link>
             </div>
           </div>
         </div>

@@ -1,9 +1,18 @@
 // Generate presentation: estrutura completa com DNA narrativo,
 // Círculo Narrativo (Hook→Tensão→Jornada→Prova→Clímax), multi-apresentador
 // e falas opcionais. Motor híbrido: GPT-4.1 (OpenAI) primário; Gemini 2.5 Pro fallback.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Estimativas usadas para custo real vs estimado (sincronizado com src/lib/devSettings.ts)
+const COSTS = {
+  pexelsImage: 0,
+  aiImage: 0.039,
+  slideText: 0.022,
 };
 
 interface GenerateRequest {
@@ -152,6 +161,53 @@ Para CADA slide preencha presenters_data com UM objeto por apresentador (${prese
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const t0 = Date.now();
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  // ───────────── Autenticação + Entitlement (RIGOROSO) ─────────────
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token) {
+    return new Response(JSON.stringify({ error: "Não autenticado." }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: userData, error: userErr } = await admin.auth.getUser(token);
+  if (userErr || !userData?.user) {
+    return new Response(JSON.stringify({ error: "Sessão inválida." }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const userId = userData.user.id;
+
+  // Verifica permissão via função SQL
+  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
+  if (entErr) {
+    console.error("can_user_generate err:", entErr);
+    return new Response(JSON.stringify({ error: "Erro interno (E_INTERNAL_503). Tente novamente em alguns minutos." }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const ent = entitle as { allowed: boolean; reason: string; plan?: string; used?: number };
+  if (!ent.allowed) {
+    // Limite oculto: mensagem genérica
+    if (ent.reason === "system_error") {
+      return new Response(JSON.stringify({ error: "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (ent.reason === "no_plan") {
+      return new Response(JSON.stringify({ error: "payment_required", reason: "no_plan" }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: "Geração indisponível.", reason: ent.reason }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const body: GenerateRequest = await req.json();
@@ -402,14 +458,49 @@ LEMBRETE CRÍTICO:
       });
     }
 
+    // Métricas: contar imagens reais por estratégia
+    const imagesPexels = parsed.slides.filter((s: any) => s.image_strategy === "pexels").length;
+    const imagesAi = parsed.slides.filter((s: any) => s.image_strategy === "ai").length;
+    const textUsd = parsed.slides.length * COSTS.slideText;
+    const imageUsd = imagesPexels * COSTS.pexelsImage + imagesAi * COSTS.aiImage;
+    const actualCost = +(textUsd + imageUsd).toFixed(4);
+    const estimatedCost = typeof body.max_budget_usd === "number" ? +body.max_budget_usd.toFixed(4) : actualCost;
+
+    // Consome crédito single quando aplicável
+    if (ent.plan === "single") {
+      await admin.rpc("consume_single_credit", { _uid: userId });
+    }
+
+    // Log de sucesso para o painel de métricas Dev
+    await admin.from("generation_logs").insert({
+      user_id: userId,
+      status: "success",
+      reason: ent.reason,
+      model,
+      mode: budgetMode,
+      slides_count: parsed.slides.length,
+      images_pexels: imagesPexels,
+      images_ai: imagesAi,
+      estimated_cost_usd: estimatedCost,
+      actual_cost_usd: actualCost,
+      duration_ms: Date.now() - t0,
+      metadata: { title: body.title, type: body.type, plan: ent.plan },
+    });
+
     return new Response(JSON.stringify({
       slides: parsed.slides,
       dynamic_theme: parsed.dynamic_theme ?? null,
+      _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("generate-presentation error:", e);
+    await admin.from("generation_logs").insert({
+      user_id: userId, status: "error",
+      reason: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+      duration_ms: Date.now() - t0,
+    });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

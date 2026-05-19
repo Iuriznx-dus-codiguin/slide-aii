@@ -30,7 +30,7 @@ export const CTA = () => {
               Crie hoje sua primeira apresentação com IA. Pré-visualize gratuitamente.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-              <Link to="/auth">
+              <Link to="/gerar">
                 <Button size="xl" className="bg-white text-primary hover:bg-white/90 group">
                   Criar minha apresentação
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />

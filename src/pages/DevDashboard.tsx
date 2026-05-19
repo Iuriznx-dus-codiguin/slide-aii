@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { estimateGenerationCost, modeFromBudget, modeLabel } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
+import { DevMetricsPanel } from "@/components/DevMetricsPanel";
 
 interface Metrics {
   totalPresentations: number;
@@ -152,6 +153,10 @@ const DevDashboard = () => {
                   </Table>
                 </CardContent>
               </Card>
+            </section>
+
+            <section>
+              <DevMetricsPanel />
             </section>
 
             <section>

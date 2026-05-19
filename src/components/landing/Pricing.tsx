@@ -121,7 +121,7 @@ export const Pricing = () => {
               <span className="text-sm text-muted-foreground">/ {perGen.period}</span>
             </div>
             <Button asChild variant="outline" size="lg" className="w-full mt-6">
-              <a href={perGen.href} target="_blank" rel="noopener noreferrer">{perGen.cta}</a>
+              <a href="/gerar">{perGen.cta}</a>
             </Button>
             <ul className="mt-8 space-y-3">
               {perGen.features.map((f) => (
@@ -166,7 +166,7 @@ export const Pricing = () => {
             )}
 
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
-              <a href={sub.href} target="_blank" rel="noopener noreferrer">{sub.cta}</a>
+              <a href="/gerar">{sub.cta}</a>
             </Button>
 
             <ul className="mt-8 space-y-3">
