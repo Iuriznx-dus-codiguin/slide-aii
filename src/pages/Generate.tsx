@@ -14,13 +14,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
+import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRenderer, type SlideContent } from "@/components/SlideRenderer";
-import { Lock } from "lucide-react";
+import { PaymentGate } from "@/components/PaymentGate";
+import { Lock, CreditCard } from "lucide-react";
 
 // Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
 const FREE_GENERATIONS_LIMIT = 1;
@@ -66,13 +68,15 @@ const Generate = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isDeveloper } = useDeveloperRole();
+  const ent = useEntitlement();
   const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<"form" | "loading" | "preview">("form");
   const [stepIdx, setStepIdx] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const devSettings = useDevSettings();
-  // Bloqueio: só usuários com role developer/admin podem gerar enquanto MVP.
-  const canGenerate = isDeveloper;
+  // Habilita gerar quando o usuário possui crédito/assinatura ativa ou é dev.
+  const canGenerate = ent.allowed;
 
   // Form state
   const [title, setTitle] = useState("");
@@ -167,8 +171,14 @@ const Generate = () => {
   const handleGenerate = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
-    if (!canGenerate) {
-      toast.error("Geração disponível apenas para desenvolvedores no momento.");
+    // Etapa de pagamento APÓS configuração — só inicia se o usuário tem entitlement.
+    await ent.refresh();
+    if (!ent.allowed && !isDeveloper) {
+      if (ent.reason === "system_error") {
+        toast.error("Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.");
+        return;
+      }
+      setShowPayment(true);
       return;
     }
 
@@ -547,15 +557,15 @@ const Generate = () => {
             <p className="mt-3 text-sm md:text-base text-muted-foreground">Descreva o tema. A IA escreve, ilustra e desenha — você refina via chat.</p>
           </div>
 
-          {!canGenerate && (
-            <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 md:p-5 flex items-start gap-3">
-              <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          {!canGenerate && !ent.loading && (
+            <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-4 md:p-5 flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                <CreditCard className="h-4 w-4 text-primary" />
               </div>
-              <div className="text-sm">
-                <p className="font-semibold">Geração indisponível no momento</p>
+              <div className="text-sm flex-1">
+                <p className="font-semibold">Configure abaixo e escolha um plano para gerar</p>
                 <p className="text-muted-foreground mt-1">
-                  Estamos finalizando o MVP. As assinaturas serão liberadas em breve — fique de olho no seu e-mail.
+                  Defina o tema, slides e estilo. O pagamento acontece após a configuração — a geração inicia automaticamente assim que o pagamento for confirmado.
                 </p>
               </div>
             </div>
@@ -727,8 +737,8 @@ const Generate = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate} disabled={!canGenerate}>
-              <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Em breve"}
+            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate} disabled={ent.loading}>
+              <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>
           </div>
         </motion.div>
@@ -752,6 +762,12 @@ const Generate = () => {
           </div>
         </div>
       )}
+
+      <PaymentGate
+        open={showPayment}
+        onClose={() => setShowPayment(false)}
+        onUnlocked={() => { setShowPayment(false); handleGenerate(); }}
+      />
     </div>
   );
 };
