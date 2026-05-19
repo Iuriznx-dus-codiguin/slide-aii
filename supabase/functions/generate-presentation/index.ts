@@ -1,9 +1,18 @@
 // Generate presentation: estrutura completa com DNA narrativo,
 // Círculo Narrativo (Hook→Tensão→Jornada→Prova→Clímax), multi-apresentador
 // e falas opcionais. Motor híbrido: GPT-4.1 (OpenAI) primário; Gemini 2.5 Pro fallback.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Estimativas usadas para custo real vs estimado (sincronizado com src/lib/devSettings.ts)
+const COSTS = {
+  pexelsImage: 0,
+  aiImage: 0.039,
+  slideText: 0.022,
 };
 
 interface GenerateRequest {
