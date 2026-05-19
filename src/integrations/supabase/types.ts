@@ -14,6 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
+      generation_logs: {
+        Row: {
+          actual_cost_usd: number
+          created_at: string
+          duration_ms: number
+          estimated_cost_usd: number
+          id: string
+          images_ai: number
+          images_pexels: number
+          metadata: Json
+          mode: string | null
+          model: string | null
+          presentation_id: string | null
+          reason: string | null
+          slides_count: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          actual_cost_usd?: number
+          created_at?: string
+          duration_ms?: number
+          estimated_cost_usd?: number
+          id?: string
+          images_ai?: number
+          images_pexels?: number
+          metadata?: Json
+          mode?: string | null
+          model?: string | null
+          presentation_id?: string | null
+          reason?: string | null
+          slides_count?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          actual_cost_usd?: number
+          created_at?: string
+          duration_ms?: number
+          estimated_cost_usd?: number
+          id?: string
+          images_ai?: number
+          images_pexels?: number
+          metadata?: Json
+          mode?: string | null
+          model?: string | null
+          presentation_id?: string | null
+          reason?: string | null
+          slides_count?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      payment_events: {
+        Row: {
+          cakto_id: string | null
+          created_at: string
+          error_message: string | null
+          event_type: string | null
+          id: string
+          payload: Json
+          processed: boolean
+          provider: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          cakto_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json
+          processed?: boolean
+          provider?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          cakto_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json
+          processed?: boolean
+          provider?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       presentations: {
         Row: {
           created_at: string
@@ -95,34 +188,55 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          cakto_customer_id: string | null
+          cakto_subscription_id: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           generations_count: number
           id: string
           plan: string
           role: string | null
+          single_credits: number
+          subscription_period_start: string | null
+          subscription_renews_at: string | null
+          subscription_status: string | null
           total_views: number
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          cakto_customer_id?: string | null
+          cakto_subscription_id?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           generations_count?: number
           id: string
           plan?: string
           role?: string | null
+          single_credits?: number
+          subscription_period_start?: string | null
+          subscription_renews_at?: string | null
+          subscription_status?: string | null
           total_views?: number
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          cakto_customer_id?: string | null
+          cakto_subscription_id?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           generations_count?: number
           id?: string
           plan?: string
           role?: string | null
+          single_credits?: number
+          subscription_period_start?: string | null
+          subscription_renews_at?: string | null
+          subscription_status?: string | null
           total_views?: number
           updated_at?: string
         }
@@ -242,6 +356,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_user_generate: { Args: { _uid: string }; Returns: Json }
+      consume_single_credit: { Args: { _uid: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
