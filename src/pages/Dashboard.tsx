@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { AccountPanel } from "@/components/AccountPanel";
 
 interface Pres {
   id: string; title: string; slug: string; slides_count: number; view_count: number;
@@ -75,6 +76,8 @@ const Dashboard = () => {
       </header>
 
       <main className="container mx-auto px-6 py-10">
+        <div className="mb-8"><AccountPanel /></div>
+
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-bold">Minhas apresentações</h1>
