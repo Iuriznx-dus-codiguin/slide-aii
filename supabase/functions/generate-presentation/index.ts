@@ -162,6 +162,53 @@ Para CADA slide preencha presenters_data com UM objeto por apresentador (${prese
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const t0 = Date.now();
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  // ───────────── Autenticação + Entitlement (RIGOROSO) ─────────────
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token) {
+    return new Response(JSON.stringify({ error: "Não autenticado." }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: userData, error: userErr } = await admin.auth.getUser(token);
+  if (userErr || !userData?.user) {
+    return new Response(JSON.stringify({ error: "Sessão inválida." }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const userId = userData.user.id;
+
+  // Verifica permissão via função SQL
+  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
+  if (entErr) {
+    console.error("can_user_generate err:", entErr);
+    return new Response(JSON.stringify({ error: "Erro interno (E_INTERNAL_503). Tente novamente em alguns minutos." }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const ent = entitle as { allowed: boolean; reason: string; plan?: string; used?: number };
+  if (!ent.allowed) {
+    // Limite oculto: mensagem genérica
+    if (ent.reason === "system_error") {
+      return new Response(JSON.stringify({ error: "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (ent.reason === "no_plan") {
+      return new Response(JSON.stringify({ error: "payment_required", reason: "no_plan" }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: "Geração indisponível.", reason: ent.reason }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const body: GenerateRequest = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
