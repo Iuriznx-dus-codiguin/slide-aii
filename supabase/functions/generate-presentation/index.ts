@@ -458,14 +458,49 @@ LEMBRETE CRÍTICO:
       });
     }
 
+    // Métricas: contar imagens reais por estratégia
+    const imagesPexels = parsed.slides.filter((s: any) => s.image_strategy === "pexels").length;
+    const imagesAi = parsed.slides.filter((s: any) => s.image_strategy === "ai").length;
+    const textUsd = parsed.slides.length * COSTS.slideText;
+    const imageUsd = imagesPexels * COSTS.pexelsImage + imagesAi * COSTS.aiImage;
+    const actualCost = +(textUsd + imageUsd).toFixed(4);
+    const estimatedCost = typeof body.max_budget_usd === "number" ? +body.max_budget_usd.toFixed(4) : actualCost;
+
+    // Consome crédito single quando aplicável
+    if (ent.plan === "single") {
+      await admin.rpc("consume_single_credit", { _uid: userId });
+    }
+
+    // Log de sucesso para o painel de métricas Dev
+    await admin.from("generation_logs").insert({
+      user_id: userId,
+      status: "success",
+      reason: ent.reason,
+      model,
+      mode: budgetMode,
+      slides_count: parsed.slides.length,
+      images_pexels: imagesPexels,
+      images_ai: imagesAi,
+      estimated_cost_usd: estimatedCost,
+      actual_cost_usd: actualCost,
+      duration_ms: Date.now() - t0,
+      metadata: { title: body.title, type: body.type, plan: ent.plan },
+    });
+
     return new Response(JSON.stringify({
       slides: parsed.slides,
       dynamic_theme: parsed.dynamic_theme ?? null,
+      _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("generate-presentation error:", e);
+    await admin.from("generation_logs").insert({
+      user_id: userId, status: "error",
+      reason: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+      duration_ms: Date.now() - t0,
+    });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
