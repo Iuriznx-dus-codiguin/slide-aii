@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
-import { cameraVariants, cameraTransition, pickCameraDirection } from "@/lib/animations";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +11,7 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { pickTransition, getTransitionConfig, type SlideTransition } from "@/lib/slideTransitions";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -20,27 +20,53 @@ interface Pres {
 interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
 
-/** Camera-style transition between slides: pan + zoom + blur. */
-const CinematicSlideStage = ({ current, pres, dynamicTheme, idx }: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
+/**
+ * Cinematic transition stage — em vez de deslizar, o slide anterior se
+ * desmonta (tiles, shatter, blinds, iris, ribbons, fold, portal, wipe,
+ * split, morph, stack, letterbox) e o próximo se reconstrói no lugar,
+ * com um overlay temático tingido pelo accent do tema dinâmico.
+ */
+const CinematicSlideStage = ({
+  current, pres, dynamicTheme, idx,
+}: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
   const prevIdxRef = useRef(idx);
-  const direction = pickCameraDirection(prevIdxRef.current, idx);
+  const direction: 1 | -1 = idx >= prevIdxRef.current ? 1 : -1;
   useEffect(() => { prevIdxRef.current = idx; }, [idx]);
-  const v = cameraVariants(direction);
+
+  const accent = dynamicTheme?.accent ?? "#A855F7";
+  const hint = current?.content?.transition as SlideTransition | undefined;
+  const transitionName = pickTransition(idx, current?.slide_type, hint);
+  const cfg = getTransitionConfig(transitionName, accent);
+  const Overlay = cfg.Overlay;
+
   return (
     <LayoutGroup id="slide-shared-layout">
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode={cfg.mode ?? "sync"} initial={false}>
         <motion.div
           key={current?.id ?? idx}
-          initial={v.initial}
-          animate={v.animate}
-          exit={v.exit}
-          transition={cameraTransition}
+          initial={cfg.enter.initial}
+          animate={cfg.enter.animate}
+          exit={cfg.exit.exit}
+          transition={cfg.enter.transition}
           className="absolute inset-0"
-          style={{ transformPerspective: 1200, willChange: "transform, opacity, filter" }}
+          style={{ transformPerspective: 1400, willChange: "transform, opacity, filter, clip-path" }}
         >
-          {current && <SlideRenderer slide={current as any} themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme} index={idx} />}
+          {current && (
+            <SlideRenderer
+              slide={current as any}
+              themeId={pres.theme}
+              fontId={pres.font_style}
+              dynamicTheme={dynamicTheme}
+              index={idx}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
+      {Overlay && (
+        <div key={`overlay-${current?.id ?? idx}`} className="absolute inset-0 pointer-events-none z-20">
+          <Overlay accent={accent} direction={direction} />
+        </div>
+      )}
     </LayoutGroup>
   );
 };
