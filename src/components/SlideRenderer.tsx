@@ -419,6 +419,8 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   const displayFont = font.display ?? font.family;
   const c = slide.content || {};
   const videoQuery = videoQueryForSlide(c);
+  const choreo = useChoreo();
+
 
   // Escolha do preset cinematográfico:
   // 1) se a IA setou animation, mapeia legacy → preset
