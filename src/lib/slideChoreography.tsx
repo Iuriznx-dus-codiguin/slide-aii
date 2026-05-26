@@ -42,18 +42,9 @@ const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 const EASE_SHARP = [0.7, 0, 0.84, 0] as const;
 const EASE_ANTICIPATE = [0.68, -0.55, 0.27, 1.55] as const;
 
-interface ExitTarget {
-  opacity?: number;
-  x?: number | string;
-  y?: number | string;
-  scale?: number;
-  rotate?: number;
-  rotateX?: number;
-  rotateY?: number;
-  filter?: string;
-  clipPath?: string;
+export type ExitTarget = Record<string, any> & {
   transition: { duration: number; ease?: readonly number[] | string; delay?: number };
-}
+};
 
 export interface SlideChoreography {
   name: ChoreographyName;
