@@ -236,15 +236,14 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
+  const choreo = useChoreo();
   const headlineWords = (c.headline ?? "").split(" ");
   const hasImage = !!c.image_url;
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
-      {/* Quando não há imagem, enriquecemos com backdrop animado + formas decorativas */}
       {!hasImage && (
         <>
           <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.3} orbCount={3} />
-          {/* Linhas decorativas animadas (lado direito) */}
           {!noAnimate && (
             <svg className="absolute -right-10 top-0 h-full w-1/3 opacity-[0.15] pointer-events-none" viewBox="0 0 200 600" preserveAspectRatio="none">
               <defs>
@@ -261,28 +260,30 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
                   stroke="url(#ln)" strokeWidth="1.2"
                   initial={{ pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 1 }}
+                  exit={{ pathLength: 0, opacity: 0, transition: { duration: 0.5 } }}
                   transition={{ duration: 1.6, delay: 0.3 + i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 />
               ))}
             </svg>
           )}
-          {/* Marcador de canto */}
           <motion.div
             className="absolute top-[5%] right-[5%] flex items-center gap-2 z-10"
             initial={noAnimate ? false : { opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
+            exit={choreo.exitFor("accent-line")}
             transition={{ duration: 0.7, delay: 0.4 }}
           >
             <div className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
             <div className="h-px w-10" style={{ background: theme.accent, opacity: 0.5 }} />
           </motion.div>
-          <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["floating-shapes", "diagonal-lines"]} />
+          <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["floating-shapes", "animated-blob", "particle-field"]} />
         </>
       )}
-      {hasImage && <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["corner-brackets"]} />}
+      {hasImage && <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["corner-brackets", "particle-field"]} />}
       <div className="relative z-10">
         <motion.h2
           {...ctrl.motionProps("title")}
+          exit={choreo.exitFor("title")}
           layoutId={sharedId("title", c.headline?.slice(0, 24))}
           className="text-[3.2vw] font-bold leading-[1.05] tracking-tight"
           style={{ color: theme.accent, fontFamily: displayFont, perspective: 1000 }}
@@ -292,6 +293,7 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
               key={i}
               initial={noAnimate ? false : { opacity: 0, y: 24, rotateX: -30 }}
               animate={{ opacity: 1, y: 0, rotateX: 0 }}
+              exit={choreo.exitFor("title", i)}
               transition={{ duration: 0.7, delay: 0.25 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
               className="inline-block mr-[0.25em]"
             >
@@ -299,23 +301,24 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
             </motion.span>
           ))}
         </motion.h2>
-        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} exit={choreo.exitFor("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
       </div>
       <div className="flex-1 mt-6 flex flex-col justify-center relative z-10">
         {c.body_text && (
-          <motion.p {...ctrl.motionProps("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
+          <motion.p {...ctrl.motionProps("body")} exit={choreo.exitFor("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
             {c.body_text}
           </motion.p>
         )}
         {c.bullets && c.bullets.length > 0 && (
           <ul className="space-y-4">
             {c.bullets.map((b, i) => (
-              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-4 text-[1.4vw]">
+              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} exit={choreo.exitFor("bullet", i)} className="flex items-start gap-4 text-[1.4vw]">
                 <motion.span
                   className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45"
                   style={{ background: theme.accent }}
                   initial={noAnimate ? false : { scale: 0, rotate: 0 }}
                   animate={{ scale: 1, rotate: 45 }}
+                  exit={choreo.exitFor("decoration", i)}
                   transition={{ duration: 0.4, delay: 0.5 + i * 0.08, type: "spring", stiffness: 220 }}
                 />
                 <span className="leading-snug">{b}</span>
