@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { pickTransition, getTransitionConfig, type SlideTransition } from "@/lib/slideTransitions";
+import { ChoreographyProvider, useSlideChoreography, type ChoreographyName } from "@/lib/slideChoreography";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -21,36 +21,41 @@ interface PresenterEntry { id: string; name: string; technical_notes?: string; e
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
 
 /**
- * Cinematic transition stage — em vez de deslizar, o slide anterior se
- * desmonta (tiles, shatter, blinds, iris, ribbons, fold, portal, wipe,
- * split, morph, stack, letterbox) e o próximo se reconstrói no lugar,
- * com um overlay temático tingido pelo accent do tema dinâmico.
+ * Cinematic stage — sem deslizar a tela inteira. Cada elemento do slide
+ * que sai é coreografado individualmente (voa, suga, contrai, gira, dissolve)
+ * e os elementos do próximo slide entram com sua própria timeline cinemática,
+ * todos sob o mesmo accent dinâmico do tema.
  */
 const CinematicSlideStage = ({
   current, pres, dynamicTheme, idx,
 }: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
-  const prevIdxRef = useRef(idx);
-  const direction: 1 | -1 = idx >= prevIdxRef.current ? 1 : -1;
-  useEffect(() => { prevIdxRef.current = idx; }, [idx]);
-
   const accent = dynamicTheme?.accent ?? "#A855F7";
-  const hint = current?.content?.transition as SlideTransition | undefined;
-  const transitionName = pickTransition(idx, current?.slide_type, hint);
-  const cfg = getTransitionConfig(transitionName, accent);
-  const Overlay = cfg.Overlay;
+  const hint = current?.content?.transition as ChoreographyName | undefined;
+  const choreo = useSlideChoreography(idx, current?.slide_type, hint);
 
   return (
-    <LayoutGroup id="slide-shared-layout">
-      <AnimatePresence mode={cfg.mode ?? "sync"} initial={false}>
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.div
+        key={current?.id ?? idx}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1, transition: { duration: 0.4, delay: 0.15 } }}
+        exit={{ opacity: 0, transition: { duration: 0.95, delay: 0.55 } }}
+        className="absolute inset-0"
+        style={{ willChange: "opacity", perspective: 1600 }}
+      >
+        {/* Flash sutil tingido pelo accent durante a troca. */}
         <motion.div
-          key={current?.id ?? idx}
-          initial={cfg.enter.initial}
-          animate={cfg.enter.animate}
-          exit={cfg.exit.exit}
-          transition={cfg.enter.transition}
-          className="absolute inset-0"
-          style={{ transformPerspective: 1400, willChange: "transform, opacity, filter, clip-path" }}
-        >
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.35, 0], transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } }}
+          exit={{ opacity: 0 }}
+          style={{
+            background: `radial-gradient(circle at 50% 50%, ${accent}33 0%, transparent 65%)`,
+            mixBlendMode: "screen",
+          }}
+        />
+        <ChoreographyProvider value={choreo}>
           {current && (
             <SlideRenderer
               slide={current as any}
@@ -60,14 +65,9 @@ const CinematicSlideStage = ({
               index={idx}
             />
           )}
-        </motion.div>
-      </AnimatePresence>
-      {Overlay && (
-        <div key={`overlay-${current?.id ?? idx}`} className="absolute inset-0 pointer-events-none z-20">
-          <Overlay accent={accent} direction={direction} />
-        </div>
-      )}
-    </LayoutGroup>
+        </ChoreographyProvider>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 
