@@ -35,7 +35,10 @@ import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines, A
 import { useImageInsight } from "@/lib/imageAnalysis";
 import { useChoreo } from "@/lib/slideChoreography";
 
-export type VisualAccent = "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form";
+export type VisualAccent =
+  | "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines"
+  | "corner-brackets" | "data-pattern" | "wave-form"
+  | "animated-blob" | "pulse-grid" | "particle-field";
 
 export interface SlideContent {
   headline?: string;
@@ -75,6 +78,9 @@ const AccentLayer = ({ accents, theme, noAnimate, defaults = [] }: {
           case "corner-brackets": return <CornerBrackets key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           case "data-pattern": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} cols={20} rows={12} intensity={intensity * 0.8} />;
           case "wave-form": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity * 0.9} />;
+          case "animated-blob": return <AnimatedBlob key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} position={i % 2 === 0 ? "right" : "left"} />;
+          case "pulse-grid": return <PulseGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "particle-field": return <ParticleField key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           default: return null;
         }
       })}
