@@ -543,10 +543,10 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.5} orbCount={3} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["diagonal-lines", "orbital-rings", "corner-brackets"]} />
         <motion.div {...motionMode} variants={variants.container} className="relative z-10">
-          {c.subtitle && <motion.p variants={variants.item} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
-          <motion.h1 variants={variants.item} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>
-          {c.body_text && <motion.p variants={variants.item} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
-          <motion.div variants={variants.item} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
+          {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("kicker")} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
+          <motion.h1 variants={variants.item} exit={choreo.exitFor("title")} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>
+          {c.body_text && <motion.p variants={variants.item} exit={choreo.exitFor("body")} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
+          <motion.div variants={variants.item} exit={choreo.exitFor("accent-line")} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
         </motion.div>
       </div>
     );
