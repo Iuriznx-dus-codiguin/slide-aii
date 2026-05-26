@@ -248,3 +248,125 @@ export const DiagonalLines = ({ theme, noAnimate, intensity = 1 }: BaseProps) =>
     </svg>
   );
 };
+
+/** Blob orgânico que morfa continuamente entre 3 paths. Forte presença visual. */
+export const AnimatedBlob = ({
+  theme, noAnimate, intensity = 1, position = "right",
+}: BaseProps & { position?: "left" | "right" }) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const paths = [
+    "M421,300 Q470,180 360,120 Q220,70 140,180 Q60,290 160,400 Q260,510 380,460 Q500,410 421,300Z",
+    "M440,320 Q500,200 380,100 Q230,40 130,170 Q40,310 170,420 Q280,520 400,480 Q520,440 440,320Z",
+    "M410,290 Q450,160 340,110 Q200,60 130,200 Q50,330 180,420 Q290,500 390,450 Q490,400 410,290Z",
+  ];
+  const pos = position === "left" ? "-left-[18%]" : "-right-[18%]";
+  return (
+    <div
+      className={`absolute ${pos} top-1/2 -translate-y-1/2 pointer-events-none z-[1]`}
+      style={{ width: "65%", aspectRatio: "1/1", opacity: 0.28 * intensity }}
+      aria-hidden
+    >
+      <svg viewBox="0 0 560 560" className="w-full h-full">
+        <defs>
+          <radialGradient id={`blob-${theme.accent.replace("#", "")}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={theme.accent} stopOpacity="0.9" />
+            <stop offset="60%" stopColor={theme.accent} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={theme.accent} stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <motion.path
+          fill={`url(#blob-${theme.accent.replace("#", "")})`}
+          initial={skip ? false : { d: paths[0], scale: 0.9, opacity: 0 }}
+          animate={skip ? { d: paths[0] } : {
+            d: [paths[0], paths[1], paths[2], paths[0]],
+            scale: [0.95, 1.05, 0.98, 0.95],
+            opacity: 1,
+          }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "center" }}
+        />
+      </svg>
+    </div>
+  );
+};
+
+/** Grade de pontos que pulsa em ondas radiais a partir do centro. */
+export const PulseGrid = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const cols = 16, rows = 9;
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none z-[1] overflow-hidden"
+      style={{ opacity: 0.22 * intensity }}
+      aria-hidden
+    >
+      <svg viewBox={`0 0 ${cols * 10} ${rows * 10}`} className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+        {Array.from({ length: rows }).flatMap((_, r) =>
+          Array.from({ length: cols }).map((__, c) => {
+            const cx = c * 10 + 5;
+            const cy = r * 10 + 5;
+            const dist = Math.hypot(cx - cols * 5, cy - rows * 5);
+            const delay = dist * 0.012;
+            return (
+              <motion.circle
+                key={`${r}-${c}`}
+                cx={cx} cy={cy} r={0.7}
+                fill={theme.accent}
+                initial={skip ? false : { opacity: 0.15, scale: 1 }}
+                animate={skip ? {} : {
+                  opacity: [0.15, 0.8, 0.15],
+                  scale: [1, 1.8, 1],
+                }}
+                transition={{
+                  duration: 3.2, repeat: Infinity, ease: "easeInOut",
+                  delay: delay % 3.2,
+                }}
+              />
+            );
+          })
+        )}
+      </svg>
+    </div>
+  );
+};
+
+/** Partículas flutuantes que sobem lentamente — sensação de profundidade. */
+export const ParticleField = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const particles = Array.from({ length: 22 }).map((_, i) => ({
+    x: (i * 37) % 100,
+    delay: (i * 0.31) % 6,
+    size: 1 + ((i * 7) % 4),
+    dur: 8 + ((i * 3) % 6),
+  }));
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none z-[1] overflow-hidden"
+      style={{ opacity: 0.55 * intensity }}
+      aria-hidden
+    >
+      {particles.map((p, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            left: `${p.x}%`,
+            bottom: "-5%",
+            width: p.size * 3,
+            height: p.size * 3,
+            background: theme.accent,
+            boxShadow: `0 0 ${p.size * 6}px ${theme.accent}`,
+          }}
+          initial={skip ? false : { y: 0, opacity: 0 }}
+          animate={skip ? {} : { y: ["0vh", "-110vh"], opacity: [0, 0.7, 0.7, 0] }}
+          transition={{
+            duration: p.dur, repeat: Infinity, delay: p.delay, ease: "linear",
+          }}
+        />
+      ))}
+    </div>
+  );
+};
