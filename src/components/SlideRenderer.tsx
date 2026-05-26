@@ -31,10 +31,14 @@ import { sharedId } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
 import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdrop";
-import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines } from "@/components/SlideDecorations";
+import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines, AnimatedBlob, PulseGrid, ParticleField } from "@/components/SlideDecorations";
 import { useImageInsight } from "@/lib/imageAnalysis";
+import { useChoreo } from "@/lib/slideChoreography";
 
-export type VisualAccent = "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form";
+export type VisualAccent =
+  | "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines"
+  | "corner-brackets" | "data-pattern" | "wave-form"
+  | "animated-blob" | "pulse-grid" | "particle-field";
 
 export interface SlideContent {
   headline?: string;
@@ -74,6 +78,9 @@ const AccentLayer = ({ accents, theme, noAnimate, defaults = [] }: {
           case "corner-brackets": return <CornerBrackets key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           case "data-pattern": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} cols={20} rows={12} intensity={intensity * 0.8} />;
           case "wave-form": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity * 0.9} />;
+          case "animated-blob": return <AnimatedBlob key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} position={i % 2 === 0 ? "right" : "left"} />;
+          case "pulse-grid": return <PulseGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "particle-field": return <ParticleField key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           default: return null;
         }
       })}
@@ -124,15 +131,16 @@ interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle:
 const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: QuoteSlideProps) => {
   const tl = useMemo(() => applyIntent(buildQuoteScenario(), c.animation_intent ?? "quote-spotlight"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
+  const choreo = useChoreo();
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.6} orbCount={3} />
-      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["orbital-rings", "corner-brackets"]} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["orbital-rings", "corner-brackets", "particle-field"]} />
       <div className="text-center max-w-5xl relative z-10">
-        <motion.div {...ctrl.motionProps("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
-        <motion.p {...ctrl.motionProps("quote")} className="text-[3vw] font-light leading-[1.25] italic" style={{ fontFamily: displayFont }}>{c.quote_text}</motion.p>
+        <motion.div {...ctrl.motionProps("mark")} exit={choreo.exitFor("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
+        <motion.p {...ctrl.motionProps("quote")} exit={choreo.exitFor("quote")} className="text-[3vw] font-light leading-[1.25] italic" style={{ fontFamily: displayFont }}>{c.quote_text}</motion.p>
         {c.quote_author && (
-          <motion.div {...ctrl.motionProps("author")} className="mt-10 flex items-center justify-center gap-4">
+          <motion.div {...ctrl.motionProps("author")} exit={choreo.exitFor("author")} className="mt-10 flex items-center justify-center gap-4">
             <div className="h-px w-12" style={{ background: theme.accent }} />
             <p className="text-[1.3vw] tracking-wide uppercase opacity-80">{c.quote_author}</p>
             <div className="h-px w-12" style={{ background: theme.accent }} />
@@ -147,23 +155,25 @@ interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: 
 const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: StatSlideProps) => {
   const tl = useMemo(() => applyIntent(buildStatScenario(), c.animation_intent ?? "emphasis-stat"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
+  const choreo = useChoreo();
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.55} orbCount={4} />
-      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["dot-grid", "floating-shapes"]} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["pulse-grid", "animated-blob"]} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
-          <motion.p {...ctrl.motionProps("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
+          <motion.p {...ctrl.motionProps("kicker")} exit={choreo.exitFor("kicker")} className="text-[1.4vw] uppercase tracking-[0.3em] mb-6">{c.subtitle}</motion.p>
         )}
         <motion.div
           {...ctrl.motionProps("stat")}
+          exit={choreo.exitFor("stat")}
           layoutId={sharedId("stat", c.stat_value)}
           className="w-full"
           style={{ height: "min(50vh, 360px)", fontFamily: displayFont }}
         >
           <MorphingNumberToBar value={c.stat_value!} color={theme.accent} noAnimate={noAnimate} />
         </motion.div>
-        <motion.p {...ctrl.motionProps("label")} className="mt-8 text-[2vw] max-w-3xl text-center opacity-90 leading-snug">
+        <motion.p {...ctrl.motionProps("label")} exit={choreo.exitFor("label")} className="mt-8 text-[2vw] max-w-3xl text-center opacity-90 leading-snug">
           {c.stat_label || c.headline}
         </motion.p>
       </div>
@@ -178,17 +188,19 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
+  const choreo = useChoreo();
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
-      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["data-pattern", "wave-form"]} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["data-pattern", "wave-form", "particle-field"]} />
       <div className="relative z-10">
-        <motion.h2 {...ctrl.motionProps("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
-        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+        <motion.h2 {...ctrl.motionProps("title")} exit={choreo.exitFor("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
+        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} exit={choreo.exitFor("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
       </div>
       <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6 relative z-10">
         <div className="col-span-7 min-h-0">
           <motion.div
             {...ctrl.motionProps("chart")}
+            exit={choreo.exitFor("chart")}
             className="h-full rounded-2xl p-3"
             style={{
               background: `linear-gradient(135deg, ${theme.bg}99 0%, ${theme.accent}10 100%)`,
@@ -204,7 +216,7 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
           {c.bullets && c.bullets.length > 0 && (
             <ul className="space-y-3">
               {c.bullets.map((b, i) => (
-                <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-2 text-[1.2vw]">
+                <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} exit={choreo.exitFor("bullet", i)} className="flex items-start gap-2 text-[1.2vw]">
                   <span className="mt-[0.6em] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
                   <span className="leading-snug">{b}</span>
                 </motion.li>
@@ -224,15 +236,14 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
+  const choreo = useChoreo();
   const headlineWords = (c.headline ?? "").split(" ");
   const hasImage = !!c.image_url;
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
-      {/* Quando não há imagem, enriquecemos com backdrop animado + formas decorativas */}
       {!hasImage && (
         <>
           <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.3} orbCount={3} />
-          {/* Linhas decorativas animadas (lado direito) */}
           {!noAnimate && (
             <svg className="absolute -right-10 top-0 h-full w-1/3 opacity-[0.15] pointer-events-none" viewBox="0 0 200 600" preserveAspectRatio="none">
               <defs>
@@ -249,28 +260,30 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
                   stroke="url(#ln)" strokeWidth="1.2"
                   initial={{ pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 1 }}
+                  exit={{ pathLength: 0, opacity: 0, transition: { duration: 0.5 } }}
                   transition={{ duration: 1.6, delay: 0.3 + i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 />
               ))}
             </svg>
           )}
-          {/* Marcador de canto */}
           <motion.div
             className="absolute top-[5%] right-[5%] flex items-center gap-2 z-10"
             initial={noAnimate ? false : { opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
+            exit={choreo.exitFor("accent-line")}
             transition={{ duration: 0.7, delay: 0.4 }}
           >
             <div className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
             <div className="h-px w-10" style={{ background: theme.accent, opacity: 0.5 }} />
           </motion.div>
-          <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["floating-shapes", "diagonal-lines"]} />
+          <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["floating-shapes", "animated-blob", "particle-field"]} />
         </>
       )}
-      {hasImage && <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["corner-brackets"]} />}
+      {hasImage && <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["corner-brackets", "particle-field"]} />}
       <div className="relative z-10">
         <motion.h2
           {...ctrl.motionProps("title")}
+          exit={choreo.exitFor("title")}
           layoutId={sharedId("title", c.headline?.slice(0, 24))}
           className="text-[3.2vw] font-bold leading-[1.05] tracking-tight"
           style={{ color: theme.accent, fontFamily: displayFont, perspective: 1000 }}
@@ -280,6 +293,7 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
               key={i}
               initial={noAnimate ? false : { opacity: 0, y: 24, rotateX: -30 }}
               animate={{ opacity: 1, y: 0, rotateX: 0 }}
+              exit={choreo.exitFor("title", i)}
               transition={{ duration: 0.7, delay: 0.25 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
               className="inline-block mr-[0.25em]"
             >
@@ -287,23 +301,24 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
             </motion.span>
           ))}
         </motion.h2>
-        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
+        {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} exit={choreo.exitFor("subtitle")} className="text-[1.5vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
       </div>
       <div className="flex-1 mt-6 flex flex-col justify-center relative z-10">
         {c.body_text && (
-          <motion.p {...ctrl.motionProps("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
+          <motion.p {...ctrl.motionProps("body")} exit={choreo.exitFor("body")} className="text-[1.4vw] leading-relaxed opacity-95 mb-6 max-w-[90%]">
             {c.body_text}
           </motion.p>
         )}
         {c.bullets && c.bullets.length > 0 && (
           <ul className="space-y-4">
             {c.bullets.map((b, i) => (
-              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} className="flex items-start gap-4 text-[1.4vw]">
+              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} exit={choreo.exitFor("bullet", i)} className="flex items-start gap-4 text-[1.4vw]">
                 <motion.span
                   className="mt-[0.5em] h-3 w-3 rounded-sm flex-shrink-0 rotate-45"
                   style={{ background: theme.accent }}
                   initial={noAnimate ? false : { scale: 0, rotate: 0 }}
                   animate={{ scale: 1, rotate: 45 }}
+                  exit={choreo.exitFor("decoration", i)}
                   transition={{ duration: 0.4, delay: 0.5 + i * 0.08, type: "spring", stiffness: 220 }}
                 />
                 <span className="leading-snug">{b}</span>
@@ -323,8 +338,7 @@ interface ImageSplitProps {
 }
 const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, requestedSide }: ImageSplitProps) => {
   const insight = useImageInsight(c.image_url ?? null);
-  // Imagem fica do lado OPOSTO ao "safeSide" (onde há área plana p/ texto dentro da img),
-  // garantindo que o foco visual da imagem não fique grudado no texto.
+  const choreo = useChoreo();
   const imageSide: "left" | "right" = insight
     ? (insight.safeSide === "left" ? "right" : "left")
     : requestedSide;
@@ -333,18 +347,18 @@ const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, reque
       <CornerBrackets theme={theme} noAnimate={false} intensity={0.5} />
       <OrbitalRings theme={theme} noAnimate={false} position={imageSide === "left" ? "right" : "left"} intensity={0.35} />
       {imageSide === "left" && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={choreo.exitFor("image")} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
           <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
         </motion.div>
       )}
-      <motion.div {...motionMode} variants={variants.container} className={`col-span-7 flex flex-col justify-center ${imageSide === "left" ? "" : "pr-[2%]"}`}>
-        <motion.h2 variants={variants.item} className="text-[3.5vw] font-bold leading-tight mb-4" style={{ color: theme.accent }}>{c.headline}</motion.h2>
-        {c.subtitle && <motion.p variants={variants.item} className="text-[1.6vw] opacity-75 mb-6">{c.subtitle}</motion.p>}
-        {c.body_text && <motion.p variants={variants.item} className="text-[1.3vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
+      <motion.div {...motionMode} variants={variants.container} exit={choreo.exitFor("card")} className={`col-span-7 flex flex-col justify-center ${imageSide === "left" ? "" : "pr-[2%]"}`}>
+        <motion.h2 variants={variants.item} exit={choreo.exitFor("title")} className="text-[3.5vw] font-bold leading-tight mb-4" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+        {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("subtitle")} className="text-[1.6vw] opacity-75 mb-6">{c.subtitle}</motion.p>}
+        {c.body_text && <motion.p variants={variants.item} exit={choreo.exitFor("body")} className="text-[1.3vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
         {c.bullets && c.bullets.length > 0 && (
           <ul className="space-y-3">
             {c.bullets.map((b, i) => (
-              <motion.li key={i} variants={variants.item} className="flex items-start gap-3 text-[1.3vw]">
+              <motion.li key={i} variants={variants.item} exit={choreo.exitFor("bullet", i)} className="flex items-start gap-3 text-[1.3vw]">
                 <span className="mt-[0.6em] h-2 w-2 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
                 <span className="leading-snug">{b}</span>
               </motion.li>
@@ -353,7 +367,7 @@ const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, reque
         )}
       </motion.div>
       {imageSide === "right" && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={choreo.exitFor("image")} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
           <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
         </motion.div>
       )}
@@ -368,6 +382,7 @@ interface FullImageProps {
 }
 const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: FullImageProps) => {
   const insight = useImageInsight(c.image_url ?? null);
+  const choreo = useChoreo();
   const anchor = insight?.safeAnchor ?? "bottom-left";
   const textColor = insight?.textColor ?? "#FFFFFF";
   const overlayColor = insight?.overlay.color ?? "#000000";
@@ -382,16 +397,16 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: Full
   const gradientDir = anchor.includes("right") ? "to left" : anchor.includes("left") ? "to right" : "to top";
   return (
     <div className="relative w-full h-full overflow-hidden" style={containerStyle}>
-      <motion.img src={c.image_url!} alt={c.headline || ""} className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
+      <motion.img src={c.image_url!} alt={c.headline || ""} exit={choreo.exitFor("image")} className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
       <div className="absolute inset-0" style={{
         background: `linear-gradient(${gradientDir}, ${hexToRgba(overlayColor, overlayAlpha)} 0%, ${hexToRgba(overlayColor, overlayAlpha * 0.3)} 55%, transparent 90%)`,
       }} />
       <CornerBrackets theme={theme} intensity={0.7} />
       <motion.div {...motionMode} variants={variants.container} className={`relative h-full flex flex-col p-[5%] ${anchorClass}`} style={{ color: textColor }}>
         <div className={`flex flex-col ${anchor.includes("right") ? "items-end" : anchor === "center" ? "items-center" : "items-start"} max-w-[80%]`}>
-          <motion.div variants={variants.item} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
-          <motion.h1 variants={variants.item} className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight" style={{ color: textColor }}>{c.headline}</motion.h1>
-          {c.subtitle && <motion.p variants={variants.item} className="mt-4 text-[2vw] md:text-[1.8vw] opacity-90" style={{ color: textColor }}>{c.subtitle}</motion.p>}
+          <motion.div variants={variants.item} exit={choreo.exitFor("accent-line")} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
+          <motion.h1 variants={variants.item} exit={choreo.exitFor("title")} className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight" style={{ color: textColor }}>{c.headline}</motion.h1>
+          {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("subtitle")} className="mt-4 text-[2vw] md:text-[1.8vw] opacity-90" style={{ color: textColor }}>{c.subtitle}</motion.p>}
         </div>
       </motion.div>
     </div>
@@ -404,6 +419,8 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   const displayFont = font.display ?? font.family;
   const c = slide.content || {};
   const videoQuery = videoQueryForSlide(c);
+  const choreo = useChoreo();
+
 
   // Escolha do preset cinematográfico:
   // 1) se a IA setou animation, mapeia legacy → preset
@@ -526,10 +543,10 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
       <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.5} orbCount={3} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["diagonal-lines", "orbital-rings", "corner-brackets"]} />
         <motion.div {...motionMode} variants={variants.container} className="relative z-10">
-          {c.subtitle && <motion.p variants={variants.item} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
-          <motion.h1 variants={variants.item} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>
-          {c.body_text && <motion.p variants={variants.item} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
-          <motion.div variants={variants.item} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
+          {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("kicker")} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
+          <motion.h1 variants={variants.item} exit={choreo.exitFor("title")} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>
+          {c.body_text && <motion.p variants={variants.item} exit={choreo.exitFor("body")} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
+          <motion.div variants={variants.item} exit={choreo.exitFor("accent-line")} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
         </motion.div>
       </div>
     );
