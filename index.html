@@ -8,7 +8,12 @@
     <meta name="author" content="SlideAI" />
     <link rel="canonical" href="https://slide-aii.lovable.app/" />
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SlideAI" />
+    <meta property="og:locale" content="pt_BR" />
     <meta property="og:url" content="https://slide-aii.lovable.app/" />
     <meta property="og:title" content="SlideAI — Crie apresentações incríveis com IA" />
     <meta property="og:description" content="Gere apresentações profissionais em segundos com IA. Slides editáveis com design impecável, imagens e gráficos prontos para apresentar." />
@@ -23,20 +28,32 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "SlideAI",
-        "url": "https://slide-aii.lovable.app/",
-        "description": "Gere apresentações profissionais em segundos com inteligência artificial.",
-        "inLanguage": "pt-BR"
-      }
-    </script>
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "SlideAI",
-        "url": "https://slide-aii.lovable.app/",
-        "logo": "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7e8ec058-1d3d-4e05-b304-eb72c7e052d4"
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://slide-aii.lovable.app/#website",
+            "name": "SlideAI",
+            "url": "https://slide-aii.lovable.app/",
+            "description": "Gere apresentações profissionais em segundos com inteligência artificial.",
+            "inLanguage": "pt-BR",
+            "publisher": { "@id": "https://slide-aii.lovable.app/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "https://slide-aii.lovable.app/templates?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://slide-aii.lovable.app/#organization",
+            "name": "SlideAI",
+            "url": "https://slide-aii.lovable.app/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7e8ec058-1d3d-4e05-b304-eb72c7e052d4"
+            }
+          }
+        ]
       }
     </script>
     <script type="application/ld+json">
