@@ -89,7 +89,7 @@ const Templates = () => {
                 </div>
                 <div className="p-5">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <h3 className="font-display font-bold text-lg">{t.title}</h3>
+                    <h2 className="font-display font-bold text-lg">{t.title}</h2>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">{t.category}</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{t.description}</p>

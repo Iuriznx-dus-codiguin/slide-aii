@@ -101,7 +101,7 @@ const Dashboard = () => {
             <div className="inline-flex h-16 w-16 rounded-2xl bg-primary/10 items-center justify-center mb-4">
               <FileText className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="font-display text-xl font-bold mb-2">Nenhuma apresentação ainda</h3>
+            <h2 className="font-display text-xl font-bold mb-2">Nenhuma apresentação ainda</h2>
             <p className="text-muted-foreground mb-6">Crie sua primeira apresentação com IA em segundos.</p>
             <Button variant="hero" onClick={() => navigate("/gerar")}>
               <Sparkles className="h-4 w-4" /> Criar primeira apresentação
@@ -148,7 +148,7 @@ const Dashboard = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                   <div className="p-4">
-                    <h3 className="font-semibold truncate">{p.title}</h3>
+                    <h2 className="font-semibold truncate text-base">{p.title}</h2>
                     <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                       <span>{p.slides_count} slides</span>
                       <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span>
@@ -157,12 +157,22 @@ const Dashboard = () => {
                       <Link to={`/slides/${p.slug}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-3 w-3" /> Ver</Button>
                       </Link>
-                      <Link to={`/editor/${p.slug}`}>
-                        <Button variant="ghost" size="sm" title="Editar"><Pencil className="h-4 w-4" /></Button>
+                      <Link to={`/editor/${p.slug}`} aria-label={`Editar ${p.title}`}>
+                        <Button variant="ghost" size="sm" title="Editar" aria-label={`Editar ${p.title}`}>
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Editar apresentação</span>
+                        </Button>
                       </Link>
-                      <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label="" />
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
+                      <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label={`Exportar ${p.title}`} />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(p.id)}
+                        className="text-destructive hover:text-destructive"
+                        aria-label={`Excluir ${p.title}`}
+                      >
                         <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Excluir apresentação</span>
                       </Button>
                     </div>
                   </div>
