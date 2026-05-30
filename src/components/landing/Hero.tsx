@@ -127,9 +127,11 @@ export const Hero = () => {
               <div className="col-span-9 relative bg-gradient-subtle p-6 md:p-10 flex items-center justify-center">
                 <img
                   src={heroImg}
-                  alt="Preview SlideAI"
+                  alt="Preview do editor SlideAI com apresentações geradas por IA"
                   width={1536}
                   height={1024}
+                  fetchPriority="high"
+                  decoding="async"
                   className="absolute inset-0 w-full h-full object-cover opacity-20"
                 />
                 <div className="relative w-full max-w-2xl aspect-video rounded-xl bg-card shadow-glow border border-border/60 p-6 md:p-10 flex flex-col justify-center">

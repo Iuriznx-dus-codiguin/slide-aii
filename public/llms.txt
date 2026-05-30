@@ -1,0 +1,10 @@
+# SlideAI
+
+> SlideAI gera apresentações profissionais em segundos com inteligência artificial. Descreva o tema e receba slides editáveis com design, imagens e gráficos.
+
+## Pages
+
+- [Home](/): Visão geral do produto, recursos, preços e FAQ.
+- [Gerar apresentação](/gerar): Fluxo principal para descrever um tema e gerar slides com IA.
+- [Templates](/templates): Modelos pré-estruturados como ponto de partida.
+- [Entrar](/auth): Login e cadastro de usuários.
