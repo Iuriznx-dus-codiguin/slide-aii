@@ -115,17 +115,47 @@ PASSO D — DENSIDADE DE TEXTO E TIPOGRAFIA
 - Slides com imagem podem ter texto mais enxuto (subtitle + 3 bullets).
 
 ═══════════════════════════════════════════════════
-PASSO E — VARIAÇÃO INTENCIONAL DE LAYOUTS
+PASSO E — VARIAÇÃO INTENCIONAL DE LAYOUTS, ACENTOS, ANIMAÇÕES E TRANSIÇÕES
 ═══════════════════════════════════════════════════
 - Alterne layouts a cada slide. NUNCA repita layout consecutivo.
 - Distribua entre: title-content, two-columns, image-right, image-left, full-image, quote, data-chart, centered, stat-highlight.
-- Para CADA slide defina visual_accents (1-3 itens) que combinem com o conteúdo:
-  * stat/data → "dot-grid", "wave-form"
-  * quote → "orbital-rings", "corner-brackets"
-  * section_divider/conclusion → "orbital-rings", "diagonal-lines"
+- visual_accents (1-3 itens). Use os 10 tipos disponíveis combinando com o conteúdo:
+  * stat / emphasis-stat → "animated-blob", "pulse-grid"
+  * data_chart / data-reveal → "dot-grid", "wave-form", "pulse-grid"
+  * quote → "particle-field", "orbital-rings", "corner-brackets"
+  * section_divider → "ribbon" (visual), "diagonal-lines"
+  * conclusion → "animated-blob", "particle-field"
   * texto puro → "floating-shapes", "diagonal-lines"
   * imagem → "corner-brackets"
-- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — alterne para criar ritmo.
+- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos. Use todo o repertório em uma apresentação de 8+ slides.
+- transition (12 opções): escolha harmonizando narrative_act com:
+  * hook → "iris"
+  * tension → "shatter"
+  * journey → "wipe" ou "ribbon"
+  * proof → "mosaic" ou "blinds"
+  * climax → "portal"
+  E ajustando por slide_type:
+  * quote → "letterbox"
+  * section_divider → "ribbon"
+  * data_chart → "mosaic"
+  * title_slide → "iris"
+  * conclusion → "morph"
+  Varie as 12 transições ao longo da apresentação.
+
+═══════════════════════════════════════════════════
+PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
+═══════════════════════════════════════════════════
+Em uma apresentação de N slides garanta:
+- AO MENOS 1 slide com layout "two-columns".
+- AO MENOS 1 slide "stat-highlight" se pertinente ao tema.
+- AO MENOS 2 slides com imagem (image-right/image-left/full-image) quando includeImages=true.
+- AO MENOS 1 slide "centered" como divisória/seção.
+- Pelo menos 1 capa cinematográfica com cover_variant DIFERENTE de "split-hero" e "typographic-bold".
+- Varie cover_variant entre as 6 opções com base no tema/persona:
+  * pitch / corporativo → split-hero ou asymmetric-grid
+  * educacional / pessoal → minimal-centered ou typographic-bold
+  * marketing / criativo → gradient-mesh ou full-bleed-image
+
 
 ═══════════════════════════════════════════════════
 PASSO F — IMAGENS (PEXELS PRIMEIRO)
@@ -193,9 +223,17 @@ Deno.serve(async (req) => {
   }
   const ent = entitle as { allowed: boolean; reason: string; plan?: string; used?: number };
   if (!ent.allowed) {
-    // Limite oculto: mensagem genérica
+    // Bloco 9: monthly_limit_reached → 429 com mensagem explícita
+    if (ent.reason === "monthly_limit_reached") {
+      return new Response(JSON.stringify({
+        error: "Você atingiu o limite de 20 gerações este mês. Seu limite renova no início do próximo mês.",
+        reason: "monthly_limit_reached",
+      }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (ent.reason === "system_error") {
-      return new Response(JSON.stringify({ error: "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos." }), {
+      return new Response(JSON.stringify({ error: "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.", reason: "system_error" }), {
         status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -287,7 +325,12 @@ LEMBRETE CRÍTICO:
                   visual_accents: {
                     type: "array",
                     description: "1-3 elementos decorativos/visuais. Combine com o conteúdo. Varie a cada slide.",
-                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form"] },
+                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field"] },
+                  },
+                  transition: {
+                    type: "string",
+                    enum: ["mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
+                    description: "Transição cinematográfica do slide inteiro. Harmonize com narrative_act e slide_type. Varie ao longo da apresentação.",
                   },
                   headline: { type: "string", description: "2-6 palavras, máx 40 chars. Contém palavra-chave do tema." },
                   subtitle: { type: "string", description: "8-14 palavras, complementa headline." },
@@ -424,7 +467,7 @@ LEMBRETE CRÍTICO:
     }
 
     // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
-    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern"];
+    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern", "animated-blob", "pulse-grid", "particle-field"];
     // Modo derivado do teto único quando fornecido; fallback para o enviado.
     const budgetMode = typeof body.max_budget_usd === "number"
       ? (body.max_budget_usd <= 0.15 ? "economy" : body.max_budget_usd <= 0.45 ? "balanced" : "premium")
