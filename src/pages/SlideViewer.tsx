@@ -11,63 +11,92 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ChoreographyProvider, useSlideChoreography, type ChoreographyName } from "@/lib/slideChoreography";
+import { ChoreographyProvider, useSlideChoreography, type ChoreographyName, type AnimationIntent } from "@/lib/slideChoreography";
+import { pickTransition, getTransitionConfig, type SlideTransition } from "@/lib/slideTransitions";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
   include_speeches?: boolean; presenters_names?: string[];
+  dynamic_theme?: any;
 }
 interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
 
 /**
- * Cinematic stage — sem deslizar a tela inteira. Cada elemento do slide
- * que sai é coreografado individualmente (voa, suga, contrai, gira, dissolve)
- * e os elementos do próximo slide entram com sua própria timeline cinemática,
- * todos sob o mesmo accent dinâmico do tema.
+ * Cinematic stage — combina:
+ *   • transição cinematográfica do slide inteiro (slideTransitions.tsx)
+ *   • coreografia per-element (slideChoreography.tsx)
+ *   • overlay sincronizado (mosaic, ribbon, iris…)
  */
 const CinematicSlideStage = ({
-  current, pres, dynamicTheme, idx,
-}: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number }) => {
+  current, pres, dynamicTheme, idx, prevIdxRef,
+}: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number; prevIdxRef: { current: number } }) => {
   const accent = dynamicTheme?.accent ?? "#A855F7";
-  const hint = current?.content?.transition as ChoreographyName | undefined;
-  const choreo = useSlideChoreography(idx, current?.slide_type, hint);
+  const transitionHint = current?.content?.transition as SlideTransition | undefined;
+  const choreoHint = current?.content?.choreography as ChoreographyName | undefined;
+  const animationIntent = current?.content?.animation_intent as AnimationIntent | undefined;
+
+  const slideTransition = pickTransition(idx, current?.slide_type, transitionHint);
+  const cfg = getTransitionConfig(slideTransition, accent);
+  const choreo = useSlideChoreography(idx, current?.slide_type, choreoHint, animationIntent);
+
+  const direction: 1 | -1 = idx >= prevIdxRef.current ? 1 : -1;
+  prevIdxRef.current = idx;
+  const Overlay = cfg.Overlay;
+  // Chave única por slide+transition para forçar re-render da overlay a cada troca.
+  const overlayKey = `${current?.id ?? idx}-${slideTransition}`;
 
   return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      <motion.div
-        key={current?.id ?? idx}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1, transition: { duration: 0.4, delay: 0.15 } }}
-        exit={{ opacity: 0, transition: { duration: 0.95, delay: 0.55 } }}
-        className="absolute inset-0"
-        style={{ willChange: "opacity", perspective: 1600 }}
-      >
-        {/* Flash sutil tingido pelo accent durante a troca. */}
+    <>
+      <AnimatePresence mode={cfg.mode === "wait" ? "wait" : "popLayout"} initial={false}>
         <motion.div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 z-10"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0.35, 0], transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } }}
+          key={current?.id ?? idx}
+          initial={cfg.enter.initial}
+          animate={cfg.enter.animate}
+          exit={cfg.exit.exit}
+          transition={cfg.enter.transition}
+          className="absolute inset-0"
+          style={{ willChange: "opacity, transform, filter, clip-path", perspective: 1600, transformStyle: "preserve-3d" }}
+        >
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.35, 0], transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } }}
+            exit={{ opacity: 0 }}
+            style={{
+              background: `radial-gradient(circle at 50% 50%, ${accent}33 0%, transparent 65%)`,
+              mixBlendMode: "screen",
+            }}
+          />
+          <ChoreographyProvider value={choreo}>
+            {current && (
+              <SlideRenderer
+                slide={current as any}
+                themeId={pres.theme}
+                fontId={pres.font_style}
+                dynamicTheme={dynamicTheme}
+                index={idx}
+              />
+            )}
+          </ChoreographyProvider>
+        </motion.div>
+      </AnimatePresence>
+      {/* Overlay da transição — vive acima do slide, fora do AnimatePresence */}
+      {Overlay && (
+        <motion.div
+          key={overlayKey}
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          style={{
-            background: `radial-gradient(circle at 50% 50%, ${accent}33 0%, transparent 65%)`,
-            mixBlendMode: "screen",
-          }}
-        />
-        <ChoreographyProvider value={choreo}>
-          {current && (
-            <SlideRenderer
-              slide={current as any}
-              themeId={pres.theme}
-              fontId={pres.font_style}
-              dynamicTheme={dynamicTheme}
-              index={idx}
-            />
-          )}
-        </ChoreographyProvider>
-      </motion.div>
-    </AnimatePresence>
+          transition={{ duration: cfg.duration, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute inset-0 z-20 pointer-events-none"
+          style={{ animationDuration: `${cfg.duration}s` }}
+        >
+          {Overlay({ accent, direction })}
+        </motion.div>
+      )}
+    </>
   );
 };
 
@@ -86,7 +115,7 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names").eq("slug", slug).maybeSingle();
+      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as Pres);
       document.title = `${p.title} — SlideAI`;
@@ -177,7 +206,10 @@ const SlideViewer = () => {
 
   const progress = slides.length ? ((idx + 1) / slides.length) * 100 : 0;
   const current = slides[idx];
-  const dynamicTheme = current?.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null;
+  // Bloco 12: dynamic_theme vive em pres.dynamic_theme; fallback p/ slides legados
+  const dynamicTheme = pres?.dynamic_theme ?? current?.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null;
+  // ref persistente para direção da transição
+  const prevIdxRef = useRef(0);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col select-none">
@@ -238,7 +270,7 @@ const SlideViewer = () => {
             ? { width: "min(100vw, calc(100vh * 16 / 9))", height: "min(100vh, calc(100vw * 9 / 16))" }
             : { width: "100%", maxWidth: "1400px", aspectRatio: "16 / 9" }}
         >
-          <CinematicSlideStage current={current} pres={pres} dynamicTheme={dynamicTheme} idx={idx} />
+          <CinematicSlideStage current={current} pres={pres} dynamicTheme={dynamicTheme} idx={idx} prevIdxRef={prevIdxRef} />
 
           {!fullscreen && (
             <Link to="/" className="absolute bottom-3 right-3 text-[10px] bg-black/50 text-white px-2 py-1 rounded-full backdrop-blur hover:bg-black/70 flex items-center gap-1 z-10">
