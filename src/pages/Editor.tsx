@@ -259,14 +259,13 @@ const Editor = () => {
     setActiveIdx((i) => Math.max(0, Math.min(slides.length - 2, i > idx ? i - 1 : i)));
   };
 
-  // Save (full upsert: simplest reliable approach)
+  // Bloco 12.1: upsert por id em vez de delete+reinsert — elimina o gap temporal.
   const save = useCallback(async (silent = false) => {
     if (!pres) return;
     setSaving(true);
     try {
-      // Delete all + reinsert with new positions (simpler than diffing)
-      await supabase.from("slides").delete().eq("presentation_id", pres.id);
       const rows = slides.map((s, i) => ({
+        id: s.id,
         presentation_id: pres.id,
         position: i,
         slide_type: s.slide_type,
@@ -276,11 +275,29 @@ const Editor = () => {
         content: s.content || {},
         presenters_data: (s.presenters_data ?? []) as any,
       }));
-      const { error } = await supabase.from("slides").insert(rows);
-      if (error) throw error;
+      // Upsert mantém UUIDs estáveis (slides novos do editor já recebem crypto.randomUUID)
+      const { error: upErr } = await supabase
+        .from("slides")
+        .upsert(rows, { onConflict: "id" });
+      if (upErr) throw upErr;
+
+      // Remove slides do banco que não estão mais na lista
+      const keepIds = rows.map((r) => r.id);
+      if (keepIds.length > 0) {
+        await supabase
+          .from("slides")
+          .delete()
+          .eq("presentation_id", pres.id)
+          .not("id", "in", `(${keepIds.map((id) => `"${id}"`).join(",")})`);
+      }
+
+      // Bloco 12.2: tema dinâmico vive em presentations.dynamic_theme
       await supabase.from("presentations").update({
-        slides_count: slides.length, updated_at: new Date().toISOString(),
-      }).eq("id", pres.id);
+        slides_count: slides.length,
+        updated_at: new Date().toISOString(),
+        dynamic_theme: (pres as any).dynamic_theme ?? dynamicTheme ?? null,
+      } as any).eq("id", pres.id);
+
       setLastSaved(new Date());
       if (!silent) toast.success("Salvo!");
     } catch (e: any) {
@@ -289,7 +306,7 @@ const Editor = () => {
     } finally {
       setSaving(false);
     }
-  }, [pres, slides]);
+  }, [pres, slides, dynamicTheme]);
 
   // Auto-save every 30s
   useEffect(() => {
