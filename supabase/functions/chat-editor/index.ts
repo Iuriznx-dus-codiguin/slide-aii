@@ -1,5 +1,7 @@
 // Chat-based slide editor. Receives the current slide JSON + user instruction,
 // returns the updated slide JSON. Used in the /gerar chat panel.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -14,10 +16,34 @@ const SYSTEM_PROMPT = `Você é um editor de slides com IA. Recebe o estado atua
 5. Se pedir reformulação geral (estilo, tom, idioma), aplique a todos.
 6. NUNCA invente novos campos fora do schema.
 7. Se a instrução for ambígua, interprete pelo MELHOR resultado visual e textual.
-8. Retorne também uma resposta curta (assistant_message) explicando em 1-2 frases o que foi feito.`;
+8. Retorne também uma resposta curta (assistant_message) explicando em 1-2 frases o que foi feito.
+
+REGRA CRÍTICA DE PRESERVAÇÃO:
+PRESERVE OBRIGATORIAMENTE os valores existentes de visual_accents, narrative_act,
+animation_intent, cover_variant e transition de CADA slide — só altere se a
+instrução do usuário pedir EXPLICITAMENTE para mudá-los. Caso contrário, copie
+os valores originais para o slide retornado.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // ── Autenticação ──
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token) {
+    return new Response(JSON.stringify({ error: "Não autenticado." }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: userData, error: userErr } = await admin.auth.getUser(token);
+  if (userErr || !userData?.user) {
+    return new Response(JSON.stringify({ error: "Sessão inválida." }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const rawBody = await req.text();
@@ -52,7 +78,9 @@ ${JSON.stringify({ dynamic_theme, slides }, null, 2)}
 INSTRUÇÃO DO USUÁRIO:
 ${instruction}
 
-Aplique a instrução e devolva a apresentação inteira atualizada.`;
+Aplique a instrução e devolva a apresentação inteira atualizada — PRESERVANDO
+visual_accents, narrative_act, animation_intent, cover_variant e transition de
+cada slide a menos que a instrução peça explicitamente para alterá-los.`;
 
     const tools = [{
       type: "function",
@@ -105,6 +133,31 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
                       title: { type: "string" },
                     },
                   },
+                  visual_accents: {
+                    type: "array",
+                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field"] },
+                    description: "PRESERVE o valor original a menos que a instrução peça mudança explícita.",
+                  },
+                  narrative_act: {
+                    type: "string",
+                    enum: ["hook", "tension", "journey", "proof", "climax"],
+                    description: "PRESERVE o valor original.",
+                  },
+                  animation_intent: {
+                    type: "string",
+                    enum: ["hero-impact", "narrative-build", "data-reveal", "emphasis-stat", "quote-spotlight", "section-break", "calm-fade"],
+                    description: "PRESERVE o valor original.",
+                  },
+                  cover_variant: {
+                    type: "string",
+                    enum: ["split-hero", "typographic-bold", "full-bleed-image", "minimal-centered", "asymmetric-grid", "gradient-mesh"],
+                    description: "Apenas para title_slide. PRESERVE o valor original.",
+                  },
+                  transition: {
+                    type: "string",
+                    enum: ["mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
+                    description: "PRESERVE o valor original.",
+                  },
                 },
                 required: ["slide_title", "slide_type", "layout_template", "animation", "headline"],
               },
@@ -119,7 +172,6 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       ? "https://api.openai.com/v1/chat/completions"
       : "https://ai.gateway.lovable.dev/v1/chat/completions";
     const authKey = useOpenAI ? OPENAI_API_KEY! : LOVABLE_API_KEY!;
-    // ChatGPT 4.1-mini para edições com instrução textual; fallback Gemini Flash.
     const model = useOpenAI ? "gpt-4.1-mini" : "google/gemini-2.5-flash";
 
     const requestPayload = {
@@ -139,7 +191,6 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       body: JSON.stringify(requestPayload),
     });
 
-    // Fallback automático para Gemini se OpenAI falhar com erro recuperável
     if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
       console.warn("chat-editor: OpenAI falhou status", aiResponse.status, "— fallback Gemini");
       aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -185,12 +236,26 @@ Aplique a instrução e devolva a apresentação inteira atualizada.`;
       });
     }
 
-    // Guarda contra truncação silenciosa: se a IA devolver menos slides do que o original,
-    // preserva os slides ausentes para não apagar conteúdo do usuário.
+    // Guarda contra truncação silenciosa
     if (Array.isArray(parsed.slides) && parsed.slides.length < slides.length) {
       for (let i = parsed.slides.length; i < slides.length; i++) {
         parsed.slides.push(slides[i]);
       }
+    }
+
+    // Cinto-de-segurança: força preservação dos campos "DNA" caso a IA esqueça
+    if (Array.isArray(parsed.slides)) {
+      const KEYS = ["visual_accents", "narrative_act", "animation_intent", "cover_variant", "transition"] as const;
+      parsed.slides = parsed.slides.map((s: any, i: number) => {
+        const orig = slides[i] ?? {};
+        const merged = { ...s };
+        for (const k of KEYS) {
+          if (merged[k] === undefined || merged[k] === null || (Array.isArray(merged[k]) && merged[k].length === 0)) {
+            if (orig[k] !== undefined) merged[k] = orig[k];
+          }
+        }
+        return merged;
+      });
     }
 
     return new Response(JSON.stringify(parsed), {

@@ -170,12 +170,18 @@ export function presetFromLegacy(legacy?: string): CinematicPreset | null {
       return "hero-zoom";
     case "reveal-mask":
       return "split-curtain";
-    case "slide-up":
-    case "slide-left":
-    case "slide-right":
     case "rotate-in":
+      // visual com rotateX 3D — usa kinetic-type
+      return "kinetic-type";
     case "bounce-in":
+      // firme e enérgico — usa data-build (que já usa EASE.snap)
+      return "data-build";
+    case "slide-left":
+      // mantém cinematic-reveal (o eixo x é tratado em cameraVariants)
       return "cinematic-reveal";
+    case "slide-right":
+    case "slide-up":
+      return "editorial-stagger";
     default:
       return null;
   }

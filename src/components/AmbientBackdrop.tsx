@@ -27,6 +27,12 @@ interface Props {
   videoQuery?: string | null;
   /** Desabilita o vídeo (útil em print/thumbnail/exporting). */
   noVideo?: boolean;
+  /**
+   * Bloco 16.1: vídeo agora é OPT-IN. Só busca/exibe quando enableVideo=true.
+   * Isso evita N requisições em background no Editor/Generate. Habilite apenas
+   * no SlideViewer em fullscreen.
+   */
+  enableVideo?: boolean;
   /** Intensidade do glass overlay (0..1). */
   glassOpacity?: number;
   /** Quantidade de orbs flutuantes. */
@@ -60,6 +66,7 @@ export const AmbientBackdrop = ({
   theme,
   videoQuery,
   noVideo = false,
+  enableVideo = false,
   glassOpacity = 0.55,
   orbCount = 3,
   className = "",
@@ -69,7 +76,7 @@ export const AmbientBackdrop = ({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (noVideo || !videoQuery) return;
+    if (noVideo || !enableVideo || !videoQuery) return;
     let cancelled = false;
     fetchVideo(videoQuery).then((r) => {
       if (!cancelled) {
@@ -78,7 +85,7 @@ export const AmbientBackdrop = ({
       }
     });
     return () => { cancelled = true; };
-  }, [videoQuery, noVideo]);
+  }, [videoQuery, noVideo, enableVideo]);
 
   const accent = theme.accent;
   const accent2 = theme.accent2 || theme.accent;

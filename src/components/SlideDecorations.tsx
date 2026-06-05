@@ -75,16 +75,25 @@ export const OrbitalRings = ({
   );
 };
 
-/** Grade pontilhada que aparece em wave por linha. */
+/** Grade pontilhada que aparece em wave por linha.
+ *  Bloco 16.2: se cols*rows excede maxDots, reduz proporcionalmente. */
 export const DotGrid = ({
   theme,
   noAnimate,
   intensity = 1,
-  cols = 14,
-  rows = 8,
-}: BaseProps & { cols?: number; rows?: number }) => {
+  cols: colsRaw = 14,
+  rows: rowsRaw = 8,
+  maxDots = 120,
+}: BaseProps & { cols?: number; rows?: number; maxDots?: number }) => {
   const reduce = useReducedMotion();
   const skip = noAnimate || reduce;
+  let cols = colsRaw, rows = rowsRaw;
+  const total = cols * rows;
+  if (total > maxDots) {
+    const factor = Math.sqrt(maxDots / total);
+    cols = Math.max(2, Math.floor(cols * factor));
+    rows = Math.max(2, Math.floor(rows * factor));
+  }
   return (
     <div
       className="absolute inset-0 pointer-events-none z-[1] flex items-center justify-center overflow-hidden"

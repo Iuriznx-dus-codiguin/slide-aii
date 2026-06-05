@@ -1,6 +1,5 @@
 // Cakto webhook receiver — atualiza profiles.plan e single_credits após pagamento.
-// Aceita payloads "best-effort" (Cakto varia o shape entre produtos). Salva tudo
-// em payment_events para auditoria.
+// Verificação de segredo OBRIGATÓRIA, busca de usuário O(1) e idempotência por cakto_id.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -8,13 +7,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cakto-token, x-signature",
 };
 
-// Mapeamento dos checkouts → plano interno
 const PLAN_BY_CHECKOUT_ID: Record<string, "single" | "mensal" | "anual"> = {
   qw6rzxx_856330: "single",
   yw7ej87_856334: "mensal",
   m6z7n3k_856339: "anual",
 };
-// Também aceitamos pelo número do produto, caso o payload traga isso
 const PLAN_BY_PRODUCT_ID: Record<string, "single" | "mensal" | "anual"> = {
   "856330": "single",
   "856334": "mensal",
@@ -37,21 +34,26 @@ Deno.serve(async (req) => {
   const WEBHOOK_SECRET = Deno.env.get("CAKTO_WEBHOOK_SECRET");
   const admin = createClient(SUPABASE_URL, SERVICE);
 
+  // ─── Bloco 8.1: verificação OBRIGATÓRIA do segredo ───
+  if (!WEBHOOK_SECRET) {
+    console.error("cakto-webhook: CAKTO_WEBHOOK_SECRET not configured — refusing all webhooks.");
+    return new Response(
+      JSON.stringify({ error: "Webhook not configured. Set CAKTO_WEBHOOK_SECRET in edge function secrets." }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  const provided = req.headers.get("x-cakto-token")
+    ?? req.headers.get("x-signature")
+    ?? new URL(req.url).searchParams.get("token");
+  if (provided !== WEBHOOK_SECRET) {
+    console.warn("cakto-webhook: invalid secret");
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   let payload: any = {};
   try { payload = await req.json(); } catch { payload = {}; }
-
-  // Verificação de segredo (opcional — só se configurado)
-  if (WEBHOOK_SECRET) {
-    const provided = req.headers.get("x-cakto-token")
-      ?? req.headers.get("x-signature")
-      ?? new URL(req.url).searchParams.get("token");
-    if (provided !== WEBHOOK_SECRET) {
-      console.warn("cakto-webhook: invalid secret");
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  }
 
   const event_type = dig(payload, ["event", "type", "data.event", "status"]);
   const cakto_id = dig(payload, ["data.id", "id", "data.transaction.id", "transaction_id"]);
@@ -78,7 +80,23 @@ Deno.serve(async (req) => {
   const customerId = dig(payload, ["data.customer.id", "customer.id"]) as string | undefined;
   const subscriptionId = dig(payload, ["data.subscription.id", "subscription.id"]) as string | undefined;
 
-  // Localiza usuário pelo email
+  // ─── Bloco 8.3: idempotência por cakto_id ───
+  if (cakto_id) {
+    const { data: existing } = await admin
+      .from("payment_events")
+      .select("id, processed")
+      .eq("cakto_id", cakto_id)
+      .eq("processed", true)
+      .maybeSingle();
+    if (existing) {
+      console.info("cakto-webhook: already processed", cakto_id);
+      return new Response(JSON.stringify({ ok: true, note: "already processed" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  // ─── Bloco 8.2: busca direta do usuário (sem listUsers paginado) ───
   let userId: string | null = null;
   if (email) {
     const { data: profile } = await admin
@@ -86,16 +104,20 @@ Deno.serve(async (req) => {
       .select("id")
       .eq("email", email)
       .maybeSingle();
-    if (profile?.id) userId = profile.id;
-    else {
-      // fallback: procurar no auth.users via admin
-      const { data: list } = await admin.auth.admin.listUsers();
-      const u = list?.users?.find((x: any) => (x.email || "").toLowerCase() === email);
-      if (u) userId = u.id;
+    if (profile?.id) {
+      userId = profile.id;
+    } else {
+      // Fallback eficiente: getUserByEmail via admin API quando disponível.
+      try {
+        const anyAdmin = admin.auth.admin as any;
+        if (typeof anyAdmin.getUserByEmail === "function") {
+          const { data: u } = await anyAdmin.getUserByEmail(email);
+          if (u?.user?.id) userId = u.user.id;
+        }
+      } catch (_e) { /* ignore */ }
     }
   }
 
-  // Persiste evento
   await admin.from("payment_events").insert({
     provider: "cakto",
     event_type: event_type ?? "unknown",
@@ -106,7 +128,6 @@ Deno.serve(async (req) => {
     processed: false,
   });
 
-  // Eventos considerados "ativadores"
   const PAID_EVENTS = ["purchase_approved", "subscription_renewed", "subscription_created",
     "approved", "paid", "completed", "success", "active"];
   const CANCELED_EVENTS = ["subscription_canceled", "refunded", "chargeback", "canceled", "refund"];
