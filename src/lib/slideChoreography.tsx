@@ -180,13 +180,32 @@ export const ALL_CHOREOGRAPHIES: ChoreographyName[] = [
   "swirl", "elastic-snap", "vacuum", "shutter", "typewriter", "drift-fade", "explode",
 ];
 
+export type AnimationIntent =
+  | "hero-impact" | "narrative-build" | "data-reveal" | "emphasis-stat"
+  | "quote-spotlight" | "section-break" | "calm-fade";
+
+const INTENT_TO_CHOREOGRAPHY: Record<AnimationIntent, ChoreographyName> = {
+  "hero-impact": "explode",
+  "narrative-build": "liftoff",
+  "data-reveal": "stagger-up",
+  "emphasis-stat": "elastic-snap",
+  "quote-spotlight": "dissolve",
+  "section-break": "shutter",
+  "calm-fade": "drift-fade",
+};
+
 export function pickChoreography(
   index: number,
   slideType?: string,
   hint?: ChoreographyName,
+  animationIntent?: AnimationIntent,
 ): SlideChoreography {
   if (hint && ALL_CHOREOGRAPHIES.includes(hint)) {
     return makeChoreography(hint, index * 13);
+  }
+  // animation_intent tem prioridade sobre slide_type
+  if (animationIntent && INTENT_TO_CHOREOGRAPHY[animationIntent]) {
+    return makeChoreography(INTENT_TO_CHOREOGRAPHY[animationIntent], index * 13);
   }
   let name: ChoreographyName;
   switch (slideType) {
@@ -229,6 +248,10 @@ export function useSlideChoreography(
   index: number,
   slideType?: string,
   hint?: ChoreographyName,
+  animationIntent?: AnimationIntent,
 ) {
-  return useMemo(() => pickChoreography(index, slideType, hint), [index, slideType, hint]);
+  return useMemo(
+    () => pickChoreography(index, slideType, hint, animationIntent),
+    [index, slideType, hint, animationIntent],
+  );
 }

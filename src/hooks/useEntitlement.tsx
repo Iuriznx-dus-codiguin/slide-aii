@@ -5,7 +5,7 @@ import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 
 export interface Entitlement {
   allowed: boolean;
-  reason: "dev" | "single" | "subscription" | "no_plan" | "system_error" | "loading";
+  reason: "dev" | "single" | "subscription" | "no_plan" | "system_error" | "monthly_limit_reached" | "loading";
   plan: "free" | "single" | "mensal" | "anual" | "dev";
   single_credits: number;
   used_this_month: number;
@@ -15,6 +15,20 @@ export interface Entitlement {
   loading: boolean;
   refresh: () => Promise<void>;
 }
+
+/** Mensagem amigável por `ent.reason`. */
+export const reasonMessage = (reason: Entitlement["reason"]): string => {
+  switch (reason) {
+    case "monthly_limit_reached":
+      return "Você atingiu o limite de 20 gerações este mês. Seu limite renova no início do próximo mês.";
+    case "system_error":
+      return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
+    case "no_plan":
+      return "Escolha um plano para gerar apresentações.";
+    default:
+      return "";
+  }
+};
 
 const MONTHLY_LIMIT = 20;
 
@@ -51,7 +65,7 @@ export const useEntitlement = (): Entitlement => {
     if (isDeveloper) { allowed = true; reason = "dev"; }
     else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
     else if ((plan === "mensal" || plan === "anual") && used < MONTHLY_LIMIT) { allowed = true; reason = "subscription"; }
-    else if (plan === "mensal" || plan === "anual") { allowed = false; reason = "system_error"; }
+    else if (plan === "mensal" || plan === "anual") { allowed = false; reason = "monthly_limit_reached"; }
 
     setState({
       allowed, reason,

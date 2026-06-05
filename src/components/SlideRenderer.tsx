@@ -76,7 +76,7 @@ const AccentLayer = ({ accents, theme, noAnimate, defaults = [] }: {
           case "floating-shapes": return <FloatingShapes key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           case "diagonal-lines": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           case "corner-brackets": return <CornerBrackets key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
-          case "data-pattern": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} cols={20} rows={12} intensity={intensity * 0.8} />;
+          case "data-pattern": return <DotGrid key={i} theme={theme} noAnimate={noAnimate} cols={10} rows={6} intensity={intensity * 0.8} />;
           case "wave-form": return <DiagonalLines key={i} theme={theme} noAnimate={noAnimate} intensity={intensity * 0.9} />;
           case "animated-blob": return <AnimatedBlob key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} position={i % 2 === 0 ? "right" : "left"} />;
           case "pulse-grid": return <PulseGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
@@ -331,6 +331,89 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
   );
 };
 
+/* ---------- Two Columns Slide (Bloco 2) ---------- */
+interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; }
+const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart }: TwoColProps) => {
+  const bullets = c.bullets ?? [];
+  const leftBullets = bullets.slice(0, 3);
+  const rightBullets = bullets.slice(3);
+  const tl = useMemo(
+    () => applyIntent(buildEditorialScenario(Math.max(leftBullets.length, rightBullets.length)), c.animation_intent ?? "narrative-build"),
+    [leftBullets.length, rightBullets.length, c.animation_intent]
+  );
+  const ctrl = useTimeline(tl, { skip: noAnimate });
+  const choreo = useChoreo();
+  const hasStat = !!(c.stat_value && c.stat_label);
+  const hasChart = !!c.chart;
+  return (
+    <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[5%] relative overflow-hidden" style={containerStyle}>
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.35} orbCount={2} />
+      <CornerBrackets theme={theme} noAnimate={noAnimate} intensity={0.5} />
+      <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["dot-grid", "diagonal-lines"]} />
+
+      {/* Coluna 1: cols 1-5 */}
+      <div className="col-span-5 flex flex-col justify-center relative z-10 pr-[2%]">
+        <motion.h2 {...ctrl.motionProps("title")} exit={choreo.exitFor("title")} className="text-[2.8vw] font-bold leading-[1.05] tracking-tight" style={{ color: theme.accent, fontFamily: displayFont }}>
+          {c.headline}
+        </motion.h2>
+        {c.subtitle && (
+          <motion.p {...ctrl.motionProps("subtitle")} exit={choreo.exitFor("subtitle")} className="text-[1.3vw] opacity-70 mt-2">{c.subtitle}</motion.p>
+        )}
+        {c.body_text && (
+          <motion.p {...ctrl.motionProps("body")} exit={choreo.exitFor("body")} className="mt-5 text-[1.15vw] leading-relaxed opacity-90">{c.body_text}</motion.p>
+        )}
+        {leftBullets.length > 0 && (
+          <ul className="mt-5 space-y-3">
+            {leftBullets.map((b, i) => (
+              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} exit={choreo.exitFor("bullet", i)} className="flex items-start gap-3 text-[1.15vw]">
+                <span className="mt-[0.55em] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: theme.accent }} />
+                <span className="leading-snug">{b}</span>
+              </motion.li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Divisor vertical sutil */}
+      <div className="col-span-0 absolute left-1/2 top-[12%] bottom-[12%] w-px pointer-events-none z-[2]" style={{ background: theme.accent, opacity: 0.2 }} aria-hidden />
+
+      {/* Coluna 2: cols 7-12 */}
+      <div className="col-start-7 col-span-6 flex flex-col justify-center relative z-10 pl-[2%]">
+        {hasStat && (
+          <motion.div {...ctrl.motionProps("body")} exit={choreo.exitFor("stat")} className="mb-6">
+            <div className="text-[5vw] font-black leading-none" style={{ color: theme.accent, fontFamily: displayFont }}>
+              <AnimatedStat value={c.stat_value!} color={theme.accent} enabled={!noAnimate} />
+            </div>
+            <p className="mt-2 text-[1.2vw] opacity-85 leading-snug">{c.stat_label}</p>
+          </motion.div>
+        )}
+        {rightBullets.length > 0 ? (
+          <ul className="space-y-3">
+            {rightBullets.map((b, i) => (
+              <motion.li key={i} {...ctrl.motionProps(`bullet-${i}`)} exit={choreo.exitFor("bullet", i + 3)} className="flex items-start gap-3 text-[1.2vw]">
+                <span className="mt-[0.6em] h-2 w-2 rounded-sm rotate-45 flex-shrink-0" style={{ background: theme.accent }} />
+                <span className="leading-snug">{b}</span>
+              </motion.li>
+            ))}
+          </ul>
+        ) : hasChart ? (
+          <motion.div
+            {...ctrl.motionProps("body")}
+            exit={choreo.exitFor("chart")}
+            className="w-full h-[55%] rounded-2xl p-3"
+            style={{
+              background: `linear-gradient(135deg, ${theme.bg}99 0%, ${theme.accent}10 100%)`,
+              border: `1px solid ${theme.accent}25`,
+            }}
+          >
+            {renderChart()}
+          </motion.div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
 /* ---------- Smart Layout: Image Split (anti-overlap) ---------- */
 interface ImageSplitProps {
   c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties;
@@ -516,6 +599,8 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
           imageUrl: c.image_url,
           theme,
           fontFamily: displayFont,
+          kicker: (c as any).kicker,
+          footer: (c as any).footer,
         })}
       </div>
     );
@@ -560,6 +645,11 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   /* ---------- DATA CHART ---------- */
   if (isChart && c.chart) {
     return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} />;
+  }
+
+  /* ---------- TWO COLUMNS (Bloco 2) ---------- */
+  if (layout === "two-columns") {
+    return <TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} />;
   }
 
   /* ---------- DEFAULT ---------- */

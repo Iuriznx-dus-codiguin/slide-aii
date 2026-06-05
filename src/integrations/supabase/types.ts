@@ -113,6 +113,7 @@ export type Database = {
           deleted_at: string | null
           depth_level: string | null
           description: string | null
+          dynamic_theme: Json | null
           font_style: string | null
           id: string
           include_speeches: boolean
@@ -138,6 +139,7 @@ export type Database = {
           deleted_at?: string | null
           depth_level?: string | null
           description?: string | null
+          dynamic_theme?: Json | null
           font_style?: string | null
           id?: string
           include_speeches?: boolean
@@ -163,6 +165,7 @@ export type Database = {
           deleted_at?: string | null
           depth_level?: string | null
           description?: string | null
+          dynamic_theme?: Json | null
           font_style?: string | null
           id?: string
           include_speeches?: boolean

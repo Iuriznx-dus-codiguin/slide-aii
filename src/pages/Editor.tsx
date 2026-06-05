@@ -26,13 +26,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { ExportMenu } from "@/components/ExportMenu";
 import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugify";
 import { toast } from "sonner";
+import React from "react";
 
 const LAYOUTS = [
   "title-only", "title-content", "two-columns", "image-right", "image-left",
   "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight",
+];
+
+const TRANSITIONS = [
+  "mosaic", "iris", "shatter", "ribbon", "blinds", "fold",
+  "portal", "wipe", "split", "morph", "stack", "letterbox",
+];
+
+const COVER_VARIANTS_LIST = [
+  "split-hero", "typographic-bold", "full-bleed-image",
+  "minimal-centered", "asymmetric-grid", "gradient-mesh",
 ];
 
 const SLIDE_TYPES = [
@@ -56,7 +68,9 @@ interface Pres {
   include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
 }
 
-const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme }: any) => {
+// Bloco 13: thumbnail renderizado em 800x450 (4x menos pixels que 1920x1080)
+// + React.memo + lazy rendering (placeholder se >2 posições do ativo).
+const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme, lazyHide }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   return (
@@ -66,12 +80,16 @@ const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId,
           active ? "border-primary shadow-glow" : "border-border hover:border-muted-foreground/40"
         }`}>
         <div className="absolute inset-0 pointer-events-none">
-          <div className="origin-top-left scale-[0.115] w-[1920px] h-[1080px]">
-            <SlideRenderer
-              slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
-              themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} noAnimate
-            />
-          </div>
+          {lazyHide ? (
+            <div className="absolute inset-0" style={{ background: dynamicTheme?.bg ?? "#0a0a0a" }} />
+          ) : (
+            <div className="origin-top-left scale-[0.25] w-[800px] h-[450px]">
+              <SlideRendererWithChoreo
+                slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
+                themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} index={idx} noAnimate
+              />
+            </div>
+          )}
         </div>
         <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
           {idx + 1}
@@ -90,12 +108,13 @@ const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId,
     </div>
   );
 };
+const SortableThumb = React.memo(SortableThumbInner);
 
 const Editor = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [pres, setPres] = useState<Pres | null>(null);
+  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any }) | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -123,12 +142,12 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       const presLoaded = {
         ...p,
         presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [],
-      } as Pres;
+      } as any;
       setPres(presLoaded);
       const { data: s } = await supabase.from("slides")
         .select("id,position,slide_type,layout_template,animation_transition,speaker_notes,content,presenters_data")
@@ -143,16 +162,23 @@ const Editor = () => {
     })();
   }, [slug]);
 
+  // Bloco 12.2: dynamic_theme prioriza presentations.dynamic_theme; fallback p/ slides legados.
   const dynamicTheme: Partial<ThemeColors> | null = useMemo(
-    () => slides[0]?.content?.dynamic_theme ?? null,
-    [slides]
+    () => (pres as any)?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null,
+    [pres, slides]
   );
 
+  // Bloco 12.3: debounce de 500ms para snapshots — evita um por keystroke.
+  const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushSnapshot = useCallback(() => {
     if (skipNextSnapshot.current) { skipNextSnapshot.current = false; return; }
-    undoStack.current.push(JSON.parse(JSON.stringify(slides)));
-    if (undoStack.current.length > 50) undoStack.current.shift();
-    redoStack.current = [];
+    if (snapshotTimer.current) clearTimeout(snapshotTimer.current);
+    const snap = JSON.parse(JSON.stringify(slides));
+    snapshotTimer.current = setTimeout(() => {
+      undoStack.current.push(snap);
+      if (undoStack.current.length > 50) undoStack.current.shift();
+      redoStack.current = [];
+    }, 500);
   }, [slides]);
 
   const updateSlide = (idx: number, patch: Partial<SlideRow> | { content: any }) => {
@@ -233,14 +259,13 @@ const Editor = () => {
     setActiveIdx((i) => Math.max(0, Math.min(slides.length - 2, i > idx ? i - 1 : i)));
   };
 
-  // Save (full upsert: simplest reliable approach)
+  // Bloco 12.1: upsert por id em vez de delete+reinsert — elimina o gap temporal.
   const save = useCallback(async (silent = false) => {
     if (!pres) return;
     setSaving(true);
     try {
-      // Delete all + reinsert with new positions (simpler than diffing)
-      await supabase.from("slides").delete().eq("presentation_id", pres.id);
       const rows = slides.map((s, i) => ({
+        id: s.id,
         presentation_id: pres.id,
         position: i,
         slide_type: s.slide_type,
@@ -250,11 +275,29 @@ const Editor = () => {
         content: s.content || {},
         presenters_data: (s.presenters_data ?? []) as any,
       }));
-      const { error } = await supabase.from("slides").insert(rows);
-      if (error) throw error;
+      // Upsert mantém UUIDs estáveis (slides novos do editor já recebem crypto.randomUUID)
+      const { error: upErr } = await supabase
+        .from("slides")
+        .upsert(rows, { onConflict: "id" });
+      if (upErr) throw upErr;
+
+      // Remove slides do banco que não estão mais na lista
+      const keepIds = rows.map((r) => r.id);
+      if (keepIds.length > 0) {
+        await supabase
+          .from("slides")
+          .delete()
+          .eq("presentation_id", pres.id)
+          .not("id", "in", `(${keepIds.map((id) => `"${id}"`).join(",")})`);
+      }
+
+      // Bloco 12.2: tema dinâmico vive em presentations.dynamic_theme
       await supabase.from("presentations").update({
-        slides_count: slides.length, updated_at: new Date().toISOString(),
-      }).eq("id", pres.id);
+        slides_count: slides.length,
+        updated_at: new Date().toISOString(),
+        dynamic_theme: (pres as any).dynamic_theme ?? dynamicTheme ?? null,
+      } as any).eq("id", pres.id);
+
       setLastSaved(new Date());
       if (!silent) toast.success("Salvo!");
     } catch (e: any) {
@@ -263,7 +306,7 @@ const Editor = () => {
     } finally {
       setSaving(false);
     }
-  }, [pres, slides]);
+  }, [pres, slides, dynamicTheme]);
 
   // Auto-save every 30s
   useEffect(() => {
@@ -312,8 +355,12 @@ const Editor = () => {
           image_query: ns.image_query, image_strategy: ns.image_strategy,
           image_url: ns.image_url ?? slides[i]?.content?.image_url,
           ai_image_prompt: ns.ai_image_prompt, chart: ns.chart, animation: ns.animation,
+          // Bloco 11.3: preserva campos "DNA" se a IA não devolveu
           visual_accents: (ns as any).visual_accents ?? (slides[i]?.content as any)?.visual_accents,
-          dynamic_theme: i === 0 ? (data.dynamic_theme ?? dynamicTheme) : undefined,
+          narrative_act: (ns as any).narrative_act ?? (slides[i]?.content as any)?.narrative_act,
+          animation_intent: (ns as any).animation_intent ?? (slides[i]?.content as any)?.animation_intent,
+          cover_variant: (ns as any).cover_variant ?? (slides[i]?.content as any)?.cover_variant,
+          transition: (ns as any).transition ?? (slides[i]?.content as any)?.transition,
         },
       }));
       skipNextSnapshot.current = true;
@@ -427,6 +474,7 @@ const Editor = () => {
                       <SortableThumb slide={s} idx={i} active={i === activeIdx}
                         onClick={() => setActiveIdx(i)} onDelete={() => deleteSlide(i)}
                         themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
+                        lazyHide={Math.abs(i - activeIdx) > 2}
                       />
                     </div>
                   ))}
@@ -445,7 +493,7 @@ const Editor = () => {
                 style={{ width: `${1280 * zoom}px`, height: `${720 * zoom}px` }}
               >
                 <div className="origin-top-left" style={{ transform: `scale(${zoom * (1280/1920)})`, width: 1920, height: 1080 }}>
-                  <SlideRenderer
+                  <SlideRendererWithChoreo
                     slide={{ slide_type: current.slide_type, layout_template: current.layout_template, content: c }}
                     themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
                     index={activeIdx} noAnimate
@@ -643,7 +691,7 @@ const Editor = () => {
 
                 <TabsContent value="anim" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Animação de entrada</Label>
+                    <Label className="text-xs">Animação de entrada (per-elemento)</Label>
                     <Select value={c.animation || current.animation_transition || "fade"}
                       onValueChange={(v) => { updateSlide(activeIdx, { animation_transition: v } as any); updateContent(activeIdx, { animation: v }); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -652,8 +700,32 @@ const Editor = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Bloco 1.5: transição cinematográfica do slide */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Transição entre slides</Label>
+                    <Select value={(c as any).transition || ""}
+                      onValueChange={(v) => updateContent(activeIdx, { transition: v })}>
+                      <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
+                      <SelectContent>
+                        {TRANSITIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Bloco 7.3: cover_variant apenas para title_slide */}
+                  {current.slide_type === "title_slide" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Variação da capa</Label>
+                      <Select value={(c as any).cover_variant || ""}
+                        onValueChange={(v) => updateContent(activeIdx, { cover_variant: v })}>
+                        <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
+                        <SelectContent>
+                          {COVER_VARIANTS_LIST.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    A animação é aplicada quando o slide entra durante a apresentação. Veja em <strong>Apresentar</strong>.
+                    A animação afeta cada elemento; a transição é como o slide inteiro entra e sai. Veja em <strong>Apresentar</strong>.
                   </p>
                 </TabsContent>
 

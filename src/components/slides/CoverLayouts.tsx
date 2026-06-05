@@ -15,6 +15,10 @@ interface CoverProps {
   imageUrl?: string | null;
   theme: ThemeColors;
   fontFamily: string;
+  /** Bloco 7: kicker opcional (substitui textos hardcoded). */
+  kicker?: string;
+  /** Bloco 7: rodapé opcional (substitui textos hardcoded). */
+  footer?: string;
 }
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -46,13 +50,18 @@ const SplitHero = ({ headline, subtitle, imageUrl, theme, fontFamily }: CoverPro
 };
 
 /* ---------- 2. TYPOGRAPHIC BOLD ---------- */
-const TypographicBold = ({ headline, subtitle, theme, fontFamily }: CoverProps) => {
+const TypographicBold = ({ headline, subtitle, theme, fontFamily, kicker }: CoverProps) => {
   const words = (headline || "").split(" ");
+  // Bloco 7.1: kicker derivado de subtitle/kicker; omite se nada real disponível
+  const kickerText = (kicker?.trim())
+    || (subtitle ? subtitle.split(" ").slice(0, 3).join(" ") : "");
   return (
     <div className="w-full h-full flex flex-col p-[5%] overflow-hidden relative" style={{ background: theme.bg, color: theme.text, fontFamily }}>
       <div className="absolute -bottom-[20%] -right-[10%] w-[80%] h-[80%] opacity-[0.07]" style={{ background: `radial-gradient(circle, ${theme.accent}, transparent 70%)`, filter: "blur(60px)" }} />
       <motion.div initial="hidden" animate="show" variants={PRESETS["kinetic-type"].container} className="flex-1 flex flex-col justify-center relative z-10">
-        <motion.div variants={PRESETS["kinetic-type"].item} className="text-[1.1vw] uppercase tracking-[0.4em] opacity-50 mb-8">SlideAI · Apresentação</motion.div>
+        {kickerText && (
+          <motion.div variants={PRESETS["kinetic-type"].item} className="text-[1.1vw] uppercase tracking-[0.4em] opacity-50 mb-8">{kickerText}</motion.div>
+        )}
         <h1 className="text-[8vw] font-black leading-[0.92] tracking-[-0.04em]" style={{ perspective: "1000px" }}>
           {words.map((w, i) => (
             <motion.span key={i} variants={PRESETS["kinetic-type"].item} className="inline-block mr-[0.25em]">
@@ -109,32 +118,41 @@ const MinimalCentered = ({ headline, subtitle, theme, fontFamily }: CoverProps) 
 );
 
 /* ---------- 5. ASYMMETRIC GRID ---------- */
-const AsymmetricGrid = ({ headline, subtitle, theme, fontFamily }: CoverProps) => (
-  <div className="w-full h-full grid grid-cols-12 grid-rows-12 p-[3%] gap-3 overflow-hidden relative" style={{ background: theme.bg, color: theme.text, fontFamily }}>
-    {/* Big number "01" */}
-    <motion.div initial={{ opacity: 0, x: -100 }} animate={{ opacity: 0.12, x: 0 }} transition={{ duration: 1.2, ease: EASE.editorial as any }} className="col-span-3 row-span-12 flex items-center justify-center">
-      <span className="text-[18vw] font-black leading-none tracking-tighter" style={{ color: theme.accent }}>01</span>
-    </motion.div>
-    {/* Accent bar */}
-    <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.8, delay: 0.3, ease: EASE.editorial as any }} className="col-span-9 row-span-1 origin-left h-2 mt-3" style={{ background: theme.accent }} />
-    {/* Title block */}
-    <motion.div initial="hidden" animate="show" variants={PRESETS["editorial-stagger"].container} className="col-span-9 row-span-8 flex flex-col justify-center pl-4">
-      <motion.div variants={PRESETS["editorial-stagger"].item} className="text-[1vw] uppercase tracking-[0.4em] opacity-60 mb-4">Capítulo I</motion.div>
-      <motion.h1 variants={PRESETS["editorial-stagger"].item} className="text-[5.5vw] font-extrabold leading-[1.02] tracking-tighter max-w-[90%]">
-        {headline}
-      </motion.h1>
-      {subtitle && (
-        <motion.p variants={PRESETS["editorial-stagger"].item} className="mt-6 text-[1.5vw] opacity-75 max-w-[75%] leading-snug">
-          {subtitle}
-        </motion.p>
+const AsymmetricGrid = ({ headline, subtitle, theme, fontFamily, kicker, footer }: CoverProps) => {
+  // Bloco 7.2: kicker e footer dinâmicos
+  const kickerText = (kicker?.trim())
+    || (subtitle ? subtitle.split(" ").slice(0, 3).join(" ") : "");
+  return (
+    <div className="w-full h-full grid grid-cols-12 grid-rows-12 p-[3%] gap-3 overflow-hidden relative" style={{ background: theme.bg, color: theme.text, fontFamily }}>
+      {/* Big number "01" */}
+      <motion.div initial={{ opacity: 0, x: -100 }} animate={{ opacity: 0.12, x: 0 }} transition={{ duration: 1.2, ease: EASE.editorial as any }} className="col-span-3 row-span-12 flex items-center justify-center">
+        <span className="text-[18vw] font-black leading-none tracking-tighter" style={{ color: theme.accent }}>01</span>
+      </motion.div>
+      {/* Accent bar */}
+      <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.8, delay: 0.3, ease: EASE.editorial as any }} className="col-span-9 row-span-1 origin-left h-2 mt-3" style={{ background: theme.accent }} />
+      {/* Title block */}
+      <motion.div initial="hidden" animate="show" variants={PRESETS["editorial-stagger"].container} className="col-span-9 row-span-8 flex flex-col justify-center pl-4">
+        {kickerText && (
+          <motion.div variants={PRESETS["editorial-stagger"].item} className="text-[1vw] uppercase tracking-[0.4em] opacity-60 mb-4">{kickerText}</motion.div>
+        )}
+        <motion.h1 variants={PRESETS["editorial-stagger"].item} className="text-[5.5vw] font-extrabold leading-[1.02] tracking-tighter max-w-[90%]">
+          {headline}
+        </motion.h1>
+        {subtitle && (
+          <motion.p variants={PRESETS["editorial-stagger"].item} className="mt-6 text-[1.5vw] opacity-75 max-w-[75%] leading-snug">
+            {subtitle}
+          </motion.p>
+        )}
+      </motion.div>
+      {/* Footer corner — apenas se fornecido */}
+      {footer && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} transition={{ delay: 0.8, duration: 0.6 }} className="col-span-9 row-span-3 flex items-end justify-end text-[0.9vw] uppercase tracking-widest">
+          {footer}
+        </motion.div>
       )}
-    </motion.div>
-    {/* Footer corner */}
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} transition={{ delay: 0.8, duration: 0.6 }} className="col-span-9 row-span-3 flex items-end justify-end text-[0.9vw] uppercase tracking-widest">
-      SlideAI · 2026
-    </motion.div>
-  </div>
-);
+    </div>
+  );
+};
 
 /* ---------- 6. GRADIENT MESH ---------- */
 const GradientMesh = ({ headline, subtitle, theme, fontFamily }: CoverProps) => {
