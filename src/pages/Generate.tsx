@@ -20,8 +20,10 @@ import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
-import { SlideRenderer, type SlideContent } from "@/components/SlideRenderer";
+import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
+import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
+import { reasonMessage } from "@/hooks/useEntitlement";
 import { Lock, CreditCard } from "lucide-react";
 
 // Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
@@ -171,11 +173,14 @@ const Generate = () => {
   const handleGenerate = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
-    // Etapa de pagamento APÓS configuração — só inicia se o usuário tem entitlement.
     await ent.refresh();
     if (!ent.allowed && !isDeveloper) {
+      if (ent.reason === "monthly_limit_reached") {
+        toast.error(reasonMessage("monthly_limit_reached"));
+        return;
+      }
       if (ent.reason === "system_error") {
-        toast.error("Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.");
+        toast.error(reasonMessage("system_error"));
         return;
       }
       setShowPayment(true);
@@ -197,23 +202,39 @@ const Generate = () => {
       });
 
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        if (data.reason === "monthly_limit_reached") {
+          toast.error(reasonMessage("monthly_limit_reached"));
+          setPhase("form");
+          return;
+        }
+        throw new Error(data.error);
+      }
       if (!data?.slides?.length) throw new Error("Nenhum slide gerado");
 
       setStepIdx(2);
-      const withImages = includeImages ? await resolveImages(data.slides) : data.slides;
+      const withImages = includeImages
+        ? await resolveImages(data.slides, (done, total) => {
+            if (total > 0) {
+              // mapeia progresso de imagens para o intervalo 2..4 dos STEPS
+              const pct = done / total;
+              setStepIdx(2 + Math.round(pct * 2));
+            }
+          })
+        : data.slides;
       setStepIdx(4);
 
       const dyn = data.dynamic_theme ?? null;
       setDynamicTheme(dyn);
       setSlides(withImages);
+      setStepIdx(STEPS.length - 1);
+      // Bloco 6: vai para preview com chat — sem persistir ainda.
       setChat([{
         role: "assistant",
-        content: `Sua apresentação com ${withImages.length} slides está pronta!`,
+        content: `Sua apresentação com ${withImages.length} slides está pronta! Navegue pelos slides, refine via chat (ex.: "deixa o slide 3 mais visual") e quando estiver satisfeito clique em Salvar e abrir ou Editar manualmente.`,
       }]);
-      setStepIdx(STEPS.length - 1);
-      // Auto-abrir o editor manual com a aba de edição de conteúdo já ativa.
-      await persistAndOpenWith("edit", withImages, dyn);
+      setCurrentSlide(0);
+      setPhase("preview");
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
@@ -282,6 +303,8 @@ const Generate = () => {
         presenters_count: presentersCount,
         presenters_names: presentersNames,
         include_speeches: includeSpeeches,
+        // Bloco 12: tema dinâmico vive no nível da apresentação
+        dynamic_theme: dynArg ?? null,
       } as any).select().single();
       if (pErr) throw pErr;
 
@@ -303,7 +326,7 @@ const Generate = () => {
           visual_accents: (s as any).visual_accents,
           narrative_act: (s as any).narrative_act,
           animation_intent: (s as any).animation_intent,
-          dynamic_theme: idx === 0 ? dynArg : undefined,
+          transition: (s as any).transition,
         },
       })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
