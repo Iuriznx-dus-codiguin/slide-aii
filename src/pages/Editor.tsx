@@ -355,8 +355,12 @@ const Editor = () => {
           image_query: ns.image_query, image_strategy: ns.image_strategy,
           image_url: ns.image_url ?? slides[i]?.content?.image_url,
           ai_image_prompt: ns.ai_image_prompt, chart: ns.chart, animation: ns.animation,
+          // Bloco 11.3: preserva campos "DNA" se a IA não devolveu
           visual_accents: (ns as any).visual_accents ?? (slides[i]?.content as any)?.visual_accents,
-          dynamic_theme: i === 0 ? (data.dynamic_theme ?? dynamicTheme) : undefined,
+          narrative_act: (ns as any).narrative_act ?? (slides[i]?.content as any)?.narrative_act,
+          animation_intent: (ns as any).animation_intent ?? (slides[i]?.content as any)?.animation_intent,
+          cover_variant: (ns as any).cover_variant ?? (slides[i]?.content as any)?.cover_variant,
+          transition: (ns as any).transition ?? (slides[i]?.content as any)?.transition,
         },
       }));
       skipNextSnapshot.current = true;
@@ -470,6 +474,7 @@ const Editor = () => {
                       <SortableThumb slide={s} idx={i} active={i === activeIdx}
                         onClick={() => setActiveIdx(i)} onDelete={() => deleteSlide(i)}
                         themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
+                        lazyHide={Math.abs(i - activeIdx) > 2}
                       />
                     </div>
                   ))}
@@ -488,7 +493,7 @@ const Editor = () => {
                 style={{ width: `${1280 * zoom}px`, height: `${720 * zoom}px` }}
               >
                 <div className="origin-top-left" style={{ transform: `scale(${zoom * (1280/1920)})`, width: 1920, height: 1080 }}>
-                  <SlideRenderer
+                  <SlideRendererWithChoreo
                     slide={{ slide_type: current.slide_type, layout_template: current.layout_template, content: c }}
                     themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
                     index={activeIdx} noAnimate
@@ -686,7 +691,7 @@ const Editor = () => {
 
                 <TabsContent value="anim" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Animação de entrada</Label>
+                    <Label className="text-xs">Animação de entrada (per-elemento)</Label>
                     <Select value={c.animation || current.animation_transition || "fade"}
                       onValueChange={(v) => { updateSlide(activeIdx, { animation_transition: v } as any); updateContent(activeIdx, { animation: v }); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -695,8 +700,32 @@ const Editor = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Bloco 1.5: transição cinematográfica do slide */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Transição entre slides</Label>
+                    <Select value={(c as any).transition || ""}
+                      onValueChange={(v) => updateContent(activeIdx, { transition: v })}>
+                      <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
+                      <SelectContent>
+                        {TRANSITIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Bloco 7.3: cover_variant apenas para title_slide */}
+                  {current.slide_type === "title_slide" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Variação da capa</Label>
+                      <Select value={(c as any).cover_variant || ""}
+                        onValueChange={(v) => updateContent(activeIdx, { cover_variant: v })}>
+                        <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
+                        <SelectContent>
+                          {COVER_VARIANTS_LIST.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    A animação é aplicada quando o slide entra durante a apresentação. Veja em <strong>Apresentar</strong>.
+                    A animação afeta cada elemento; a transição é como o slide inteiro entra e sai. Veja em <strong>Apresentar</strong>.
                   </p>
                 </TabsContent>
 
