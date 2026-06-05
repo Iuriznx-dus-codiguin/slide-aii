@@ -130,43 +130,64 @@ const Generate = () => {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
-  // Resolve images for slides (Pexels/AI) sequentially, evitando duplicação de URLs.
-  const resolveImages = async (slidesList: AISlide[]) => {
+  // Bloco 10: paralelo com concorrência máx. 5.
+  const resolveImages = async (
+    slidesList: AISlide[],
+    onProgress?: (done: number, total: number) => void,
+  ) => {
     const usedUrls = new Set<string>();
     const usedQueries = new Set<string>();
-    const result: AISlide[] = [];
-    for (let i = 0; i < slidesList.length; i++) {
-      const s = slidesList[i];
-      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) {
-        result.push(s);
-        continue;
-      }
-      // Se a query exata já foi usada, adiciona um qualificador para variar.
-      let query = s.image_query;
-      if (usedQueries.has(query.toLowerCase())) {
+    const result: AISlide[] = new Array(slidesList.length);
+
+    const reservedQueries: (string | null)[] = slidesList.map((s, i) => {
+      if (!s.image_strategy || s.image_strategy === "none" || !s.image_query) return null;
+      let q = s.image_query;
+      if (usedQueries.has(q.toLowerCase())) {
         const suffixes = ["wide angle", "close up", "different perspective", "alternative", "minimal", "cinematic"];
-        query = `${query} ${suffixes[i % suffixes.length]}`;
+        q = `${q} ${suffixes[i % suffixes.length]}`;
       }
-      usedQueries.add(query.toLowerCase());
+      usedQueries.add(q.toLowerCase());
+      return q;
+    });
+
+    let done = 0;
+    const total = reservedQueries.filter(Boolean).length;
+    const snapshotAvoid = () => Array.from(usedUrls);
+
+    const fetchOne = async (i: number) => {
+      const s = slidesList[i];
+      const q = reservedQueries[i];
+      if (!q) { result[i] = s; return; }
       try {
         const { data } = await supabase.functions.invoke("fetch-image", {
-          body: {
-            query, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, orientation: "landscape",
-            avoid_urls: Array.from(usedUrls),
-          },
+          body: { query: q, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, orientation: "landscape", avoid_urls: snapshotAvoid() },
         });
         let url = data?.url ?? null;
-        if (url && usedUrls.has(url)) {
-          // tentou e veio duplicado — segue sem imagem para evitar repetir
-          url = null;
-        }
+        if (url && usedUrls.has(url)) url = null;
         if (url) usedUrls.add(url);
-        result.push({ ...s, image_url: url });
+        result[i] = { ...s, image_url: url };
       } catch (e) {
         console.warn("Image fetch failed", e);
-        result.push(s);
+        result[i] = s;
+      } finally {
+        done += 1;
+        onProgress?.(done, total);
       }
+    };
+
+    const CONCURRENCY = 5;
+    const queue = slidesList.map((_, i) => i);
+    const workers: Promise<void>[] = [];
+    for (let w = 0; w < Math.min(CONCURRENCY, queue.length); w++) {
+      workers.push((async () => {
+        while (queue.length > 0) {
+          const idx = queue.shift();
+          if (idx === undefined) return;
+          await fetchOne(idx);
+        }
+      })());
     }
+    await Promise.all(workers);
     return result;
   };
 
@@ -479,7 +500,7 @@ const Generate = () => {
               <div className="w-full max-w-[1400px] aspect-video relative shadow-elegant rounded-2xl overflow-hidden bg-black">
                 <AnimatePresence mode="wait">
                   <motion.div key={currentSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <SlideRenderer slide={slideForRender} themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={currentSlide} />
+                    <SlideRendererWithChoreo slide={slideForRender} themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={currentSlide} />
                   </motion.div>
                 </AnimatePresence>
               </div>
@@ -498,10 +519,10 @@ const Generate = () => {
                           i === currentSlide ? "border-primary shadow-glow" : "border-border hover:border-muted-foreground/40"
                         }`}>
                         <div className="absolute inset-0 pointer-events-none">
-                          <div className="origin-top-left scale-[0.058] w-[1920px] h-[1080px]">
-                            <SlideRenderer
+                          <div className="origin-top-left scale-[0.146] w-[800px] h-[450px]">
+                            <SlideRendererWithChoreo
                               slide={{ slide_type: s.slide_type, layout_template: s.layout_template, content: s as any }}
-                              themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} noAnimate
+                              themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={i} noAnimate
                             />
                           </div>
                         </div>
