@@ -26,13 +26,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { ExportMenu } from "@/components/ExportMenu";
 import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugify";
 import { toast } from "sonner";
+import React from "react";
 
 const LAYOUTS = [
   "title-only", "title-content", "two-columns", "image-right", "image-left",
   "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight",
+];
+
+const TRANSITIONS = [
+  "mosaic", "iris", "shatter", "ribbon", "blinds", "fold",
+  "portal", "wipe", "split", "morph", "stack", "letterbox",
+];
+
+const COVER_VARIANTS_LIST = [
+  "split-hero", "typographic-bold", "full-bleed-image",
+  "minimal-centered", "asymmetric-grid", "gradient-mesh",
 ];
 
 const SLIDE_TYPES = [
@@ -56,7 +68,9 @@ interface Pres {
   include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
 }
 
-const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme }: any) => {
+// Bloco 13: thumbnail renderizado em 800x450 (4x menos pixels que 1920x1080)
+// + React.memo + lazy rendering (placeholder se >2 posições do ativo).
+const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme, lazyHide }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   return (
@@ -66,12 +80,16 @@ const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId,
           active ? "border-primary shadow-glow" : "border-border hover:border-muted-foreground/40"
         }`}>
         <div className="absolute inset-0 pointer-events-none">
-          <div className="origin-top-left scale-[0.115] w-[1920px] h-[1080px]">
-            <SlideRenderer
-              slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
-              themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} noAnimate
-            />
-          </div>
+          {lazyHide ? (
+            <div className="absolute inset-0" style={{ background: dynamicTheme?.bg ?? "#0a0a0a" }} />
+          ) : (
+            <div className="origin-top-left scale-[0.25] w-[800px] h-[450px]">
+              <SlideRendererWithChoreo
+                slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
+                themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} index={idx} noAnimate
+              />
+            </div>
+          )}
         </div>
         <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
           {idx + 1}
@@ -90,12 +108,14 @@ const SortableThumb = ({ slide, idx, active, onClick, onDelete, themeId, fontId,
     </div>
   );
 };
+const SortableThumb = React.memo(SortableThumbInner);
 
 const Editor = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [pres, setPres] = useState<Pres | null>(null);
+  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any }) | null>(null);
+  // (continua… o restante do estado já está definido acima)
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(true);
