@@ -115,7 +115,6 @@ const Editor = () => {
   const navigate = useNavigate();
 
   const [pres, setPres] = useState<(Pres & { dynamic_theme?: any }) | null>(null);
-  // (continua… o restante do estado já está definido acima)
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -143,12 +142,12 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       const presLoaded = {
         ...p,
         presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [],
-      } as Pres;
+      } as any;
       setPres(presLoaded);
       const { data: s } = await supabase.from("slides")
         .select("id,position,slide_type,layout_template,animation_transition,speaker_notes,content,presenters_data")
@@ -163,16 +162,23 @@ const Editor = () => {
     })();
   }, [slug]);
 
+  // Bloco 12.2: dynamic_theme prioriza presentations.dynamic_theme; fallback p/ slides legados.
   const dynamicTheme: Partial<ThemeColors> | null = useMemo(
-    () => slides[0]?.content?.dynamic_theme ?? null,
-    [slides]
+    () => (pres as any)?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null,
+    [pres, slides]
   );
 
+  // Bloco 12.3: debounce de 500ms para snapshots — evita um por keystroke.
+  const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushSnapshot = useCallback(() => {
     if (skipNextSnapshot.current) { skipNextSnapshot.current = false; return; }
-    undoStack.current.push(JSON.parse(JSON.stringify(slides)));
-    if (undoStack.current.length > 50) undoStack.current.shift();
-    redoStack.current = [];
+    if (snapshotTimer.current) clearTimeout(snapshotTimer.current);
+    const snap = JSON.parse(JSON.stringify(slides));
+    snapshotTimer.current = setTimeout(() => {
+      undoStack.current.push(snap);
+      if (undoStack.current.length > 50) undoStack.current.shift();
+      redoStack.current = [];
+    }, 500);
   }, [slides]);
 
   const updateSlide = (idx: number, patch: Partial<SlideRow> | { content: any }) => {
