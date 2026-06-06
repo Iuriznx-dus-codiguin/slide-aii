@@ -48,7 +48,7 @@ const CinematicSlideStage = ({
 
   return (
     <>
-      <AnimatePresence mode={cfg.mode === "wait" ? "wait" : "popLayout"} initial={false}>
+      <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={current?.id ?? idx}
           initial={cfg.enter.initial}
