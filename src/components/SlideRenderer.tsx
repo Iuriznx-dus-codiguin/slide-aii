@@ -112,10 +112,15 @@ const hexToRgba = (hex: string, alpha: number) => {
 /** Animated stat value (counter). */
 const AnimatedStat = ({ value, color, enabled }: { value: string; color: string; enabled: boolean }) => {
   const parsed = parseNumberFromString(value);
+  // IMPORTANT: hook must be called unconditionally on every render to satisfy
+  // the Rules of Hooks. We always call useAnimatedNumber and only use the
+  // animated value when `parsed` is non-null. Otherwise we'd get React #310
+  // (Rendered fewer/more hooks than during previous render) when `value`
+  // toggles between numeric and non-numeric across slide transitions.
+  const animated = useAnimatedNumber(parsed?.num ?? 0, 1600, enabled && !!parsed);
   if (!parsed) {
     return <span style={{ color }}>{value}</span>;
   }
-  const animated = useAnimatedNumber(parsed.num, 1600, enabled);
   return (
     <span style={{ color }}>
       {parsed.prefix}
