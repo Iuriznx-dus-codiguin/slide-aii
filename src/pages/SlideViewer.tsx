@@ -41,8 +41,8 @@ const CinematicSlideStage = ({
   const choreo = useSlideChoreography(idx, current?.slide_type, choreoHint, animationIntent);
 
   const direction: 1 | -1 = idx >= prevIdxRef.current ? 1 : -1;
-  prevIdxRef.current = idx;
   const Overlay = cfg.Overlay;
+  useEffect(() => { prevIdxRef.current = idx; }, [idx, prevIdxRef]);
   // Chave única por slide+transition para forçar re-render da overlay a cada troca.
   const overlayKey = `${current?.id ?? idx}-${slideTransition}`;
 
@@ -93,7 +93,7 @@ const CinematicSlideStage = ({
           className="absolute inset-0 z-20 pointer-events-none"
           style={{ animationDuration: `${cfg.duration}s` }}
         >
-          {Overlay({ accent, direction })}
+          <Overlay accent={accent} direction={direction} />
         </motion.div>
       )}
     </>
@@ -111,6 +111,9 @@ const SlideViewer = () => {
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [hideUI, setHideUI] = useState(false);
+  // Deve ficar antes de qualquer retorno condicional. Antes estava depois de
+  // `if (loading)`/`if (!pres)`, causando React #310 ao abrir apresentações.
+  const prevIdxRef = useRef(0);
 
   useEffect(() => {
     if (!slug) return;
@@ -208,8 +211,6 @@ const SlideViewer = () => {
   const current = slides[idx];
   // Bloco 12: dynamic_theme vive em pres.dynamic_theme; fallback p/ slides legados
   const dynamicTheme = pres?.dynamic_theme ?? current?.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null;
-  // ref persistente para direção da transição
-  const prevIdxRef = useRef(0);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col select-none">
