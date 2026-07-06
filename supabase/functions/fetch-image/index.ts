@@ -1,6 +1,23 @@
 // Resolve image for a slide. Strategy = "pexels" -> search Pexels.
 // Strategy = "ai" -> generate via Lovable AI (Gemini Image / Nano Banana).
 // Returns { url } or { error }.
+//
+// Segurança: esta função é usada em dois contextos bem diferentes — (1) o
+// editor/gerador autenticado pedindo imagens Pexels ou geração por IA, e (2)
+// o visualizador público (SlideViewer, sem login) pedindo o vídeo de fundo
+// ambiente de uma apresentação já publicada. Por isso o controle de acesso é
+// calibrado por estratégia em vez de um auth obrigatório genérico:
+//   • strategy "ai"            → é a ÚNICA com custo real em dólar por
+//     chamada (Lovable AI Gateway). Exige usuário autenticado + rate limit
+//     de 15/hora por usuário.
+//   • strategy "pexels"/"video" → sem custo monetário direto, mas ainda
+//     assim sujeitas a um rate limit por IP (60/hora) para não permitir que
+//     alguém esgote a cota da API da Pexels do projeto inteiro.
+// Antes desta correção, TODAS as estratégias — incluindo "ai" — podiam ser
+// chamadas por qualquer pessoa de posse da chave pública do projeto, sem
+// nenhum vínculo com conta e sem limite algum.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -18,9 +35,60 @@ interface FetchImageBody {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  // Resolve usuário se um token vier presente, mas NÃO exige — o
+  // visualizador público chama esta função (estratégia "video"/"pexels")
+  // sem sessão nenhuma, para apresentações já publicadas.
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  let userId: string | null = null;
+  if (token) {
+    const { data: userData } = await admin.auth.getUser(token);
+    userId = userData?.user?.id ?? null;
+  }
+
+  // Chave de rate limit: por usuário quando autenticado, por IP quando não.
+  // x-forwarded-for é preenchido pelo edge runtime/CDN; é a melhor aproximação
+  // disponível para um chamador anônimo (spoofável, mas já eleva bastante o
+  // custo de abuso em relação ao endpoint totalmente aberto de antes).
+  const clientIp = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown")
+    .split(",")[0].trim();
+  const rlKey = userId ? `user:${userId}` : `ip:${clientIp}`;
+
   try {
     const body: FetchImageBody = await req.json();
     const strategy = body.strategy;
+
+    if (strategy === "ai") {
+      // Único caminho com custo real em dólar por chamada — exige conta.
+      if (!userId) {
+        return new Response(JSON.stringify({ url: null, error: "Autenticação necessária para geração de imagem por IA." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: withinAiLimit } = await admin.rpc("check_rate_limit", {
+        _key: rlKey, _fn: "fetch-image-ai", _max_per_hour: 15,
+      });
+      if (withinAiLimit === false) {
+        return new Response(JSON.stringify({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      // pexels/video/none: sem custo monetário direto, mas ainda limitado
+      // por IP/usuário para proteger a cota da Pexels do projeto inteiro.
+      const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+        _key: rlKey, _fn: "fetch-image-public", _max_per_hour: 60,
+      });
+      if (withinLimit === false) {
+        return new Response(JSON.stringify({ url: null, error: "Limite de requisições de imagem atingido. Aguarde um pouco." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     if (strategy === "none") {
       return new Response(JSON.stringify({ url: null }), {
