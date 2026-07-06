@@ -379,3 +379,156 @@ export const ParticleField = ({ theme, noAnimate, intensity = 1 }: BaseProps) =>
     </div>
   );
 };
+
+/**
+ * Painéis geométricos em camadas com leve paralaxe — cada painel entra a uma
+ * velocidade/atraso diferente conforme sua "profundidade" (z simulado via
+ * escala + blur sutil), dando sensação de composição em várias camadas em vez
+ * de um plano único. Bom para slides de comparação/arquitetura.
+ */
+export const LayeredPanels = ({ theme, noAnimate, intensity = 1, position = "right" }: BaseProps & { position?: "left" | "right" }) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const panels = [
+    { w: 46, h: 62, depth: 0, rot: -6 },
+    { w: 34, h: 46, depth: 1, rot: 4 },
+    { w: 22, h: 30, depth: 2, rot: -3 },
+  ];
+  const side = position === "left" ? "left" : "right";
+  return (
+    <div
+      className={`absolute top-1/2 -translate-y-1/2 ${side === "left" ? "-left-[6%]" : "-right-[6%]"} pointer-events-none z-[1]`}
+      style={{ width: "48%", aspectRatio: "3/4", opacity: 0.4 * intensity }}
+      aria-hidden
+    >
+      {panels.map((p, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-2xl border"
+          style={{
+            width: `${p.w}%`,
+            height: `${p.h}%`,
+            top: `${50 - p.h / 2}%`,
+            [side]: `${i * 9}%`,
+            borderColor: `${theme.accent}55`,
+            background: `linear-gradient(135deg, ${theme.accent}${i === 0 ? "22" : "12"}, transparent)`,
+            backdropFilter: i > 0 ? "blur(1px)" : undefined,
+            transformOrigin: side === "left" ? "left center" : "right center",
+          }}
+          initial={skip ? false : { opacity: 0, x: side === "left" ? -40 - i * 20 : 40 + i * 20, rotate: 0, scale: 0.9 }}
+          animate={{ opacity: 1 - i * 0.15, x: 0, rotate: p.rot, scale: 1 }}
+          transition={{ duration: 1.1 + i * 0.15, delay: 0.15 + i * 0.12, ease: [0.16, 1, 0.3, 1] }}
+        />
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Fundo de malha de gradiente em movimento lento e contínuo — distinto dos
+ * "orbs" do AmbientBackdrop (que são pontuais e menores): aqui são 2 campos
+ * de cor amplos com blend suave cobrindo boa parte da cena, sugerindo um
+ * fluido em movimento constante. Pensado para uso como camada de fundo única
+ * (baixa intensidade), não para compor com muitas outras decorações por cima.
+ */
+export const GradientMeshDrift = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const accent2 = theme.accent2 || theme.accent;
+  return (
+    <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden" style={{ opacity: 0.5 * intensity }} aria-hidden>
+      <motion.div
+        className="absolute rounded-full"
+        style={{ width: "70%", height: "70%", top: "-20%", left: "-15%", background: theme.accent, filter: "blur(140px)" }}
+        animate={skip ? undefined : { x: [0, 60, -20, 0], y: [0, 40, -30, 0] }}
+        transition={skip ? undefined : { duration: 34, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute rounded-full"
+        style={{ width: "60%", height: "60%", bottom: "-20%", right: "-10%", background: accent2, filter: "blur(140px)" }}
+        animate={skip ? undefined : { x: [0, -50, 30, 0], y: [0, -35, 25, 0] }}
+        transition={skip ? undefined : { duration: 40, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+      />
+    </div>
+  );
+};
+
+/**
+ * Grade de pontos com densidade RADIAL fixa (maior/mais brilhante perto do
+ * centro, minúscula nas bordas) — ao contrário de DotGrid (todos os pontos
+ * iguais, aparecem em wave) e PulseGrid (todos pulsam para sempre), aqui a
+ * variação é de TAMANHO/opacidade estática após o reveal, sugerindo "os dados
+ * mais importantes ficam no centro". Boa para slides de stat/dado principal.
+ */
+export const ReactiveDotGrid = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const cols = 18, rows = 10;
+  return (
+    <div className="absolute inset-0 pointer-events-none z-[1] overflow-hidden" style={{ opacity: 0.28 * intensity }} aria-hidden>
+      <svg viewBox={`0 0 ${cols * 10} ${rows * 10}`} className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+        {Array.from({ length: rows }).flatMap((_, r) =>
+          Array.from({ length: cols }).map((__, c) => {
+            const cx = c * 10 + 5;
+            const cy = r * 10 + 5;
+            const dist = Math.hypot(cx - cols * 5, cy - rows * 5) / (cols * 5);
+            const density = Math.max(0, 1 - dist);
+            const radius = 0.5 + density * 1.6;
+            return (
+              <motion.circle
+                key={`${r}-${c}`}
+                cx={cx} cy={cy} r={radius}
+                fill={theme.accent}
+                initial={skip ? false : { opacity: 0, scale: 0 }}
+                animate={{ opacity: 0.25 + density * 0.65, scale: 1 }}
+                transition={{ duration: 0.7, delay: 0.15 + dist * 0.5, ease: [0.16, 1, 0.3, 1] }}
+              />
+            );
+          })
+        )}
+      </svg>
+    </div>
+  );
+};
+
+/**
+ * Pilha de 3 cartões sobrepostos com leve rotação/deslocamento e sombra de
+ * profundidade — silhueta de "camadas empilhadas", útil em slides de
+ * comparação ou destaque de múltiplos itens. Nenhuma das decorações
+ * existentes usa essa composição (retângulos sólidos com profundidade real
+ * via offset+shadow, em vez de linhas/pontos/blobs).
+ */
+export const CardStack = ({ theme, noAnimate, intensity = 1, position = "right" }: BaseProps & { position?: "left" | "right" }) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const side = position === "left" ? "left" : "right";
+  const cards = [
+    { rot: -8, dx: -14, dy: 10, z: 0 },
+    { rot: 4, dx: 10, dy: -6, z: 1 },
+    { rot: -2, dx: 0, dy: 0, z: 2 },
+  ];
+  return (
+    <div
+      className={`absolute top-1/2 -translate-y-1/2 ${side === "left" ? "left-[4%]" : "right-[4%]"} pointer-events-none z-[1]`}
+      style={{ width: "26%", aspectRatio: "3/4", opacity: 0.9 * intensity }}
+      aria-hidden
+    >
+      {cards.map((cd, i) => (
+        <motion.div
+          key={i}
+          className="absolute inset-0 rounded-2xl border"
+          style={{
+            borderColor: `${theme.accent}40`,
+            background: i === cards.length - 1
+              ? `linear-gradient(160deg, ${theme.accent}28, transparent)`
+              : `${theme.bg}`,
+            boxShadow: `0 ${14 + cd.z * 6}px ${28 + cd.z * 8}px -12px rgba(0,0,0,0.35)`,
+          }}
+          initial={skip ? false : { opacity: 0, rotate: 0, x: 0, y: 40, scale: 0.9 }}
+          animate={{ opacity: 1, rotate: cd.rot, x: cd.dx, y: cd.dy, scale: 1 }}
+          transition={{ duration: 0.9, delay: 0.2 + i * 0.12, ease: [0.16, 1, 0.3, 1] }}
+        />
+      ))}
+    </div>
+  );
+};

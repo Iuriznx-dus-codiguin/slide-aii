@@ -163,3 +163,34 @@ export function arcPath(
 export function sharedId(role: "title" | "stat" | "accent" | "image", key?: string): string {
   return `slide-shared-${role}${key ? `-${key}` : ""}`;
 }
+
+/* ---------- Âncoras do modo "dynamic" (magic move real) ----------
+   As 3 chamadas de sharedId() que já existiam no código (título em
+   DefaultSlide/ChartSlide, stat em StatSlide) passavam um `key` derivado do
+   PRÓPRIO CONTEÚDO (ex: sharedId("title", headline.slice(0,24))). Isso parecia
+   correto mas era funcionalmente inerte: como cada slide tem um headline
+   diferente, o layoutId nunca coincidia entre dois slides consecutivos — o
+   "magic move" nunca tinha, na prática, um par para animar. Âncoras precisam
+   de um id fixo POR PAPEL (não por conteúdo) para que o Framer Motion consiga
+   reconhecer "o título do slide anterior" e "o título do slide atual" como o
+   mesmo objeto visual em trânsito.
+   anchorLayoutId() é essa versão corrigida: só recebe o papel e uma flag
+   `active` (o chamador decide quando a âncora deve participar do magic move —
+   tipicamente `dynamicMode && !noAnimate`). Quando active=false, devolve
+   `undefined` (sem layoutId nenhum), deixando o elemento seguir o
+   comportamento normal de entrada/saída coreografada.
+------------------------------------------------------------------ */
+export type AnchorRole = "title" | "hero-media" | "stat";
+
+export function anchorLayoutId(role: AnchorRole, active: boolean): string | undefined {
+  return active ? `slideai-anchor-${role}` : undefined;
+}
+
+/**
+ * Transition dedicada para a projeção de layout do magic move — mais lenta e
+ * suave que o spring padrão do Framer Motion (que é bom para UI mas parece
+ * mecânico demais para uma transição de apresentação). Mescle isto dentro do
+ * `transition` de qualquer elemento que receba anchorLayoutId, ex.:
+ *   transition={{ ...ctrl.motionProps("title").transition, layout: ANCHOR_LAYOUT_TRANSITION }}
+ */
+export const ANCHOR_LAYOUT_TRANSITION = { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const };
