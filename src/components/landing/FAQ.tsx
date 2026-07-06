@@ -23,7 +23,7 @@ const faqs = [
   },
   {
     q: "Posso cancelar a assinatura quando quiser?",
-    a: "Sim, sem multa. O plano Ilimitado pode ser cancelado a qualquer momento e você mantém acesso até o fim do período pago.",
+    a: "Sim, sem multa. Os planos Mensal e Anual podem ser cancelados a qualquer momento e você mantém acesso até o fim do período pago.",
   },
 ];
 

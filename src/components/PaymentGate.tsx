@@ -21,10 +21,21 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   const ent = useEntitlement();
   const [waiting, setWaiting] = useState<null | "single" | "mensal" | "anual">(null);
 
+  // Polling do entitlement a cada 4s enquanto aguarda confirmação do pagamento.
+  // Antes rodava indefinidamente enquanto o modal ficasse aberto; agora para
+  // sozinho após ~10 minutos (150 tentativas) e avisa o usuário, em vez de
+  // continuar consultando o backend para sempre se a aba ficar esquecida aberta.
+  const MAX_POLL_ATTEMPTS = 150;
   useEffect(() => {
     if (!open || !waiting) return;
+    let attempts = 0;
     const t = setInterval(async () => {
+      attempts += 1;
       await ent.refresh();
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        clearInterval(t);
+        toast.info("Ainda não vimos a confirmação do pagamento. Clique em \"Já paguei\" quando finalizar, ou aguarde alguns minutos.");
+      }
     }, 4000);
     return () => clearInterval(t);
   }, [open, waiting, ent]);
@@ -40,8 +51,8 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
 
   const plans: Array<{ id: "single" | "mensal" | "anual"; name: string; tagline: string; features: string[] }> = [
     { id: "single", name: "Geração única", tagline: PLAN_PRICES.single, features: ["1 apresentação completa", "Editor visual", "Exportar PDF/PPTX"] },
-    { id: "mensal", name: "Ilimitado mensal", tagline: PLAN_PRICES.mensal, features: ["Gerações em alta cadência", "Cancele quando quiser", "Suporte prioritário"] },
-    { id: "anual", name: "Ilimitado anual", tagline: PLAN_PRICES.anual, features: ["Equivalente a 8 meses", "4 meses grátis", "Tudo do plano mensal"] },
+    { id: "mensal", name: "Plano Mensal", tagline: PLAN_PRICES.mensal, features: ["Até 20 gerações completas/mês", "Cancele quando quiser", "Suporte prioritário"] },
+    { id: "anual", name: "Plano Anual", tagline: PLAN_PRICES.anual, features: ["Até 20 gerações completas/mês", "Equivalente a 8 meses — 4 grátis", "Tudo do plano mensal"] },
   ];
 
   return (

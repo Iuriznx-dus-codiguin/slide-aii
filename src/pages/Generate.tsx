@@ -26,7 +26,7 @@ import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage } from "@/hooks/useEntitlement";
 import { Lock, CreditCard } from "lucide-react";
 
-// Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
+// Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
 const FREE_GENERATIONS_LIMIT = 1;
 
 const STEPS = [
@@ -356,8 +356,12 @@ const Generate = () => {
         throw sErr;
       }
 
-      const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
-      await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
+      // Incremento atômico via RPC — evita perder contagem quando o usuário
+      // gera mais de uma apresentação em sucessão rápida (o padrão anterior
+      // lia generations_count e gravava o valor calculado em duas chamadas
+      // separadas, o que perde incrementos sob concorrência).
+      const { error: incErr } = await supabase.rpc("increment_own_generations_count");
+      if (incErr) console.error("increment_own_generations_count falhou:", incErr);
 
       toast.success("Apresentação criada! Abrindo editor…");
       navigate(mode === "view" ? `/slides/${slug}` : `/editor/${slug}`);
@@ -797,7 +801,7 @@ const Generate = () => {
             </div>
             <h3 className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</h3>
             <p className="text-center text-muted-foreground mt-2 text-sm">
-              Você atingiu o limite de testes gratuitos. Assine o plano Ilimitado para criar quantas apresentações quiser.
+              Você atingiu o limite de testes gratuitos. Assine um plano mensal ou anual para criar até 20 apresentações completas por mês.
             </p>
             <div className="flex gap-2 mt-6">
               <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>

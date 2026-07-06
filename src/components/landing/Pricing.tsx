@@ -2,17 +2,12 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CHECKOUT_URLS } from "@/lib/cakto";
 
 type Cycle = "monthly" | "yearly";
 
-export const CHECKOUT_URLS = {
-  single: "https://pay.cakto.com.br/qw6rzxx_856330",
-  monthly: "https://pay.cakto.com.br/yw7ej87_856334",
-  yearly: "https://pay.cakto.com.br/m6z7n3k_856339",
-};
-
 const monthly = {
-  name: "Ilimitado",
+  name: "Plano Mensal",
   price: "49,90",
   period: "por mês",
   description: "Para quem cria apresentações com frequência. Cancele quando quiser.",
@@ -22,7 +17,7 @@ const monthly = {
 };
 
 const yearly = {
-  name: "Ilimitado Anual",
+  name: "Plano Anual",
   price: "397,90",
   period: "por ano",
   description: "Pague o equivalente a 8 meses e ganhe 4 meses grátis. Melhor custo-benefício.",
@@ -33,7 +28,7 @@ const yearly = {
 };
 
 const features = [
-  "Gerações ilimitadas com IA",
+  "Até 20 gerações completas por mês",
   "Editor visual completo",
   "Exportar PDF, PPTX e PNG",
   "Modo apresentador com timer",
