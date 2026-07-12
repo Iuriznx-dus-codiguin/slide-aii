@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Sparkles, Loader2, ArrowLeft, Send, ChevronLeft, ChevronRight, Edit3, Save, Wand2, Image as ImageIcon, MessageSquare, FileDown } from "lucide-react";
 import { exportPresentationToPdf } from "@/lib/exportPdf";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
+import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage } from "@/hooks/useEntitlement";
@@ -101,6 +102,9 @@ const Generate = () => {
   const [slides, setSlides] = useState<AISlide[]>([]);
   const [dynamicTheme, setDynamicTheme] = useState<Partial<ThemeColors> | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  // Direção de navegação para o SlideStage (mesmo papel do prevIdxRef no
+  // SlideViewer/Editor).
+  const prevSlideIdxRef = useRef(0);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -502,11 +506,22 @@ const Generate = () => {
           <main className="flex-1 flex flex-col bg-muted/20 overflow-hidden min-h-0">
             <div className="flex-1 flex items-center justify-center p-3 md:p-6 min-h-0 overflow-hidden">
               <div className="w-full max-w-[1400px] aspect-video relative shadow-elegant rounded-2xl overflow-hidden bg-black">
-                <AnimatePresence mode="wait">
-                  <motion.div key={currentSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <SlideRendererWithChoreo slide={slideForRender} themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={currentSlide} />
-                  </motion.div>
-                </AnimatePresence>
+                {/*
+                  ANTES: fade genérico de opacidade (0.25s), sem nenhuma
+                  relação com a transição/coreografia que a apresentação
+                  realmente terá no SlideViewer — o usuário revisava a
+                  geração "às cegas" quanto à animação. Agora usa o MESMO
+                  SlideStage do Editor/SlideViewer.
+                */}
+                <SlideStage
+                  slide={slideForRender}
+                  themeId={theme}
+                  fontId={fontStyle}
+                  dynamicTheme={dynamicTheme}
+                  idx={currentSlide}
+                  prevIdxRef={prevSlideIdxRef}
+                  layoutGroupId="generate-preview"
+                />
               </div>
             </div>
             {/* Slide thumbnails */}

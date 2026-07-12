@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { SlideStage } from "@/components/SlideStage";
 import { ExportMenu } from "@/components/ExportMenu";
 import { CinematicHUD, actForSlide, type NarrativeAct } from "@/components/CinematicHUD";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ChoreographyProvider, useSlideChoreography, type ChoreographyName, type AnimationIntent } from "@/lib/slideChoreography";
-import { pickTransition, getTransitionConfig, REDUCED_MOTION_TRANSITION_CONFIG, type SlideTransition } from "@/lib/slideTransitions";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -22,101 +19,6 @@ interface Pres {
 }
 interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
-
-/**
- * Cinematic stage — combina:
- *   • transição cinematográfica do slide inteiro (slideTransitions.tsx)
- *   • coreografia per-element (slideChoreography.tsx)
- *   • overlay sincronizado (mosaic, ribbon, iris…)
- */
-const CinematicSlideStage = ({
-  current, pres, dynamicTheme, idx, prevIdxRef,
-}: { current?: SlideRow; pres: Pres; dynamicTheme: any; idx: number; prevIdxRef: { current: number } }) => {
-  const accent = dynamicTheme?.accent ?? "#A855F7";
-  const transitionHint = current?.content?.transition as SlideTransition | undefined;
-  const choreoHint = current?.content?.choreography as ChoreographyName | undefined;
-  const animationIntent = current?.content?.animation_intent as AnimationIntent | undefined;
-
-  const slideTransition = pickTransition(idx, current?.slide_type, transitionHint);
-  const prefersReducedMotion = usePrefersReducedMotion();
-  // Com reduced motion ativo, TODAS as transições (incluindo "dynamic") caem
-  // para um crossfade simples — antes, nenhuma das 12 transições legadas nem
-  // a nova "dynamic" verificavam essa preferência de sistema.
-  const cfg = prefersReducedMotion ? REDUCED_MOTION_TRANSITION_CONFIG : getTransitionConfig(slideTransition, accent);
-  const choreo = useSlideChoreography(idx, current?.slide_type, choreoHint, animationIntent);
-  const dynamicMode = slideTransition === "dynamic" && !prefersReducedMotion;
-
-  const direction: 1 | -1 = idx >= prevIdxRef.current ? 1 : -1;
-  const Overlay = cfg.Overlay;
-  useEffect(() => { prevIdxRef.current = idx; }, [idx, prevIdxRef]);
-  // Chave única por slide+transition para forçar re-render da overlay a cada troca.
-  const overlayKey = `${current?.id ?? idx}-${slideTransition}`;
-
-  return (
-    <>
-      {/*
-        mode consumia sempre "wait" (hardcoded), ignorando cfg.mode — que já
-        existia e já era preenchido corretamente para CADA transição (10 das
-        12 legadas pedem "sync"). Sem overlap real entre o slide que sai e o
-        que entra, o magic move de âncoras (layoutId) nunca tinha dois
-        elementos coexistindo para interpolar entre suas posições — essa é a
-        causa raiz de por que o mecanismo de shared layout já presente no
-        código nunca funcionou visualmente, mesmo nos 2 lugares em que já
-        estava (parcialmente) implementado antes desta correção.
-      */}
-      <AnimatePresence mode={cfg.mode ?? "sync"} initial={false}>
-        <motion.div
-          key={current?.id ?? idx}
-          initial={cfg.enter.initial}
-          animate={cfg.enter.animate}
-          exit={cfg.exit.exit}
-          transition={cfg.enter.transition}
-          className="absolute inset-0"
-          style={{ willChange: "opacity, transform, filter, clip-path", perspective: 1600, transformStyle: "preserve-3d" }}
-        >
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0.35, 0], transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } }}
-            exit={{ opacity: 0 }}
-            style={{
-              background: `radial-gradient(circle at 50% 50%, ${accent}33 0%, transparent 65%)`,
-              mixBlendMode: "screen",
-            }}
-          />
-          <ChoreographyProvider value={choreo}>
-            {current && (
-              <SlideRenderer
-                slide={current as any}
-                themeId={pres.theme}
-                fontId={pres.font_style}
-                dynamicTheme={dynamicTheme}
-                index={idx}
-                dynamicMode={dynamicMode}
-                enableVideo
-              />
-            )}
-          </ChoreographyProvider>
-        </motion.div>
-      </AnimatePresence>
-      {/* Overlay da transição — vive acima do slide, fora do AnimatePresence */}
-      {Overlay && (
-        <motion.div
-          key={overlayKey}
-          initial={{ opacity: 1 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: cfg.duration, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute inset-0 z-20 pointer-events-none"
-          style={{ animationDuration: `${cfg.duration}s` }}
-        >
-          <Overlay accent={accent} direction={direction} />
-        </motion.div>
-      )}
-    </>
-  );
-};
 
 const SlideViewer = () => {
   const { slug } = useParams();
@@ -289,9 +191,17 @@ const SlideViewer = () => {
             ? { width: "min(100vw, calc(100vh * 16 / 9))", height: "min(100vh, calc(100vw * 9 / 16))" }
             : { width: "100%", maxWidth: "1400px", aspectRatio: "16 / 9" }}
         >
-          <LayoutGroup id={`presentation-${pres.id}`}>
-            <CinematicSlideStage current={current} pres={pres} dynamicTheme={dynamicTheme} idx={idx} prevIdxRef={prevIdxRef} />
-          </LayoutGroup>
+          <SlideStage
+            slideId={current?.id}
+            slide={current as any}
+            themeId={pres.theme}
+            fontId={pres.font_style}
+            dynamicTheme={dynamicTheme}
+            idx={idx}
+            prevIdxRef={prevIdxRef}
+            layoutGroupId={pres.id}
+            enableVideo
+          />
 
           {!fullscreen && (
             <Link to="/" className="absolute bottom-3 right-3 text-[10px] bg-black/50 text-white px-2 py-1 rounded-full backdrop-blur hover:bg-black/70 flex items-center gap-1 z-10">
