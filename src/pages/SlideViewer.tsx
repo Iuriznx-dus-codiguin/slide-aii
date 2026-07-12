@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChoreographyProvider, useSlideChoreography, type ChoreographyName, type AnimationIntent } from "@/lib/slideChoreography";
-import { pickTransition, getTransitionConfig, type SlideTransition } from "@/lib/slideTransitions";
+import { pickTransition, getTransitionConfig, REDUCED_MOTION_TRANSITION_CONFIG, type SlideTransition } from "@/lib/slideTransitions";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -37,8 +38,13 @@ const CinematicSlideStage = ({
   const animationIntent = current?.content?.animation_intent as AnimationIntent | undefined;
 
   const slideTransition = pickTransition(idx, current?.slide_type, transitionHint);
-  const cfg = getTransitionConfig(slideTransition, accent);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  // Com reduced motion ativo, TODAS as transições (incluindo "dynamic") caem
+  // para um crossfade simples — antes, nenhuma das 12 transições legadas nem
+  // a nova "dynamic" verificavam essa preferência de sistema.
+  const cfg = prefersReducedMotion ? REDUCED_MOTION_TRANSITION_CONFIG : getTransitionConfig(slideTransition, accent);
   const choreo = useSlideChoreography(idx, current?.slide_type, choreoHint, animationIntent);
+  const dynamicMode = slideTransition === "dynamic" && !prefersReducedMotion;
 
   const direction: 1 | -1 = idx >= prevIdxRef.current ? 1 : -1;
   const Overlay = cfg.Overlay;
@@ -48,7 +54,17 @@ const CinematicSlideStage = ({
 
   return (
     <>
-      <AnimatePresence mode="wait" initial={false}>
+      {/*
+        mode consumia sempre "wait" (hardcoded), ignorando cfg.mode — que já
+        existia e já era preenchido corretamente para CADA transição (10 das
+        12 legadas pedem "sync"). Sem overlap real entre o slide que sai e o
+        que entra, o magic move de âncoras (layoutId) nunca tinha dois
+        elementos coexistindo para interpolar entre suas posições — essa é a
+        causa raiz de por que o mecanismo de shared layout já presente no
+        código nunca funcionou visualmente, mesmo nos 2 lugares em que já
+        estava (parcialmente) implementado antes desta correção.
+      */}
+      <AnimatePresence mode={cfg.mode ?? "sync"} initial={false}>
         <motion.div
           key={current?.id ?? idx}
           initial={cfg.enter.initial}
@@ -77,6 +93,8 @@ const CinematicSlideStage = ({
                 fontId={pres.font_style}
                 dynamicTheme={dynamicTheme}
                 index={idx}
+                dynamicMode={dynamicMode}
+                enableVideo
               />
             )}
           </ChoreographyProvider>
@@ -271,7 +289,9 @@ const SlideViewer = () => {
             ? { width: "min(100vw, calc(100vh * 16 / 9))", height: "min(100vh, calc(100vw * 9 / 16))" }
             : { width: "100%", maxWidth: "1400px", aspectRatio: "16 / 9" }}
         >
-          <CinematicSlideStage current={current} pres={pres} dynamicTheme={dynamicTheme} idx={idx} prevIdxRef={prevIdxRef} />
+          <LayoutGroup id={`presentation-${pres.id}`}>
+            <CinematicSlideStage current={current} pres={pres} dynamicTheme={dynamicTheme} idx={idx} prevIdxRef={prevIdxRef} />
+          </LayoutGroup>
 
           {!fullscreen && (
             <Link to="/" className="absolute bottom-3 right-3 text-[10px] bg-black/50 text-white px-2 py-1 rounded-full backdrop-blur hover:bg-black/70 flex items-center gap-1 z-10">
