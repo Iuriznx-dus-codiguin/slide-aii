@@ -38,6 +38,7 @@ const LAYOUTS = [
 ];
 
 const TRANSITIONS = [
+  "dynamic",
   "mosaic", "iris", "shatter", "ribbon", "blinds", "fold",
   "portal", "wipe", "split", "morph", "stack", "letterbox",
 ];
@@ -729,7 +730,9 @@ const Editor = () => {
                       onValueChange={(v) => updateContent(activeIdx, { transition: v })}>
                       <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
                       <SelectContent>
-                        {TRANSITIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        {TRANSITIONS.map((t) => (
+                          <SelectItem key={t} value={t}>{t === "dynamic" ? "dynamic (padrão — magic move)" : t}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

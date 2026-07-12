@@ -181,7 +181,7 @@ cada slide a menos que a instrução peça explicitamente para alterá-los.`;
                   },
                   visual_accents: {
                     type: "array",
-                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field"] },
+                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"] },
                     description: "PRESERVE o valor original a menos que a instrução peça mudança explícita.",
                   },
                   narrative_act: {
@@ -201,7 +201,7 @@ cada slide a menos que a instrução peça explicitamente para alterá-los.`;
                   },
                   transition: {
                     type: "string",
-                    enum: ["mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
+                    enum: ["dynamic", "mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
                     description: "PRESERVE o valor original.",
                   },
                 },
