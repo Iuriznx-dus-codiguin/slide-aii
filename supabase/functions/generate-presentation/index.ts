@@ -455,6 +455,40 @@ LEMBRETE CRÍTICO:
       });
     }
 
+    // Se veio muito menos que o pedido, tenta uma segunda passagem pelo Gemini
+    // exigindo o número exato de slides. Evita cair no fallback com 1 slide só.
+    if (parsed.slides.length < Math.max(3, Math.ceil(slidesCount * 0.7)) && LOVABLE_API_KEY) {
+      console.warn("Contagem de slides baixa:", parsed.slides.length, "de", slidesCount, "— nova tentativa Gemini");
+      try {
+        const retry = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...requestPayload,
+            model: "google/gemini-2.5-pro",
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT(body) },
+              { role: "user", content: `${userPrompt}\n\nATENÇÃO: devolva EXATAMENTE ${slidesCount} slides no array 'slides'. Nem mais, nem menos. Cada slide completo (Passo C).` },
+            ],
+          }),
+        });
+        if (retry.ok) {
+          const rdata = await retry.json();
+          const rcall = rdata.choices?.[0]?.message?.tool_calls?.[0];
+          if (rcall) {
+            try {
+              const rparsed = JSON.parse(rcall.function.arguments);
+              if (Array.isArray(rparsed.slides) && rparsed.slides.length > parsed.slides.length) {
+                parsed = rparsed;
+              }
+            } catch { /* mantém parsed original */ }
+          }
+        }
+      } catch (e) {
+        console.warn("Retry Gemini falhou:", (e as Error).message);
+      }
+    }
+
     // Garante cover_variant no primeiro title_slide
     const COVERS = ["split-hero", "typographic-bold", "full-bleed-image", "minimal-centered", "asymmetric-grid", "gradient-mesh"];
     const firstTitle = parsed.slides.find((s: any) => s.slide_type === "title_slide");
