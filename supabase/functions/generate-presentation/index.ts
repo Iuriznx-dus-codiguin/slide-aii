@@ -390,8 +390,8 @@ LEMBRETE CRÍTICO:
       ],
       tools,
       tool_choice: { type: "function", function: { name: "create_presentation" } },
-      // Aumentado: prompt mais denso pede payload mais robusto.
-      max_completion_tokens: body.includeSpeeches ? 40000 : 32000,
+      // gpt-4.1 aceita até 32768; mantemos abaixo do teto para evitar 400 por payload grande.
+      max_completion_tokens: body.includeSpeeches ? 16384 : 12000,
     };
 
     let aiResponse = await fetch(endpoint, {
@@ -404,7 +404,8 @@ LEMBRETE CRÍTICO:
     });
 
     if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
-      console.warn("OpenAI falhou com status", aiResponse.status, "— tentando fallback Gemini");
+      const errBody = await aiResponse.text().catch(() => "");
+      console.warn("OpenAI falhou com status", aiResponse.status, "err=", errBody.slice(0, 600), "— tentando fallback Gemini");
       aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
