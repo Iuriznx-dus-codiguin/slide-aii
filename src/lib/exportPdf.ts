@@ -126,8 +126,9 @@ export async function exportPresentationToPdf({
       slides[i],
       themeId,
       fontId,
-      // dynamic_theme lives on the first slide's content; honor it across the deck.
-      i === 0 ? (slides[0]?.content?.dynamic_theme ?? dynamicTheme) : (slides[0]?.content?.dynamic_theme ?? dynamicTheme),
+      // dynamic_theme vive no content do primeiro slide e vale para o deck inteiro
+      // (não há lógica condicional por índice aqui — é sempre a mesma fonte).
+      slides[0]?.content?.dynamic_theme ?? dynamicTheme,
       i,
     );
     if (i > 0) pdf.addPage([PDF_W, PDF_H], "landscape");

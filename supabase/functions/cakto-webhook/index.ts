@@ -80,22 +80,6 @@ Deno.serve(async (req) => {
   const customerId = dig(payload, ["data.customer.id", "customer.id"]) as string | undefined;
   const subscriptionId = dig(payload, ["data.subscription.id", "subscription.id"]) as string | undefined;
 
-  // ─── Bloco 8.3: idempotência por cakto_id ───
-  if (cakto_id) {
-    const { data: existing } = await admin
-      .from("payment_events")
-      .select("id, processed")
-      .eq("cakto_id", cakto_id)
-      .eq("processed", true)
-      .maybeSingle();
-    if (existing) {
-      console.info("cakto-webhook: already processed", cakto_id);
-      return new Response(JSON.stringify({ ok: true, note: "already processed" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  }
-
   // ─── Bloco 8.2: busca direta do usuário (sem listUsers paginado) ───
   let userId: string | null = null;
   if (email) {
@@ -118,15 +102,39 @@ Deno.serve(async (req) => {
     }
   }
 
-  await admin.from("payment_events").insert({
-    provider: "cakto",
-    event_type: event_type ?? "unknown",
-    cakto_id: cakto_id ?? null,
-    user_email: email ?? null,
-    user_id: userId,
-    payload,
-    processed: false,
-  });
+  // ─── Bloco 8.3: idempotência real via índice único parcial em cakto_id ───
+  // O INSERT abaixo É a trava: se outra entrega concorrente do mesmo evento já
+  // inseriu essa linha, o índice único (idx_payment_events_cakto_id_unique)
+  // rejeita esta com erro 23505 (unique_violation) de forma atômica no banco —
+  // diferente de um SELECT prévio, não existe janela onde duas requisições
+  // simultâneas "não veem" a outra e ambas seguem para processar o pagamento.
+  const { data: insertedEvent, error: insertErr } = await admin
+    .from("payment_events")
+    .insert({
+      provider: "cakto",
+      event_type: event_type ?? "unknown",
+      cakto_id: cakto_id ?? null,
+      user_email: email ?? null,
+      user_id: userId,
+      payload,
+      processed: false,
+    })
+    .select("id")
+    .single();
+
+  if (insertErr) {
+    if (insertErr.code === "23505") {
+      console.info("cakto-webhook: duplicate delivery ignored", cakto_id);
+      return new Response(JSON.stringify({ ok: true, note: "duplicate delivery ignored" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    console.error("cakto-webhook: failed to record payment_event", insertErr);
+    return new Response(JSON.stringify({ error: "Falha ao registrar evento de pagamento." }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const eventRowId = insertedEvent!.id as string;
 
   const PAID_EVENTS = ["purchase_approved", "subscription_renewed", "subscription_created",
     "approved", "paid", "completed", "success", "active"];
@@ -160,11 +168,16 @@ Deno.serve(async (req) => {
       };
       if (renewsAt) patch.subscription_renews_at = renewsAt.toISOString();
 
-      if (plan === "single") {
-        const { data: cur } = await admin.from("profiles").select("single_credits").eq("id", userId).maybeSingle();
-        patch.single_credits = (cur?.single_credits ?? 0) + 1;
-      }
+      // profiles.update roda com a service role key, então passa direto pela
+      // trigger protect_billing_columns (auth.role() = 'service_role').
       await admin.from("profiles").update(patch).eq("id", userId);
+
+      if (plan === "single") {
+        // Incremento atômico em uma única instrução — nunca lê o saldo antes
+        // de gravar, então duas entregas concorrentes não perdem crédito.
+        const { error: creditErr } = await admin.rpc("grant_single_credit", { _uid: userId });
+        if (creditErr) console.error("cakto-webhook: grant_single_credit failed", creditErr);
+      }
     } else if (matchesCanceled) {
       await admin.from("profiles").update({
         subscription_status: "canceled",
@@ -172,14 +185,16 @@ Deno.serve(async (req) => {
       }).eq("id", userId);
     }
 
-    await admin.from("payment_events").update({ processed: true })
-      .eq("cakto_id", cakto_id ?? "")
-      .eq("user_id", userId);
+    // Marca pelo id da própria linha inserida acima — robusto mesmo quando
+    // cakto_id vem ausente/nulo no payload (antes, ".eq('cakto_id', cakto_id
+    // ?? \"\")" nunca casava com uma coluna NULL e o evento ficava "processed:
+    // false" para sempre nesses casos).
+    await admin.from("payment_events").update({ processed: true }).eq("id", eventRowId);
   } catch (e) {
     console.error("cakto-webhook process error", e);
     await admin.from("payment_events").update({
       error_message: e instanceof Error ? e.message : String(e),
-    }).eq("user_id", userId).eq("cakto_id", cakto_id ?? "");
+    }).eq("id", eventRowId);
   }
 
   return new Response(JSON.stringify({ ok: true, plan, userId }), {

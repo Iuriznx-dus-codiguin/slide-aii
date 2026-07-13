@@ -17,6 +17,7 @@
 // ============================================================
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 export type ElementRole =
   | "title" | "subtitle" | "body" | "bullet" | "kicker" | "label"
@@ -236,7 +237,24 @@ export const ChoreographyProvider = ({
   <ChoreographyContext.Provider value={value}>{children}</ChoreographyContext.Provider>
 );
 
-export const useChoreo = () => useContext(ChoreographyContext);
+export const useChoreo = (): SlideChoreography => {
+  const base = useContext(ChoreographyContext);
+  // Antes, NENHUM dos ~15 pontos que chamam choreo.exitFor(...) verificava
+  // prefers-reduced-motion — o usuário podia ativar essa preferência no SO e
+  // ainda assim receber scatter/explode/vacuum a toda troca de slide. Como
+  // useChoreo() é o único ponto de acesso, resolvemos aqui uma vez só: com
+  // reduced motion ativo, todo exitFor(...) devolve um fade simples,
+  // independente de qual coreografia (scatter, explode, etc.) foi escolhida
+  // para o slide — sem precisar tocar em nenhum dos componentes consumidores.
+  const reduced = usePrefersReducedMotion();
+  return useMemo(() => {
+    if (!reduced) return base;
+    return {
+      name: base.name,
+      exitFor: () => ({ opacity: 0, transition: { duration: 0.2, ease: "linear" } }),
+    };
+  }, [base, reduced]);
+};
 
 /** Helper imperativo para obter o objeto exit para um papel (não-hook). */
 export function exitOf(choreo: SlideChoreography, role: ElementRole, i = 0) {

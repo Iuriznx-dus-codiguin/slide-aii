@@ -25,8 +25,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { SlideRenderer } from "@/components/SlideRenderer";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
+import { SlideStage } from "@/components/SlideStage";
 import { ExportMenu } from "@/components/ExportMenu";
 import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugify";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ const LAYOUTS = [
 ];
 
 const TRANSITIONS = [
+  "dynamic",
   "mosaic", "iris", "shatter", "ribbon", "blinds", "fold",
   "portal", "wipe", "split", "morph", "stack", "letterbox",
 ];
@@ -117,6 +118,10 @@ const Editor = () => {
   const [pres, setPres] = useState<(Pres & { dynamic_theme?: any }) | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
+  // Usado pelo SlideStage para saber a direção (avançar/voltar) da navegação
+  // entre slides — necessário para os Overlays de transição que dependem de
+  // direção (ex: wipe, split).
+  const prevActiveIdxRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(0.7);
   const [saving, setSaving] = useState(false);
@@ -492,11 +497,29 @@ const Editor = () => {
                 className="shadow-elegant rounded-2xl overflow-hidden bg-black flex-shrink-0 relative"
                 style={{ width: `${1280 * zoom}px`, height: `${720 * zoom}px` }}
               >
-                <div className="origin-top-left" style={{ transform: `scale(${zoom * (1280/1920)})`, width: 1920, height: 1080 }}>
-                  <SlideRendererWithChoreo
+                {/*
+                  ANTES: SlideRendererWithChoreo com noAnimate fixo — o canvas
+                  do editor nunca mostrava NENHUMA animação/transição, então o
+                  usuário criava a apresentação "às cegas" em relação a 100%
+                  do trabalho de animação (só via o resultado real na tela de
+                  visualização pública). Agora usa o MESMO SlideStage do
+                  SlideViewer — a mesma transição escolhida, a mesma
+                  coreografia, o mesmo magic move de âncoras no modo dynamic.
+                  position:relative é necessário aqui porque o SlideStage
+                  posiciona seu conteúdo com "absolute inset-0" contra ESTE
+                  elemento (que já carrega o scale() e o tamanho-fonte de
+                  1920x1080 que o SlideRenderer espera preencher).
+                */}
+                <div className="relative origin-top-left" style={{ transform: `scale(${zoom * (1280/1920)})`, width: 1920, height: 1080 }}>
+                  <SlideStage
+                    slideId={current.id}
                     slide={{ slide_type: current.slide_type, layout_template: current.layout_template, content: c }}
-                    themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
-                    index={activeIdx} noAnimate
+                    themeId={pres.theme}
+                    fontId={pres.font_style}
+                    dynamicTheme={dynamicTheme}
+                    idx={activeIdx}
+                    prevIdxRef={prevActiveIdxRef}
+                    layoutGroupId={pres.id ?? "draft"}
                   />
                 </div>
 
@@ -707,7 +730,9 @@ const Editor = () => {
                       onValueChange={(v) => updateContent(activeIdx, { transition: v })}>
                       <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
                       <SelectContent>
-                        {TRANSITIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        {TRANSITIONS.map((t) => (
+                          <SelectItem key={t} value={t}>{t === "dynamic" ? "dynamic (padrão — magic move)" : t}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

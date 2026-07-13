@@ -14,7 +14,16 @@ interface Props extends BaseProps {
 export const SlideRendererWithChoreo = (props: Props) => {
   const idx = props.index ?? 0;
   const animationIntent = (props.slide?.content as any)?.animation_intent;
-  const hint = (props.slide?.content as any)?.transition as ChoreographyName | undefined;
+  // Bug corrigido: lia content.transition (campo consumido por
+  // slideTransitions.tsx, com valores como "iris"/"shatter"/"mosaic") em vez
+  // de content.choreography (campo correto, com valores como
+  // "liftoff"/"scatter"/"cascade"). Como "iris" nunca é um ChoreographyName
+  // válido, useSlideChoreography sempre rejeitava o hint e caía no fallback
+  // determinístico por índice — ou seja, a coreografia explícita definida
+  // pela IA na geração NUNCA era respeitada aqui (só no SlideViewer, que já
+  // lia o campo certo). Editor e Generate mostravam uma coreografia
+  // diferente da que a apresentação final usa.
+  const hint = (props.slide?.content as any)?.choreography as ChoreographyName | undefined;
   const choreo = useSlideChoreography(idx, props.slide?.slide_type, hint, animationIntent);
   return (
     <ChoreographyProvider value={choreo}>

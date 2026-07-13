@@ -17,6 +17,10 @@ import type { Transition, Variants } from "framer-motion";
 import type { CSSProperties, ReactNode } from "react";
 
 export type SlideTransition =
+  | "dynamic"     // NOVO PADRÃO: container fica neutro; título/imagem-hero em
+                  // âncora fazem magic move real (mesmo objeto reposicionando),
+                  // o resto sai/entra coordenado como uma onda única (ver
+                  // dynamicMode em SlideRenderer + useChoreo)
   | "mosaic"      // grade de tiles que viram e revelam
   | "iris"        // máscara circular abre/fecha do centro
   | "shatter"     // clip-path triangular: estilhaça e reagrupa
@@ -30,6 +34,11 @@ export type SlideTransition =
   | "stack"       // empilha e dispara em camadas
   | "letterbox";  // barras pretas fecham/abrem como cinema
 
+// "dynamic" fica de fora deste array de propósito: ALL_TRANSITIONS alimenta o
+// round-robin de pickTransition() para slides sem tipo reconhecido, e dynamic
+// já é tratado como o padrão universal ali (não precisa entrar no rodízio).
+// Ainda assim, um content.transition="dynamic" explícito é sempre respeitado
+// (ver pickTransition), e continua 100% válido como Overlay/config abaixo.
 export const ALL_TRANSITIONS: SlideTransition[] = [
   "mosaic", "iris", "shatter", "ribbon", "blinds",
   "fold", "portal", "wipe", "split", "morph", "stack", "letterbox",
@@ -49,29 +58,24 @@ export interface TransitionConfig {
   mode?: "sync" | "wait";
 }
 
-/** Decide transição por contexto. Aceita hint manual via content.transition. */
+/**
+ * Decide transição por contexto. Aceita hint manual via content.transition.
+ * "dynamic" é o padrão universal quando NENHUMA transição foi explicitamente
+ * escolhida (nem pela IA na geração, nem manualmente no editor) — antes desta
+ * mudança, o fallback sem hint fazia um rodízio determinístico pelas 12
+ * transições legadas por slide_type. Uma vez que um slide já tem
+ * content.transition preenchido (incluindo apresentações já existentes antes
+ * desta mudança), esse valor continua sendo respeitado sem alteração —
+ * nenhuma apresentação existente muda de transição por causa disto.
+ */
 export function pickTransition(
-  index: number,
-  slideType?: string,
+  _index: number,
+  _slideType?: string,
   hint?: SlideTransition,
 ): SlideTransition {
+  if (hint === "dynamic") return "dynamic";
   if (hint && ALL_TRANSITIONS.includes(hint)) return hint;
-  switch (slideType) {
-    case "title_slide": return "iris";
-    case "quote": return "letterbox";
-    case "section_divider": return "ribbon";
-    case "data_chart": return "mosaic";
-    case "stat": return "portal";
-    case "conclusion": return "morph";
-    case "bullet_points": return "stack";
-    case "comparison": return "split";
-    case "team": return "blinds";
-    case "timeline": return "wipe";
-    case "image_full": return "fold";
-    case "image_split": return "shatter";
-  }
-  // distribui o restante: rotação determinística
-  return ALL_TRANSITIONS[index % ALL_TRANSITIONS.length];
+  return "dynamic";
 }
 
 /* ---------- helpers ---------- */
@@ -475,6 +479,32 @@ export function getTransitionConfig(
         ),
       };
 
+    case "dynamic":
+      // O modo "dynamic" NÃO tem Overlay nem efeito de container chamativo de
+      // propósito: o drama visual desta transição vem dos ELEMENTOS (título/
+      // imagem-hero fazendo magic move via layoutId em SlideRenderer, e o
+      // resto saindo/entrando coordenado via useChoreo), não do container.
+      // Se o container também fizesse um efeito forte (blur, rotateY, clip-
+      // path) ao mesmo tempo que um elemento filho tenta uma projeção de
+      // layout suave, os dois movimentos brigariam visualmente. mode:"sync"
+      // é essencial aqui: o slide que sai e o que entra precisam coexistir
+      // por um instante para o Framer Motion conseguir medir e interpolar
+      // entre as posições dos elementos-âncora (sem overlap não há "de onde"
+      // fazer o magic move partir).
+      return {
+        duration: 0.6,
+        mode: "sync",
+        enter: {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          transition: T(0.5, EASE_SMOOTH),
+        },
+        exit: {
+          exit: { opacity: 0 },
+          transition: T(0.4, EASE_SMOOTH),
+        },
+      };
+
     default:
       return {
         duration: 0.8,
@@ -484,6 +514,19 @@ export function getTransitionConfig(
       };
   }
 }
+
+/**
+ * Config usada quando prefers-reduced-motion está ativo, independente de
+ * qual transição o slide tenha — substitui qualquer uma das 13 opções
+ * (incluindo "dynamic") por um crossfade simples e curto, sem Overlay e sem
+ * qualquer efeito de movimento grande (scale/rotate/blur/clip-path).
+ */
+export const REDUCED_MOTION_TRANSITION_CONFIG: TransitionConfig = {
+  duration: 0.35,
+  mode: "sync",
+  enter: { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: T(0.3) },
+  exit: { exit: { opacity: 0 }, transition: T(0.25) },
+};
 
 /** Variants estáticas (não usadas diretamente, exportadas p/ futuro). */
 export const FALLBACK_VARIANTS: Variants = {

@@ -99,7 +99,7 @@ E) Stat_value + stat_label (quando há número impactante real)
 F) Quote_text + quote_author (real, verificável)
 G) Chart com dados realistas + fonte
 H) Imagem (Pexels primeiro; AI só se conceito abstrato/impossível de fotografar)
-I) visual_accents (lista de elementos visuais sugeridos: "orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form")
+I) visual_accents (lista de elementos visuais sugeridos: "orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack")
 
 → Slide com APENAS headline+subtitle = PROIBIDO. Encha com body_text + bullets ou stat ou quote.
 → Varie a combinação a cada slide — não repita o mesmo "preset" 2x seguidas.
@@ -119,28 +119,24 @@ PASSO E — VARIAÇÃO INTENCIONAL DE LAYOUTS, ACENTOS, ANIMAÇÕES E TRANSIÇÕ
 ═══════════════════════════════════════════════════
 - Alterne layouts a cada slide. NUNCA repita layout consecutivo.
 - Distribua entre: title-content, two-columns, image-right, image-left, full-image, quote, data-chart, centered, stat-highlight.
-- visual_accents (1-3 itens). Use os 10 tipos disponíveis combinando com o conteúdo:
-  * stat / emphasis-stat → "animated-blob", "pulse-grid"
+- visual_accents (1-3 itens). Use os 14 tipos disponíveis combinando com o conteúdo:
+  * stat / emphasis-stat → "animated-blob", "pulse-grid", "reactive-dots" (a densidade radial de reactive-dots reforça visualmente "o número mais importante está no centro")
   * data_chart / data-reveal → "dot-grid", "wave-form", "pulse-grid"
   * quote → "particle-field", "orbital-rings", "corner-brackets"
   * section_divider → "ribbon" (visual), "diagonal-lines"
   * conclusion → "animated-blob", "particle-field"
   * texto puro → "floating-shapes", "diagonal-lines"
   * imagem → "corner-brackets"
+  * comparison / múltiplos itens → "card-stack" (sugere camadas/itens empilhados)
+  * arquitetura / estrutura em camadas → "layered-panels"
+  * capa ou slide de impacto que pede um fundo mais imersivo → "gradient-drift" (evite combinar com outro fundo amplo — é uma camada de fundo única, não um acento pontual)
 - animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos. Use todo o repertório em uma apresentação de 8+ slides.
-- transition (12 opções): escolha harmonizando narrative_act com:
-  * hook → "iris"
-  * tension → "shatter"
-  * journey → "wipe" ou "ribbon"
-  * proof → "mosaic" ou "blinds"
-  * climax → "portal"
-  E ajustando por slide_type:
-  * quote → "letterbox"
-  * section_divider → "ribbon"
-  * data_chart → "mosaic"
-  * title_slide → "iris"
-  * conclusion → "morph"
-  Varie as 12 transições ao longo da apresentação.
+- transition (13 opções — "dynamic" é o PADRÃO): "dynamic" faz o título e a imagem-hero migrarem suavemente de posição/tamanho entre slides consecutivos que compartilham esse elemento (magic move real, não reaparecem do zero), enquanto o resto da cena sai/entra coordenado como uma onda única. Escolha "dynamic" para a MAIORIA dos slides — é a transição que melhor comunica continuidade narrativa. Reserve as 12 transições legadas como "pontuação" deliberada, só nos momentos de maior impacto dramático do arco narrativo:
+  * hook (a abertura que precisa chocar/surpreender) → "iris" ou "portal"
+  * climax (o pico da apresentação) → "portal" ou "shatter"
+  * um section_divider que merece uma quebra visual mais forte → "ribbon"
+  * o slide de conclusão, para fechar com uma sensação distinta do resto → "morph"
+  Fora esses momentos de pontuação (normalmente 2-4 slides em uma apresentação de 8-12), use "dynamic" para todo o restante — isso inclui a maioria dos slides de conteúdo (bullet_points, data_chart, image-right/left, two-columns), onde a continuidade do magic move vale mais do que um efeito chamativo a cada troca.
 
 ═══════════════════════════════════════════════════
 PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
@@ -325,12 +321,12 @@ LEMBRETE CRÍTICO:
                   visual_accents: {
                     type: "array",
                     description: "1-3 elementos decorativos/visuais. Combine com o conteúdo. Varie a cada slide.",
-                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field"] },
+                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"] },
                   },
                   transition: {
                     type: "string",
-                    enum: ["mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
-                    description: "Transição cinematográfica do slide inteiro. Harmonize com narrative_act e slide_type. Varie ao longo da apresentação.",
+                    enum: ["dynamic", "mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
+                    description: "Transição cinematográfica do slide inteiro. 'dynamic' é o PADRÃO (magic move de título/imagem-hero + saída/entrada coordenada do resto) — use-o na maioria dos slides. Reserve as 12 transições legadas para pontuar hook/climax/conclusão e quebras de seção.",
                   },
                   headline: { type: "string", description: "2-6 palavras, máx 40 chars. Contém palavra-chave do tema." },
                   subtitle: { type: "string", description: "8-14 palavras, complementa headline." },
@@ -467,7 +463,7 @@ LEMBRETE CRÍTICO:
     }
 
     // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
-    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern", "animated-blob", "pulse-grid", "particle-field"];
+    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"];
     // Modo derivado do teto único quando fornecido; fallback para o enviado.
     const budgetMode = typeof body.max_budget_usd === "number"
       ? (body.max_budget_usd <= 0.15 ? "economy" : body.max_budget_usd <= 0.45 ? "balanced" : "premium")

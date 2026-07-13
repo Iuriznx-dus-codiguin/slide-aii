@@ -1,5 +1,13 @@
 // Chat-based slide editor. Receives the current slide JSON + user instruction,
 // returns the updated slide JSON. Used in the /gerar chat panel.
+//
+// Segurança: esta função já autenticava o usuário, mas não verificava se ele
+// tinha direito de uso segundo o plano (diferente de generate-presentation) —
+// uma conta gratuita podia chamá-la indefinidamente, gerando custo real de IA
+// sem controle algum. Agora reaproveita a mesma função can_user_generate do
+// fluxo principal (somente leitura, não consome crédito) para negar acesso
+// com uma mensagem clara quando o usuário não tem uso disponível, e aplica
+// rate limit de 30 edições/hora por usuário como defesa adicional.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -42,6 +50,44 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) {
     return new Response(JSON.stringify({ error: "Sessão inválida." }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const userId = userData.user.id;
+
+  // ── Elegibilidade + rate limit ──
+  // Antes, esta função só verificava o token (usuário logado), mas nunca
+  // checava se o plano/limite dele permite consumo de IA — qualquer conta
+  // gratuita podia chamar o editor por chat indefinidamente, gerando custo
+  // real de IA sem controle nenhum. Reaproveita a MESMA função can_user_generate
+  // usada em generate-presentation (é STABLE/somente-leitura, então não
+  // consome crédito nem conta como uma geração — só confirma que o usuário
+  // tem direito de uso). Some-se um rate limit próprio como cinto de
+  // segurança adicional, já que edição por chat pode ser chamada com maior
+  // frequência que uma geração completa.
+  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
+  if (entErr) {
+    console.error("chat-editor: can_user_generate err:", entErr);
+    return new Response(JSON.stringify({ error: "Erro interno. Tente novamente em instantes." }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const ent = entitle as { allowed: boolean; reason: string };
+  if (!ent.allowed) {
+    return new Response(JSON.stringify({
+      error: ent.reason === "monthly_limit_reached"
+        ? "Você atingiu o limite de gerações este mês, o que também pausa a edição por chat até a renovação."
+        : "Edição por chat indisponível para o seu plano atual.",
+      reason: ent.reason,
+    }), {
+      status: ent.reason === "no_plan" ? 402 : 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+    _key: `user:${userId}`, _fn: "chat-editor", _max_per_hour: 40,
+  });
+  if (withinLimit === false) {
+    return new Response(JSON.stringify({ error: "Muitas edições em pouco tempo. Aguarde alguns minutos." }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -135,7 +181,7 @@ cada slide a menos que a instrução peça explicitamente para alterá-los.`;
                   },
                   visual_accents: {
                     type: "array",
-                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field"] },
+                    items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"] },
                     description: "PRESERVE o valor original a menos que a instrução peça mudança explícita.",
                   },
                   narrative_act: {
@@ -155,7 +201,7 @@ cada slide a menos que a instrução peça explicitamente para alterá-los.`;
                   },
                   transition: {
                     type: "string",
-                    enum: ["mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
+                    enum: ["dynamic", "mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
                     description: "PRESERVE o valor original.",
                   },
                 },

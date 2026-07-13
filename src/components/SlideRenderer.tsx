@@ -27,18 +27,22 @@ import {
   applyIntent,
   type AnimationIntent,
 } from "@/lib/timeline";
-import { sharedId } from "@/lib/morphing";
+import { anchorLayoutId, ANCHOR_LAYOUT_TRANSITION } from "@/lib/morphing";
 import { MorphingNumberToBar } from "@/components/MorphingShape";
 import { renderCover, type CoverVariant } from "@/components/slides/CoverLayouts";
 import { AmbientBackdrop, videoQueryForSlide } from "@/components/AmbientBackdrop";
-import { OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines, AnimatedBlob, PulseGrid, ParticleField } from "@/components/SlideDecorations";
+import {
+  OrbitalRings, DotGrid, FloatingShapes, CornerBrackets, DiagonalLines, AnimatedBlob, PulseGrid, ParticleField,
+  LayeredPanels, GradientMeshDrift, ReactiveDotGrid, CardStack,
+} from "@/components/SlideDecorations";
 import { useImageInsight } from "@/lib/imageAnalysis";
 import { useChoreo } from "@/lib/slideChoreography";
 
 export type VisualAccent =
   | "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines"
   | "corner-brackets" | "data-pattern" | "wave-form"
-  | "animated-blob" | "pulse-grid" | "particle-field";
+  | "animated-blob" | "pulse-grid" | "particle-field"
+  | "layered-panels" | "gradient-drift" | "reactive-dots" | "card-stack";
 
 export interface SlideContent {
   headline?: string;
@@ -81,6 +85,10 @@ const AccentLayer = ({ accents, theme, noAnimate, defaults = [] }: {
           case "animated-blob": return <AnimatedBlob key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} position={i % 2 === 0 ? "right" : "left"} />;
           case "pulse-grid": return <PulseGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
           case "particle-field": return <ParticleField key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "layered-panels": return <LayeredPanels key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} position={i % 2 === 0 ? "right" : "left"} />;
+          case "gradient-drift": return <GradientMeshDrift key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "reactive-dots": return <ReactiveDotGrid key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} />;
+          case "card-stack": return <CardStack key={i} theme={theme} noAnimate={noAnimate} intensity={intensity} position={i % 2 === 0 ? "right" : "left"} />;
           default: return null;
         }
       })}
@@ -101,6 +109,16 @@ interface Props {
   dynamicTheme?: Partial<ThemeColors> | null;
   index?: number;
   noAnimate?: boolean;
+  /**
+   * true quando a transição ativa para este slide é "dynamic" — habilita o
+   * magic move de âncoras (título/imagem-hero/stat) via layoutId. Fica de
+   * fora por padrão (false) para as 12 transições legadas, que já têm seu
+   * próprio efeito de container e não devem competir com uma projeção de
+   * layout simultânea nos elementos internos.
+   */
+  dynamicMode?: boolean;
+  /** Ativa o backdrop em vídeo do AmbientBackdrop (ver SlideViewer). */
+  enableVideo?: boolean;
 }
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -132,14 +150,14 @@ const AnimatedStat = ({ value, color, enabled }: { value: string; color: string;
 
 /* ---------- Subcomponentes com timeline (Rules of Hooks safe) ---------- */
 
-interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; }
-const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: QuoteSlideProps) => {
+interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; enableVideo?: boolean; }
+const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, enableVideo }: QuoteSlideProps) => {
   const tl = useMemo(() => applyIntent(buildQuoteScenario(), c.animation_intent ?? "quote-spotlight"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.6} orbCount={3} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.6} orbCount={3} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["orbital-rings", "corner-brackets", "particle-field"]} />
       <div className="text-center max-w-5xl relative z-10">
         <motion.div {...ctrl.motionProps("mark")} exit={choreo.exitFor("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
@@ -156,14 +174,15 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQue
   );
 };
 
-interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; }
-const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: StatSlideProps) => {
+interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; dynamicMode?: boolean; enableVideo?: boolean; }
+const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, dynamicMode, enableVideo }: StatSlideProps) => {
   const tl = useMemo(() => applyIntent(buildStatScenario(), c.animation_intent ?? "emphasis-stat"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
+  const statActive = !!dynamicMode && !noAnimate;
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.55} orbCount={4} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.55} orbCount={4} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["pulse-grid", "animated-blob"]} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
@@ -172,7 +191,8 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuer
         <motion.div
           {...ctrl.motionProps("stat")}
           exit={choreo.exitFor("stat")}
-          layoutId={sharedId("stat", c.stat_value)}
+          layoutId={anchorLayoutId("stat", statActive)}
+          transition={statActive ? { ...ctrl.motionProps("stat").transition, layout: ANCHOR_LAYOUT_TRANSITION } : ctrl.motionProps("stat").transition}
           className="w-full"
           style={{ height: "min(50vh, 360px)", fontFamily: displayFont }}
         >
@@ -186,19 +206,29 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuer
   );
 };
 
-interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; displayFont: string; }
-const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayFont }: ChartSlideProps) => {
+interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; displayFont: string; dynamicMode?: boolean; }
+const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayFont, dynamicMode }: ChartSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildChartScenario(c.bullets?.length ?? 0), c.animation_intent ?? "data-reveal"),
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
+  const titleActive = !!dynamicMode && !noAnimate;
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["data-pattern", "wave-form", "particle-field"]} />
       <div className="relative z-10">
-        <motion.h2 {...ctrl.motionProps("title")} exit={choreo.exitFor("title")} layoutId={sharedId("title", c.headline?.slice(0, 24))} className="text-[3vw] font-bold leading-tight" style={{ color: theme.accent, fontFamily: displayFont }}>{c.headline}</motion.h2>
+        <motion.h2
+          {...ctrl.motionProps("title")}
+          exit={choreo.exitFor("title")}
+          layoutId={anchorLayoutId("title", titleActive)}
+          transition={titleActive ? { ...ctrl.motionProps("title").transition, layout: ANCHOR_LAYOUT_TRANSITION } : ctrl.motionProps("title").transition}
+          className="text-[3vw] font-bold leading-tight"
+          style={{ color: theme.accent, fontFamily: displayFont }}
+        >
+          {c.headline}
+        </motion.h2>
         {c.subtitle && <motion.p {...ctrl.motionProps("subtitle")} exit={choreo.exitFor("subtitle")} className="text-[1.4vw] opacity-70 mt-1">{c.subtitle}</motion.p>}
       </div>
       <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6 relative z-10">
@@ -234,21 +264,22 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
   );
 };
 
-interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; }
-const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery }: DefaultSlideProps) => {
+interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; dynamicMode?: boolean; enableVideo?: boolean; }
+const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, dynamicMode, enableVideo }: DefaultSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildEditorialScenario(c.bullets?.length ?? 0), c.animation_intent ?? "narrative-build"),
     [c.bullets?.length, c.animation_intent]
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
+  const titleActive = !!dynamicMode && !noAnimate;
   const headlineWords = (c.headline ?? "").split(" ");
   const hasImage = !!c.image_url;
   return (
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
       {!hasImage && (
         <>
-          <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.3} orbCount={3} />
+          <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.3} orbCount={3} />
           {!noAnimate && (
             <svg className="absolute -right-10 top-0 h-full w-1/3 opacity-[0.15] pointer-events-none" viewBox="0 0 200 600" preserveAspectRatio="none">
               <defs>
@@ -289,7 +320,8 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
         <motion.h2
           {...ctrl.motionProps("title")}
           exit={choreo.exitFor("title")}
-          layoutId={sharedId("title", c.headline?.slice(0, 24))}
+          layoutId={anchorLayoutId("title", titleActive)}
+          transition={titleActive ? { ...ctrl.motionProps("title").transition, layout: ANCHOR_LAYOUT_TRANSITION } : ctrl.motionProps("title").transition}
           className="text-[3.2vw] font-bold leading-[1.05] tracking-tight"
           style={{ color: theme.accent, fontFamily: displayFont, perspective: 1000 }}
         >
@@ -337,8 +369,8 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
 };
 
 /* ---------- Two Columns Slide (Bloco 2) ---------- */
-interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; }
-const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart }: TwoColProps) => {
+interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; dynamicMode?: boolean; enableVideo?: boolean; }
+const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart, dynamicMode, enableVideo }: TwoColProps) => {
   const bullets = c.bullets ?? [];
   const leftBullets = bullets.slice(0, 3);
   const rightBullets = bullets.slice(3);
@@ -348,17 +380,25 @@ const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, vid
   );
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
+  const titleActive = !!dynamicMode && !noAnimate;
   const hasStat = !!(c.stat_value && c.stat_label);
   const hasChart = !!c.chart;
   return (
     <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[5%] relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.35} orbCount={2} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.35} orbCount={2} />
       <CornerBrackets theme={theme} noAnimate={noAnimate} intensity={0.5} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["dot-grid", "diagonal-lines"]} />
 
       {/* Coluna 1: cols 1-5 */}
       <div className="col-span-5 flex flex-col justify-center relative z-10 pr-[2%]">
-        <motion.h2 {...ctrl.motionProps("title")} exit={choreo.exitFor("title")} className="text-[2.8vw] font-bold leading-[1.05] tracking-tight" style={{ color: theme.accent, fontFamily: displayFont }}>
+        <motion.h2
+          {...ctrl.motionProps("title")}
+          exit={choreo.exitFor("title")}
+          layoutId={anchorLayoutId("title", titleActive)}
+          transition={titleActive ? { ...ctrl.motionProps("title").transition, layout: ANCHOR_LAYOUT_TRANSITION } : ctrl.motionProps("title").transition}
+          className="text-[2.8vw] font-bold leading-[1.05] tracking-tight"
+          style={{ color: theme.accent, fontFamily: displayFont }}
+        >
           {c.headline}
         </motion.h2>
         {c.subtitle && (
@@ -423,10 +463,12 @@ const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, vid
 interface ImageSplitProps {
   c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties;
   variants: any; motionMode: any; requestedSide: "left" | "right";
+  noAnimate?: boolean; dynamicMode?: boolean;
 }
-const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, requestedSide }: ImageSplitProps) => {
+const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, requestedSide, noAnimate = false, dynamicMode = false }: ImageSplitProps) => {
   const insight = useImageInsight(c.image_url ?? null);
   const choreo = useChoreo();
+  const anchorsActive = dynamicMode && !noAnimate;
   const imageSide: "left" | "right" = insight
     ? (insight.safeSide === "left" ? "right" : "left")
     : requestedSide;
@@ -435,12 +477,26 @@ const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, reque
       <CornerBrackets theme={theme} noAnimate={false} intensity={0.5} />
       <OrbitalRings theme={theme} noAnimate={false} position={imageSide === "left" ? "right" : "left"} intensity={0.35} />
       {imageSide === "left" && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={choreo.exitFor("image")} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
+        <motion.div
+          layoutId={anchorLayoutId("hero-media", anchorsActive)}
+          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={choreo.exitFor("image")}
+          transition={anchorsActive ? { duration: 0.9, ease: EASE.editorial as any, layout: ANCHOR_LAYOUT_TRANSITION } : { duration: 0.9, ease: EASE.editorial as any }}
+          className="col-span-5 rounded-3xl overflow-hidden relative"
+        >
           <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
         </motion.div>
       )}
       <motion.div {...motionMode} variants={variants.container} exit={choreo.exitFor("card")} className={`col-span-7 flex flex-col justify-center ${imageSide === "left" ? "" : "pr-[2%]"}`}>
-        <motion.h2 variants={variants.item} exit={choreo.exitFor("title")} className="text-[3.5vw] font-bold leading-tight mb-4" style={{ color: theme.accent }}>{c.headline}</motion.h2>
+        <motion.h2
+          variants={variants.item}
+          exit={choreo.exitFor("title")}
+          layoutId={anchorLayoutId("title", anchorsActive)}
+          transition={anchorsActive ? { layout: ANCHOR_LAYOUT_TRANSITION } : undefined}
+          className="text-[3.5vw] font-bold leading-tight mb-4"
+          style={{ color: theme.accent }}
+        >
+          {c.headline}
+        </motion.h2>
         {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("subtitle")} className="text-[1.6vw] opacity-75 mb-6">{c.subtitle}</motion.p>}
         {c.body_text && <motion.p variants={variants.item} exit={choreo.exitFor("body")} className="text-[1.3vw] leading-relaxed opacity-90 mb-5">{c.body_text}</motion.p>}
         {c.bullets && c.bullets.length > 0 && (
@@ -455,7 +511,12 @@ const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, reque
         )}
       </motion.div>
       {imageSide === "right" && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={choreo.exitFor("image")} transition={{ duration: 0.9, ease: EASE.editorial as any }} className="col-span-5 rounded-3xl overflow-hidden relative">
+        <motion.div
+          layoutId={anchorLayoutId("hero-media", anchorsActive)}
+          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={choreo.exitFor("image")}
+          transition={anchorsActive ? { duration: 0.9, ease: EASE.editorial as any, layout: ANCHOR_LAYOUT_TRANSITION } : { duration: 0.9, ease: EASE.editorial as any }}
+          className="col-span-5 rounded-3xl overflow-hidden relative"
+        >
           <motion.img src={c.image_url!} alt="" className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
         </motion.div>
       )}
@@ -466,11 +527,12 @@ const ImageSplitSlide = ({ c, theme, containerStyle, variants, motionMode, reque
 /* ---------- Smart Layout: Full Image com Auto-Contraste WCAG ---------- */
 interface FullImageProps {
   c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties;
-  variants: any; motionMode: any;
+  variants: any; motionMode: any; noAnimate?: boolean; dynamicMode?: boolean;
 }
-const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: FullImageProps) => {
+const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode, noAnimate = false, dynamicMode = false }: FullImageProps) => {
   const insight = useImageInsight(c.image_url ?? null);
   const choreo = useChoreo();
+  const anchorsActive = dynamicMode && !noAnimate;
   const anchor = insight?.safeAnchor ?? "bottom-left";
   const textColor = insight?.textColor ?? "#FFFFFF";
   const overlayColor = insight?.overlay.color ?? "#000000";
@@ -485,7 +547,11 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: Full
   const gradientDir = anchor.includes("right") ? "to left" : anchor.includes("left") ? "to right" : "to top";
   return (
     <div className="relative w-full h-full overflow-hidden" style={containerStyle}>
-      <motion.img src={c.image_url!} alt={c.headline || ""} exit={choreo.exitFor("image")} className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate" />
+      <motion.img
+        src={c.image_url!} alt={c.headline || ""} exit={choreo.exitFor("image")}
+        layoutId={anchorLayoutId("hero-media", anchorsActive)}
+        className="absolute inset-0 w-full h-full object-cover" variants={kenBurnsVariants} initial="initial" animate="animate"
+      />
       <div className="absolute inset-0" style={{
         background: `linear-gradient(${gradientDir}, ${hexToRgba(overlayColor, overlayAlpha)} 0%, ${hexToRgba(overlayColor, overlayAlpha * 0.3)} 55%, transparent 90%)`,
       }} />
@@ -493,7 +559,15 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: Full
       <motion.div {...motionMode} variants={variants.container} className={`relative h-full flex flex-col p-[5%] ${anchorClass}`} style={{ color: textColor }}>
         <div className={`flex flex-col ${anchor.includes("right") ? "items-end" : anchor === "center" ? "items-center" : "items-start"} max-w-[80%]`}>
           <motion.div variants={variants.item} exit={choreo.exitFor("accent-line")} className="h-1.5 w-24 mb-6" style={{ background: theme.accent }} />
-          <motion.h1 variants={variants.item} exit={choreo.exitFor("title")} className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight" style={{ color: textColor }}>{c.headline}</motion.h1>
+          <motion.h1
+            variants={variants.item}
+            exit={choreo.exitFor("title")}
+            layoutId={anchorLayoutId("title", anchorsActive)}
+            className="text-[5vw] md:text-[4.5vw] font-extrabold leading-[1.05] tracking-tight"
+            style={{ color: textColor }}
+          >
+            {c.headline}
+          </motion.h1>
           {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("subtitle")} className="mt-4 text-[2vw] md:text-[1.8vw] opacity-90" style={{ color: textColor }}>{c.subtitle}</motion.p>}
         </div>
       </motion.div>
@@ -501,7 +575,7 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode }: Full
   );
 };
 
-export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false }: Props) => {
+export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false, dynamicMode = false, enableVideo = false }: Props) => {
   const theme = resolveTheme(themeId, dynamicTheme);
   const font = FONTS[fontId] ?? FONTS["modern-sans"];
   const displayFont = font.display ?? font.family;
@@ -606,6 +680,8 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
           fontFamily: displayFont,
           kicker: (c as any).kicker,
           footer: (c as any).footer,
+          noAnimate,
+          dynamicMode,
         })}
       </div>
     );
@@ -613,28 +689,38 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- FULL IMAGE (slide normal com fundo de imagem) ---------- */
   if (layout === "full-image" && c.image_url) {
-    return <FullImageSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} />;
+    return <FullImageSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} noAnimate={noAnimate} dynamicMode={dynamicMode} />;
   }
 
   /* ---------- QUOTE ---------- */
   if (isQuote && c.quote_text) {
-    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} />;
+    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} enableVideo={enableVideo} />;
   }
 
   /* ---------- STAT HIGHLIGHT (morph número→barra) ---------- */
   if (isStat) {
-    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} />;
+    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} dynamicMode={dynamicMode} enableVideo={enableVideo} />;
   }
 
   /* ---------- CENTERED / SECTION DIVIDER ---------- */
   if (isCentered) {
+    const titleActive = dynamicMode && !noAnimate;
     return (
       <div className="w-full h-full flex items-center justify-center p-[6%] text-center relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} glassOpacity={0.5} orbCount={3} />
+      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.5} orbCount={3} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["diagonal-lines", "orbital-rings", "corner-brackets"]} />
         <motion.div {...motionMode} variants={variants.container} className="relative z-10">
           {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("kicker")} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
-          <motion.h1 variants={variants.item} exit={choreo.exitFor("title")} className="text-[5vw] font-extrabold leading-[1.05] tracking-tight" style={{ fontFamily: displayFont }}>{c.headline}</motion.h1>
+          <motion.h1
+            variants={variants.item}
+            exit={choreo.exitFor("title")}
+            layoutId={anchorLayoutId("title", titleActive)}
+            transition={titleActive ? { layout: ANCHOR_LAYOUT_TRANSITION } : undefined}
+            className="text-[5vw] font-extrabold leading-[1.05] tracking-tight"
+            style={{ fontFamily: displayFont }}
+          >
+            {c.headline}
+          </motion.h1>
           {c.body_text && <motion.p variants={variants.item} exit={choreo.exitFor("body")} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
           <motion.div variants={variants.item} exit={choreo.exitFor("accent-line")} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
         </motion.div>
@@ -644,19 +730,19 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- IMAGE-LEFT / IMAGE-RIGHT (Smart Layout: anti-overlap) ---------- */
   if (hasImage && (layout === "image-right" || layout === "image-left")) {
-    return <ImageSplitSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} requestedSide={layout === "image-right" ? "right" : "left"} />;
+    return <ImageSplitSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} requestedSide={layout === "image-right" ? "right" : "left"} noAnimate={noAnimate} dynamicMode={dynamicMode} />;
   }
 
   /* ---------- DATA CHART ---------- */
   if (isChart && c.chart) {
-    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} />;
+    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} dynamicMode={dynamicMode} />;
   }
 
   /* ---------- TWO COLUMNS (Bloco 2) ---------- */
   if (layout === "two-columns") {
-    return <TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} />;
+    return <TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} dynamicMode={dynamicMode} enableVideo={enableVideo} />;
   }
 
   /* ---------- DEFAULT ---------- */
-  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} />;
+  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} dynamicMode={dynamicMode} enableVideo={enableVideo} />;
 };

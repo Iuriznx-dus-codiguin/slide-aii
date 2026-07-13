@@ -11,8 +11,9 @@
 // fica só com glass + orbs — sem layout shift.
 // ============================================================
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import type { ThemeColors } from "@/lib/slugify";
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -74,9 +75,21 @@ export const AmbientBackdrop = ({
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Id único por instância — antes, o id="grain" fixo colidia (HTML inválido,
+  // comportamento indefinido entre navegadores) sempre que várias miniaturas
+  // renderizavam ao mesmo tempo (barra lateral do Editor, tira do Generate,
+  // grid do Dashboard), já que cada uma monta seu próprio AmbientBackdrop.
+  const grainId = useId();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  // Contexto estático (thumbnail/export/print) OU preferência de sistema por
+  // menos movimento: os orbs ainda aparecem (fazem parte do visual do tema),
+  // mas param de rodar animação Infinity — antes, todo thumbnail em escala
+  // 0.25x continuava animando indefinidamente um efeito imperceptível naquele
+  // tamanho, desperdiçando GPU/CPU sem ganho visual nenhum.
+  const staticOrbs = noVideo || prefersReducedMotion;
 
   useEffect(() => {
-    if (noVideo || !enableVideo || !videoQuery) return;
+    if (noVideo || !enableVideo || !videoQuery || prefersReducedMotion) return;
     let cancelled = false;
     fetchVideo(videoQuery).then((r) => {
       if (!cancelled) {
@@ -85,7 +98,7 @@ export const AmbientBackdrop = ({
       }
     });
     return () => { cancelled = true; };
-  }, [videoQuery, noVideo, enableVideo]);
+  }, [videoQuery, noVideo, enableVideo, prefersReducedMotion]);
 
   const accent = theme.accent;
   const accent2 = theme.accent2 || theme.accent;
@@ -131,12 +144,12 @@ export const AmbientBackdrop = ({
         return (
           <motion.div
             key={i}
-            animate={{
+            animate={staticOrbs ? undefined : {
               x: [0, 40, -30, 0],
               y: [0, -30, 50, 0],
               scale: [1, 1.1, 0.95, 1],
             }}
-            transition={{ duration: dur, repeat: Infinity, ease: "easeInOut", delay: i * 1.5 }}
+            transition={staticOrbs ? undefined : { duration: dur, repeat: Infinity, ease: "easeInOut", delay: i * 1.5 }}
             className="absolute rounded-full"
             style={{
               top: `${top}%`, left: `${left}%`,
@@ -152,11 +165,11 @@ export const AmbientBackdrop = ({
 
       {/* Camada 4 — Grain SVG sutil (textura editorial) */}
       <svg className="absolute inset-0 w-full h-full opacity-[0.06] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
-        <filter id="grain">
+        <filter id={grainId}>
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
           <feColorMatrix type="saturate" values="0" />
         </filter>
-        <rect width="100%" height="100%" filter="url(#grain)" />
+        <rect width="100%" height="100%" filter={`url(#${grainId})`} />
       </svg>
     </div>
   );

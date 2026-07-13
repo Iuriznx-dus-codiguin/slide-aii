@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Sparkles, Loader2, ArrowLeft, Send, ChevronLeft, ChevronRight, Edit3, Save, Wand2, Image as ImageIcon, MessageSquare, FileDown } from "lucide-react";
 import { exportPresentationToPdf } from "@/lib/exportPdf";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,13 @@ import { toast } from "sonner";
 import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
+import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage } from "@/hooks/useEntitlement";
 import { Lock, CreditCard } from "lucide-react";
 
-// Cota gratuita (escondida do usuário pago — pagos vêem "Ilimitado")
+// Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
 const FREE_GENERATIONS_LIMIT = 1;
 
 const STEPS = [
@@ -101,6 +102,9 @@ const Generate = () => {
   const [slides, setSlides] = useState<AISlide[]>([]);
   const [dynamicTheme, setDynamicTheme] = useState<Partial<ThemeColors> | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  // Direção de navegação para o SlideStage (mesmo papel do prevIdxRef no
+  // SlideViewer/Editor).
+  const prevSlideIdxRef = useRef(0);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -356,8 +360,12 @@ const Generate = () => {
         throw sErr;
       }
 
-      const { data: profile } = await supabase.from("profiles").select("generations_count").eq("id", user.id).maybeSingle();
-      await supabase.from("profiles").update({ generations_count: (profile?.generations_count ?? 0) + 1 }).eq("id", user.id);
+      // Incremento atômico via RPC — evita perder contagem quando o usuário
+      // gera mais de uma apresentação em sucessão rápida (o padrão anterior
+      // lia generations_count e gravava o valor calculado em duas chamadas
+      // separadas, o que perde incrementos sob concorrência).
+      const { error: incErr } = await supabase.rpc("increment_own_generations_count");
+      if (incErr) console.error("increment_own_generations_count falhou:", incErr);
 
       toast.success("Apresentação criada! Abrindo editor…");
       navigate(mode === "view" ? `/slides/${slug}` : `/editor/${slug}`);
@@ -498,11 +506,22 @@ const Generate = () => {
           <main className="flex-1 flex flex-col bg-muted/20 overflow-hidden min-h-0">
             <div className="flex-1 flex items-center justify-center p-3 md:p-6 min-h-0 overflow-hidden">
               <div className="w-full max-w-[1400px] aspect-video relative shadow-elegant rounded-2xl overflow-hidden bg-black">
-                <AnimatePresence mode="wait">
-                  <motion.div key={currentSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <SlideRendererWithChoreo slide={slideForRender} themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={currentSlide} />
-                  </motion.div>
-                </AnimatePresence>
+                {/*
+                  ANTES: fade genérico de opacidade (0.25s), sem nenhuma
+                  relação com a transição/coreografia que a apresentação
+                  realmente terá no SlideViewer — o usuário revisava a
+                  geração "às cegas" quanto à animação. Agora usa o MESMO
+                  SlideStage do Editor/SlideViewer.
+                */}
+                <SlideStage
+                  slide={slideForRender}
+                  themeId={theme}
+                  fontId={fontStyle}
+                  dynamicTheme={dynamicTheme}
+                  idx={currentSlide}
+                  prevIdxRef={prevSlideIdxRef}
+                  layoutGroupId="generate-preview"
+                />
               </div>
             </div>
             {/* Slide thumbnails */}
@@ -797,7 +816,7 @@ const Generate = () => {
             </div>
             <h3 className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</h3>
             <p className="text-center text-muted-foreground mt-2 text-sm">
-              Você atingiu o limite de testes gratuitos. Assine o plano Ilimitado para criar quantas apresentações quiser.
+              Você atingiu o limite de testes gratuitos. Assine um plano mensal ou anual para criar até 20 apresentações completas por mês.
             </p>
             <div className="flex gap-2 mt-6">
               <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>
