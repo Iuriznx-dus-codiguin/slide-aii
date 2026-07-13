@@ -63,6 +63,10 @@ export interface SlideContent {
   /** IA: elementos visuais decorativos sugeridos. */
   visual_accents?: VisualAccent[];
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
+  /** Dica de transição de slide inteiro (dynamic, fade, slide, ...). Consumida pelo SlideStage. */
+  transition?: import("@/lib/slideTransitions").SlideTransition;
+  /** Dica de coreografia per-element. Consumida pelo SlideStage. */
+  choreography?: import("@/lib/slideChoreography").ChoreographyName;
 }
 
 /** Renderiza acentos visuais sugeridos pela IA, com fallback para defaults por tipo. */

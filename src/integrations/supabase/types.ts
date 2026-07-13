@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      edge_rate_limits: {
+        Row: {
+          fn_name: string
+          request_count: number
+          rl_key: string
+          window_start: string
+        }
+        Insert: {
+          fn_name: string
+          request_count?: number
+          rl_key: string
+          window_start: string
+        }
+        Update: {
+          fn_name?: string
+          request_count?: number
+          rl_key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       generation_logs: {
         Row: {
           actual_cost_usd: number
@@ -360,7 +381,12 @@ export type Database = {
     }
     Functions: {
       can_user_generate: { Args: { _uid: string }; Returns: Json }
+      check_rate_limit: {
+        Args: { _fn: string; _key: string; _max_per_hour: number }
+        Returns: boolean
+      }
       consume_single_credit: { Args: { _uid: string }; Returns: boolean }
+      grant_single_credit: { Args: { _uid: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -368,6 +394,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_own_generations_count: { Args: never; Returns: number }
     }
     Enums: {
       app_role: "admin" | "developer" | "user"
