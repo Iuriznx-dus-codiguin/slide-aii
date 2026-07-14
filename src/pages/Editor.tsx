@@ -726,9 +726,29 @@ const Editor = () => {
                   {/* Bloco 1.5: transição cinematográfica do slide */}
                   <div className="space-y-1.5">
                     <Label className="text-xs">Transição entre slides</Label>
+                    {/* Toggle proeminente para o modo Dinâmico (magic move) */}
+                    <button
+                      type="button"
+                      onClick={() => updateContent(activeIdx, { transition: ((c as any).transition === "dynamic" ? "" : "dynamic") })}
+                      className={`w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                        (c as any).transition === "dynamic"
+                          ? "border-primary bg-primary/10 text-primary shadow-glow"
+                          : "border-border hover:border-primary/50 text-foreground"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Slide Dinâmico (magic move)
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        (c as any).transition === "dynamic" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {(c as any).transition === "dynamic" ? "ATIVO" : "ativar"}
+                      </span>
+                    </button>
                     <Select value={(c as any).transition || ""}
                       onValueChange={(v) => updateContent(activeIdx, { transition: v })}>
-                      <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="auto (padrão dinâmico)" /></SelectTrigger>
                       <SelectContent>
                         {TRANSITIONS.map((t) => (
                           <SelectItem key={t} value={t}>{t === "dynamic" ? "dynamic (padrão — magic move)" : t}</SelectItem>
