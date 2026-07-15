@@ -27,6 +27,9 @@ const DevDashboard = () => {
   const [m, setM] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const settings = useDevSettings();
+  const derivedMode = modeFromBudget(settings.maxBudgetUsd);
+  const sampleEstimate = estimateGenerationCost(10, true, derivedMode);
 
   useEffect(() => { document.title = "Dev Dashboard — SlideAI"; }, []);
 
@@ -80,9 +83,6 @@ const DevDashboard = () => {
   if (roleLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   if (!isDeveloper) return <Navigate to="/" replace />;
 
-  const settings = useDevSettings();
-  const derivedMode = modeFromBudget(settings.maxBudgetUsd);
-  const sampleEstimate = estimateGenerationCost(10, true, derivedMode);
 
   return (
     <div className="min-h-screen bg-background">
