@@ -27,6 +27,9 @@ const DevDashboard = () => {
   const [m, setM] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const settings = useDevSettings();
+  const derivedMode = modeFromBudget(settings.maxBudgetUsd);
+  const sampleEstimate = estimateGenerationCost(10, true, derivedMode);
 
   useEffect(() => { document.title = "Dev Dashboard — SlideAI"; }, []);
 
