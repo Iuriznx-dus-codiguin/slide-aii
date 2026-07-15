@@ -130,7 +130,7 @@ export const Hero = () => {
                   alt="Preview do editor SlideAI com apresentações geradas por IA"
                   width={1536}
                   height={1024}
-                  fetchPriority="high"
+                  {...({ fetchpriority: "high" } as any)}
                   decoding="async"
                   className="absolute inset-0 w-full h-full object-cover opacity-20"
                 />
