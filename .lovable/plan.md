@@ -1,77 +1,75 @@
-# Auditoria Funcional do MVP + Roadmap de Aperfeiçoamentos
+# Sistema de Suporte Inteligente + Catálogo de Erros
 
-## Objetivo
-Rodar uma verificação ponta-a-ponta da plataforma (auth → geração → pagamento → visualização → dev mode) para validar prontidão do MVP e, em seguida, entregar um relatório com correções críticas e um roadmap priorizado de melhorias.
+Escopo grande. Proponho executar em 4 etapas incrementais, cada uma entregável e testável. Confirme antes de eu começar.
 
----
+## Visão geral da arquitetura
 
-## Fase 1 — Verificação Funcional (read-only, sem alterar código)
+```text
+┌─ Frontend ──────────────────────────────┐    ┌─ Backend (Edge Functions) ──┐
+│ ErrorBoundary global                    │    │ support-chat (OpenAI)       │
+│ captureError() helper                   │───▶│ log-error (persistência)    │
+│ Widget de Suporte (chat flutuante)      │    │                             │
+│ /admin/suporte (painel)                 │    │                             │
+└─────────────────────────────────────────┘    └──────────────┬──────────────┘
+                                                              │
+                                          ┌───────────────────▼──────────────┐
+                                          │ Tabelas:                          │
+                                          │  error_catalog                    │
+                                          │  error_occurrences                │
+                                          │  support_conversations            │
+                                          │  support_messages                 │
+                                          └───────────────────────────────────┘
+```
 
-### 1.1 Saúde da infraestrutura
-- Checar status do backend (Cloud) e latência.
-- Rodar linter do banco (RLS, políticas ausentes, grants).
-- Conferir tabelas: `profiles`, `user_roles`, `presentations`, `slides`, `generation_logs`, `payment_events`, `slide_views` — colunas, policies e grants.
-- Validar funções: `has_role`, `can_user_generate`, `consume_single_credit`, `handle_new_user`.
+## Etapa 1 — Fundação (banco + catálogo inicial)
 
-### 1.2 Edge Functions
-- `generate-presentation`: validação de auth, gate de `can_user_generate`, consumo de crédito, log em `generation_logs`, tratamento do `image_budget_mode`.
-- `cakto-webhook`: verificação de secret, idempotência via `payment_events`, atualização correta de `plan`/`single_credits` para os 3 SKUs.
-- `chat-editor` e `fetch-image`: schema atualizado, timeouts, tratamento de erro.
-- Ler logs recentes de cada função em busca de 4xx/5xx.
+Auditoria dos módulos existentes (autenticação, generate-presentation, cakto-webhook, chat-editor, fetch-image, entitlements, roles, exports) para popular o catálogo real.
 
-### 1.3 Fluxo do usuário (Playwright headless em `localhost:8080`)
-- **Landing**: CTAs abrem `/gerar`, SEO/meta tags, JSON-LD válido, sem erros no console.
-- **Auth**: signup/login (Google + email), criação de `profiles`, redirect pós-login.
-- **Geração**: wizard → configuração → **PaymentGate** trava sem plano → após simular plano, geração roda → salvamento correto de `dynamic_theme`, `presenters_data`, `transition`, `choreography`, `animation_intent`.
-- **Viewer** (`/s/:slug`): abre sem tela branca, transições cinematográficas, coreografia per-element, HUD narrativo, fullscreen, atalhos, notas do apresentador, export (PDF/PPTX), print.
-- **Editor**: upsert de slides, chat-editor, preview com choreography provider.
-- **Dashboard**: `AccountPanel` mostra plano correto, botão gerenciar assinatura.
-- **Dev Mode**: rota `/__dev`, atalho `Ctrl+Shift+D`, painel de métricas em tempo real, slider único de teto USD, persistência via `useDevSettings`.
+**Migração cria:**
+- `error_catalog` — code (PK, ex: `AUTH-001`), title, tech_description, user_description, severity (critical/high/medium/low/info), module, flow, probable_causes[], resolution_steps[], ai_can_resolve, related_codes[], version
+- `error_occurrences` — occurrence_id, user_id, session_id, request_id, error_code, route, context (jsonb sem PII), stack_summary, status (open/investigating/resolved/reopened), created_at
+- `support_conversations` — conversation_id, ticket_id (nullable), user_id, state (open/diagnosing/awaiting_user/resolved/escalated/closed), related_occurrence_id, rating (1-5), created_at
+- `support_messages` — conversation_id, role (user/assistant/system), content, code_ref, created_at
 
-### 1.4 Regras de negócio críticas
-- Bloqueio de geração gratuita para não-devs.
-- Limite oculto de 20/mês para `mensal`/`anual` retornando `system_error` genérico.
-- Consumo correto de `single_credits` após geração no plano avulso.
-- Renovação mensal alinhada ao ciclo do plano anual.
-- Webhook exige secret; idempotência não duplica créditos em retries.
+RLS estrito: usuário só vê os próprios dados; admin/developer via `has_role()` vê tudo.
+GRANTs para authenticated/service_role. Rate limit reaproveitando `check_rate_limit`.
 
-### 1.5 SEO/Performance
-- Validar `sitemap.xml`, `robots.txt`, `llms.txt`.
-- JSON-LD (`@graph` WebSite/Organization/FAQPage) sem warnings.
-- Lighthouse rápido (LCP, CLS, TBT) na landing e no viewer público.
+Seed do catálogo com ~30 códigos reais extraídos da auditoria (AUTH-*, PAY-*, GEN-*, DB-*, WHK-*, INT-*, UI-*, SEC-*).
 
----
+## Etapa 2 — Captura e correlação
 
-## Fase 2 — Entregável: Relatório de Auditoria
+- `src/lib/errorCapture.ts` — `captureError(err, {code?, context?})` que insere em `error_occurrences` e retorna `occurrence_id`.
+- `src/components/ErrorBoundary.tsx` — captura falhas de render, mostra fallback com o código para o usuário citar.
+- Wrapper em `supabase` client + `fetch` para padronizar erros de rede/RLS.
+- Helper `edgeError()` reusado por todas as edge functions (cakto-webhook, generate-presentation, chat-editor, fetch-image) com try/catch e log via service role. Sem PII em `context`.
 
-Um documento estruturado no chat com:
+## Etapa 3 — Chatbot de suporte (OpenAI)
 
-1. **Matriz de status** por área (✅ ok / ⚠ ajuste / ❌ bloqueador) com evidência (screenshot, log, query).
-2. **Bloqueadores de MVP** — o que impede lançar hoje.
-3. **Bugs não-bloqueadores** — resolver na sequência.
-4. **Riscos de segurança/dados** — RLS faltando, grants abertos, secrets expostos, race conditions no webhook.
+- Edge function `support-chat`:
+  - Recebe `{conversation_id, message, user_id}`
+  - Carrega histórico + últimas ocorrências do usuário + catálogo compacto (title+code+user_description)
+  - System prompt: dois papéis (guia de uso + diagnóstico), regra de "1 pergunta se ambíguo", nunca inventar, se não achar → criar occurrence "uncatalogued" e escalar
+  - Modelo: `openai/gpt-5.5` via Lovable AI Gateway (usa `LOVABLE_API_KEY` já configurada — a OpenAI API key existente fica como fallback opcional)
+  - Persiste mensagens, atualiza state da conversa, faz escalation quando `severity=critical` ou `ai_can_resolve=false`
+  - Rate limit via `check_rate_limit`
+- Widget `<SupportWidget/>` flutuante em todas as páginas autenticadas: chat, exibe código do erro quando relevante, botão "avaliar atendimento" no fim.
 
-## Fase 3 — Roadmap de Aperfeiçoamentos (priorizado)
+## Etapa 4 — Painel admin + KPIs
 
-Sugestões organizadas em 3 ondas, cada item com escopo, impacto e esforço:
+- Rota `/admin/suporte` (guard: admin/developer) com abas:
+  - **Ocorrências** — filtro por código/severidade/status, detalhe individual, marcar resolved/reopened/investigating
+  - **Catálogo** — CRUD inline (edita título, user_description, steps sem redeploy)
+  - **Não catalogados** — fila de ocorrências sem `error_code`, ação "promover ao catálogo"
+  - **Conversas** — histórico, escalations abertas
+  - **KPIs** — % resolvido pela IA vs humano, tempo médio resolução, top-10 códigos, satisfação média
 
-- **Onda 1 — Estabilidade & Confiança (pré-lançamento)**
-  Ex.: retry/backoff no webhook, dead-letter para `payment_events` falhos, feature flag server-side para dev mode (hoje é client-side), rate limit por IP na Edge Function de geração, sentry/error tracking, testes vitest para `can_user_generate` e cálculo de custo.
+## Segurança/governança
+- RLS em todas as tabelas novas + GRANTs corretos
+- Contexto de erro sanitizado (sem tokens/emails/payloads brutos)
+- Escalation automática para: severity=critical, security incidents, pagamentos, falha em `ai_can_resolve=false`
+- Rate limit 30 msg/hora/usuário no support-chat
 
-- **Onda 2 — Conversão & Experiência (0–30 dias pós-MVP)**
-  Ex.: onboarding com template gratuito para novos usuários (sem consumir crédito), preview animado da geração em progresso, recuperação de apresentação em caso de falha, histórico de versões no editor, share público com senha, analytics de engajamento por slide (`slide_views` → funil).
+## Ordem de execução sugerida
+Vou executar Etapa 1 primeiro (migração + seed do catálogo). Após aprovar a migração e eu regenerar os types, sigo Etapa 2 → 3 → 4 em respostas sequenciais.
 
-- **Onda 3 — Diferenciação & Escala (30–90 dias)**
-  Ex.: colaboração em tempo real (Realtime channels), branding customizado (logo/cores no plano anual), export de vídeo (.mp4 do deck cinematográfico), API pública para integrações, biblioteca de decks públicos, i18n (EN/ES), cache de imagens Pexels no storage para reduzir chamadas.
-
----
-
-## Regras de execução
-- Somente leitura na Fase 1 (queries SELECT, logs, Playwright headless). Nenhuma migration, deploy ou edição de arquivo.
-- Cada finding vem com evidência reproduzível.
-- Nenhuma correção é aplicada nesta rodada — o output é o relatório + roadmap. Correções entram em planos separados aprovados individualmente.
-
-## Detalhes técnicos
-- Ferramentas: `supabase--read_query`, `supabase--linter`, `supabase--edge_function_logs`, `code--view`, Playwright via shell, `websearch` p/ validar JSON-LD/Rich Results se necessário.
-- Credenciais de teste: sessão do usuário dev (`iuri.ads.money.gm@gmail.com`) já injetada via `LOVABLE_BROWSER_SUPABASE_*` quando aplicável.
-- Sem tocar em `src/integrations/supabase/client.ts`, `types.ts`, `.env`, `supabase/config.toml`.
+**Confirma que posso começar pela Etapa 1?**
