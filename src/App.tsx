@@ -16,8 +16,11 @@ import Editor from "./pages/Editor.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import Templates from "./pages/Templates.tsx";
 import DevDashboard from "./pages/DevDashboard.tsx";
+import AdminSupport from "./pages/AdminSupport.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { DevModePanel } from "./components/DevModePanel";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { SupportWidget } from "./components/SupportWidget";
 
 const queryClient = new QueryClient();
 
