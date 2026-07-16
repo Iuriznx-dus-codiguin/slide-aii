@@ -10,10 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 
+type OccStatus = "open" | "investigating" | "resolved" | "reopened";
 type Occ = { id: string; user_id: string | null; error_code: string | null; route: string | null;
-  status: string; created_at: string; context: any; stack_summary: string | null; };
+  status: OccStatus; created_at: string; context: any; stack_summary: string | null; };
 type Cat = { code: string; title: string; user_description: string; tech_description: string;
-  severity: string; module: string; ai_can_resolve: boolean; resolution_steps: string[]; };
+  severity: string; module: string; ai_can_resolve: boolean; resolution_steps: string[]; version?: number; };
 type Conv = { id: string; ticket_id: string | null; state: string; rating: number | null;
   resolved_by_ai: boolean | null; subject: string | null; created_at: string; };
 
