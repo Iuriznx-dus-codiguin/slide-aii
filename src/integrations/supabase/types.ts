@@ -35,6 +35,113 @@ export type Database = {
         }
         Relationships: []
       }
+      error_catalog: {
+        Row: {
+          ai_can_resolve: boolean
+          code: string
+          created_at: string
+          flow: string | null
+          module: string
+          probable_causes: string[]
+          related_codes: string[]
+          resolution_steps: string[]
+          severity: Database["public"]["Enums"]["error_severity"]
+          tech_description: string
+          title: string
+          updated_at: string
+          user_description: string
+          version: number
+        }
+        Insert: {
+          ai_can_resolve?: boolean
+          code: string
+          created_at?: string
+          flow?: string | null
+          module: string
+          probable_causes?: string[]
+          related_codes?: string[]
+          resolution_steps?: string[]
+          severity?: Database["public"]["Enums"]["error_severity"]
+          tech_description: string
+          title: string
+          updated_at?: string
+          user_description: string
+          version?: number
+        }
+        Update: {
+          ai_can_resolve?: boolean
+          code?: string
+          created_at?: string
+          flow?: string | null
+          module?: string
+          probable_causes?: string[]
+          related_codes?: string[]
+          resolution_steps?: string[]
+          severity?: Database["public"]["Enums"]["error_severity"]
+          tech_description?: string
+          title?: string
+          updated_at?: string
+          user_description?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      error_occurrences: {
+        Row: {
+          context: Json
+          created_at: string
+          error_code: string | null
+          id: string
+          request_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          route: string | null
+          session_id: string | null
+          stack_summary: string | null
+          status: Database["public"]["Enums"]["occurrence_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          context?: Json
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          request_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          route?: string | null
+          session_id?: string | null
+          stack_summary?: string | null
+          status?: Database["public"]["Enums"]["occurrence_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          context?: Json
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          request_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          route?: string | null
+          session_id?: string | null
+          stack_summary?: string | null
+          status?: Database["public"]["Enums"]["occurrence_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "error_occurrences_error_code_fkey"
+            columns: ["error_code"]
+            isOneToOne: false
+            referencedRelation: "error_catalog"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       generation_logs: {
         Row: {
           actual_cost_usd: number
@@ -354,6 +461,114 @@ export type Database = {
           },
         ]
       }
+      support_conversations: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          escalated_at: string | null
+          id: string
+          rating: number | null
+          related_error_code: string | null
+          related_occurrence_id: string | null
+          resolved_by_ai: boolean | null
+          state: Database["public"]["Enums"]["conversation_state"]
+          subject: string | null
+          ticket_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          escalated_at?: string | null
+          id?: string
+          rating?: number | null
+          related_error_code?: string | null
+          related_occurrence_id?: string | null
+          resolved_by_ai?: boolean | null
+          state?: Database["public"]["Enums"]["conversation_state"]
+          subject?: string | null
+          ticket_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          escalated_at?: string | null
+          id?: string
+          rating?: number | null
+          related_error_code?: string | null
+          related_occurrence_id?: string | null
+          resolved_by_ai?: boolean | null
+          state?: Database["public"]["Enums"]["conversation_state"]
+          subject?: string | null
+          ticket_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_conversations_related_error_code_fkey"
+            columns: ["related_error_code"]
+            isOneToOne: false
+            referencedRelation: "error_catalog"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "support_conversations_related_occurrence_id_fkey"
+            columns: ["related_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "error_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          code_ref: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          role: Database["public"]["Enums"]["message_role"]
+        }
+        Insert: {
+          code_ref?: string | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role: Database["public"]["Enums"]["message_role"]
+        }
+        Update: {
+          code_ref?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role?: Database["public"]["Enums"]["message_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_code_ref_fkey"
+            columns: ["code_ref"]
+            isOneToOne: false
+            referencedRelation: "error_catalog"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "support_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -386,6 +601,7 @@ export type Database = {
         Returns: boolean
       }
       consume_single_credit: { Args: { _uid: string }; Returns: boolean }
+      generate_ticket_id: { Args: never; Returns: string }
       grant_single_credit: { Args: { _uid: string }; Returns: number }
       has_role: {
         Args: {
@@ -398,6 +614,16 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "developer" | "user"
+      conversation_state:
+        | "open"
+        | "diagnosing"
+        | "awaiting_user"
+        | "resolved"
+        | "escalated"
+        | "closed"
+      error_severity: "critical" | "high" | "medium" | "low" | "info"
+      message_role: "user" | "assistant" | "system"
+      occurrence_status: "open" | "investigating" | "resolved" | "reopened"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -526,6 +752,17 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "developer", "user"],
+      conversation_state: [
+        "open",
+        "diagnosing",
+        "awaiting_user",
+        "resolved",
+        "escalated",
+        "closed",
+      ],
+      error_severity: ["critical", "high", "medium", "low", "info"],
+      message_role: ["user", "assistant", "system"],
+      occurrence_status: ["open", "investigating", "resolved", "reopened"],
     },
   },
 } as const
