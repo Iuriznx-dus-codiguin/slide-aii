@@ -64,7 +64,7 @@ export default function AdminSupport() {
 
   const uncatalogued = occurrences.filter((o) => !o.error_code || o.error_code === "SUP-999");
 
-  const markStatus = async (id: string, status: string) => {
+  const markStatus = async (id: string, status: OccStatus) => {
     await supabase.from("error_occurrences").update({
       status, resolved_at: status === "resolved" ? new Date().toISOString() : null,
     }).eq("id", id);
