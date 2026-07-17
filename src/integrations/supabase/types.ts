@@ -86,6 +86,36 @@ export type Database = {
         }
         Relationships: []
       }
+      error_catalog_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          code: string
+          field: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          code: string
+          field: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          code?: string
+          field?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+        }
+        Relationships: []
+      }
       error_occurrences: {
         Row: {
           context: Json
@@ -193,6 +223,42 @@ export type Database = {
           slides_count?: number
           status?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      help_articles: {
+        Row: {
+          category: string
+          content_md: string
+          created_at: string
+          id: string
+          is_published: boolean
+          keywords: string[]
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          content_md: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          keywords?: string[]
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content_md?: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          keywords?: string[]
+          slug?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -463,14 +529,19 @@ export type Database = {
       }
       support_conversations: {
         Row: {
+          auto_closed: boolean
+          awaiting_confirmation_at: string | null
           closed_at: string | null
           created_at: string
           escalated_at: string | null
+          escalation_reason: string | null
           id: string
           rating: number | null
           related_error_code: string | null
           related_occurrence_id: string | null
+          reopen_count: number
           resolved_by_ai: boolean | null
+          resolved_by_human: boolean | null
           state: Database["public"]["Enums"]["conversation_state"]
           subject: string | null
           ticket_id: string | null
@@ -478,14 +549,19 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_closed?: boolean
+          awaiting_confirmation_at?: string | null
           closed_at?: string | null
           created_at?: string
           escalated_at?: string | null
+          escalation_reason?: string | null
           id?: string
           rating?: number | null
           related_error_code?: string | null
           related_occurrence_id?: string | null
+          reopen_count?: number
           resolved_by_ai?: boolean | null
+          resolved_by_human?: boolean | null
           state?: Database["public"]["Enums"]["conversation_state"]
           subject?: string | null
           ticket_id?: string | null
@@ -493,14 +569,19 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_closed?: boolean
+          awaiting_confirmation_at?: string | null
           closed_at?: string | null
           created_at?: string
           escalated_at?: string | null
+          escalation_reason?: string | null
           id?: string
           rating?: number | null
           related_error_code?: string | null
           related_occurrence_id?: string | null
+          reopen_count?: number
           resolved_by_ai?: boolean | null
+          resolved_by_human?: boolean | null
           state?: Database["public"]["Enums"]["conversation_state"]
           subject?: string | null
           ticket_id?: string | null
@@ -621,6 +702,7 @@ export type Database = {
         | "resolved"
         | "escalated"
         | "closed"
+        | "awaiting_confirmation"
       error_severity: "critical" | "high" | "medium" | "low" | "info"
       message_role: "user" | "assistant" | "system"
       occurrence_status: "open" | "investigating" | "resolved" | "reopened"
@@ -759,6 +841,7 @@ export const Constants = {
         "resolved",
         "escalated",
         "closed",
+        "awaiting_confirmation",
       ],
       error_severity: ["critical", "high", "medium", "low", "info"],
       message_role: ["user", "assistant", "system"],

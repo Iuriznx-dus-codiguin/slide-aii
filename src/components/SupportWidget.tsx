@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { LifeBuoy, X, Send, Loader2, Star } from "lucide-react";
+import { LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getSessionId } from "@/lib/errorCapture";
 import { toast } from "sonner";
 
 type Msg = { role: "user" | "assistant"; content: string; code?: string | null };
-type State = "open" | "diagnosing" | "awaiting_user" | "resolved" | "escalated" | "closed";
+type State = "open" | "diagnosing" | "awaiting_user" | "awaiting_confirmation" | "resolved" | "escalated" | "closed";
 
 export const SupportWidget = () => {
   const { user } = useAuth();
@@ -36,7 +37,14 @@ export const SupportWidget = () => {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, open]);
+  }, [messages, open, state]);
+
+  const callSupport = async (payload: Record<string, unknown>) => {
+    return supabase.functions.invoke("support-chat", {
+      body: payload,
+      headers: { "x-slideai-session": getSessionId() },
+    });
+  };
 
   const send = async () => {
     if (!input.trim() || sending) return;
@@ -46,19 +54,37 @@ export const SupportWidget = () => {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("support-chat", {
-        body: { message: text, conversation_id: conversationId, error_code: errorCode },
+      const { data, error } = await callSupport({
+        message: text, conversation_id: conversationId, error_code: errorCode,
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setConversationId(data.conversation_id);
       setState(data.state);
       setMessages((m) => [...m, { role: "assistant", content: data.reply, code: data.code }]);
-      if (data.state === "resolved" || data.state === "escalated") {
-        // pronto para avaliar
-      }
     } catch (e: any) {
       setMessages((m) => [...m, { role: "assistant", content: "Não consegui responder agora. Tente novamente em instantes." }]);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const confirm = async (yes: boolean) => {
+    if (!conversationId || sending) return;
+    setSending(true);
+    try {
+      const { data, error } = await callSupport({
+        conversation_id: conversationId, action: yes ? "confirm_yes" : "confirm_no",
+      });
+      if (error) throw error;
+      setState(data.state);
+      setMessages((m) => [
+        ...m,
+        { role: "user", content: yes ? "✓ Resolvido" : "✗ Ainda não resolvi" },
+        { role: "assistant", content: data.reply },
+      ]);
+    } catch {
+      toast.error("Não consegui registrar sua resposta.");
     } finally {
       setSending(false);
     }
@@ -72,6 +98,9 @@ export const SupportWidget = () => {
   };
 
   if (!user) return null;
+
+  const showConfirmation = state === "awaiting_confirmation";
+  const showRating = (state === "resolved" || state === "escalated") && !rated && conversationId;
 
   return (
     <>
@@ -123,7 +152,20 @@ export const SupportWidget = () => {
                   </div>
                 </div>
               )}
-              {(state === "resolved" || state === "escalated") && !rated && conversationId && (
+              {showConfirmation && !sending && (
+                <div className="border border-primary/30 bg-primary/5 rounded-xl p-3 text-center space-y-2">
+                  <p className="text-xs font-medium">Consegui te ajudar?</p>
+                  <div className="flex gap-2 justify-center">
+                    <Button size="sm" variant="default" onClick={() => confirm(true)}>
+                      <ThumbsUp className="h-3.5 w-3.5" /> Sim, resolvido
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => confirm(false)}>
+                      <ThumbsDown className="h-3.5 w-3.5" /> Ainda não
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {showRating && (
                 <div className="border-t border-border pt-3 text-center">
                   <p className="text-xs text-muted-foreground mb-2">Como foi este atendimento?</p>
                   <div className="flex justify-center gap-1">
@@ -142,7 +184,11 @@ export const SupportWidget = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                placeholder={state === "escalated" ? "Aguardando humano — pode complementar" : "Descreva seu problema…"}
+                placeholder={
+                  state === "escalated" ? "Aguardando humano — pode complementar" :
+                  state === "awaiting_confirmation" ? "Ou digite se quiser detalhar…" :
+                  "Descreva seu problema…"
+                }
                 disabled={sending}
                 autoFocus
               />
@@ -158,6 +204,13 @@ export const SupportWidget = () => {
 };
 
 function labelState(s: State): string {
-  return { open: "aberta", diagnosing: "diagnosticando", awaiting_user: "aguardando você",
-    resolved: "resolvida", escalated: "encaminhada à equipe", closed: "encerrada" }[s];
+  return ({
+    open: "aberta",
+    diagnosing: "diagnosticando",
+    awaiting_user: "aguardando você",
+    awaiting_confirmation: "aguardando confirmação",
+    resolved: "resolvida",
+    escalated: "encaminhada à equipe",
+    closed: "encerrada",
+  } as Record<State, string>)[s];
 }
