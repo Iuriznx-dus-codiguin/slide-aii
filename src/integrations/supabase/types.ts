@@ -529,14 +529,19 @@ export type Database = {
       }
       support_conversations: {
         Row: {
+          auto_closed: boolean
+          awaiting_confirmation_at: string | null
           closed_at: string | null
           created_at: string
           escalated_at: string | null
+          escalation_reason: string | null
           id: string
           rating: number | null
           related_error_code: string | null
           related_occurrence_id: string | null
+          reopen_count: number
           resolved_by_ai: boolean | null
+          resolved_by_human: boolean | null
           state: Database["public"]["Enums"]["conversation_state"]
           subject: string | null
           ticket_id: string | null
@@ -544,14 +549,19 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_closed?: boolean
+          awaiting_confirmation_at?: string | null
           closed_at?: string | null
           created_at?: string
           escalated_at?: string | null
+          escalation_reason?: string | null
           id?: string
           rating?: number | null
           related_error_code?: string | null
           related_occurrence_id?: string | null
+          reopen_count?: number
           resolved_by_ai?: boolean | null
+          resolved_by_human?: boolean | null
           state?: Database["public"]["Enums"]["conversation_state"]
           subject?: string | null
           ticket_id?: string | null
@@ -559,14 +569,19 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_closed?: boolean
+          awaiting_confirmation_at?: string | null
           closed_at?: string | null
           created_at?: string
           escalated_at?: string | null
+          escalation_reason?: string | null
           id?: string
           rating?: number | null
           related_error_code?: string | null
           related_occurrence_id?: string | null
+          reopen_count?: number
           resolved_by_ai?: boolean | null
+          resolved_by_human?: boolean | null
           state?: Database["public"]["Enums"]["conversation_state"]
           subject?: string | null
           ticket_id?: string | null
