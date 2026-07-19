@@ -253,13 +253,10 @@ const Generate = () => {
       setDynamicTheme(dyn);
       setSlides(withImages);
       setStepIdx(STEPS.length - 1);
-      // Bloco 6: vai para preview com chat — sem persistir ainda.
-      setChat([{
-        role: "assistant",
-        content: `Sua apresentação com ${withImages.length} slides está pronta! Navegue pelos slides, refine via chat (ex.: "deixa o slide 3 mais visual") e quando estiver satisfeito clique em Salvar e abrir ou Editar manualmente.`,
-      }]);
       setCurrentSlide(0);
-      setPhase("preview");
+      // Após a geração, pula o preview com chat e vai direto pro editor manual,
+      // onde o toggle "Slide Dinâmico (magic move)" e demais controles estão disponíveis.
+      await persistAndOpenWith("edit", withImages, dyn);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
