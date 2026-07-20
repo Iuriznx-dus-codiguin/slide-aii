@@ -43,6 +43,7 @@ export type Database = {
           flow: string | null
           module: string
           probable_causes: string[]
+          related_articles: string[]
           related_codes: string[]
           resolution_steps: string[]
           severity: Database["public"]["Enums"]["error_severity"]
@@ -59,6 +60,7 @@ export type Database = {
           flow?: string | null
           module: string
           probable_causes?: string[]
+          related_articles?: string[]
           related_codes?: string[]
           resolution_steps?: string[]
           severity?: Database["public"]["Enums"]["error_severity"]
@@ -75,6 +77,7 @@ export type Database = {
           flow?: string | null
           module?: string
           probable_causes?: string[]
+          related_articles?: string[]
           related_codes?: string[]
           resolution_steps?: string[]
           severity?: Database["public"]["Enums"]["error_severity"]
@@ -385,6 +388,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           cakto_customer_id: string | null
           cakto_subscription_id: string | null
           created_at: string
@@ -392,17 +396,23 @@ export type Database = {
           full_name: string | null
           generations_count: number
           id: string
+          is_public: boolean
+          location: string | null
           plan: string
           role: string | null
           single_credits: number
+          social_links: Json
           subscription_period_start: string | null
           subscription_renews_at: string | null
           subscription_status: string | null
           total_views: number
           updated_at: string
+          username: string | null
+          website: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           cakto_customer_id?: string | null
           cakto_subscription_id?: string | null
           created_at?: string
@@ -410,17 +420,23 @@ export type Database = {
           full_name?: string | null
           generations_count?: number
           id: string
+          is_public?: boolean
+          location?: string | null
           plan?: string
           role?: string | null
           single_credits?: number
+          social_links?: Json
           subscription_period_start?: string | null
           subscription_renews_at?: string | null
           subscription_status?: string | null
           total_views?: number
           updated_at?: string
+          username?: string | null
+          website?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           cakto_customer_id?: string | null
           cakto_subscription_id?: string | null
           created_at?: string
@@ -428,14 +444,19 @@ export type Database = {
           full_name?: string | null
           generations_count?: number
           id?: string
+          is_public?: boolean
+          location?: string | null
           plan?: string
           role?: string | null
           single_credits?: number
+          social_links?: Json
           subscription_period_start?: string | null
           subscription_renews_at?: string | null
           subscription_status?: string | null
           total_views?: number
           updated_at?: string
+          username?: string | null
+          website?: string | null
         }
         Relationships: []
       }

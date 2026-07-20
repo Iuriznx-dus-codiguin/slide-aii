@@ -17,6 +17,9 @@ import SettingsPage from "./pages/Settings.tsx";
 import Templates from "./pages/Templates.tsx";
 import DevDashboard from "./pages/DevDashboard.tsx";
 import AdminSupport from "./pages/AdminSupport.tsx";
+import HelpCenter from "./pages/HelpCenter.tsx";
+import HelpArticle from "./pages/HelpArticle.tsx";
+import ProfilePage from "./pages/Profile.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { DevModePanel } from "./components/DevModePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -41,6 +44,9 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/editor/:slug" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              <Route path="/perfil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/ajuda" element={<HelpCenter />} />
+              <Route path="/ajuda/:slug" element={<HelpArticle />} />
               <Route path="/templates" element={<Templates />} />
               <Route path="/__dev" element={<ProtectedRoute><DevDashboard /></ProtectedRoute>} />
               <Route path="/admin/suporte" element={<ProtectedRoute><AdminSupport /></ProtectedRoute>} />

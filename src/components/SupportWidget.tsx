@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Link } from "react-router-dom";
+import { LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 
 type Msg = { role: "user" | "assistant"; content: string; code?: string | null };
 type State = "open" | "diagnosing" | "awaiting_user" | "awaiting_confirmation" | "resolved" | "escalated" | "closed";
+type HelpLink = { slug: string; title: string };
 
 export const SupportWidget = () => {
   const { user } = useAuth();
@@ -23,6 +25,7 @@ export const SupportWidget = () => {
   const [sending, setSending] = useState(false);
   const [rated, setRated] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [helpLinks, setHelpLinks] = useState<HelpLink[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +41,31 @@ export const SupportWidget = () => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open, state]);
+
+  // Quando um código de erro é referenciado (na abertura do widget ou por mensagem do assistente),
+  // busca os artigos de ajuda relacionados a esse código para oferecer atalho ao usuário.
+  useEffect(() => {
+    const codes = new Set<string>();
+    if (errorCode) codes.add(errorCode);
+    messages.forEach((m) => { if (m.code) codes.add(m.code); });
+    const list = Array.from(codes);
+    if (list.length === 0) { setHelpLinks([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("error_catalog")
+        .select("related_articles")
+        .in("code", list);
+      const slugs = Array.from(new Set((data ?? []).flatMap((r: any) => r.related_articles ?? [])));
+      if (slugs.length === 0) { setHelpLinks([]); return; }
+      const { data: arts } = await supabase
+        .from("help_articles")
+        .select("slug, title")
+        .in("slug", slugs)
+        .eq("is_published", true)
+        .limit(5);
+      setHelpLinks((arts as HelpLink[]) ?? []);
+    })();
+  }, [errorCode, messages]);
 
   const callSupport = async (payload: Record<string, unknown>) => {
     return supabase.functions.invoke("support-chat", {
@@ -173,6 +201,25 @@ export const SupportWidget = () => {
                       <button key={n} onClick={() => rate(n)} className="p-1 hover:scale-110 transition-transform">
                         <Star className="h-5 w-5 text-yellow-500" />
                       </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {helpLinks.length > 0 && (
+                <div className="border border-primary/20 bg-primary/5 rounded-xl p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
+                    <BookOpen className="h-3 w-3" /> Artigos de ajuda relacionados
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {helpLinks.map((h) => (
+                      <Link
+                        key={h.slug}
+                        to={`/ajuda/${h.slug}`}
+                        onClick={() => setOpen(false)}
+                        className="text-[11px] px-2 py-1 rounded-md bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+                      >
+                        {h.title}
+                      </Link>
                     ))}
                   </div>
                 </div>
