@@ -67,6 +67,8 @@ const Dashboard = () => {
             <span className="font-display text-lg font-bold">SlideAI</span>
           </Link>
           <div className="flex items-center gap-2">
+            <Link to="/ajuda"><Button variant="ghost" size="sm">Ajuda</Button></Link>
+            <Link to="/perfil"><Button variant="ghost" size="sm">Perfil</Button></Link>
             <Link to="/settings"><Button variant="ghost" size="sm">Configurações</Button></Link>
             <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" /> Sair
