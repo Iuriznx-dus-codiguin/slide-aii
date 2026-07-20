@@ -204,6 +204,7 @@ export const SupportWidget = () => {
                     ))}
                   </div>
                 </div>
+              )}
               {helpLinks.length > 0 && (
                 <div className="border border-primary/20 bg-primary/5 rounded-xl p-3 space-y-2">
                   <p className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
