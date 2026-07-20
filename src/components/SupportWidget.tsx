@@ -42,6 +42,31 @@ export const SupportWidget = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open, state]);
 
+  // Quando um código de erro é referenciado (na abertura do widget ou por mensagem do assistente),
+  // busca os artigos de ajuda relacionados a esse código para oferecer atalho ao usuário.
+  useEffect(() => {
+    const codes = new Set<string>();
+    if (errorCode) codes.add(errorCode);
+    messages.forEach((m) => { if (m.code) codes.add(m.code); });
+    const list = Array.from(codes);
+    if (list.length === 0) { setHelpLinks([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("error_catalog")
+        .select("related_articles")
+        .in("code", list);
+      const slugs = Array.from(new Set((data ?? []).flatMap((r: any) => r.related_articles ?? [])));
+      if (slugs.length === 0) { setHelpLinks([]); return; }
+      const { data: arts } = await supabase
+        .from("help_articles")
+        .select("slug, title")
+        .in("slug", slugs)
+        .eq("is_published", true)
+        .limit(5);
+      setHelpLinks((arts as HelpLink[]) ?? []);
+    })();
+  }, [errorCode, messages]);
+
   const callSupport = async (payload: Record<string, unknown>) => {
     return supabase.functions.invoke("support-chat", {
       body: payload,
