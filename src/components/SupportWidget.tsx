@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Link } from "react-router-dom";
+import { LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 
 type Msg = { role: "user" | "assistant"; content: string; code?: string | null };
 type State = "open" | "diagnosing" | "awaiting_user" | "awaiting_confirmation" | "resolved" | "escalated" | "closed";
+type HelpLink = { slug: string; title: string };
 
 export const SupportWidget = () => {
   const { user } = useAuth();
@@ -23,6 +25,7 @@ export const SupportWidget = () => {
   const [sending, setSending] = useState(false);
   const [rated, setRated] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [helpLinks, setHelpLinks] = useState<HelpLink[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
