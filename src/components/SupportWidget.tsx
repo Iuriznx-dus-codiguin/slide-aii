@@ -204,6 +204,24 @@ export const SupportWidget = () => {
                     ))}
                   </div>
                 </div>
+              {helpLinks.length > 0 && (
+                <div className="border border-primary/20 bg-primary/5 rounded-xl p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
+                    <BookOpen className="h-3 w-3" /> Artigos de ajuda relacionados
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {helpLinks.map((h) => (
+                      <Link
+                        key={h.slug}
+                        to={`/ajuda/${h.slug}`}
+                        onClick={() => setOpen(false)}
+                        className="text-[11px] px-2 py-1 rounded-md bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+                      >
+                        {h.title}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
