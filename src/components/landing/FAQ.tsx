@@ -14,16 +14,12 @@ const faqs = [
     a: "PDF, PPTX (PowerPoint), PNG por slide, e link público compartilhável que funciona em qualquer dispositivo, com modo full-screen.",
   },
   {
-    q: "Preciso pagar para testar?",
-    a: "Não. Você pode descrever sua apresentação, ver a geração acontecer e visualizar os 2 primeiros slides gratuitamente. O pagamento só é necessário para liberar o editor completo e o link público.",
-  },
-  {
     q: "Os slides são realmente únicos ou usam templates prontos?",
     a: "Cada apresentação é gerada do zero pela IA com base no seu tema, com layouts adaptados ao conteúdo. Não são templates engessados — o resultado é único.",
   },
   {
     q: "Posso cancelar a assinatura quando quiser?",
-    a: "Sim, sem multa. Os planos Mensal e Anual podem ser cancelados a qualquer momento e você mantém acesso até o fim do período pago.",
+    a: "Sim, sem multa. Os planos PRO e MAX podem ser cancelados a qualquer momento e você mantém acesso até o fim do período pago.",
   },
 ];
 
