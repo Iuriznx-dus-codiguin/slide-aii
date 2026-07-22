@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { X, Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
+import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CHECKOUT_URLS, PLAN_PRICES } from "@/lib/cakto";
+import { CHECKOUT_URLS, PLAN_PRICES, type PaidPlan } from "@/lib/cakto";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { toast } from "sonner";
 
@@ -14,17 +14,14 @@ interface Props {
 
 /**
  * Modal de pagamento exibido APÓS o usuário configurar a geração.
- * Mostra os 3 planos Cakto; após o checkout, faz polling do entitlement
- * a cada 4s. Quando o webhook libera o plano, dispara `onUnlocked`.
+ * Mostra 3 tiers (Único / PRO / MAX). Assinaturas trocam entre mensal e anual
+ * via toggle. Depois do checkout, faz polling do entitlement a cada 4s.
  */
 export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   const ent = useEntitlement();
-  const [waiting, setWaiting] = useState<null | "single" | "mensal" | "anual">(null);
+  const [waiting, setWaiting] = useState<null | PaidPlan>(null);
+  const [cycle, setCycle] = useState<"mensal" | "anual">("anual");
 
-  // Polling do entitlement a cada 4s enquanto aguarda confirmação do pagamento.
-  // Antes rodava indefinidamente enquanto o modal ficasse aberto; agora para
-  // sozinho após ~10 minutos (150 tentativas) e avisa o usuário, em vez de
-  // continuar consultando o backend para sempre se a aba ficar esquecida aberta.
   const MAX_POLL_ATTEMPTS = 150;
   useEffect(() => {
     if (!open || !waiting) return;
@@ -49,31 +46,48 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
 
   if (!open) return null;
 
-  const plans: Array<{ id: "single" | "mensal" | "anual"; name: string; tagline: string; features: string[] }> = [
-    { id: "single", name: "Geração única", tagline: PLAN_PRICES.single, features: ["1 apresentação completa", "Editor visual", "Exportar PDF/PPTX"] },
-    { id: "mensal", name: "Plano Mensal", tagline: PLAN_PRICES.mensal, features: ["Até 20 gerações completas/mês", "Cancele quando quiser", "Suporte prioritário"] },
-    { id: "anual", name: "Plano Anual", tagline: PLAN_PRICES.anual, features: ["Até 20 gerações completas/mês", "Equivalente a 8 meses — 4 grátis", "Tudo do plano mensal"] },
-  ];
+  const proId: PaidPlan = cycle === "anual" ? "anual" : "mensal";
+  const maxId: PaidPlan = cycle === "anual" ? "max_anual" : "max_mensal";
+
+  const startCheckout = (id: PaidPlan) => {
+    const url = CHECKOUT_URLS[id];
+    if (!url) {
+      toast.info("Checkout do plano MAX ainda não está disponível. Fale com o suporte para ativar.");
+      return;
+    }
+    setWaiting(id);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-card border border-border rounded-3xl p-6 md:p-8 max-w-3xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+        className="bg-card border border-border rounded-3xl p-6 md:p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
           <X className="h-4 w-4" />
         </button>
 
-        <div className="text-center mb-6">
+        <div className="text-center mb-5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3">
             <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro · Cakto
           </div>
-          <h2 className="font-display text-2xl md:text-3xl font-bold">Para gerar, escolha um plano</h2>
+          <h2 className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</h2>
           <p className="text-sm text-muted-foreground mt-2">
             Sua configuração está salva. Após pagar, a geração inicia automaticamente.
           </p>
+        </div>
+
+        {/* Toggle para assinaturas */}
+        <div className="flex justify-center mb-5">
+          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-muted border border-border">
+            <button onClick={() => setCycle("mensal")} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${cycle === "mensal" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>Mensal</button>
+            <button onClick={() => setCycle("anual")} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${cycle === "anual" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+              Anual <span className="text-[9px] px-1 py-0.5 rounded-full bg-primary/15 text-primary font-bold">-33%</span>
+            </button>
+          </div>
         </div>
 
         {waiting && (
@@ -88,31 +102,54 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
         )}
 
         <div className="grid md:grid-cols-3 gap-3">
-          {plans.map((p) => (
-            <div key={p.id} className={`rounded-2xl border p-4 ${p.id === "mensal" ? "border-primary/40 bg-gradient-card" : "border-border"}`}>
-              <div className="font-display font-bold">{p.name}</div>
-              <div className="text-lg font-semibold mt-1">{p.tagline}</div>
-              <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5"><Check className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />{f}</li>
-                ))}
-              </ul>
-              <Button
-                size="sm"
-                variant={p.id === "mensal" ? "hero" : "outline"}
-                className="w-full mt-4 gap-1.5"
-                onClick={() => {
-                  setWaiting(p.id);
-                  window.open(CHECKOUT_URLS[p.id], "_blank", "noopener,noreferrer");
-                }}
-              >
-                Pagar agora <ExternalLink className="h-3 w-3" />
-              </Button>
+          {/* Único */}
+          <div className="rounded-2xl border-2 border-primary/30 p-4 bg-card flex flex-col">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary mb-1">
+              <Zap className="h-3 w-3" /> Ideal para começar
             </div>
-          ))}
+            <div className="font-display font-bold">Geração única</div>
+            <div className="text-lg font-semibold mt-1">{PLAN_PRICES.single}</div>
+            <div className="text-[11px] text-muted-foreground">1 apresentação completa</div>
+            <Button size="sm" variant="outline" className="w-full mt-4 gap-1.5 border-primary/50" onClick={() => startCheckout("single")}>
+              Pagar agora <ExternalLink className="h-3 w-3" />
+            </Button>
+          </div>
+
+          {/* PRO */}
+          <div className="rounded-2xl border-2 border-primary/60 p-4 bg-gradient-card relative flex flex-col md:scale-[1.02]">
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-gradient-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-glow whitespace-nowrap">
+              <Sparkles className="h-2.5 w-2.5" /> Mais popular
+            </div>
+            <div className="font-display font-bold mt-1">Plano PRO</div>
+            <div className="text-lg font-semibold mt-1">{PLAN_PRICES[proId]}</div>
+            <div className="text-[11px] text-muted-foreground">Até 20 gerações/mês</div>
+            <Button size="sm" variant="hero" className="w-full mt-4 gap-1.5" onClick={() => startCheckout(proId)}>
+              Pagar agora <ExternalLink className="h-3 w-3" />
+            </Button>
+          </div>
+
+          {/* MAX */}
+          <div className="rounded-2xl border-2 border-amber-500/40 p-4 bg-gradient-to-br from-amber-500/5 to-primary/5 relative flex flex-col">
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-glow whitespace-nowrap">
+              <Crown className="h-2.5 w-2.5" /> Ilimitado
+            </div>
+            <div className="font-display font-bold mt-1">Plano MAX</div>
+            <div className="text-lg font-semibold mt-1">{PLAN_PRICES[maxId]}</div>
+            <div className="text-[11px] text-muted-foreground">Gerações ilimitadas</div>
+            <Button size="sm" variant="outline" className="w-full mt-4 gap-1.5 border-amber-500/50 hover:bg-amber-500/10" onClick={() => startCheckout(maxId)}>
+              Pagar agora <ExternalLink className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
 
-        <p className="text-center text-[11px] text-muted-foreground mt-5">
+        <div className="mt-5 rounded-xl bg-muted/40 border border-border p-3">
+          <p className="text-[11px] text-muted-foreground text-center">
+            <Check className="h-3 w-3 text-primary inline mr-1" />
+            Todos os planos incluem editor visual completo, exportação PDF/PPTX/PNG, link público, modo apresentador, templates premium e suporte prioritário.
+          </p>
+        </div>
+
+        <p className="text-center text-[11px] text-muted-foreground mt-3">
           Após o pagamento, retorne a esta janela. A geração inicia em segundos.
         </p>
       </motion.div>
