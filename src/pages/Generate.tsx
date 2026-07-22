@@ -813,7 +813,7 @@ const Generate = () => {
             </div>
             <h3 className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</h3>
             <p className="text-center text-muted-foreground mt-2 text-sm">
-              Você atingiu o limite de testes gratuitos. Assine um plano mensal ou anual para criar até 20 apresentações completas por mês.
+              Você atingiu o limite de testes gratuitos. Assine um plano PRO ou MAX para gerar apresentações completas.
             </p>
             <div className="flex gap-2 mt-6">
               <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>

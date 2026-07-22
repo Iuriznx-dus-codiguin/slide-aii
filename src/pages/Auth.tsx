@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/BrandLogo";
 import { z } from "zod";
 
 const emailSchema = z.string().trim().email("Email inválido").max(255);

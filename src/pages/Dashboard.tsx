@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import { AccountPanel } from "@/components/AccountPanel";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface Pres {
   id: string; title: string; slug: string; slides_count: number; view_count: number;
