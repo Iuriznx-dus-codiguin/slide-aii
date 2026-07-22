@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     "data.status", "status", "data.transaction.status", "payment_status",
   ]) as string | undefined)?.toLowerCase();
 
-  const plan: "single" | "mensal" | "anual" | undefined =
+  const plan: Plan | undefined =
     (checkoutSlug && PLAN_BY_CHECKOUT_ID[checkoutSlug])
     || PLAN_BY_PRODUCT_ID[productId]
     || undefined;
