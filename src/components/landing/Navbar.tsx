@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Sparkles, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -22,11 +23,8 @@ export const Navbar = () => {
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-border/40"
     >
       <nav className="container mx-auto flex h-16 items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-glow group-hover:scale-105 transition-transform">
-            <Sparkles className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
-          </div>
-          <span className="font-display text-xl font-bold tracking-tight">SlideAI</span>
+        <Link to="/" className="group transition-transform group-hover:scale-105">
+          <BrandLogo size={36} />
         </Link>
 
         <div className="hidden md:flex items-center gap-8">

@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import { AccountPanel } from "@/components/AccountPanel";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface Pres {
   id: string; title: string; slug: string; slides_count: number; view_count: number;
@@ -62,9 +63,8 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center"><Sparkles className="h-4 w-4 text-primary-foreground" /></div>
-            <span className="font-display text-lg font-bold">SlideAI</span>
+          <Link to="/">
+            <BrandLogo size={32} />
           </Link>
           <div className="flex items-center gap-2">
             <Link to="/ajuda"><Button variant="ghost" size="sm">Ajuda</Button></Link>

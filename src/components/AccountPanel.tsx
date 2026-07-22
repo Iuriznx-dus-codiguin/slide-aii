@@ -2,7 +2,7 @@ import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Crown, Zap } from 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEntitlement } from "@/hooks/useEntitlement";
-import { CHECKOUT_URLS, PLAN_LABELS } from "@/lib/cakto";
+import { CHECKOUT_URLS, PLAN_LABELS, isSubscriptionPlan } from "@/lib/cakto";
 
 /** Seção "Minha conta" no Dashboard. */
 export const AccountPanel = () => {
@@ -17,8 +17,8 @@ export const AccountPanel = () => {
   }
 
   const isDev = ent.plan === "dev";
-  const isPaid = ent.plan === "mensal" || ent.plan === "anual" || ent.plan === "single";
-  const isSubscription = ent.plan === "mensal" || ent.plan === "anual";
+  const isSubscription = isSubscriptionPlan(ent.plan);
+  const isPaid = isSubscription || ent.plan === "single";
   const renews = ent.subscription_renews_at ? new Date(ent.subscription_renews_at).toLocaleDateString("pt-BR") : null;
 
   return (

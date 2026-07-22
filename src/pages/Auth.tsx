@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/BrandLogo";
 import { z } from "zod";
 
 const emailSchema = z.string().trim().email("Email inválido").max(255);
@@ -101,11 +102,8 @@ const Auth = () => {
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="relative w-full max-w-md"
       >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
-          <div className="h-9 w-9 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-display text-2xl font-bold">SlideAI</span>
+        <Link to="/" className="flex items-center justify-center mb-8">
+          <BrandLogo size={40} />
         </Link>
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-elegant">

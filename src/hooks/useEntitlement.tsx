@@ -2,11 +2,12 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
+import { PLAN_MONTHLY_LIMITS, isProPlan, isMaxPlan } from "@/lib/cakto";
 
 export interface Entitlement {
   allowed: boolean;
   reason: "dev" | "single" | "subscription" | "no_plan" | "system_error" | "monthly_limit_reached" | "loading";
-  plan: "free" | "single" | "mensal" | "anual" | "dev";
+  plan: "free" | "single" | "mensal" | "anual" | "max_mensal" | "max_anual" | "dev";
   single_credits: number;
   used_this_month: number;
   monthly_limit: number;
@@ -20,7 +21,8 @@ export interface Entitlement {
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
     case "monthly_limit_reached":
-      return "Você atingiu o limite de 20 gerações este mês. Seu limite renova no início do próximo mês.";
+      // Não expõe o número exato (varia por plano; MAX é secreto).
+      return "Você atingiu o limite deste mês. O limite renova no início do próximo período.";
     case "system_error":
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
     case "no_plan":
@@ -30,14 +32,12 @@ export const reasonMessage = (reason: Entitlement["reason"]): string => {
   }
 };
 
-const MONTHLY_LIMIT = 20;
-
 export const useEntitlement = (): Entitlement => {
   const { user } = useAuth();
   const { isDeveloper } = useDeveloperRole();
   const [state, setState] = useState<Omit<Entitlement, "refresh">>({
     allowed: false, reason: "loading", plan: "free", single_credits: 0,
-    used_this_month: 0, monthly_limit: MONTHLY_LIMIT,
+    used_this_month: 0, monthly_limit: 20,
     subscription_renews_at: null, subscription_status: null, loading: true,
   });
 
@@ -59,20 +59,26 @@ export const useEntitlement = (): Entitlement => {
     const plan = (profile?.plan ?? "free") as Entitlement["plan"];
     const single = (profile as any)?.single_credits ?? 0;
     const used = count ?? 0;
+    const limit = PLAN_MONTHLY_LIMITS[plan] ?? 20;
 
     let allowed = false;
     let reason: Entitlement["reason"] = "no_plan";
     if (isDeveloper) { allowed = true; reason = "dev"; }
     else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
-    else if ((plan === "mensal" || plan === "anual") && used < MONTHLY_LIMIT) { allowed = true; reason = "subscription"; }
-    else if (plan === "mensal" || plan === "anual") { allowed = false; reason = "monthly_limit_reached"; }
+    else if (isProPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
+    else if (isMaxPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
+    else if (isProPlan(plan)) { allowed = false; reason = "monthly_limit_reached"; }
+    // Para MAX, quando o teto oculto (100) é atingido, retornamos "system_error"
+    // (mensagem genérica) para não revelar que existe um limite — assinantes
+    // legítimos raramente encostam nesse número.
+    else if (isMaxPlan(plan)) { allowed = false; reason = "system_error"; }
 
     setState({
       allowed, reason,
       plan: isDeveloper ? "dev" : plan,
       single_credits: single,
       used_this_month: used,
-      monthly_limit: MONTHLY_LIMIT,
+      monthly_limit: limit,
       subscription_renews_at: (profile as any)?.subscription_renews_at ?? null,
       subscription_status: (profile as any)?.subscription_status ?? null,
       loading: false,

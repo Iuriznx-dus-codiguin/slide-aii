@@ -1,32 +1,34 @@
 // Links de checkout Cakto e mapeamento de planos.
-export type PaidPlan = "single" | "mensal" | "anual";
+//
+// Planos:
+// - "single":     Geração única (R$ 14,90)
+// - "mensal":     PRO Mensal (R$ 49,90/mês)   — até 20 gerações/mês
+// - "anual":      PRO Anual  (R$ 397,90/ano)  — até 20 gerações/mês
+// - "max_mensal": MAX Mensal (R$ 147,90/mês)  — ilimitado (teto interno 100/mês)
+// - "max_anual":  MAX Anual  (R$ 1.175,00/ano) — ilimitado (teto interno 100/mês)
+export type PaidPlan = "single" | "mensal" | "anual" | "max_mensal" | "max_anual";
 
-// A landing page (src/components/landing/Pricing.tsx) referencia os planos
-// mensal/anual em inglês (monthly/yearly), enquanto o restante do app usa os
-// nomes em português (mensal/anual) — ambas as chaves apontam para a MESMA
-// URL de checkout. Antes isso exigia "as any" duas vezes (nas chaves extras e
-// no objeto inteiro) porque o tipo só previa PaidPlan; declarando as chaves
-// extras explicitamente, o objeto fica 100% tipado e qualquer chave inválida
-// (ex: erro de digitação) volta a ser pega em tempo de compilação.
 type CheckoutUrlKey = PaidPlan | "monthly" | "yearly";
 
+// TODO: preencher os checkout links do plano MAX no Cakto quando disponíveis.
+// Enquanto vazios, os botões abrem o WhatsApp/e-mail de contato como fallback.
 export const CHECKOUT_URLS: Record<CheckoutUrlKey, string> = {
   single: "https://pay.cakto.com.br/qw6rzxx_856330",
   mensal: "https://pay.cakto.com.br/yw7ej87_856334",
   anual: "https://pay.cakto.com.br/m6z7n3k_856339",
   monthly: "https://pay.cakto.com.br/yw7ej87_856334",
   yearly: "https://pay.cakto.com.br/m6z7n3k_856339",
+  max_mensal: "",
+  max_anual: "",
 };
 
-// "Ilimitado" foi trocado por uma descrição honesta do volume real (20
-// gerações/mês, aplicado por can_user_generate no banco) — o rótulo anterior
-// prometia uso ilimitado e o próprio produto bloqueia no vigésimo uso do mês,
-// o que gera uma contradição direta para quem já pagou pelo plano.
 export const PLAN_LABELS: Record<string, string> = {
   free: "Gratuito",
   single: "Geração única",
-  mensal: "Plano Mensal",
-  anual: "Plano Anual",
+  mensal: "PRO Mensal",
+  anual: "PRO Anual",
+  max_mensal: "MAX Mensal",
+  max_anual: "MAX Anual",
   dev: "Desenvolvedor",
 };
 
@@ -34,4 +36,18 @@ export const PLAN_PRICES: Record<PaidPlan, string> = {
   single: "R$ 14,90",
   mensal: "R$ 49,90/mês",
   anual: "R$ 397,90/ano",
+  max_mensal: "R$ 147,90/mês",
+  max_anual: "R$ 1.175,00/ano",
 };
+
+/** Limite mensal de gerações por plano. MAX tem teto oculto de 100 (retorna erro genérico). */
+export const PLAN_MONTHLY_LIMITS: Record<string, number> = {
+  mensal: 20,
+  anual: 20,
+  max_mensal: 100,
+  max_anual: 100,
+};
+
+export const isProPlan = (p?: string | null) => p === "mensal" || p === "anual";
+export const isMaxPlan = (p?: string | null) => p === "max_mensal" || p === "max_anual";
+export const isSubscriptionPlan = (p?: string | null) => isProPlan(p) || isMaxPlan(p);
