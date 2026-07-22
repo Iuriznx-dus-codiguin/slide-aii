@@ -7,12 +7,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cakto-token, x-signature",
 };
 
-const PLAN_BY_CHECKOUT_ID: Record<string, "single" | "mensal" | "anual"> = {
+type Plan = "single" | "mensal" | "anual" | "max_mensal" | "max_anual";
+
+// Mapeamento por slug/short_id do checkout Cakto. Os slugs do plano MAX ainda
+// não foram provisionados; quando o Cakto emitir os checkouts, é só adicionar
+// aqui os short_ids/product_ids correspondentes.
+const PLAN_BY_CHECKOUT_ID: Record<string, Plan> = {
   qw6rzxx_856330: "single",
   yw7ej87_856334: "mensal",
   m6z7n3k_856339: "anual",
+  // TODO: max_mensal e max_anual — adicionar quando Cakto liberar checkouts MAX
 };
-const PLAN_BY_PRODUCT_ID: Record<string, "single" | "mensal" | "anual"> = {
+const PLAN_BY_PRODUCT_ID: Record<string, Plan> = {
   "856330": "single",
   "856334": "mensal",
   "856339": "anual",
