@@ -159,9 +159,11 @@ Deno.serve(async (req) => {
   try {
     if (matchesPaid && plan) {
       const now = new Date();
-      const renewsAt = plan === "anual"
+      const isAnnual = plan === "anual" || plan === "max_anual";
+      const isMonthly = plan === "mensal" || plan === "max_mensal";
+      const renewsAt = isAnnual
         ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
-        : plan === "mensal"
+        : isMonthly
           ? new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
           : null;
 
