@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Sparkles, Twitter, Instagram, Linkedin, Github } from "lucide-react";
+import { Twitter, Instagram, Linkedin, Github } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export const Footer = () => {
   return (
@@ -7,11 +8,8 @@ export const Footer = () => {
       <div className="container mx-auto px-6 py-16">
         <div className="grid md:grid-cols-4 gap-10">
           <div className="md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
-                <Sparkles className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
-              </div>
-              <span className="font-display text-xl font-bold tracking-tight">SlideAI</span>
+            <div className="mb-4">
+              <BrandLogo size={36} />
             </div>
             <p className="text-muted-foreground max-w-sm leading-relaxed">
               A forma mais rápida e elegante de criar apresentações profissionais, com a ajuda da inteligência artificial.
