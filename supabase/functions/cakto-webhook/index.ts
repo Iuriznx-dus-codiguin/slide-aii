@@ -1,5 +1,19 @@
-// Cakto webhook receiver — atualiza profiles.plan e single_credits após pagamento.
-// Verificação de segredo OBRIGATÓRIA, busca de usuário O(1) e idempotência por cakto_id.
+// Cakto webhook receiver — atualiza profiles.plan/subscription_status após eventos de pagamento.
+//
+// Suporta os eventos oficiais da Cakto:
+//   • purchase_approved       → libera geração única (single) ou ativa assinatura no primeiro ciclo
+//   • subscription_created    → ativa assinatura
+//   • subscription_renewed    → estende o período (renewsAt = agora + ciclo)
+//   • subscription_canceled   → marca status=canceled (o entitlement bloqueia geração)
+//   • refunded / chargeback   → cancela e limpa o plano
+//
+// Segurança:
+//   • O segredo do webhook pode chegar em três lugares: header `x-cakto-token`
+//     (recomendado), query param `?token=` OU campo `secret` no corpo do JSON
+//     (formato oficial da Cakto). Sem `CAKTO_WEBHOOK_SECRET` configurado, o
+//     endpoint recusa todos os payloads (fail-closed).
+//   • Idempotência real via índice único parcial em `payment_events.cakto_id`.
+//
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -7,21 +21,32 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cakto-token, x-signature",
 };
 
-type Plan = "single" | "mensal" | "anual" | "max_mensal" | "max_anual";
+type Plan =
+  | "single"
+  | "mensal" | "trimestral" | "anual"
+  | "max_mensal" | "max_trimestral" | "max_anual";
 
-// Mapeamento por slug/short_id do checkout Cakto. Os slugs do plano MAX ainda
-// não foram provisionados; quando o Cakto emitir os checkouts, é só adicionar
-// aqui os short_ids/product_ids correspondentes.
+// Mapeamento por short_id do checkout Cakto → plano interno. Se um novo
+// checkout for provisionado, basta adicionar a linha aqui.
 const PLAN_BY_CHECKOUT_ID: Record<string, Plan> = {
+  // PRO / geração única
   qw6rzxx_856330: "single",
   yw7ej87_856334: "mensal",
+  dvbmjwr:        "trimestral",
   m6z7n3k_856339: "anual",
-  // TODO: max_mensal e max_anual — adicionar quando Cakto liberar checkouts MAX
+  // MAX
+  "8hk6vba_996784": "max_mensal",
+  aubz6ai:          "max_trimestral",
+  "57bwznr_996791": "max_anual",
 };
+
+// Fallback por product_id (raro; Cakto normalmente entrega short_id).
 const PLAN_BY_PRODUCT_ID: Record<string, Plan> = {
   "856330": "single",
   "856334": "mensal",
   "856339": "anual",
+  "996784": "max_mensal",
+  "996791": "max_anual",
 };
 
 const dig = (obj: any, paths: string[]): any => {
@@ -32,6 +57,22 @@ const dig = (obj: any, paths: string[]): any => {
   return undefined;
 };
 
+/** Adiciona `months` meses a uma data preservando o dia (com clamp no fim do mês). */
+const addMonths = (d: Date, months: number): Date => {
+  const r = new Date(d.getTime());
+  const day = r.getDate();
+  r.setMonth(r.getMonth() + months);
+  if (r.getDate() < day) r.setDate(0); // último dia do mês anterior (fev/30 → fev/28)
+  return r;
+};
+
+const cyclePeriodMonths = (plan: Plan): number | null => {
+  if (plan === "mensal" || plan === "max_mensal") return 1;
+  if (plan === "trimestral" || plan === "max_trimestral") return 3;
+  if (plan === "anual" || plan === "max_anual") return 12;
+  return null; // single não renova
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -40,17 +81,23 @@ Deno.serve(async (req) => {
   const WEBHOOK_SECRET = Deno.env.get("CAKTO_WEBHOOK_SECRET");
   const admin = createClient(SUPABASE_URL, SERVICE);
 
-  // ─── Bloco 8.1: verificação OBRIGATÓRIA do segredo ───
   if (!WEBHOOK_SECRET) {
     console.error("cakto-webhook: CAKTO_WEBHOOK_SECRET not configured — refusing all webhooks.");
     return new Response(
-      JSON.stringify({ error: "Webhook not configured. Set CAKTO_WEBHOOK_SECRET in edge function secrets." }),
+      JSON.stringify({ error: "Webhook not configured." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
+
+  // Lê o corpo UMA vez — o secret pode vir no body (formato Cakto) ou no header.
+  let payload: any = {};
+  try { payload = await req.json(); } catch { payload = {}; }
+
   const provided = req.headers.get("x-cakto-token")
     ?? req.headers.get("x-signature")
-    ?? new URL(req.url).searchParams.get("token");
+    ?? new URL(req.url).searchParams.get("token")
+    ?? (typeof payload?.secret === "string" ? payload.secret : null);
+
   if (provided !== WEBHOOK_SECRET) {
     console.warn("cakto-webhook: invalid secret");
     return new Response(JSON.stringify({ error: "unauthorized" }), {
@@ -58,10 +105,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  let payload: any = {};
-  try { payload = await req.json(); } catch { payload = {}; }
-
-  const event_type = dig(payload, ["event", "type", "data.event", "status"]);
+  const event_type = String(dig(payload, ["event", "type", "data.event", "status"]) ?? "").toLowerCase();
   const cakto_id = dig(payload, ["data.id", "id", "data.transaction.id", "transaction_id"]);
   const email = (dig(payload, [
     "data.customer.email", "customer.email", "data.buyer.email",
@@ -86,18 +130,14 @@ Deno.serve(async (req) => {
   const customerId = dig(payload, ["data.customer.id", "customer.id"]) as string | undefined;
   const subscriptionId = dig(payload, ["data.subscription.id", "subscription.id"]) as string | undefined;
 
-  // ─── Bloco 8.2: busca direta do usuário (sem listUsers paginado) ───
+  // Resolve o user_id pelo e-mail.
   let userId: string | null = null;
   if (email) {
     const { data: profile } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
+      .from("profiles").select("id").eq("email", email).maybeSingle();
     if (profile?.id) {
       userId = profile.id;
     } else {
-      // Fallback eficiente: getUserByEmail via admin API quando disponível.
       try {
         const anyAdmin = admin.auth.admin as any;
         if (typeof anyAdmin.getUserByEmail === "function") {
@@ -108,17 +148,12 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ─── Bloco 8.3: idempotência real via índice único parcial em cakto_id ───
-  // O INSERT abaixo É a trava: se outra entrega concorrente do mesmo evento já
-  // inseriu essa linha, o índice único (idx_payment_events_cakto_id_unique)
-  // rejeita esta com erro 23505 (unique_violation) de forma atômica no banco —
-  // diferente de um SELECT prévio, não existe janela onde duas requisições
-  // simultâneas "não veem" a outra e ambas seguem para processar o pagamento.
+  // Idempotência atômica via índice único parcial em cakto_id.
   const { data: insertedEvent, error: insertErr } = await admin
     .from("payment_events")
     .insert({
       provider: "cakto",
-      event_type: event_type ?? "unknown",
+      event_type: event_type || "unknown",
       cakto_id: cakto_id ?? null,
       user_email: email ?? null,
       user_id: userId,
@@ -142,15 +177,24 @@ Deno.serve(async (req) => {
   }
   const eventRowId = insertedEvent!.id as string;
 
-  const PAID_EVENTS = ["purchase_approved", "subscription_renewed", "subscription_created",
-    "approved", "paid", "completed", "success", "active"];
-  const CANCELED_EVENTS = ["subscription_canceled", "refunded", "chargeback", "canceled", "refund"];
-  const matchesPaid = event_type && PAID_EVENTS.some((e) => String(event_type).toLowerCase().includes(e))
-    || (status && PAID_EVENTS.includes(status));
-  const matchesCanceled = event_type && CANCELED_EVENTS.some((e) => String(event_type).toLowerCase().includes(e));
+  // Classificação de eventos.
+  const PAID_HINTS = [
+    "purchase_approved", "subscription_created", "subscription_renewed",
+    "approved", "paid", "completed", "success", "active", "renewed",
+  ];
+  const CANCEL_HINTS = ["subscription_canceled", "canceled", "cancelled"];
+  const REFUND_HINTS = ["refunded", "refund", "chargeback", "chargedback"];
+
+  const eventOrStatus = `${event_type} ${status ?? ""}`;
+  const matchesPaid     = PAID_HINTS.some((h) => eventOrStatus.includes(h));
+  const matchesCanceled = CANCEL_HINTS.some((h) => eventOrStatus.includes(h));
+  const matchesRefund   = REFUND_HINTS.some((h) => eventOrStatus.includes(h));
 
   if (!userId) {
-    console.warn("cakto-webhook: user not found", { email });
+    console.warn("cakto-webhook: user not found", { email, event_type });
+    await admin.from("payment_events")
+      .update({ processed: true, error_message: "user not found by email" })
+      .eq("id", eventRowId);
     return new Response(JSON.stringify({ ok: true, note: "user not found" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -159,15 +203,10 @@ Deno.serve(async (req) => {
   try {
     if (matchesPaid && plan) {
       const now = new Date();
-      const isAnnual = plan === "anual" || plan === "max_anual";
-      const isMonthly = plan === "mensal" || plan === "max_mensal";
-      const renewsAt = isAnnual
-        ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
-        : isMonthly
-          ? new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
-          : null;
+      const periodMonths = cyclePeriodMonths(plan);
+      const renewsAt = periodMonths ? addMonths(now, periodMonths) : null;
 
-      const patch: any = {
+      const patch: Record<string, unknown> = {
         plan,
         subscription_status: "active",
         subscription_period_start: now.toISOString(),
@@ -176,27 +215,30 @@ Deno.serve(async (req) => {
       };
       if (renewsAt) patch.subscription_renews_at = renewsAt.toISOString();
 
-      // profiles.update roda com a service role key, então passa direto pela
-      // trigger protect_billing_columns (auth.role() = 'service_role').
       await admin.from("profiles").update(patch).eq("id", userId);
 
       if (plan === "single") {
-        // Incremento atômico em uma única instrução — nunca lê o saldo antes
-        // de gravar, então duas entregas concorrentes não perdem crédito.
         const { error: creditErr } = await admin.rpc("grant_single_credit", { _uid: userId });
         if (creditErr) console.error("cakto-webhook: grant_single_credit failed", creditErr);
       }
-    } else if (matchesCanceled) {
+    } else if (matchesRefund) {
+      // Reembolso ou chargeback: cancela e limpa o plano.
       await admin.from("profiles").update({
         subscription_status: "canceled",
         plan: "free",
       }).eq("id", userId);
+    } else if (matchesCanceled) {
+      // Cancelamento profissional: NÃO apaga o plano; apenas marca como
+      // canceled. O useEntitlement bloqueia a geração e mostra a mensagem
+      // "Sua assinatura foi cancelada…". Mantém o registro do plano para
+      // eventual reativação e para exibir corretamente na conta.
+      await admin.from("profiles").update({
+        subscription_status: "canceled",
+      }).eq("id", userId);
+    } else {
+      console.info("cakto-webhook: event ignored", { event_type, status });
     }
 
-    // Marca pelo id da própria linha inserida acima — robusto mesmo quando
-    // cakto_id vem ausente/nulo no payload (antes, ".eq('cakto_id', cakto_id
-    // ?? \"\")" nunca casava com uma coluna NULL e o evento ficava "processed:
-    // false" para sempre nesses casos).
     await admin.from("payment_events").update({ processed: true }).eq("id", eventRowId);
   } catch (e) {
     console.error("cakto-webhook process error", e);
@@ -205,7 +247,7 @@ Deno.serve(async (req) => {
     }).eq("id", eventRowId);
   }
 
-  return new Response(JSON.stringify({ ok: true, plan, userId }), {
+  return new Response(JSON.stringify({ ok: true, event: event_type, plan, userId }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

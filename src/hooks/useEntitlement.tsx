@@ -6,8 +6,15 @@ import { PLAN_MONTHLY_LIMITS, isProPlan, isMaxPlan } from "@/lib/cakto";
 
 export interface Entitlement {
   allowed: boolean;
-  reason: "dev" | "single" | "subscription" | "no_plan" | "system_error" | "monthly_limit_reached" | "loading";
-  plan: "free" | "single" | "mensal" | "anual" | "max_mensal" | "max_anual" | "dev";
+  reason:
+    | "dev" | "single" | "subscription"
+    | "no_plan" | "system_error" | "monthly_limit_reached"
+    | "subscription_canceled" | "loading";
+  plan:
+    | "free" | "single"
+    | "mensal" | "trimestral" | "anual"
+    | "max_mensal" | "max_trimestral" | "max_anual"
+    | "dev";
   single_credits: number;
   used_this_month: number;
   monthly_limit: number;
@@ -21,10 +28,11 @@ export interface Entitlement {
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
     case "monthly_limit_reached":
-      // Não expõe o número exato (varia por plano; MAX é secreto).
       return "Você atingiu o limite deste mês. O limite renova no início do próximo período.";
     case "system_error":
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
+    case "subscription_canceled":
+      return "Sua assinatura foi cancelada. Reative um plano para voltar a gerar apresentações — todas as suas apresentações continuam salvas na sua conta.";
     case "no_plan":
       return "Escolha um plano para gerar apresentações.";
     default:
@@ -61,16 +69,20 @@ export const useEntitlement = (): Entitlement => {
     const used = count ?? 0;
     const limit = PLAN_MONTHLY_LIMITS[plan] ?? 20;
 
+    const subStatus = (profile as any)?.subscription_status ?? null;
+    const canceled = subStatus === "canceled";
+
     let allowed = false;
     let reason: Entitlement["reason"] = "no_plan";
     if (isDeveloper) { allowed = true; reason = "dev"; }
+    else if (canceled && (isProPlan(plan) || isMaxPlan(plan))) {
+      // Cancelamento profissional: bloqueia imediatamente e mostra mensagem clara.
+      allowed = false; reason = "subscription_canceled";
+    }
     else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
     else if (isProPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isMaxPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isProPlan(plan)) { allowed = false; reason = "monthly_limit_reached"; }
-    // Para MAX, quando o teto oculto (100) é atingido, retornamos "system_error"
-    // (mensagem genérica) para não revelar que existe um limite — assinantes
-    // legítimos raramente encostam nesse número.
     else if (isMaxPlan(plan)) { allowed = false; reason = "system_error"; }
 
     setState({
@@ -80,7 +92,7 @@ export const useEntitlement = (): Entitlement => {
       used_this_month: used,
       monthly_limit: limit,
       subscription_renews_at: (profile as any)?.subscription_renews_at ?? null,
-      subscription_status: (profile as any)?.subscription_status ?? null,
+      subscription_status: subStatus,
       loading: false,
     });
   }, [user, isDeveloper]);
