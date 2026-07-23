@@ -6,8 +6,15 @@ import { PLAN_MONTHLY_LIMITS, isProPlan, isMaxPlan } from "@/lib/cakto";
 
 export interface Entitlement {
   allowed: boolean;
-  reason: "dev" | "single" | "subscription" | "no_plan" | "system_error" | "monthly_limit_reached" | "loading";
-  plan: "free" | "single" | "mensal" | "anual" | "max_mensal" | "max_anual" | "dev";
+  reason:
+    | "dev" | "single" | "subscription"
+    | "no_plan" | "system_error" | "monthly_limit_reached"
+    | "subscription_canceled" | "loading";
+  plan:
+    | "free" | "single"
+    | "mensal" | "trimestral" | "anual"
+    | "max_mensal" | "max_trimestral" | "max_anual"
+    | "dev";
   single_credits: number;
   used_this_month: number;
   monthly_limit: number;
@@ -21,10 +28,11 @@ export interface Entitlement {
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
     case "monthly_limit_reached":
-      // Não expõe o número exato (varia por plano; MAX é secreto).
       return "Você atingiu o limite deste mês. O limite renova no início do próximo período.";
     case "system_error":
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
+    case "subscription_canceled":
+      return "Sua assinatura foi cancelada. Reative um plano para voltar a gerar apresentações — todas as suas apresentações continuam salvas na sua conta.";
     case "no_plan":
       return "Escolha um plano para gerar apresentações.";
     default:
