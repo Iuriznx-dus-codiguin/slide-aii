@@ -3,18 +3,16 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Cycle = "mensal" | "anual";
+type Cycle = "mensal" | "trimestral" | "anual";
 
 // Benefícios IGUAIS em todos os planos — a única diferença entre eles é o
-// volume de gerações por período. Manter esta lista única evita divergência
-// entre o que a landing promete e o que o produto realmente entrega.
+// volume de gerações por período. "Geração em segundos" abre a lista para
+// reforçar a promessa central do produto; os demais são as capacidades que
+// realmente entregamos hoje na plataforma.
 const sharedBenefits = [
-  "Editor visual completo",
+  "Geração em segundos",
   "Exportar PDF, PPTX e PNG",
   "Link público compartilhável",
-  "Modo apresentador com timer",
-  "Templates premium exclusivos",
-  "Histórico de versões",
   "Suporte prioritário",
 ];
 
@@ -28,18 +26,24 @@ const perGen = {
   cta: "Criar apresentação",
 };
 
+// PRO — 20 gerações/mês em qualquer ciclo.
+// Trimestral: 15% off vs mensal (49,90 × 3 × 0,85 ≈ 127,90).
 const pro = {
-  mensal: { price: "49,90", period: "por mês", cta: "Assinar PRO mensal" },
-  anual:  { price: "397,90", period: "por ano", cta: "Assinar PRO anual", monthlyEquivalent: "33,16" },
+  mensal:     { price: "49,90",  period: "por mês",       cta: "Assinar PRO mensal" },
+  trimestral: { price: "127,90", period: "por trimestre", cta: "Assinar PRO trimestral", monthlyEquivalent: "42,63" },
+  anual:      { price: "397,90", period: "por ano",       cta: "Assinar PRO anual",      monthlyEquivalent: "33,16" },
 };
 
+// MAX — ilimitado (teto interno oculto).
 const max = {
-  mensal: { price: "147,90", period: "por mês", cta: "Assinar MAX mensal" },
-  anual:  { price: "1.175,00", period: "por ano", cta: "Assinar MAX anual", monthlyEquivalent: "97,92" },
+  mensal:     { price: "147,90",   period: "por mês",       cta: "Assinar MAX mensal" },
+  trimestral: { price: "377,90",   period: "por trimestre", cta: "Assinar MAX trimestral", monthlyEquivalent: "125,97" },
+  anual:      { price: "1.175,00", period: "por ano",       cta: "Assinar MAX anual",      monthlyEquivalent: "97,92" },
 };
 
 export const Pricing = () => {
-  const [cycle, setCycle] = useState<Cycle>("anual");
+  // Trimestral é o predefinido — melhor equilíbrio de compromisso/desconto.
+  const [cycle, setCycle] = useState<Cycle>("trimestral");
   const proPrice = pro[cycle];
   const maxPrice = max[cycle];
 
@@ -60,7 +64,7 @@ export const Pricing = () => {
           </p>
         </div>
 
-        {/* Toggle mensal/anual */}
+        {/* Toggle mensal / trimestral / anual */}
         <div className="flex justify-center mb-10">
           <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card border border-border">
             <button
@@ -70,6 +74,17 @@ export const Pricing = () => {
               }`}
             >
               Mensal
+            </button>
+            <button
+              onClick={() => setCycle("trimestral")}
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+                cycle === "trimestral" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Trimestral
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cycle === "trimestral" ? "bg-white/20 text-white" : "bg-primary/15 text-primary"} font-bold`}>
+                -15%
+              </span>
             </button>
             <button
               onClick={() => setCycle("anual")}
@@ -86,7 +101,7 @@ export const Pricing = () => {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto items-stretch">
-          {/* Geração única — destaque especial "Ideal para começar" */}
+          {/* Geração única */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -107,7 +122,9 @@ export const Pricing = () => {
               <span className="font-display text-5xl font-extrabold tracking-tight">{perGen.price}</span>
               <span className="text-sm text-muted-foreground">/ {perGen.period}</span>
             </div>
-            <p className="mt-1 text-xs text-primary font-medium">{perGen.volume}</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs font-bold text-primary">
+              <Sparkles className="h-3 w-3" /> {perGen.volume}
+            </div>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-primary/50 hover:bg-primary/10">
               <a href="/gerar">{perGen.cta}</a>
             </Button>
@@ -146,12 +163,14 @@ export const Pricing = () => {
               <span className="font-display text-5xl font-extrabold tracking-tight">{proPrice.price}</span>
               <span className="text-sm text-muted-foreground">/ {proPrice.period}</span>
             </div>
-            {cycle === "anual" && (
+            {"monthlyEquivalent" in proPrice && (
               <p className="mt-1 text-xs text-primary font-medium">
-                Equivalente a R$ {pro.anual.monthlyEquivalent}/mês
+                Equivalente a R$ {proPrice.monthlyEquivalent}/mês
               </p>
             )}
-            <p className="mt-1 text-xs text-primary font-medium">Até 20 gerações por mês</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-glow">
+              <Sparkles className="h-3 w-3" /> Até 20 gerações por mês
+            </div>
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
               <a href="/gerar">{proPrice.cta}</a>
             </Button>
@@ -190,12 +209,14 @@ export const Pricing = () => {
               <span className="font-display text-5xl font-extrabold tracking-tight">{maxPrice.price}</span>
               <span className="text-sm text-muted-foreground">/ {maxPrice.period}</span>
             </div>
-            {cycle === "anual" && (
+            {"monthlyEquivalent" in maxPrice && (
               <p className="mt-1 text-xs text-amber-600 dark:text-amber-500 font-medium">
-                Equivalente a R$ {max.anual.monthlyEquivalent}/mês
+                Equivalente a R$ {maxPrice.monthlyEquivalent}/mês
               </p>
             )}
-            <p className="mt-1 text-xs text-amber-600 dark:text-amber-500 font-medium">Gerações ilimitadas</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-3 py-1 text-xs font-bold text-white shadow-glow">
+              <Crown className="h-3 w-3" /> Gerações ilimitadas
+            </div>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-amber-500/50 hover:bg-amber-500/10">
               <a href="/gerar">{maxPrice.cta}</a>
             </Button>
