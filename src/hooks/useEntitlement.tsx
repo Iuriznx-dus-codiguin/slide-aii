@@ -93,15 +93,6 @@ export const useEntitlement = (): Entitlement => {
       monthly_limit: limit,
       subscription_renews_at: (profile as any)?.subscription_renews_at ?? null,
       subscription_status: subStatus,
-
-    setState({
-      allowed, reason,
-      plan: isDeveloper ? "dev" : plan,
-      single_credits: single,
-      used_this_month: used,
-      monthly_limit: limit,
-      subscription_renews_at: (profile as any)?.subscription_renews_at ?? null,
-      subscription_status: (profile as any)?.subscription_status ?? null,
       loading: false,
     });
   }, [user, isDeveloper]);
