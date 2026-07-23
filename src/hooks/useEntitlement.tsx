@@ -69,17 +69,30 @@ export const useEntitlement = (): Entitlement => {
     const used = count ?? 0;
     const limit = PLAN_MONTHLY_LIMITS[plan] ?? 20;
 
+    const subStatus = (profile as any)?.subscription_status ?? null;
+    const canceled = subStatus === "canceled";
+
     let allowed = false;
     let reason: Entitlement["reason"] = "no_plan";
     if (isDeveloper) { allowed = true; reason = "dev"; }
+    else if (canceled && (isProPlan(plan) || isMaxPlan(plan))) {
+      // Cancelamento profissional: bloqueia imediatamente e mostra mensagem clara.
+      allowed = false; reason = "subscription_canceled";
+    }
     else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
     else if (isProPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isMaxPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isProPlan(plan)) { allowed = false; reason = "monthly_limit_reached"; }
-    // Para MAX, quando o teto oculto (100) é atingido, retornamos "system_error"
-    // (mensagem genérica) para não revelar que existe um limite — assinantes
-    // legítimos raramente encostam nesse número.
     else if (isMaxPlan(plan)) { allowed = false; reason = "system_error"; }
+
+    setState({
+      allowed, reason,
+      plan: isDeveloper ? "dev" : plan,
+      single_credits: single,
+      used_this_month: used,
+      monthly_limit: limit,
+      subscription_renews_at: (profile as any)?.subscription_renews_at ?? null,
+      subscription_status: subStatus,
 
     setState({
       allowed, reason,
