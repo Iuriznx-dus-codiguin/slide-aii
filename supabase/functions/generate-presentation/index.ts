@@ -32,6 +32,8 @@ interface GenerateRequest {
   includeSpeeches?: boolean;
   image_budget_mode?: "economy" | "balanced" | "premium";
   max_budget_usd?: number;
+  /** Quando true (padrão), a IA prioriza a transição "dynamic" (magic move) na maioria dos slides. */
+  preferDynamic?: boolean;
 }
 
 const personaGuide = (p?: string) => {
@@ -82,10 +84,15 @@ APRESENTADORES (${presenters}): ${presenterList.length ? presenterList.join(", "
 ${presenters > 1 ? `→ Crie "ÂNCORAS DE TRANSIÇÃO" entre apresentadores. Divida fala EQUITATIVAMENTE em blocos de 2-3 slides.` : ""}
 
 ═══════════════════════════════════════════════════
-PASSO B — CÍRCULO NARRATIVO
+PASSO B — ARCO NARRATIVO FLEXÍVEL
 ═══════════════════════════════════════════════════
-Distribua os ${req.slidesCount} slides em 5 fases: hook (1-2) → tension (1-2) → journey (40-50%) → proof (1-2) → climax (1).
-Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo).
+Distribua os ${req.slidesCount} slides com LIBERDADE — o arco clássico (hook → tension → journey → proof → climax) é uma REFERÊNCIA, não uma prisão. Você pode:
+  • Abrir com "hook" ou direto em "journey" quando o tema pede contexto imediato.
+  • Ter MÚLTIPLOS picos de "proof" (dados/casos) em vez de UM climax único.
+  • Alternar tension ↔ journey várias vezes (ex: problema→solução→problema maior→solução maior).
+  • Usar "climax" só quando fizer sentido narrativo — pode não haver climax explícito.
+Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e uma referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo, dado→interpretação).
+VARIE a sequência de narrative_act — evite padrão rígido "hook, tension, journey×N, proof, climax".
 
 ═══════════════════════════════════════════════════
 PASSO C — REGRA DE OURO: TODO SLIDE É COMPLETO
@@ -131,12 +138,17 @@ PASSO E — VARIAÇÃO INTENCIONAL DE LAYOUTS, ACENTOS, ANIMAÇÕES E TRANSIÇÕ
   * arquitetura / estrutura em camadas → "layered-panels"
   * capa ou slide de impacto que pede um fundo mais imersivo → "gradient-drift" (evite combinar com outro fundo amplo — é uma camada de fundo única, não um acento pontual)
 - animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos. Use todo o repertório em uma apresentação de 8+ slides.
-- transition (13 opções — "dynamic" é o PADRÃO): "dynamic" faz o título e a imagem-hero migrarem suavemente de posição/tamanho entre slides consecutivos que compartilham esse elemento (magic move real, não reaparecem do zero), enquanto o resto da cena sai/entra coordenado como uma onda única. Escolha "dynamic" para a MAIORIA dos slides — é a transição que melhor comunica continuidade narrativa. Reserve as 12 transições legadas como "pontuação" deliberada, só nos momentos de maior impacto dramático do arco narrativo:
-  * hook (a abertura que precisa chocar/surpreender) → "iris" ou "portal"
-  * climax (o pico da apresentação) → "portal" ou "shatter"
-  * um section_divider que merece uma quebra visual mais forte → "ribbon"
-  * o slide de conclusão, para fechar com uma sensação distinta do resto → "morph"
-  Fora esses momentos de pontuação (normalmente 2-4 slides em uma apresentação de 8-12), use "dynamic" para todo o restante — isso inclui a maioria dos slides de conteúdo (bullet_points, data_chart, image-right/left, two-columns), onde a continuidade do magic move vale mais do que um efeito chamativo a cada troca.
+- transition (13 opções): "dynamic" faz o título e a imagem-hero migrarem suavemente de posição/tamanho entre slides consecutivos que compartilham esse elemento (magic move real, não reaparecem do zero), enquanto o resto da cena sai/entra coordenado como uma onda única.
+${req.preferDynamic === false
+  ? `  → MODO DIVERSIDADE: o usuário DESATIVOU o magic move — VARIE MUITO as 12 transições legadas (mosaic, iris, shatter, ribbon, blinds, fold, portal, wipe, split, morph, stack, letterbox). NUNCA use "dynamic". Distribua alternando: nunca a mesma transição em dois slides seguidos, cubra pelo menos 6 transições diferentes na apresentação.`
+  : `  → MODO PADRÃO (magic move ATIVO): use "dynamic" em ~60-70% dos slides. Reserve as 12 transições legadas como PONTUAÇÃO deliberada (não previsível), garantindo pelo menos 3-5 transições legadas distintas espalhadas pela apresentação:
+    * hook (abertura) → "iris" ou "portal"
+    * momentos de alta emoção (climax, revelação de dado impactante) → "portal" ou "shatter"
+    * section_divider ou virada de tema → "ribbon" ou "blinds"
+    * data_chart / stat de destaque → "morph" ou "split"
+    * quote marcante → "letterbox" ou "fold"
+    * conclusão → "morph" ou "stack"
+  Evite blocos monótonos de "dynamic" — quebre com pontuação a cada 2-3 slides mesmo em conteúdo comum.`}
 
 ═══════════════════════════════════════════════════
 PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
@@ -144,7 +156,7 @@ PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
 Em uma apresentação de N slides garanta:
 - AO MENOS 1 slide com layout "two-columns".
 - AO MENOS 1 slide "stat-highlight" se pertinente ao tema.
-- AO MENOS 2 slides com imagem (image-right/image-left/full-image) quando includeImages=true.
+- AO MENOS ${req.includeImages ? "60% dos" : "0"} slides com imagem (image-right/image-left/full-image) quando includeImages=true.
 - AO MENOS 1 slide "centered" como divisória/seção.
 - Pelo menos 1 capa cinematográfica com cover_variant DIFERENTE de "split-hero" e "typographic-bold".
 - Varie cover_variant entre as 6 opções com base no tema/persona:
@@ -154,13 +166,25 @@ Em uma apresentação de N slides garanta:
 
 
 ═══════════════════════════════════════════════════
-PASSO F — IMAGENS (PEXELS PRIMEIRO)
+PASSO F — IMAGENS (PEXELS + NANO BANANA 2, TODO SLIDE COM IMAGEM)
 ═══════════════════════════════════════════════════
-- image_strategy = "pexels" para 90% dos slides com imagem. Use "ai" SOMENTE quando o conceito for abstrato/impossível (ex: "rede neural simbólica", "futuro hipotético").
+${req.includeImages ? `- REGRA DE OURO: TODO slide de conteúdo DEVE ter image_query (mesmo bullet_points, quote, data_chart) — o usuário quer variedade visual em cada tela.
+- image_strategy: escolha por slide para dar VARIEDADE de estilos visuais:
+  * "pexels" (~60%): foto real, para conceitos concretos/humanos/objetos.
+  * "ai" (~40%): quando quiser ILUSTRAÇÃO cinematográfica, conceito abstrato, ou estilo específico (aquarela, 3D render, isometric, no-background isolate).
 - image_query: query MUITO específica em INGLÊS, 3-6 palavras com substantivos visuais concretos (ex: "engineer reviewing code on dark monitor", NÃO "technology").
-- ai_image_prompt: SEMPRE preencha como FALLBACK — descrição cinematográfica em inglês caso Pexels falhe.
+- ai_image_prompt: SEMPRE preencha — descrição rica em inglês com ESTILO explícito. VARIE os estilos entre slides:
+  * "cinematic photo, dramatic lighting"
+  * "flat vector illustration, editorial style, no background"
+  * "isometric 3D render, clean background"
+  * "watercolor illustration, soft palette"
+  * "minimalist line art, single color accent"
+  * "editorial magazine collage"
+  * "3D clay render, isolated object"
+  Combine estilo com o mood do slide (dados = isometric, quote = collage, hook = cinematic, conclusion = minimal).
+- image_style (campo obrigatório quando image_strategy="ai"): um de {"photo","illustration","no-background","3d-render","isometric","watercolor","line-art","collage","minimal"}. VARIE — não repita o mesmo estilo em 2 slides consecutivos.
 - NUNCA repita a MESMA query — varie ângulo, contexto, sujeito.
-- Para títulos curtos/ambíguos: ancore a query no SUBTEMA específico do slide, não no título genérico.
+- Para títulos curtos/ambíguos: ancore a query no SUBTEMA específico do slide, não no título genérico.` : `- includeImages=false: pule image_query e compense com visual_accents mais densos.`}
 
 REGRAS CRÍTICAS DE CONTEÚDO:
 1. Idioma: ${req.language === "en" ? "INGLÊS" : req.language === "es" ? "ESPANHOL" : "PORTUGUÊS BRASILEIRO"} natural, profissional, fluido.
@@ -338,8 +362,9 @@ LEMBRETE CRÍTICO:
                   quote_author: { type: "string", description: "Pessoa real verificável." },
                   speaker_notes: { type: "string", description: "Resumo curto (1-2 frases) das notas do orador." },
                   image_query: { type: "string", description: "Query MUITO específica em INGLÊS (3-6 palavras concretas) para Pexels." },
-                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "Default: 'pexels'. Use 'ai' apenas para conceitos abstratos." },
-                  ai_image_prompt: { type: "string", description: "SEMPRE preencha — fallback caso Pexels falhe." },
+                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "Default: 'pexels'. Alterne com 'ai' para variedade de estilos visuais." },
+                  ai_image_prompt: { type: "string", description: "SEMPRE preencha — descrição cinematográfica com estilo explícito (fallback ou principal)." },
+                  image_style: { type: "string", enum: ["photo", "illustration", "no-background", "3d-render", "isometric", "watercolor", "line-art", "collage", "minimal"], description: "Estilo visual — VARIE entre slides. Obrigatório quando image_strategy='ai'." },
                   chart: {
                     type: "object",
                     properties: {

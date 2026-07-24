@@ -34,13 +34,39 @@ export const THEMES: Record<string, ThemeColors> = {
 };
 
 /** Display font: distinta para títulos. Body permanece sans neutra. */
-export const FONTS: Record<string, { family: string; name: string; display?: string }> = {
-  "modern-sans":   { family: "'Plus Jakarta Sans', sans-serif", display: "'Bricolage Grotesque', 'Plus Jakarta Sans', sans-serif", name: "Modern Sans" },
-  "classic-serif": { family: "'Playfair Display', 'Georgia', serif", display: "'Fraunces', 'Playfair Display', serif", name: "Classic Serif" },
-  "bold-display":  { family: "'Inter', sans-serif", display: "'Bricolage Grotesque', 'Inter', sans-serif", name: "Bold Display" },
-  "minimal-clean": { family: "'Inter', system-ui, sans-serif", display: "'Space Grotesk', 'Inter', system-ui, sans-serif", name: "Minimal Clean" },
-  "editorial":     { family: "'Cormorant Garamond', 'Georgia', serif", display: "'Fraunces', 'Cormorant Garamond', serif", name: "Editorial" },
+export const FONTS: Record<string, { family: string; name: string; display?: string; mood?: string }> = {
+  "modern-sans":     { family: "'Plus Jakarta Sans', sans-serif", display: "'Bricolage Grotesque', 'Plus Jakarta Sans', sans-serif", name: "Modern Sans", mood: "corporate,tech,default" },
+  "classic-serif":   { family: "'Playfair Display', 'Georgia', serif", display: "'Fraunces', 'Playfair Display', serif", name: "Classic Serif", mood: "academic,elegant" },
+  "bold-display":    { family: "'Inter', sans-serif", display: "'Bricolage Grotesque', 'Inter', sans-serif", name: "Bold Display", mood: "pitch,impact" },
+  "minimal-clean":   { family: "'Inter', system-ui, sans-serif", display: "'Space Grotesk', 'Inter', system-ui, sans-serif", name: "Minimal Clean", mood: "minimalist,tech" },
+  "editorial":       { family: "'Cormorant Garamond', 'Georgia', serif", display: "'Fraunces', 'Cormorant Garamond', serif", name: "Editorial", mood: "editorial,luxury" },
+  "kinetic-brutal":  { family: "'Manrope', sans-serif", display: "'Archivo Black', 'Manrope', sans-serif", name: "Kinetic Brutal", mood: "creative,marketing,impact" },
+  "neo-futurist":    { family: "'Sora', sans-serif", display: "'Unbounded', 'Sora', sans-serif", name: "Neo Futurist", mood: "tech,futuristic,pitch" },
+  "syne-editorial":  { family: "'Manrope', sans-serif", display: "'Syne', 'Manrope', sans-serif", name: "Syne Editorial", mood: "creative,editorial" },
+  "instrument-luxe": { family: "'Outfit', sans-serif", display: "'Instrument Serif', 'DM Serif Display', serif", name: "Instrument Luxe", mood: "luxury,editorial,elegant" },
+  "mono-technical":  { family: "'Inter', sans-serif", display: "'Space Mono', 'Space Grotesk', monospace", name: "Mono Technical", mood: "scientific,technical,data" },
+  "dm-editorial":    { family: "'Plus Jakarta Sans', sans-serif", display: "'DM Serif Display', 'Playfair Display', serif", name: "DM Editorial", mood: "academic,scholar,editorial" },
 };
+
+/**
+ * Escolha automática de fonte com base no tipo + mood do tema. Usada quando
+ * o usuário não escolhe explicitamente uma fonte (o form de geração deixa
+ * de expor esse controle — a plataforma passa a decidir de acordo com o
+ * assunto para maximizar impacto visual sem opções paralisantes).
+ */
+export function autoFontForContext(type: string, theme: string, title: string): string {
+  const t = (type || "").toLowerCase();
+  const th = (theme || "").toLowerCase();
+  // Palette por tipo
+  if (t.includes("acad") || t.includes("escolar") || t.includes("cient")) return "dm-editorial";
+  if (t.includes("pitch")) return "neo-futurist";
+  if (t.includes("marketing") || t.includes("criativo")) return "kinetic-brutal";
+  if (t.includes("corp")) return "modern-sans";
+  // Fallback determinístico pelo hash do título para variedade
+  const pool = ["neo-futurist", "syne-editorial", "kinetic-brutal", "instrument-luxe", "bold-display"];
+  const h = (title || "x").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  return pool[h % pool.length];
+}
 
 /**
  * Resolve a theme. If themeId === "auto" and the slide carries a `dynamic_theme`

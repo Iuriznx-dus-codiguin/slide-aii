@@ -28,9 +28,24 @@ interface FetchImageBody {
   ai_prompt?: string;
   strategy: "pexels" | "ai" | "none" | "video";
   orientation?: "landscape" | "portrait" | "square";
+  /** Estilo visual quando strategy="ai" — molda o prompt final. */
+  style?: "photo" | "illustration" | "no-background" | "3d-render" | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
   /** URLs já em uso na apresentação — Pexels evitará reutilizá-las. */
   avoid_urls?: string[];
 }
+
+/** Mapeia estilo → sufixo de prompt cinematográfico para Nano Banana 2. */
+const STYLE_SUFFIX: Record<NonNullable<FetchImageBody["style"]>, string> = {
+  "photo": "Cinematic photograph, dramatic lighting, shallow depth of field, editorial quality, 4k.",
+  "illustration": "Flat vector illustration, editorial style, bold color palette, clean composition.",
+  "no-background": "Isolated subject on pure white background, product-photography lighting, no shadow, crisp edges — perfect for compositing.",
+  "3d-render": "Modern 3D render, soft studio lighting, matte materials, clean isometric or three-quarter view.",
+  "isometric": "Isometric 3D illustration, pastel palette, clean geometric composition, subtle depth.",
+  "watercolor": "Watercolor illustration, soft washes, organic textures, muted palette, hand-painted feel.",
+  "line-art": "Minimalist single-weight line art, one accent color, generous negative space.",
+  "collage": "Editorial magazine collage, mixed textures, cut-paper aesthetic, expressive composition.",
+  "minimal": "Ultra-minimal composition, one focal object, monochrome palette, generous negative space, gallery aesthetic.",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -228,20 +243,27 @@ Deno.serve(async (req) => {
 
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-      const prompt = body.ai_prompt || body.query || "abstract beautiful illustration";
+      const basePrompt = body.ai_prompt || body.query || "abstract beautiful illustration";
+      const styleSuffix = body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, high quality, presentation hero image.";
+      const finalPrompt = `${basePrompt}. ${styleSuffix}`;
 
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      // Nano Banana 2 (gemini-3.1-flash-image) — pro-level quality em velocidade Flash.
+      // Fallback automático para 2.5-flash-image se o 3.1 falhar no ambiente atual.
+      const callModel = async (model: string) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [{ role: "user", content: `${prompt}. Cinematic, professional, high quality, presentation hero image.` }],
+          model,
+          messages: [{ role: "user", content: finalPrompt }],
           modalities: ["image", "text"],
         }),
       });
+      let r = await callModel("google/gemini-3.1-flash-image");
+      if (!r.ok && r.status !== 429 && r.status !== 402) {
+        console.warn("Nano Banana 2 failed, falling back to 2.5-flash-image:", r.status);
+        r = await callModel("google/gemini-2.5-flash-image");
+      }
+
 
       if (!r.ok) {
         if (r.status === 429 || r.status === 402) {

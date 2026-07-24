@@ -18,7 +18,7 @@ import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
-import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
+import { generateSlug, THEMES, FONTS, autoFontForContext, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
@@ -32,11 +32,12 @@ const FREE_GENERATIONS_LIMIT = 1;
 
 const STEPS = [
   "Pesquisando o tema...",
-  "Estruturando narrativa...",
-  "Definindo direção visual...",
-  "Buscando imagens reais...",
-  "Adicionando animações...",
-  "Finalizando...",
+  "Estruturando narrativa cinematográfica...",
+  "Definindo direção de arte e paleta...",
+  "Selecionando tipografia impactante...",
+  "Buscando e gerando imagens (Nano Banana 2)...",
+  "Coreografando transições e magic move...",
+  "Renderizando slides finais...",
 ];
 
 interface AISlide {
@@ -56,6 +57,7 @@ interface AISlide {
   image_query?: string;
   image_strategy?: "pexels" | "ai" | "none";
   ai_image_prompt?: string;
+  image_style?: "photo" | "illustration" | "no-background" | "3d-render" | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
   image_url?: string | null;
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
   cover_variant?: "split-hero" | "typographic-bold" | "full-bleed-image" | "minimal-centered" | "asymmetric-grid" | "gradient-mesh";
@@ -85,15 +87,21 @@ const Generate = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [slidesCount, setSlidesCount] = useState(8);
-  const [type, setType] = useState("Corporativo");
+  const [type, setType] = useState("Escolar");
   const [language, setLanguage] = useState("pt-BR");
   const [theme, setTheme] = useState("auto");
-  const [fontStyle, setFontStyle] = useState("modern-sans");
+  // A fonte agora é escolhida automaticamente com base em tipo+tema+título
+  // (o form deixou de expor esse controle — reduz atrito e maximiza impacto
+  // visual por assunto).
+  const fontStyle = autoFontForContext(type, theme, title);
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
+  const [preferDynamic, setPreferDynamic] = useState(true);
   // DNA narrativo (Fase 2.5+)
   const [persona, setPersona] = useState<string>("educator");
-  const [depthLevel, setDepthLevel] = useState<string>("high-level");
+  // Profundidade fixada em "high-level" — deixou de ser exposta no form
+  // (o produto escolhe a versão mais legível por padrão).
+  const depthLevel = "high-level";
   const [presentersCount, setPresentersCount] = useState(1);
   const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
   const [includeSpeeches, setIncludeSpeeches] = useState(false);
@@ -124,7 +132,7 @@ const Generate = () => {
     setSlidesCount(Math.min(15, tpl.seed.slidesCount));
     setType(tpl.seed.type);
     setTheme(tpl.seed.theme);
-    setFontStyle(tpl.seed.fontStyle);
+    // fontStyle é derivado do contexto — templates não sobrescrevem mais.
     setIncludeCharts(tpl.seed.includeCharts);
     setIncludeImages(tpl.seed.includeImages);
     toast.success(`Template "${tpl.title}" carregado — ajuste e gere!`);
@@ -164,7 +172,7 @@ const Generate = () => {
       if (!q) { result[i] = s; return; }
       try {
         const { data } = await supabase.functions.invoke("fetch-image", {
-          body: { query: q, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, orientation: "landscape", avoid_urls: snapshotAvoid() },
+          body: { query: q, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, style: s.image_style, orientation: "landscape", avoid_urls: snapshotAvoid() },
         });
         let url = data?.url ?? null;
         if (url && usedUrls.has(url)) url = null;
@@ -221,6 +229,7 @@ const Generate = () => {
           title, description, slidesCount, type, language, theme, fontStyle,
           includeCharts, includeImages,
           persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+          preferDynamic,
           image_budget_mode: modeFromBudget(devSettings.maxBudgetUsd),
           max_budget_usd: devSettings.maxBudgetUsd,
         },
@@ -562,28 +571,111 @@ const Generate = () => {
 
   // ───────────────────────── LOADING PHASE ─────────────────────────
   if (phase === "loading") {
+    const progressPct = Math.min(100, Math.round(((stepIdx + 1) / STEPS.length) * 100));
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-background relative">
-        <div className="absolute inset-0 bg-gradient-glow opacity-30 pointer-events-none" />
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative max-w-md w-full">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
+        {/* Fundo cinematográfico com orbes animados — reforça a sensação de "algo grande sendo forjado" */}
+        <div className="absolute inset-0 bg-gradient-glow opacity-40 pointer-events-none" />
+        <motion.div
+          aria-hidden
+          className="absolute -top-32 -left-32 h-96 w-96 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(var(--primary)/0.35), transparent 70%)", filter: "blur(60px)" }}
+          animate={{ x: [0, 60, -30, 0], y: [0, 40, -20, 0], scale: [1, 1.15, 0.95, 1] }}
+          transition={{ repeat: Infinity, duration: 14, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute -bottom-32 -right-32 h-[28rem] w-[28rem] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(var(--accent)/0.28), transparent 70%)", filter: "blur(80px)" }}
+          animate={{ x: [0, -50, 30, 0], y: [0, -30, 20, 0], scale: [1, 0.9, 1.1, 1] }}
+          transition={{ repeat: Infinity, duration: 18, ease: "easeInOut" }}
+        />
+        {/* Grid sutil de partículas */}
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-[0.08] pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "28px 28px" }}
+        />
+
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative max-w-lg w-full">
           <div className="text-center mb-8">
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
-              className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-gradient-primary shadow-glow mb-6">
-              <Sparkles className="h-10 w-10 text-primary-foreground" />
-            </motion.div>
-            <h2 className="font-display text-3xl font-bold">Criando sua apresentação</h2>
-            <p className="text-muted-foreground mt-2">Pesquisando, escrevendo e ilustrando em segundos...</p>
+            {/* Ícone com camadas rotativas em velocidades diferentes — sensação de sistema complexo em ação */}
+            <div className="relative inline-flex items-center justify-center h-28 w-28 mb-6">
+              <motion.div
+                aria-hidden
+                className="absolute inset-0 rounded-full border-2 border-primary/30"
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
+                style={{ borderTopColor: "hsl(var(--primary))", borderRightColor: "transparent", borderBottomColor: "transparent" }}
+              />
+              <motion.div
+                aria-hidden
+                className="absolute inset-2 rounded-full border border-accent/40"
+                animate={{ rotate: -360 }}
+                transition={{ repeat: Infinity, duration: 9, ease: "linear" }}
+                style={{ borderBottomColor: "hsl(var(--accent))", borderLeftColor: "transparent", borderTopColor: "transparent" }}
+              />
+              <motion.div
+                animate={{ scale: [1, 1.08, 1], boxShadow: ["0 0 24px hsl(var(--primary)/0.4)", "0 0 48px hsl(var(--primary)/0.7)", "0 0 24px hsl(var(--primary)/0.4)"] }}
+                transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
+                className="relative inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-primary"
+              >
+                <Sparkles className="h-8 w-8 text-primary-foreground" />
+              </motion.div>
+            </div>
+            <motion.h2
+              key={stepIdx}
+              initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="font-display text-3xl md:text-4xl font-bold tracking-tight"
+            >
+              {STEPS[stepIdx] ?? "Finalizando..."}
+            </motion.h2>
+            <p className="text-muted-foreground mt-2 text-sm">Direção de arte, roteiro e ilustração — tudo em segundos.</p>
           </div>
-          <div className="space-y-2">
+
+          {/* Barra de progresso principal */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+              <span className="font-mono uppercase tracking-wider">Progresso</span>
+              <span className="font-mono font-semibold text-primary">{progressPct}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden relative">
+              <motion.div
+                className="h-full bg-gradient-primary relative"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <motion.div
+                  aria-hidden
+                  className="absolute inset-0 bg-white/40"
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }}
+                  style={{ mixBlendMode: "overlay" }}
+                />
+              </motion.div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
             {STEPS.map((s, i) => (
-              <motion.div key={s} initial={{ opacity: 0.3 }} animate={{ opacity: i <= stepIdx ? 1 : 0.4 }}
-                className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
-                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${
+              <motion.div
+                key={s}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: i <= stepIdx ? 1 : 0.35, x: 0 }}
+                transition={{ duration: 0.4, delay: i * 0.05 }}
+                className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                  i === stepIdx ? "border-primary/50 bg-primary/5" : "border-border bg-card/50"
+                }`}
+              >
+                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs shrink-0 ${
                   i < stepIdx ? "bg-primary text-primary-foreground" : i === stepIdx ? "bg-primary/20" : "bg-muted"
                 }`}>
-                  {i < stepIdx ? "✓" : i === stepIdx ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : ""}
+                  {i < stepIdx ? "✓" : i === stepIdx ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <span className="text-muted-foreground">{i + 1}</span>}
                 </div>
-                <span className="text-sm">{s}</span>
+                <span className="text-sm flex-1">{s}</span>
               </motion.div>
             ))}
           </div>
@@ -654,8 +746,8 @@ const Generate = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="desc">Descrição (opcional)</Label>
-              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Foque em algum aspecto, público-alvo, tom desejado..." rows={3} maxLength={1000} />
+              <Label htmlFor="desc">Descrição <span className="text-primary text-xs font-semibold">(recomendado)</span></Label>
+              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o ângulo, público-alvo, tom desejado — quanto mais contexto, mais rica a apresentação." rows={3} maxLength={1000} />
             </div>
 
             <div className="space-y-3">
@@ -714,16 +806,6 @@ const Generate = () => {
               <p className="text-xs text-muted-foreground">{THEMES[theme]?.name}</p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Estilo de fonte</Label>
-              <Select value={fontStyle} onValueChange={setFontStyle}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(FONTS).map(([id, f]) => <SelectItem key={id} value={id}>{f.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
@@ -735,36 +817,33 @@ const Generate = () => {
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <div className="font-medium text-sm">Imagens reais</div>
-                  <div className="text-[11px] text-muted-foreground">Pexels + IA</div>
+                  <div className="text-[11px] text-muted-foreground">Pexels + Nano Banana 2</div>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
               </div>
+              <div className="flex items-center justify-between rounded-xl border border-primary/40 bg-primary/5 p-3 sm:col-span-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Slide Dinâmico (magic move)
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">Título e imagem-hero migram entre slides — em vez de troca abrupta.</div>
+                </div>
+                <Switch checked={preferDynamic} onCheckedChange={setPreferDynamic} />
+              </div>
             </div>
 
-            {/* DNA narrativo (Fase 2.5) */}
-            <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t border-border">
-              <div className="space-y-2">
-                <Label>Persona do orador</Label>
-                <Select value={persona} onValueChange={setPersona}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="educator">Educador (didático)</SelectItem>
-                    <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
-                    <SelectItem value="inspirational-leader">Líder inspiracional</SelectItem>
-                    <SelectItem value="salesperson">Vendedor (dor→solução)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Profundidade</Label>
-                <Select value={depthLevel} onValueChange={setDepthLevel}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high-level">Executivo (high-level)</SelectItem>
-                    <SelectItem value="deep-dive">Operacional (deep-dive)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* DNA narrativo (Fase 2.5) — profundidade fica implícita ("high-level") */}
+            <div className="pt-2 border-t border-border space-y-2">
+              <Label>Persona do orador</Label>
+              <Select value={persona} onValueChange={setPersona}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="educator">Educador (didático)</SelectItem>
+                  <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
+                  <SelectItem value="inspirational-leader">Líder inspiracional</SelectItem>
+                  <SelectItem value="salesperson">Vendedor (dor→solução)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-3">
