@@ -362,8 +362,9 @@ LEMBRETE CRÍTICO:
                   quote_author: { type: "string", description: "Pessoa real verificável." },
                   speaker_notes: { type: "string", description: "Resumo curto (1-2 frases) das notas do orador." },
                   image_query: { type: "string", description: "Query MUITO específica em INGLÊS (3-6 palavras concretas) para Pexels." },
-                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "Default: 'pexels'. Use 'ai' apenas para conceitos abstratos." },
-                  ai_image_prompt: { type: "string", description: "SEMPRE preencha — fallback caso Pexels falhe." },
+                  image_strategy: { type: "string", enum: ["pexels", "ai", "none"], description: "Default: 'pexels'. Alterne com 'ai' para variedade de estilos visuais." },
+                  ai_image_prompt: { type: "string", description: "SEMPRE preencha — descrição cinematográfica com estilo explícito (fallback ou principal)." },
+                  image_style: { type: "string", enum: ["photo", "illustration", "no-background", "3d-render", "isometric", "watercolor", "line-art", "collage", "minimal"], description: "Estilo visual — VARIE entre slides. Obrigatório quando image_strategy='ai'." },
                   chart: {
                     type: "object",
                     properties: {
