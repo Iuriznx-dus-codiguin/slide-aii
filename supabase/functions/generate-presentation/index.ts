@@ -32,6 +32,8 @@ interface GenerateRequest {
   includeSpeeches?: boolean;
   image_budget_mode?: "economy" | "balanced" | "premium";
   max_budget_usd?: number;
+  /** Quando true (padrão), a IA prioriza a transição "dynamic" (magic move) na maioria dos slides. */
+  preferDynamic?: boolean;
 }
 
 const personaGuide = (p?: string) => {
