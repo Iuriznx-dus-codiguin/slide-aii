@@ -747,30 +747,18 @@ const Generate = () => {
               </div>
             </div>
 
-            {/* DNA narrativo (Fase 2.5) */}
-            <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t border-border">
-              <div className="space-y-2">
-                <Label>Persona do orador</Label>
-                <Select value={persona} onValueChange={setPersona}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="educator">Educador (didático)</SelectItem>
-                    <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
-                    <SelectItem value="inspirational-leader">Líder inspiracional</SelectItem>
-                    <SelectItem value="salesperson">Vendedor (dor→solução)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Profundidade</Label>
-                <Select value={depthLevel} onValueChange={setDepthLevel}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high-level">Executivo (high-level)</SelectItem>
-                    <SelectItem value="deep-dive">Operacional (deep-dive)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* DNA narrativo (Fase 2.5) — profundidade fica implícita ("high-level") */}
+            <div className="pt-2 border-t border-border space-y-2">
+              <Label>Persona do orador</Label>
+              <Select value={persona} onValueChange={setPersona}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="educator">Educador (didático)</SelectItem>
+                  <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
+                  <SelectItem value="inspirational-leader">Líder inspiracional</SelectItem>
+                  <SelectItem value="salesperson">Vendedor (dor→solução)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-3">
