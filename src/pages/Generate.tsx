@@ -171,7 +171,7 @@ const Generate = () => {
       if (!q) { result[i] = s; return; }
       try {
         const { data } = await supabase.functions.invoke("fetch-image", {
-          body: { query: q, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, orientation: "landscape", avoid_urls: snapshotAvoid() },
+          body: { query: q, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, style: s.image_style, orientation: "landscape", avoid_urls: snapshotAvoid() },
         });
         let url = data?.url ?? null;
         if (url && usedUrls.has(url)) url = null;
