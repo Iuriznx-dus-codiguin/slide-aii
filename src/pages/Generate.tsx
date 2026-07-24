@@ -661,8 +661,8 @@ const Generate = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="desc">Descrição (opcional)</Label>
-              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Foque em algum aspecto, público-alvo, tom desejado..." rows={3} maxLength={1000} />
+              <Label htmlFor="desc">Descrição <span className="text-primary text-xs font-semibold">(recomendado)</span></Label>
+              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o ângulo, público-alvo, tom desejado — quanto mais contexto, mais rica a apresentação." rows={3} maxLength={1000} />
             </div>
 
             <div className="space-y-3">
