@@ -243,20 +243,27 @@ Deno.serve(async (req) => {
 
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-      const prompt = body.ai_prompt || body.query || "abstract beautiful illustration";
+      const basePrompt = body.ai_prompt || body.query || "abstract beautiful illustration";
+      const styleSuffix = body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, high quality, presentation hero image.";
+      const finalPrompt = `${basePrompt}. ${styleSuffix}`;
 
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      // Nano Banana 2 (gemini-3.1-flash-image) — pro-level quality em velocidade Flash.
+      // Fallback automático para 2.5-flash-image se o 3.1 falhar no ambiente atual.
+      const callModel = async (model: string) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [{ role: "user", content: `${prompt}. Cinematic, professional, high quality, presentation hero image.` }],
+          model,
+          messages: [{ role: "user", content: finalPrompt }],
           modalities: ["image", "text"],
         }),
       });
+      let r = await callModel("google/gemini-3.1-flash-image");
+      if (!r.ok && r.status !== 429 && r.status !== 402) {
+        console.warn("Nano Banana 2 failed, falling back to 2.5-flash-image:", r.status);
+        r = await callModel("google/gemini-2.5-flash-image");
+      }
+
 
       if (!r.ok) {
         if (r.status === 429 || r.status === 402) {
