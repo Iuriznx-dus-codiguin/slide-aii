@@ -57,6 +57,7 @@ interface AISlide {
   image_query?: string;
   image_strategy?: "pexels" | "ai" | "none";
   ai_image_prompt?: string;
+  image_style?: "photo" | "illustration" | "no-background" | "3d-render" | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
   image_url?: string | null;
   chart?: { type: string; labels: string[]; values: number[]; title?: string };
   cover_variant?: "split-hero" | "typographic-bold" | "full-bleed-image" | "minimal-centered" | "asymmetric-grid" | "gradient-mesh";
