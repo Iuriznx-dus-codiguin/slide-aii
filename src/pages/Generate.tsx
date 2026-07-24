@@ -32,11 +32,12 @@ const FREE_GENERATIONS_LIMIT = 1;
 
 const STEPS = [
   "Pesquisando o tema...",
-  "Estruturando narrativa...",
-  "Definindo direção visual...",
-  "Buscando imagens reais...",
-  "Adicionando animações...",
-  "Finalizando...",
+  "Estruturando narrativa cinematográfica...",
+  "Definindo direção de arte e paleta...",
+  "Selecionando tipografia impactante...",
+  "Buscando e gerando imagens (Nano Banana 2)...",
+  "Coreografando transições e magic move...",
+  "Renderizando slides finais...",
 ];
 
 interface AISlide {
