@@ -28,9 +28,24 @@ interface FetchImageBody {
   ai_prompt?: string;
   strategy: "pexels" | "ai" | "none" | "video";
   orientation?: "landscape" | "portrait" | "square";
+  /** Estilo visual quando strategy="ai" — molda o prompt final. */
+  style?: "photo" | "illustration" | "no-background" | "3d-render" | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
   /** URLs já em uso na apresentação — Pexels evitará reutilizá-las. */
   avoid_urls?: string[];
 }
+
+/** Mapeia estilo → sufixo de prompt cinematográfico para Nano Banana 2. */
+const STYLE_SUFFIX: Record<NonNullable<FetchImageBody["style"]>, string> = {
+  "photo": "Cinematic photograph, dramatic lighting, shallow depth of field, editorial quality, 4k.",
+  "illustration": "Flat vector illustration, editorial style, bold color palette, clean composition.",
+  "no-background": "Isolated subject on pure white background, product-photography lighting, no shadow, crisp edges — perfect for compositing.",
+  "3d-render": "Modern 3D render, soft studio lighting, matte materials, clean isometric or three-quarter view.",
+  "isometric": "Isometric 3D illustration, pastel palette, clean geometric composition, subtle depth.",
+  "watercolor": "Watercolor illustration, soft washes, organic textures, muted palette, hand-painted feel.",
+  "line-art": "Minimalist single-weight line art, one accent color, generous negative space.",
+  "collage": "Editorial magazine collage, mixed textures, cut-paper aesthetic, expressive composition.",
+  "minimal": "Ultra-minimal composition, one focal object, monochrome palette, generous negative space, gallery aesthetic.",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
