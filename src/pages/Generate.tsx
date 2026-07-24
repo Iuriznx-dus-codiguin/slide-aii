@@ -131,7 +131,7 @@ const Generate = () => {
     setSlidesCount(Math.min(15, tpl.seed.slidesCount));
     setType(tpl.seed.type);
     setTheme(tpl.seed.theme);
-    setFontStyle(tpl.seed.fontStyle);
+    // fontStyle é derivado do contexto — templates não sobrescrevem mais.
     setIncludeCharts(tpl.seed.includeCharts);
     setIncludeImages(tpl.seed.includeImages);
     toast.success(`Template "${tpl.title}" carregado — ajuste e gere!`);
