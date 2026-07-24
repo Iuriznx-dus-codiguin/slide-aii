@@ -84,10 +84,15 @@ APRESENTADORES (${presenters}): ${presenterList.length ? presenterList.join(", "
 ${presenters > 1 ? `→ Crie "ÂNCORAS DE TRANSIÇÃO" entre apresentadores. Divida fala EQUITATIVAMENTE em blocos de 2-3 slides.` : ""}
 
 ═══════════════════════════════════════════════════
-PASSO B — CÍRCULO NARRATIVO
+PASSO B — ARCO NARRATIVO FLEXÍVEL
 ═══════════════════════════════════════════════════
-Distribua os ${req.slidesCount} slides em 5 fases: hook (1-2) → tension (1-2) → journey (40-50%) → proof (1-2) → climax (1).
-Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo).
+Distribua os ${req.slidesCount} slides com LIBERDADE — o arco clássico (hook → tension → journey → proof → climax) é uma REFERÊNCIA, não uma prisão. Você pode:
+  • Abrir com "hook" ou direto em "journey" quando o tema pede contexto imediato.
+  • Ter MÚLTIPLOS picos de "proof" (dados/casos) em vez de UM climax único.
+  • Alternar tension ↔ journey várias vezes (ex: problema→solução→problema maior→solução maior).
+  • Usar "climax" só quando fizer sentido narrativo — pode não haver climax explícito.
+Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e uma referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo, dado→interpretação).
+VARIE a sequência de narrative_act — evite padrão rígido "hook, tension, journey×N, proof, climax".
 
 ═══════════════════════════════════════════════════
 PASSO C — REGRA DE OURO: TODO SLIDE É COMPLETO
