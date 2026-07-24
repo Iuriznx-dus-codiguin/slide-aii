@@ -228,6 +228,7 @@ const Generate = () => {
           title, description, slidesCount, type, language, theme, fontStyle,
           includeCharts, includeImages,
           persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+          preferDynamic,
           image_budget_mode: modeFromBudget(devSettings.maxBudgetUsd),
           max_budget_usd: devSettings.maxBudgetUsd,
         },
