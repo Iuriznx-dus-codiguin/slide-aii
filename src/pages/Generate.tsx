@@ -18,7 +18,7 @@ import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
-import { generateSlug, THEMES, FONTS, type ThemeColors } from "@/lib/slugify";
+import { generateSlug, THEMES, FONTS, autoFontForContext, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
