@@ -721,16 +721,6 @@ const Generate = () => {
               <p className="text-xs text-muted-foreground">{THEMES[theme]?.name}</p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Estilo de fonte</Label>
-              <Select value={fontStyle} onValueChange={setFontStyle}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(FONTS).map(([id, f]) => <SelectItem key={id} value={id}>{f.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
@@ -742,9 +732,18 @@ const Generate = () => {
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <div className="font-medium text-sm">Imagens reais</div>
-                  <div className="text-[11px] text-muted-foreground">Pexels + IA</div>
+                  <div className="text-[11px] text-muted-foreground">Pexels + Nano Banana 2</div>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-primary/40 bg-primary/5 p-3 sm:col-span-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Slide Dinâmico (magic move)
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">Título e imagem-hero migram entre slides — em vez de troca abrupta.</div>
+                </div>
+                <Switch checked={preferDynamic} onCheckedChange={setPreferDynamic} />
               </div>
             </div>
 
