@@ -570,28 +570,111 @@ const Generate = () => {
 
   // ───────────────────────── LOADING PHASE ─────────────────────────
   if (phase === "loading") {
+    const progressPct = Math.min(100, Math.round(((stepIdx + 1) / STEPS.length) * 100));
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-background relative">
-        <div className="absolute inset-0 bg-gradient-glow opacity-30 pointer-events-none" />
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative max-w-md w-full">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
+        {/* Fundo cinematográfico com orbes animados — reforça a sensação de "algo grande sendo forjado" */}
+        <div className="absolute inset-0 bg-gradient-glow opacity-40 pointer-events-none" />
+        <motion.div
+          aria-hidden
+          className="absolute -top-32 -left-32 h-96 w-96 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(var(--primary)/0.35), transparent 70%)", filter: "blur(60px)" }}
+          animate={{ x: [0, 60, -30, 0], y: [0, 40, -20, 0], scale: [1, 1.15, 0.95, 1] }}
+          transition={{ repeat: Infinity, duration: 14, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute -bottom-32 -right-32 h-[28rem] w-[28rem] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(var(--accent)/0.28), transparent 70%)", filter: "blur(80px)" }}
+          animate={{ x: [0, -50, 30, 0], y: [0, -30, 20, 0], scale: [1, 0.9, 1.1, 1] }}
+          transition={{ repeat: Infinity, duration: 18, ease: "easeInOut" }}
+        />
+        {/* Grid sutil de partículas */}
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-[0.08] pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "28px 28px" }}
+        />
+
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative max-w-lg w-full">
           <div className="text-center mb-8">
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
-              className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-gradient-primary shadow-glow mb-6">
-              <Sparkles className="h-10 w-10 text-primary-foreground" />
-            </motion.div>
-            <h2 className="font-display text-3xl font-bold">Criando sua apresentação</h2>
-            <p className="text-muted-foreground mt-2">Pesquisando, escrevendo e ilustrando em segundos...</p>
+            {/* Ícone com camadas rotativas em velocidades diferentes — sensação de sistema complexo em ação */}
+            <div className="relative inline-flex items-center justify-center h-28 w-28 mb-6">
+              <motion.div
+                aria-hidden
+                className="absolute inset-0 rounded-full border-2 border-primary/30"
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
+                style={{ borderTopColor: "hsl(var(--primary))", borderRightColor: "transparent", borderBottomColor: "transparent" }}
+              />
+              <motion.div
+                aria-hidden
+                className="absolute inset-2 rounded-full border border-accent/40"
+                animate={{ rotate: -360 }}
+                transition={{ repeat: Infinity, duration: 9, ease: "linear" }}
+                style={{ borderBottomColor: "hsl(var(--accent))", borderLeftColor: "transparent", borderTopColor: "transparent" }}
+              />
+              <motion.div
+                animate={{ scale: [1, 1.08, 1], boxShadow: ["0 0 24px hsl(var(--primary)/0.4)", "0 0 48px hsl(var(--primary)/0.7)", "0 0 24px hsl(var(--primary)/0.4)"] }}
+                transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
+                className="relative inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-primary"
+              >
+                <Sparkles className="h-8 w-8 text-primary-foreground" />
+              </motion.div>
+            </div>
+            <motion.h2
+              key={stepIdx}
+              initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="font-display text-3xl md:text-4xl font-bold tracking-tight"
+            >
+              {STEPS[stepIdx] ?? "Finalizando..."}
+            </motion.h2>
+            <p className="text-muted-foreground mt-2 text-sm">Direção de arte, roteiro e ilustração — tudo em segundos.</p>
           </div>
-          <div className="space-y-2">
+
+          {/* Barra de progresso principal */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+              <span className="font-mono uppercase tracking-wider">Progresso</span>
+              <span className="font-mono font-semibold text-primary">{progressPct}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden relative">
+              <motion.div
+                className="h-full bg-gradient-primary relative"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <motion.div
+                  aria-hidden
+                  className="absolute inset-0 bg-white/40"
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }}
+                  style={{ mixBlendMode: "overlay" }}
+                />
+              </motion.div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
             {STEPS.map((s, i) => (
-              <motion.div key={s} initial={{ opacity: 0.3 }} animate={{ opacity: i <= stepIdx ? 1 : 0.4 }}
-                className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
-                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${
+              <motion.div
+                key={s}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: i <= stepIdx ? 1 : 0.35, x: 0 }}
+                transition={{ duration: 0.4, delay: i * 0.05 }}
+                className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                  i === stepIdx ? "border-primary/50 bg-primary/5" : "border-border bg-card/50"
+                }`}
+              >
+                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs shrink-0 ${
                   i < stepIdx ? "bg-primary text-primary-foreground" : i === stepIdx ? "bg-primary/20" : "bg-muted"
                 }`}>
-                  {i < stepIdx ? "✓" : i === stepIdx ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : ""}
+                  {i < stepIdx ? "✓" : i === stepIdx ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <span className="text-muted-foreground">{i + 1}</span>}
                 </div>
-                <span className="text-sm">{s}</span>
+                <span className="text-sm flex-1">{s}</span>
               </motion.div>
             ))}
           </div>
