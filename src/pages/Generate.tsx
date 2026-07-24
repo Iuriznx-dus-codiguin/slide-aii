@@ -86,15 +86,21 @@ const Generate = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [slidesCount, setSlidesCount] = useState(8);
-  const [type, setType] = useState("Corporativo");
+  const [type, setType] = useState("Escolar");
   const [language, setLanguage] = useState("pt-BR");
   const [theme, setTheme] = useState("auto");
-  const [fontStyle, setFontStyle] = useState("modern-sans");
+  // A fonte agora é escolhida automaticamente com base em tipo+tema+título
+  // (o form deixou de expor esse controle — reduz atrito e maximiza impacto
+  // visual por assunto).
+  const fontStyle = autoFontForContext(type, theme, title);
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
+  const [preferDynamic, setPreferDynamic] = useState(true);
   // DNA narrativo (Fase 2.5+)
   const [persona, setPersona] = useState<string>("educator");
-  const [depthLevel, setDepthLevel] = useState<string>("high-level");
+  // Profundidade fixada em "high-level" — deixou de ser exposta no form
+  // (o produto escolhe a versão mais legível por padrão).
+  const depthLevel = "high-level";
   const [presentersCount, setPresentersCount] = useState(1);
   const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
   const [includeSpeeches, setIncludeSpeeches] = useState(false);
