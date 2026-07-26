@@ -18,7 +18,7 @@ import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
-import { generateSlug, THEMES, FONTS, autoFontForContext, type ThemeColors } from "@/lib/slugify";
+import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
@@ -90,10 +90,11 @@ const Generate = () => {
   const [type, setType] = useState("Escolar");
   const [language, setLanguage] = useState("pt-BR");
   const [theme, setTheme] = useState("auto");
-  // A fonte agora é escolhida automaticamente com base em tipo+tema+título
-  // (o form deixou de expor esse controle — reduz atrito e maximiza impacto
-  // visual por assunto).
-  const fontStyle = autoFontForContext(type, theme, title);
+  // A fonte agora é escolhida automaticamente com base em tipo+tema+título e,
+  // quando a IA devolve `font_pairing`, é ela quem manda (direção de arte por
+  // assunto). O form deixou de expor esse controle.
+  const [aiFontPairing, setAiFontPairing] = useState<string | null>(null);
+  const fontStyle = resolveFontPairing(aiFontPairing, autoFontForContext(type, theme, title));
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
   const [preferDynamic, setPreferDynamic] = useState(true);
