@@ -747,12 +747,14 @@ const Generate = () => {
           <div className="bg-card border border-border rounded-3xl p-5 md:p-8 shadow-elegant space-y-5 md:space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Título / Tema *</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: História da Espanha medieval" maxLength={150} />
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: História da Espanha medieval" maxLength={150}
+                className="h-12 text-base md:h-10 md:text-sm" autoComplete="off" enterKeyHint="next" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="desc">Descrição <span className="text-primary text-xs font-semibold">(recomendado)</span></Label>
-              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o ângulo, público-alvo, tom desejado — quanto mais contexto, mais rica a apresentação." rows={3} maxLength={1000} />
+              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o ângulo, público-alvo, tom desejado — quanto mais contexto, mais rica a apresentação." rows={3} maxLength={1000}
+                className="text-base md:text-sm min-h-[96px]" />
             </div>
 
             <div className="space-y-3">
