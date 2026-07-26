@@ -194,8 +194,14 @@ REGRAS CRÍTICAS DE CONTEÚDO:
 5. Quote_author = pessoa REAL verificável com cargo/contexto.
 6. COESÃO: cada slide é PONTE lógica do anterior.
 7. ÂNCORA TEMÁTICA: nenhum slide pode fugir do assunto central definido no Passo 0.
-8. Tema dinâmico: se "auto", devolva no PRIMEIRO slide um dynamic_theme com cores hex (bg, text, accent, accent2) refletindo o assunto. Mínimo WCAG AA.
-9. Para title_slide, escolha cover_variant entre split-hero, typographic-bold, full-bleed-image, minimal-centered, asymmetric-grid, gradient-mesh.
+8. TEMA DINÂMICO E CORES (quando theme="auto"): devolva dynamic_theme com hex reais e VIVOS, derivados do assunto:
+   - accent e accent2 devem ser cores SATURADAS e VIBRANTES (saturação alta, ex: #FF4D2E, #00E0A4, #FFD400, #2E7BFF, #FF2D8A), nunca pasteis lavados nem cinzas.
+   - accent2 deve CONTRASTAR com accent (par complementar ou análogo distante) para permitir destaques duplos.
+   - bg simples e sólido: ou muito escuro (#0A0A12 → #121826) ou muito claro (#FFFFFF → #F7F5F0). Sem fundos "meio-tom".
+   - text com contraste WCAG AA mínimo 4.5:1 sobre bg.
+   - Escolha a família cromática pelo SIGNIFICADO do tema (natureza=verdes vivos, finanças=azul+verde-limão, saúde=azul-ciano+coral, tecnologia=violeta+ciano elétrico, história=âmbar+vinho, esporte=laranja+azul elétrico, arte=magenta+amarelo).
+9. TIPOGRAFIA: devolva font_pairing escolhendo o par tipográfico que melhor traduz o tema/persona (o usuário não escolhe fonte — a decisão é sua e deve VARIAR entre apresentações de temas diferentes).
+10. Para title_slide, escolha cover_variant entre split-hero, typographic-bold, full-bleed-image, minimal-centered, asymmetric-grid, gradient-mesh.
 
 ${speeches ? `═══════════════════════════════════════════════════
 PASSO G — FALAS DOS APRESENTADORES
