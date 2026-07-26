@@ -325,13 +325,14 @@ const Generate = () => {
     mode: "view" | "edit",
     slidesArg: AISlide[],
     dynArg: Partial<ThemeColors> | null,
+    fontArg?: string,
   ) => {
     if (!user || !slidesArg.length) return;
     setSaving(true);
     try {
       const slug = generateSlug(title);
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
-        user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
+        user_id: user.id, title, description, type, language, theme, font_style: fontArg ?? fontStyle,
         slug, slides_count: slidesArg.length, is_paid: true, is_published: true,
         persona,
         depth_level: depthLevel,
