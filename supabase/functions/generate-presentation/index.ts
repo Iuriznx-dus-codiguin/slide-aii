@@ -545,6 +545,11 @@ LEMBRETE CRÍTICO:
       ? (body.max_budget_usd <= 0.15 ? "economy" : body.max_budget_usd <= 0.45 ? "balanced" : "premium")
       : (body.image_budget_mode ?? "balanced");
     const pexelsOnly = budgetMode === "economy";
+    // Pool de modelos de página — usado para forçar variedade quando a IA
+    // repete o mesmo layout em sequência.
+    const LAYOUT_POOL = ["image-right", "two-columns", "stat-highlight", "quote", "centered", "image-left", "full-image", "title-content", "data-chart"];
+    const preferDynamic = body.preferDynamic !== false;
+    let lastLayout = "";
     parsed.slides = parsed.slides.map((s: any, i: number) => {
       const accents = Array.isArray(s.visual_accents) && s.visual_accents.length > 0
         ? s.visual_accents
@@ -552,8 +557,15 @@ LEMBRETE CRÍTICO:
       let strategy = s.image_strategy ?? (s.image_query ? "pexels" : "none");
       // Modo economia / dev override: nunca usar IA para imagens.
       if (pexelsOnly && strategy === "ai") strategy = "pexels";
-      // Modo premium: respeita "ai" do modelo (já é o comportamento padrão).
-      return { ...s, visual_accents: accents, image_strategy: strategy };
+      // Modelos de página: nunca dois iguais seguidos (exceto capa).
+      let layout = s.layout_template || LAYOUT_POOL[i % LAYOUT_POOL.length];
+      if (i > 0 && layout === lastLayout) {
+        layout = LAYOUT_POOL.find((l) => l !== lastLayout && l !== layout) ?? LAYOUT_POOL[(i + 1) % LAYOUT_POOL.length];
+      }
+      lastLayout = layout;
+      // Transições: apenas dynamic/fade — as legadas foram removidas.
+      const transition = preferDynamic ? "dynamic" : "fade";
+      return { ...s, visual_accents: accents, image_strategy: strategy, layout_template: layout, transition };
     });
 
     // Garante presenters_data normalizado quando falas ativadas
@@ -605,6 +617,7 @@ LEMBRETE CRÍTICO:
     return new Response(JSON.stringify({
       slides: parsed.slides,
       dynamic_theme: parsed.dynamic_theme ?? null,
+      font_pairing: parsed.font_pairing ?? null,
       _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
