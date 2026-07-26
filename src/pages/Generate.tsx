@@ -260,13 +260,16 @@ const Generate = () => {
       setStepIdx(4);
 
       const dyn = data.dynamic_theme ?? null;
+      // Direção de arte tipográfica escolhida pela IA para este assunto.
+      const fontId = resolveFontPairing(data.font_pairing, autoFontForContext(type, theme, title));
+      setAiFontPairing(data.font_pairing ?? null);
       setDynamicTheme(dyn);
       setSlides(withImages);
       setStepIdx(STEPS.length - 1);
       setCurrentSlide(0);
       // Após a geração, pula o preview com chat e vai direto pro editor manual,
       // onde o toggle "Slide Dinâmico (magic move)" e demais controles estão disponíveis.
-      await persistAndOpenWith("edit", withImages, dyn);
+      await persistAndOpenWith("edit", withImages, dyn, fontId);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
