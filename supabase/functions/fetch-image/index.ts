@@ -47,6 +47,76 @@ const STYLE_SUFFIX: Record<NonNullable<FetchImageBody["style"]>, string> = {
   "minimal": "Ultra-minimal composition, one focal object, monochrome palette, generous negative space, gallery aesthetic.",
 };
 
+/**
+ * Geração de imagem por IA — OpenAI Images API como motor principal
+ * (gpt-image-1-mini, quality "low", 1536x1024 → melhor custo por hero image),
+ * com fallback para o gateway Lovable (Gemini Image) apenas se a OpenAI
+ * falhar por erro não-tarifário. Pexels continua sempre em primeiro lugar
+ * nas rotas acima, então a IA só entra quando realmente necessário.
+ */
+async function generateAiImage(
+  prompt: string,
+): Promise<{ url: string | null; source: string; rateLimited?: boolean }> {
+  const finalPrompt = prompt.slice(0, 3000);
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+
+  if (OPENAI_API_KEY) {
+    try {
+      const r = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-image-1-mini",
+          prompt: finalPrompt,
+          n: 1,
+          size: "1536x1024",
+          quality: "low",
+          output_format: "webp",
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const b64 = d.data?.[0]?.b64_json;
+        if (b64) return { url: `data:image/webp;base64,${b64}`, source: "openai" };
+        if (d.data?.[0]?.url) return { url: d.data[0].url, source: "openai" };
+      } else if (r.status === 429 || r.status === 402) {
+        console.warn("OpenAI image rate/credit limit:", r.status);
+        return { url: null, source: "openai", rateLimited: true };
+      } else {
+        const t = await r.text().catch(() => "");
+        console.error("OpenAI image error:", r.status, t.slice(0, 400));
+      }
+    } catch (e) {
+      console.warn("OpenAI image request failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return { url: null, source: "none" };
+  try {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: finalPrompt }],
+        modalities: ["image", "text"],
+      }),
+    });
+    if (!r.ok) {
+      if (r.status === 429 || r.status === 402) return { url: null, source: "lovable", rateLimited: true };
+      console.error("Lovable image fallback error:", r.status);
+      return { url: null, source: "lovable" };
+    }
+    const d = await r.json();
+    const url = d.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
+    return { url, source: "lovable" };
+  } catch (e) {
+    console.warn("Lovable image fallback failed:", e instanceof Error ? e.message : e);
+    return { url: null, source: "none" };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -173,27 +243,13 @@ Deno.serve(async (req) => {
       const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
       // Fallback: se Pexels não retornou nada útil, tenta gerar via IA usando ai_prompt|query.
       if (!url) {
-        const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-        if (LOVABLE_API_KEY) {
+        {
           try {
-            const prompt = body.ai_prompt || body.query || "abstract editorial composition";
-            const ai = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash-image",
-                messages: [{ role: "user", content: `${prompt}. Cinematic, professional, presentation hero image.` }],
-                modalities: ["image", "text"],
-              }),
-            });
-            if (ai.ok) {
-              const aiData = await ai.json();
-              const aiUrl = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
-              if (aiUrl) {
-                return new Response(JSON.stringify({ url: aiUrl, source: "ai-fallback" }), {
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-              }
+            const gen = await generateAiImage(`${prompt}. Cinematic, professional, presentation hero image.`);
+            if (gen.url) {
+              return new Response(JSON.stringify({ url: gen.url, source: `${gen.source}-fallback` }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
             }
           } catch (e) {
             console.warn("AI fallback after Pexels miss failed:", e);
@@ -241,45 +297,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
       const basePrompt = body.ai_prompt || body.query || "abstract beautiful illustration";
       const styleSuffix = body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, high quality, presentation hero image.";
       const finalPrompt = `${basePrompt}. ${styleSuffix}`;
 
-      // Nano Banana 2 (gemini-3.1-flash-image) — pro-level quality em velocidade Flash.
-      // Fallback automático para 2.5-flash-image se o 3.1 falhar no ambiente atual.
-      const callModel = async (model: string) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: finalPrompt }],
-          modalities: ["image", "text"],
-        }),
-      });
-      let r = await callModel("google/gemini-3.1-flash-image");
-      if (!r.ok && r.status !== 429 && r.status !== 402) {
-        console.warn("Nano Banana 2 failed, falling back to 2.5-flash-image:", r.status);
-        r = await callModel("google/gemini-2.5-flash-image");
+      const gen = await generateAiImage(finalPrompt);
+      if (!gen.url) {
+        return new Response(JSON.stringify({
+          url: null,
+          error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
-
-      if (!r.ok) {
-        if (r.status === 429 || r.status === 402) {
-          return new Response(JSON.stringify({ url: null, error: "AI image rate-limited" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        const t = await r.text();
-        console.error("AI image error:", r.status, t);
-        return new Response(JSON.stringify({ url: null, error: "AI image failed" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const data = await r.json();
-      const url = data.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
-      return new Response(JSON.stringify({ url }), {
+      return new Response(JSON.stringify({ url: gen.url, source: gen.source }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

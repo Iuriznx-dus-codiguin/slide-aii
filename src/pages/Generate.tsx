@@ -18,7 +18,7 @@ import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
-import { generateSlug, THEMES, FONTS, autoFontForContext, type ThemeColors } from "@/lib/slugify";
+import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
@@ -90,10 +90,11 @@ const Generate = () => {
   const [type, setType] = useState("Escolar");
   const [language, setLanguage] = useState("pt-BR");
   const [theme, setTheme] = useState("auto");
-  // A fonte agora é escolhida automaticamente com base em tipo+tema+título
-  // (o form deixou de expor esse controle — reduz atrito e maximiza impacto
-  // visual por assunto).
-  const fontStyle = autoFontForContext(type, theme, title);
+  // A fonte agora é escolhida automaticamente com base em tipo+tema+título e,
+  // quando a IA devolve `font_pairing`, é ela quem manda (direção de arte por
+  // assunto). O form deixou de expor esse controle.
+  const [aiFontPairing, setAiFontPairing] = useState<string | null>(null);
+  const fontStyle = resolveFontPairing(aiFontPairing, autoFontForContext(type, theme, title));
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
   const [preferDynamic, setPreferDynamic] = useState(true);
@@ -259,13 +260,16 @@ const Generate = () => {
       setStepIdx(4);
 
       const dyn = data.dynamic_theme ?? null;
+      // Direção de arte tipográfica escolhida pela IA para este assunto.
+      const fontId = resolveFontPairing(data.font_pairing, autoFontForContext(type, theme, title));
+      setAiFontPairing(data.font_pairing ?? null);
       setDynamicTheme(dyn);
       setSlides(withImages);
       setStepIdx(STEPS.length - 1);
       setCurrentSlide(0);
       // Após a geração, pula o preview com chat e vai direto pro editor manual,
       // onde o toggle "Slide Dinâmico (magic move)" e demais controles estão disponíveis.
-      await persistAndOpenWith("edit", withImages, dyn);
+      await persistAndOpenWith("edit", withImages, dyn, fontId);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
@@ -321,13 +325,14 @@ const Generate = () => {
     mode: "view" | "edit",
     slidesArg: AISlide[],
     dynArg: Partial<ThemeColors> | null,
+    fontArg?: string,
   ) => {
     if (!user || !slidesArg.length) return;
     setSaving(true);
     try {
       const slug = generateSlug(title);
       const { data: pres, error: pErr } = await supabase.from("presentations").insert({
-        user_id: user.id, title, description, type, language, theme, font_style: fontStyle,
+        user_id: user.id, title, description, type, language, theme, font_style: fontArg ?? fontStyle,
         slug, slides_count: slidesArg.length, is_paid: true, is_published: true,
         persona,
         depth_level: depthLevel,
@@ -742,12 +747,14 @@ const Generate = () => {
           <div className="bg-card border border-border rounded-3xl p-5 md:p-8 shadow-elegant space-y-5 md:space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Título / Tema *</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: História da Espanha medieval" maxLength={150} />
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: História da Espanha medieval" maxLength={150}
+                className="h-12 text-base md:h-10 md:text-sm" autoComplete="off" enterKeyHint="next" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="desc">Descrição <span className="text-primary text-xs font-semibold">(recomendado)</span></Label>
-              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o ângulo, público-alvo, tom desejado — quanto mais contexto, mais rica a apresentação." rows={3} maxLength={1000} />
+              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o ângulo, público-alvo, tom desejado — quanto mais contexto, mais rica a apresentação." rows={3} maxLength={1000}
+                className="text-base md:text-sm min-h-[96px]" />
             </div>
 
             <div className="space-y-3">
@@ -793,10 +800,10 @@ const Generate = () => {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-5 sm:grid-cols-5 gap-2">
                 {Object.entries(THEMES).map(([id, t]) => (
-                  <button key={id} type="button" onClick={() => setTheme(id)}
-                    className={`aspect-square rounded-xl border-2 transition-all relative overflow-hidden ${theme === id ? "border-primary scale-105 shadow-glow" : "border-border hover:border-muted-foreground/40"}`}
+                  <button key={id} type="button" onClick={() => setTheme(id)} aria-label={t.name} aria-pressed={theme === id}
+                    className={`aspect-square min-h-[52px] rounded-xl border-2 transition-all relative overflow-hidden active:scale-95 ${theme === id ? "border-primary scale-105 shadow-glow" : "border-border hover:border-muted-foreground/40"}`}
                     style={ id === "auto" ? { background: "conic-gradient(from 0deg, #ff5e5b, #f9c74f, #43aa8b, #277da1, #9d4edd, #ff5e5b)" } : { background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)` }}
                     title={t.name}>
                     {id === "auto" && <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-white drop-shadow" />}
@@ -817,7 +824,7 @@ const Generate = () => {
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <div className="font-medium text-sm">Imagens reais</div>
-                  <div className="text-[11px] text-muted-foreground">Pexels + Nano Banana 2</div>
+                  <div className="text-[11px] text-muted-foreground">Pexels + IA (OpenAI)</div>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
               </div>
@@ -876,7 +883,10 @@ const Generate = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate} disabled={ent.loading}>
+            {/* No mobile o CTA fica fixo ao alcance do polegar. */}
+            <Button variant="hero" size="xl"
+              className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
+              onClick={handleGenerate} disabled={ent.loading}>
               <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>
           </div>

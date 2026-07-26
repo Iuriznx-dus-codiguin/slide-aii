@@ -46,6 +46,11 @@ export const FONTS: Record<string, { family: string; name: string; display?: str
   "instrument-luxe": { family: "'Outfit', sans-serif", display: "'Instrument Serif', 'DM Serif Display', serif", name: "Instrument Luxe", mood: "luxury,editorial,elegant" },
   "mono-technical":  { family: "'Inter', sans-serif", display: "'Space Mono', 'Space Grotesk', monospace", name: "Mono Technical", mood: "scientific,technical,data" },
   "dm-editorial":    { family: "'Plus Jakarta Sans', sans-serif", display: "'DM Serif Display', 'Playfair Display', serif", name: "DM Editorial", mood: "academic,scholar,editorial" },
+  // Novos pares — mais impacto e variedade por tema.
+  "unbounded-pop":   { family: "'Outfit', sans-serif", display: "'Unbounded', 'Outfit', sans-serif", name: "Unbounded Pop", mood: "marketing,pop,energetic" },
+  "space-editorial": { family: "'Sora', sans-serif", display: "'Space Grotesk', 'Sora', sans-serif", name: "Space Editorial", mood: "startup,product,tech" },
+  "fraunces-warm":   { family: "'Manrope', sans-serif", display: "'Fraunces', 'Playfair Display', serif", name: "Fraunces Warm", mood: "history,culture,humanities" },
+  "archivo-poster":  { family: "'Outfit', sans-serif", display: "'Archivo Black', 'Outfit', sans-serif", name: "Archivo Poster", mood: "sport,impact,bold" },
 };
 
 /**
@@ -56,16 +61,32 @@ export const FONTS: Record<string, { family: string; name: string; display?: str
  */
 export function autoFontForContext(type: string, theme: string, title: string): string {
   const t = (type || "").toLowerCase();
-  const th = (theme || "").toLowerCase();
+  const s = `${title || ""} ${type || ""}`.toLowerCase();
+  // Sinais temáticos no título têm prioridade — é o que mais diferencia.
+  if (/hist[óo]ria|cultura|literatura|arte|filosof/.test(s)) return "fraunces-warm";
+  if (/esporte|futebol|treino|performance|atlet/.test(s)) return "archivo-poster";
+  if (/startup|produto|saas|app|software|dados|ia\b|intelig/.test(s)) return "space-editorial";
+  if (/marca|marketing|vendas|social|campanha|tend[êe]ncia/.test(s)) return "unbounded-pop";
+  if (/ci[êe]ncia|qu[íi]mica|f[íi]sica|matem[áa]tica|estat[íi]stic/.test(s)) return "mono-technical";
+  if (/luxo|moda|design|arquitetura/.test(s)) return "instrument-luxe";
   // Palette por tipo
   if (t.includes("acad") || t.includes("escolar") || t.includes("cient")) return "dm-editorial";
   if (t.includes("pitch")) return "neo-futurist";
   if (t.includes("marketing") || t.includes("criativo")) return "kinetic-brutal";
   if (t.includes("corp")) return "modern-sans";
   // Fallback determinístico pelo hash do título para variedade
-  const pool = ["neo-futurist", "syne-editorial", "kinetic-brutal", "instrument-luxe", "bold-display"];
+  const pool = ["neo-futurist", "syne-editorial", "kinetic-brutal", "instrument-luxe", "bold-display", "unbounded-pop", "space-editorial"];
   const h = (title || "x").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return pool[h % pool.length];
+}
+
+/** Valida um par tipográfico sugerido pela IA, com fallback contextual. */
+export function resolveFontPairing(
+  aiPairing: string | null | undefined,
+  fallback: string,
+): string {
+  if (aiPairing && FONTS[aiPairing]) return aiPairing;
+  return FONTS[fallback] ? fallback : "modern-sans";
 }
 
 /**
