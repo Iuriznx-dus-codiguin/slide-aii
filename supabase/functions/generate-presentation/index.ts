@@ -314,7 +314,7 @@ LEMBRETE CRÍTICO:
           properties: {
             dynamic_theme: {
               type: "object",
-              description: "Paleta dinâmica baseada no tema (apenas se solicitado tema auto)",
+              description: "Paleta dinâmica baseada no tema (apenas se solicitado tema auto). Cores VIVAS e saturadas em accent/accent2.",
               properties: {
                 name: { type: "string" },
                 bg: { type: "string" },
@@ -323,6 +323,16 @@ LEMBRETE CRÍTICO:
                 accent2: { type: "string" },
                 surface: { type: "string" },
               },
+            },
+            font_pairing: {
+              type: "string",
+              enum: [
+                "modern-sans", "classic-serif", "bold-display", "minimal-clean", "editorial",
+                "kinetic-brutal", "neo-futurist", "syne-editorial", "instrument-luxe",
+                "mono-technical", "dm-editorial", "unbounded-pop", "space-editorial",
+                "fraunces-warm", "archivo-poster",
+              ],
+              description: "OBRIGATÓRIO. Par tipográfico que traduz o tema/persona. Varie entre temas diferentes.",
             },
             slides: {
               type: "array",
@@ -355,8 +365,8 @@ LEMBRETE CRÍTICO:
                   },
                   transition: {
                     type: "string",
-                    enum: ["dynamic", "mosaic", "iris", "shatter", "ribbon", "blinds", "fold", "portal", "wipe", "split", "morph", "stack", "letterbox"],
-                    description: "Transição cinematográfica do slide inteiro. 'dynamic' é o PADRÃO (magic move de título/imagem-hero + saída/entrada coordenada do resto) — use-o na maioria dos slides. Reserve as 12 transições legadas para pontuar hook/climax/conclusão e quebras de seção.",
+                    enum: ["dynamic", "fade"],
+                    description: "Use 'dynamic' (magic move de título/imagem-hero) por padrão; 'fade' apenas quando o usuário desativou o magic move.",
                   },
                   headline: { type: "string", description: "2-6 palavras, máx 40 chars. Contém palavra-chave do tema." },
                   subtitle: { type: "string", description: "8-14 palavras, complementa headline." },
