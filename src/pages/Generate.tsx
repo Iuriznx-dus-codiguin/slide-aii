@@ -800,10 +800,10 @@ const Generate = () => {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-5 sm:grid-cols-5 gap-2">
                 {Object.entries(THEMES).map(([id, t]) => (
-                  <button key={id} type="button" onClick={() => setTheme(id)}
-                    className={`aspect-square rounded-xl border-2 transition-all relative overflow-hidden ${theme === id ? "border-primary scale-105 shadow-glow" : "border-border hover:border-muted-foreground/40"}`}
+                  <button key={id} type="button" onClick={() => setTheme(id)} aria-label={t.name} aria-pressed={theme === id}
+                    className={`aspect-square min-h-[52px] rounded-xl border-2 transition-all relative overflow-hidden active:scale-95 ${theme === id ? "border-primary scale-105 shadow-glow" : "border-border hover:border-muted-foreground/40"}`}
                     style={ id === "auto" ? { background: "conic-gradient(from 0deg, #ff5e5b, #f9c74f, #43aa8b, #277da1, #9d4edd, #ff5e5b)" } : { background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)` }}
                     title={t.name}>
                     {id === "auto" && <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-white drop-shadow" />}
@@ -824,7 +824,7 @@ const Generate = () => {
               <div className="flex items-center justify-between rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <div className="font-medium text-sm">Imagens reais</div>
-                  <div className="text-[11px] text-muted-foreground">Pexels + Nano Banana 2</div>
+                  <div className="text-[11px] text-muted-foreground">Pexels + IA (OpenAI)</div>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
               </div>
