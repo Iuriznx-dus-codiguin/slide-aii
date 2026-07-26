@@ -883,7 +883,10 @@ const Generate = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="xl" className="w-full" onClick={handleGenerate} disabled={ent.loading}>
+            {/* No mobile o CTA fica fixo ao alcance do polegar. */}
+            <Button variant="hero" size="xl"
+              className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
+              onClick={handleGenerate} disabled={ent.loading}>
               <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>
           </div>
