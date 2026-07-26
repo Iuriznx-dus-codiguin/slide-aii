@@ -122,33 +122,33 @@ PASSO D — DENSIDADE DE TEXTO E TIPOGRAFIA
 - Slides com imagem podem ter texto mais enxuto (subtitle + 3 bullets).
 
 ═══════════════════════════════════════════════════
-PASSO E — VARIAÇÃO INTENCIONAL DE LAYOUTS, ACENTOS, ANIMAÇÕES E TRANSIÇÕES
+PASSO E — VARIAÇÃO INTENCIONAL DE MODELOS DE PÁGINA, ACENTOS E ANIMAÇÕES
 ═══════════════════════════════════════════════════
-- Alterne layouts a cada slide. NUNCA repita layout consecutivo.
-- Distribua entre: title-content, two-columns, image-right, image-left, full-image, quote, data-chart, centered, stat-highlight.
+- O QUE MAIS IMPORTA É A VARIEDADE DE MODELO DE PÁGINA (não de transição).
+- Alterne o MODELO a cada slide. NUNCA repita o mesmo layout_template em slides consecutivos.
+- Repertório de modelos e quando usar:
+  * "quote" → citação em destaque, tipografia gigante, fundo imersivo (use 1-2 por apresentação).
+  * "full-image" → imagem/fundo em tela cheia com texto sobreposto (momentos de impacto).
+  * "image-right" / "image-left" → conceito + imagem lateral (o cavalo de batalha; alterne o lado).
+  * "stat-highlight" → um número gigante + contexto curto.
+  * "data-chart" → gráfico com dados e fonte.
+  * "two-columns" → comparação, antes/depois, prós/contras.
+  * "title-content" / "centered" → texto denso, definição, virada de seção.
+  * "split-hero" → capa/abertura de bloco.
+- Em uma apresentação de ${req.slidesCount} slides, use AO MENOS 5 modelos DIFERENTES e distribua-os de forma NÃO previsível (não siga um ciclo fixo A-B-C-A-B-C).
 - visual_accents (1-3 itens). Use os 14 tipos disponíveis combinando com o conteúdo:
-  * stat / emphasis-stat → "animated-blob", "pulse-grid", "reactive-dots" (a densidade radial de reactive-dots reforça visualmente "o número mais importante está no centro")
+  * stat / emphasis-stat → "animated-blob", "pulse-grid", "reactive-dots"
   * data_chart / data-reveal → "dot-grid", "wave-form", "pulse-grid"
   * quote → "particle-field", "orbital-rings", "corner-brackets"
-  * section_divider → "ribbon" (visual), "diagonal-lines"
+  * section_divider → "diagonal-lines"
   * conclusion → "animated-blob", "particle-field"
   * texto puro → "floating-shapes", "diagonal-lines"
   * imagem → "corner-brackets"
-  * comparison / múltiplos itens → "card-stack" (sugere camadas/itens empilhados)
+  * comparison / múltiplos itens → "card-stack"
   * arquitetura / estrutura em camadas → "layered-panels"
-  * capa ou slide de impacto que pede um fundo mais imersivo → "gradient-drift" (evite combinar com outro fundo amplo — é uma camada de fundo única, não um acento pontual)
-- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos. Use todo o repertório em uma apresentação de 8+ slides.
-- transition (13 opções): "dynamic" faz o título e a imagem-hero migrarem suavemente de posição/tamanho entre slides consecutivos que compartilham esse elemento (magic move real, não reaparecem do zero), enquanto o resto da cena sai/entra coordenado como uma onda única.
-${req.preferDynamic === false
-  ? `  → MODO DIVERSIDADE: o usuário DESATIVOU o magic move — VARIE MUITO as 12 transições legadas (mosaic, iris, shatter, ribbon, blinds, fold, portal, wipe, split, morph, stack, letterbox). NUNCA use "dynamic". Distribua alternando: nunca a mesma transição em dois slides seguidos, cubra pelo menos 6 transições diferentes na apresentação.`
-  : `  → MODO PADRÃO (magic move ATIVO): use "dynamic" em ~60-70% dos slides. Reserve as 12 transições legadas como PONTUAÇÃO deliberada (não previsível), garantindo pelo menos 3-5 transições legadas distintas espalhadas pela apresentação:
-    * hook (abertura) → "iris" ou "portal"
-    * momentos de alta emoção (climax, revelação de dado impactante) → "portal" ou "shatter"
-    * section_divider ou virada de tema → "ribbon" ou "blinds"
-    * data_chart / stat de destaque → "morph" ou "split"
-    * quote marcante → "letterbox" ou "fold"
-    * conclusão → "morph" ou "stack"
-  Evite blocos monótonos de "dynamic" — quebre com pontuação a cada 2-3 slides mesmo em conteúdo comum.`}
+  * capa ou slide de impacto que pede fundo imersivo → "gradient-drift" (camada única de fundo)
+- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos.
+- transition: use SEMPRE "dynamic"${req.preferDynamic === false ? ` — exceto quando o usuário desativou o magic move, aí use "fade" em todos os slides.` : ` (magic move de título/imagem-hero entre slides). Não existem outras transições — a variedade vem do MODELO da página, não do efeito de troca.`}
 
 ═══════════════════════════════════════════════════
 PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
