@@ -1,4 +1,4 @@
-import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Crown, Zap } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Crown, Zap, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEntitlement } from "@/hooks/useEntitlement";
@@ -20,6 +20,17 @@ export const AccountPanel = () => {
   const isSubscription = isSubscriptionPlan(ent.plan);
   const isPaid = isSubscription || ent.plan === "single";
   const renews = ent.subscription_renews_at ? new Date(ent.subscription_renews_at).toLocaleDateString("pt-BR") : null;
+  const renewalDays = (() => {
+    if (!ent.subscription_renews_at) return null;
+    const target = new Date(ent.subscription_renews_at).getTime();
+    if (Number.isNaN(target)) return null;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const targetDay = new Date(target);
+    targetDay.setHours(0, 0, 0, 0);
+    return Math.ceil((targetDay.getTime() - start.getTime()) / 86_400_000);
+  })();
+  const showRenewalNotice = isSubscription && ent.subscription_status === "active" && renewalDays !== null && renewalDays >= 0 && renewalDays <= 5;
 
   return (
     <Card className="border-border/60 bg-gradient-to-br from-primary/5 to-transparent">
@@ -41,6 +52,14 @@ export const AccountPanel = () => {
                 {isSubscription && renews && `Renova em ${renews}.`}
                 {ent.plan === "free" && "Você ainda não possui um plano. Adquira para gerar apresentações."}
               </p>
+              {showRenewalNotice && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  {renewalDays === 0
+                    ? "Sua assinatura renova hoje."
+                    : `Faltam ${renewalDays} dia${renewalDays === 1 ? "" : "s"} para a renovação.`}
+                </div>
+              )}
             </div>
           </div>
 

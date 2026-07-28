@@ -172,6 +172,33 @@
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid hsl(var(--border) / 0.5);
   }
+
+  .slideai-confetti-piece {
+    position: absolute;
+    top: -1.5rem;
+    width: 0.55rem;
+    height: 0.85rem;
+    border-radius: 0.18rem;
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    animation-name: slideai-confetti-fall;
+    animation-timing-function: cubic-bezier(0.18, 0.72, 0.34, 1);
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes slideai-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -2rem, 0) rotate(0deg) scale(0.85);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--slideai-confetti-x), 110vh, 0) rotate(var(--slideai-confetti-rotation)) scale(1);
+  }
 }
 
 /* ========== Print: PDF export via window.print ========== */
