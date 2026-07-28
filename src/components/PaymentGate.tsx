@@ -41,6 +41,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   useEffect(() => {
     if (waiting && ent.allowed && !ent.loading) {
       toast.success("Pagamento confirmado! Iniciando geração…");
+      window.dispatchEvent(new CustomEvent("slideai:payment-success"));
       onUnlocked();
     }
   }, [waiting, ent.allowed, ent.loading, onUnlocked]);

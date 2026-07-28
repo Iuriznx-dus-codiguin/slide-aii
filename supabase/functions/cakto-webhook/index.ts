@@ -57,6 +57,24 @@ const dig = (obj: any, paths: string[]): any => {
   return undefined;
 };
 
+const normalizeSecret = (value: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed
+    .replace(/^Bearer\s+/i, "")
+    .replace(/^Token\s+/i, "")
+    .replace(/^Secret\s+/i, "")
+    .trim();
+};
+
+const hasValidSecret = (providedValues: Array<string | null>, expected: string): boolean => {
+  const normalizedExpected = normalizeSecret(expected);
+  if (!normalizedExpected) return false;
+
+  return providedValues.some((value) => normalizeSecret(value) === normalizedExpected);
+};
+
 /** Adiciona `months` meses a uma data preservando o dia (com clamp no fim do mês). */
 const addMonths = (d: Date, months: number): Date => {
   const r = new Date(d.getTime());
@@ -93,13 +111,26 @@ Deno.serve(async (req) => {
   let payload: any = {};
   try { payload = await req.json(); } catch { payload = {}; }
 
-  const provided = req.headers.get("x-cakto-token")
-    ?? req.headers.get("x-signature")
-    ?? new URL(req.url).searchParams.get("token")
-    ?? (typeof payload?.secret === "string" ? payload.secret : null);
+  const providedValues = [
+    req.headers.get("x-cakto-token"),
+    req.headers.get("x-cakto-secret"),
+    req.headers.get("x-webhook-secret"),
+    req.headers.get("x-signature"),
+    req.headers.get("authorization"),
+    new URL(req.url).searchParams.get("token"),
+    new URL(req.url).searchParams.get("secret"),
+    typeof payload?.secret === "string" ? payload.secret : null,
+    typeof payload?.data?.secret === "string" ? payload.data.secret : null,
+  ];
 
-  if (provided !== WEBHOOK_SECRET) {
-    console.warn("cakto-webhook: invalid secret");
+  if (!hasValidSecret(providedValues, WEBHOOK_SECRET)) {
+    console.warn("cakto-webhook: invalid secret", {
+      hasHeaderToken: !!req.headers.get("x-cakto-token"),
+      hasHeaderSecret: !!req.headers.get("x-cakto-secret") || !!req.headers.get("x-webhook-secret"),
+      hasAuthorization: !!req.headers.get("authorization"),
+      hasQuerySecret: !!new URL(req.url).searchParams.get("secret") || !!new URL(req.url).searchParams.get("token"),
+      hasBodySecret: typeof payload?.secret === "string" || typeof payload?.data?.secret === "string",
+    });
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -113,17 +144,21 @@ Deno.serve(async (req) => {
   ]) as string | undefined)?.toLowerCase();
   const checkoutSlug = dig(payload, [
     "data.product.short_id", "data.product.slug", "data.checkout.slug",
-    "checkout.slug", "product.slug",
+    "checkout.slug", "product.slug", "data.product.checkout_id",
   ]) as string | undefined;
   const productId = String(dig(payload, [
-    "data.product.id", "product.id", "data.offer.id", "offer.id",
+    "data.product.id", "product.id", "data.offer.id", "offer.id", "data.refId", "refId",
   ]) ?? "");
   const status = (dig(payload, [
     "data.status", "status", "data.transaction.status", "payment_status",
   ]) as string | undefined)?.toLowerCase();
 
+  const checkoutUrl = dig(payload, ["data.checkoutUrl", "checkoutUrl", "data.checkout_url", "checkout_url"]) as string | undefined;
+  const checkoutSlugFromUrl = checkoutUrl?.match(/pay\.cakto\.com\.br\/([^/?#]+)/i)?.[1];
+
   const plan: Plan | undefined =
     (checkoutSlug && PLAN_BY_CHECKOUT_ID[checkoutSlug])
+    || (checkoutSlugFromUrl && PLAN_BY_CHECKOUT_ID[checkoutSlugFromUrl])
     || PLAN_BY_PRODUCT_ID[productId]
     || undefined;
 

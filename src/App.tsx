@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound.tsx";
 import { DevModePanel } from "./components/DevModePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SupportWidget } from "./components/SupportWidget";
+import { PaymentNotifications } from "./components/PaymentNotifications";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             <DevModePanel />
+            <PaymentNotifications />
             <SupportWidget />
           </ErrorBoundary>
         </AuthProvider>
