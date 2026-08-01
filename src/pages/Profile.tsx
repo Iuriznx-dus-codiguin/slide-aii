@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Sparkles, Loader2, User, Globe, MapPin, Link2, Instagram, Twitter, Linkedin, Github, Copy, Check, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +33,17 @@ interface Profile {
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTabState] = useState(searchParams.get("tab") ?? "conta");
+  const setTab = (v: string) => {
+    setTabState(v);
+    setSearchParams(v === "conta" ? {} : { tab: v }, { replace: true });
+  };
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+
 
   useEffect(() => { document.title = "Meu Perfil — SlideAI"; }, []);
 
@@ -147,7 +154,7 @@ const ProfilePage = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="conta">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="conta">Conta</TabsTrigger>
             <TabsTrigger value="perfil">Dados</TabsTrigger>

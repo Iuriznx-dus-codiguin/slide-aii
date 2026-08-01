@@ -9,7 +9,7 @@ export interface Entitlement {
   reason:
     | "dev" | "single" | "subscription"
     | "no_plan" | "system_error" | "monthly_limit_reached"
-    | "subscription_canceled" | "loading";
+    | "subscription_canceled" | "subscription_expired" | "loading";
   plan:
     | "free" | "single"
     | "mensal" | "trimestral" | "anual"
@@ -24,6 +24,10 @@ export interface Entitlement {
   refresh: () => Promise<void>;
 }
 
+/** `true` quando o bloqueio se resolve reativando/renovando a assinatura. */
+export const needsRenewal = (reason: Entitlement["reason"]): boolean =>
+  reason === "subscription_canceled" || reason === "subscription_expired";
+
 /** Mensagem amigável por `ent.reason`. */
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
@@ -33,12 +37,15 @@ export const reasonMessage = (reason: Entitlement["reason"]): string => {
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
     case "subscription_canceled":
       return "Sua assinatura foi cancelada. Reative um plano para voltar a gerar apresentações — todas as suas apresentações continuam salvas na sua conta.";
+    case "subscription_expired":
+      return "Sua assinatura expirou e as gerações estão pausadas. Renove o plano para voltar a gerar — suas apresentações continuam salvas.";
     case "no_plan":
       return "Escolha um plano para gerar apresentações.";
     default:
       return "";
   }
 };
+
 
 export const useEntitlement = (): Entitlement => {
   const { user } = useAuth();
@@ -70,20 +77,28 @@ export const useEntitlement = (): Entitlement => {
     const limit = PLAN_MONTHLY_LIMITS[plan] ?? 20;
 
     const subStatus = (profile as any)?.subscription_status ?? null;
+    const renewsAt = (profile as any)?.subscription_renews_at ?? null;
+    const isSubPlan = isProPlan(plan) || isMaxPlan(plan);
     const canceled = subStatus === "canceled";
+    const expired = isSubPlan && (
+      (renewsAt ? new Date(renewsAt).getTime() < Date.now() : false)
+      || (subStatus != null && !["active", "trialing"].includes(subStatus) && !canceled)
+    );
 
     let allowed = false;
     let reason: Entitlement["reason"] = "no_plan";
     if (isDeveloper) { allowed = true; reason = "dev"; }
-    else if (canceled && (isProPlan(plan) || isMaxPlan(plan))) {
-      // Cancelamento profissional: bloqueia imediatamente e mostra mensagem clara.
+    else if (canceled && isSubPlan) {
+      // Cancelamento: bloqueia imediatamente e mostra "como renovar".
       allowed = false; reason = "subscription_canceled";
     }
+    else if (expired) { allowed = false; reason = "subscription_expired"; }
     else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
     else if (isProPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isMaxPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isProPlan(plan)) { allowed = false; reason = "monthly_limit_reached"; }
     else if (isMaxPlan(plan)) { allowed = false; reason = "system_error"; }
+
 
     setState({
       allowed, reason,

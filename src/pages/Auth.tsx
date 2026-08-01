@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
+
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -21,6 +23,9 @@ const Auth = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+
 
   useEffect(() => {
     document.title = "Entrar — SlideAI";
@@ -61,7 +66,7 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email, password,
       options: {
         emailRedirectTo: `${window.location.origin}/onboarding`,
@@ -69,18 +74,52 @@ const Auth = () => {
       },
     });
     setLoading(false);
+    if (error) {
+      toast.error(
+        error.message.toLowerCase().includes("rate")
+          ? "Muitas tentativas de envio de email. Aguarde alguns minutos e tente novamente."
+          : error.message,
+      );
+      return;
+    }
+    setPendingEmail(email);
+    if (data.session) {
+      toast.success("Conta criada!");
+      navigate("/onboarding");
+    } else {
+      // Confirmação por email ativa: o usuário ainda NÃO está logado.
+      setAwaitingConfirmation(true);
+      toast.success("Enviamos um link de confirmação para o seu email.");
+    }
+  };
+
+  const handleResend = async () => {
+    if (!pendingEmail) return;
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: pendingEmail,
+      options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+    });
+    setLoading(false);
     if (error) toast.error(error.message);
-    else { toast.success("Conta criada! Verifique seu email se necessário."); navigate("/onboarding"); }
+    else toast.success("Email reenviado. Confira também a caixa de spam.");
   };
 
   const handleGoogle = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: `${window.location.origin}/dashboard`,
     });
-    if (error) { setLoading(false); toast.error(error.message); }
+    if (result.error) {
+      setLoading(false);
+      toast.error(result.error.message || "Não foi possível entrar com o Google.");
+      return;
+    }
+    if (result.redirected) return;
+    navigate("/dashboard");
   };
+
 
   const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -107,7 +146,29 @@ const Auth = () => {
         </Link>
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-elegant">
-          {showReset ? (
+          {awaitingConfirmation ? (
+            <div className="space-y-4 text-center">
+              <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <MailCheck className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="font-display text-2xl font-bold">Confirme seu email</h1>
+              <p className="text-sm text-muted-foreground">
+                Enviamos um link de confirmação para <strong className="text-foreground">{pendingEmail}</strong>.
+                Clique no link para ativar sua conta. Se não encontrar, verifique a caixa de <strong className="text-foreground">spam</strong> ou promoções.
+              </p>
+              <Button variant="outline" className="w-full" onClick={handleResend} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />} Reenviar email
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setAwaitingConfirmation(false); setPendingEmail(null); }}
+                className="text-sm text-muted-foreground hover:text-foreground w-full"
+              >
+                Voltar ao login
+              </button>
+            </div>
+          ) : showReset ? (
+
             <form onSubmit={handleReset} className="space-y-4">
               <h1 className="font-display text-2xl font-bold">Recuperar senha</h1>
               <p className="text-sm text-muted-foreground">Enviaremos um link para redefinir sua senha.</p>

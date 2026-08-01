@@ -24,8 +24,9 @@ import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
-import { reasonMessage } from "@/hooks/useEntitlement";
-import { Lock, CreditCard } from "lucide-react";
+import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
+import { Lock, CreditCard, RefreshCw, AlertTriangle } from "lucide-react";
+
 
 // Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
 const FREE_GENERATIONS_LIMIT = 1;
@@ -217,9 +218,16 @@ const Generate = () => {
         toast.error(reasonMessage("system_error"));
         return;
       }
+      if (needsRenewal(ent.reason)) {
+        toast.error(reasonMessage(ent.reason), {
+          action: { label: "Renovar", onClick: () => navigate("/perfil?tab=assinatura") },
+        });
+        return;
+      }
       setShowPayment(true);
       return;
     }
+
 
     setPhase("loading");
     setStepIdx(0);
@@ -714,7 +722,41 @@ const Generate = () => {
             <p className="mt-3 text-sm md:text-base text-muted-foreground">Descreva o tema. A IA escreve, ilustra e desenha — você refina via chat.</p>
           </div>
 
-          {!canGenerate && !ent.loading && (
+          {!canGenerate && !ent.loading && needsRenewal(ent.reason) && (
+            <div className="mb-6 rounded-2xl border border-destructive/40 bg-destructive/5 p-4 md:p-5">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-destructive/15 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                </div>
+                <div className="text-sm flex-1">
+                  <p className="font-semibold">
+                    {ent.reason === "subscription_canceled"
+                      ? "Assinatura cancelada — gerações pausadas"
+                      : "Assinatura expirada — gerações pausadas"}
+                  </p>
+                  <p className="text-muted-foreground mt-1">{reasonMessage(ent.reason)}</p>
+                  <div className="mt-3 rounded-xl border border-border bg-background/60 p-3">
+                    <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Como renovar</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      <li>Abra <strong className="text-foreground">Perfil → Assinatura</strong>.</li>
+                      <li>Escolha o plano (único, mensal, trimestral ou anual) e conclua o pagamento.</li>
+                      <li>A liberação é automática assim que o pagamento é confirmado — volte aqui e gere normalmente.</li>
+                    </ol>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="hero" onClick={() => navigate("/perfil?tab=assinatura")}>
+                      <RefreshCw className="h-4 w-4" /> Renovar assinatura
+                    </Button>
+                    <Button variant="outline" onClick={() => ent.refresh()}>
+                      Já paguei, atualizar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!canGenerate && !ent.loading && !needsRenewal(ent.reason) && (
             <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-4 md:p-5 flex items-start gap-3">
               <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
                 <CreditCard className="h-4 w-4 text-primary" />
@@ -726,6 +768,7 @@ const Generate = () => {
                 </p>
               </div>
             </div>
+
           )}
 
           {canGenerate && devSettings.showCostOverlay && (() => {
