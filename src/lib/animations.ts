@@ -157,6 +157,42 @@ export function presetForSlide(slideType: string, layoutTemplate?: string): Cine
   return "cinematic-reveal";
 }
 
+/**
+ * Mapeia animation_intent (papel narrativo, bem guiado no prompt de
+ * geração — ver PASSO E em generate-presentation/index.ts) → preset.
+ *
+ * CORREÇÃO DE AUDITORIA: antes desta mudança, a resolução era
+ * `presetFromLegacy(c.animation) ?? presetForSlide(...)`. Como `animation`
+ * é campo obrigatório do schema e presetFromLegacy cobre as 10 opções
+ * possíveis, o `??` nunca disparava — ou seja, o preset de entrada do slide
+ * era sempre decidido pelo campo SEM descrição no schema (animation),
+ * nunca pelo campo COM guidance explícita e reforço de variedade no prompt
+ * (animation_intent). Esta função corrige a precedência: animation_intent
+ * agora decide primeiro; animation (legado) e presetForSlide (por tipo de
+ * slide) continuam como fallback, nessa ordem — nenhuma apresentação já
+ * gerada perde compatibilidade (slides antigos sem animation_intent caem
+ * direto no comportamento de antes).
+ */
+export function presetFromIntent(intent?: string): CinematicPreset | null {
+  switch (intent) {
+    case "hero-impact":
+      return "hero-zoom";
+    case "narrative-build":
+      return "editorial-stagger";
+    case "data-reveal":
+    case "emphasis-stat":
+      return "data-build";
+    case "quote-spotlight":
+      return "quote-spotlight";
+    case "section-break":
+      return "split-curtain";
+    case "calm-fade":
+      return "cinematic-reveal";
+    default:
+      return null;
+  }
+}
+
 /** Mapeia animação clássica (legado) → preset novo. */
 export function presetFromLegacy(legacy?: string): CinematicPreset | null {
   if (!legacy) return null;

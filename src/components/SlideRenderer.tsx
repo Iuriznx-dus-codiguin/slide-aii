@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { resolveTheme, FONTS, type ThemeColors } from "@/lib/slugify";
 import {
-  PRESETS, presetForSlide, presetFromLegacy, kenBurnsVariants,
+  PRESETS, presetForSlide, presetFromLegacy, presetFromIntent, kenBurnsVariants,
   parseNumberFromString, useAnimatedNumber, formatAnimatedNumber, EASE,
   type CinematicPreset,
 } from "@/lib/animations";
@@ -588,11 +588,13 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   const choreo = useChoreo();
 
 
-  // Escolha do preset cinematográfico:
-  // 1) se a IA setou animation, mapeia legacy → preset
-  // 2) senão, deduz pelo tipo de slide
+  // Escolha do preset cinematográfico (precedência corrigida — ver comentário
+  // em presetFromIntent, src/lib/animations.ts):
+  // 1) animation_intent (papel narrativo, bem guiado no prompt) decide primeiro
+  // 2) animation (legado, sem guidance no schema) como fallback
+  // 3) senão, deduz pelo tipo de slide
   const preset: CinematicPreset =
-    presetFromLegacy(c.animation) ?? presetForSlide(slide.slide_type, slide.layout_template);
+    presetFromIntent(c.animation_intent) ?? presetFromLegacy(c.animation) ?? presetForSlide(slide.slide_type, slide.layout_template);
   const variants = PRESETS[preset];
 
   // Quando noAnimate (thumbnails / print), pulamos diretamente ao "show"
