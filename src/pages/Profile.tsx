@@ -147,7 +147,7 @@ const ProfilePage = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="conta">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="conta">Conta</TabsTrigger>
             <TabsTrigger value="perfil">Dados</TabsTrigger>
