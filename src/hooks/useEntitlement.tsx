@@ -77,20 +77,28 @@ export const useEntitlement = (): Entitlement => {
     const limit = PLAN_MONTHLY_LIMITS[plan] ?? 20;
 
     const subStatus = (profile as any)?.subscription_status ?? null;
+    const renewsAt = (profile as any)?.subscription_renews_at ?? null;
+    const isSubPlan = isProPlan(plan) || isMaxPlan(plan);
     const canceled = subStatus === "canceled";
+    const expired = isSubPlan && (
+      (renewsAt ? new Date(renewsAt).getTime() < Date.now() : false)
+      || (subStatus != null && !["active", "trialing"].includes(subStatus) && !canceled)
+    );
 
     let allowed = false;
     let reason: Entitlement["reason"] = "no_plan";
     if (isDeveloper) { allowed = true; reason = "dev"; }
-    else if (canceled && (isProPlan(plan) || isMaxPlan(plan))) {
-      // Cancelamento profissional: bloqueia imediatamente e mostra mensagem clara.
+    else if (canceled && isSubPlan) {
+      // Cancelamento: bloqueia imediatamente e mostra "como renovar".
       allowed = false; reason = "subscription_canceled";
     }
+    else if (expired) { allowed = false; reason = "subscription_expired"; }
     else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
     else if (isProPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isMaxPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
     else if (isProPlan(plan)) { allowed = false; reason = "monthly_limit_reached"; }
     else if (isMaxPlan(plan)) { allowed = false; reason = "system_error"; }
+
 
     setState({
       allowed, reason,
