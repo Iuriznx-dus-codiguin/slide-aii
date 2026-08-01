@@ -1,7 +1,22 @@
 // Generate presentation: estrutura completa com DNA narrativo,
 // Círculo Narrativo (Hook→Tensão→Jornada→Prova→Clímax), multi-apresentador
 // e falas opcionais. Motor híbrido: GPT-4.1 (OpenAI) primário; Gemini 2.5 Pro fallback.
+//
+// Fase 1 (Creative Director Engine): antes de gerar qualquer slide, uma
+// chamada de IA separada e rápida (buildCreativeBrief) decide a direção
+// criativa completa (tom, densidade, ritmo, transições permitidas/proibidas).
+// Esse brief é injetado no SYSTEM_PROMPT principal e persistido em
+// presentations.creative_brief. Ver supabase/functions/_shared/creativeDirector.ts.
+//
+// Fase 3 (Motion Director): este arquivo não escolhe mais a transição de
+// cada slide (nem "dynamic" nem "fade" fixos). Só sinaliza "fade" quando o
+// usuário desativou explicitamente o magic move (preferDynamic=false); caso
+// contrário, o campo fica de fora e src/lib/slideTransitions.ts decide de
+// forma determinística com base em narrative_act/animation_intent — a
+// mesma lógica testada (slideTransitions.test.ts) usada no Editor/Generate/
+// SlideViewer, sem duplicar a regra aqui no backend.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +66,7 @@ const personaGuide = (p?: string) => {
   }
 };
 
-const SYSTEM_PROMPT = (req: GenerateRequest) => {
+const SYSTEM_PROMPT = (req: GenerateRequest, creativeBrief: CreativeBrief) => {
   const presenters = Math.max(1, req.presentersCount ?? 1);
   const presenterList = (req.presentersNames ?? []).slice(0, presenters);
   const speeches = req.includeSpeeches;
@@ -64,6 +79,7 @@ const SYSTEM_PROMPT = (req: GenerateRequest) => {
 
 Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, COM CONTEÚDO PROFUNDO, PESQUISA DENSA, NARRATIVA EDITORIAL e DIREÇÃO DE ARTE COESA — mesmo quando o título é curto ou a descrição é vaga.
 
+${briefToPromptSection(creativeBrief)}
 ═══════════════════════════════════════════════════
 PASSO 0 — ÂNCORA TEMÁTICA (CRÍTICO)
 ═══════════════════════════════════════════════════
@@ -147,8 +163,7 @@ PASSO E — VARIAÇÃO INTENCIONAL DE MODELOS DE PÁGINA, ACENTOS E ANIMAÇÕES
   * comparison / múltiplos itens → "card-stack"
   * arquitetura / estrutura em camadas → "layered-panels"
   * capa ou slide de impacto que pede fundo imersivo → "gradient-drift" (camada única de fundo)
-- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos.
-- transition: use SEMPRE "dynamic"${req.preferDynamic === false ? ` — exceto quando o usuário desativou o magic move, aí use "fade" em todos os slides.` : ` (magic move de título/imagem-hero entre slides). Não existem outras transições — a variedade vem do MODELO da página, não do efeito de troca.`}
+- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos. Este campo agora também governa a ESCOLHA DA TRANSIÇÃO entre slides (feita deterministicamente fora deste prompt, pelo Motion Director) — capriche na escolha honesta do papel narrativo de cada slide, não apenas na variedade.
 
 ═══════════════════════════════════════════════════
 PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
@@ -283,6 +298,24 @@ Deno.serve(async (req) => {
     const slidesCount = Math.max(3, Math.min(15, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
     const presenters = Math.max(1, body.presentersCount ?? 1);
+
+    // ───────────── Fase 1: Creative Director Engine ─────────────
+    // Chamada separada e rápida (modelo "flash"/"mini") que decide a direção
+    // criativa ANTES de qualquer slide ser escrito. Nunca lança exceção —
+    // buildCreativeBrief sempre resolve, no pior caso com o fallback
+    // determinístico (buildDefaultBrief), então esta etapa nunca derruba a
+    // geração principal.
+    const creativeBrief = await buildCreativeBrief(
+      {
+        title: body.title,
+        description: body.description,
+        type: body.type,
+        persona: body.persona,
+        depthLevel: body.depthLevel,
+        slidesCount,
+      },
+      { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
+    );
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
     while (presenterNames.length < presenters) presenterNames.push(`Apresentador ${presenterNames.length + 1}`);
 
@@ -363,11 +396,6 @@ LEMBRETE CRÍTICO:
                     description: "1-3 elementos decorativos/visuais. Combine com o conteúdo. Varie a cada slide.",
                     items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"] },
                   },
-                  transition: {
-                    type: "string",
-                    enum: ["dynamic", "fade"],
-                    description: "Use 'dynamic' (magic move de título/imagem-hero) por padrão; 'fade' apenas quando o usuário desativou o magic move.",
-                  },
                   headline: { type: "string", description: "2-6 palavras, máx 40 chars. Contém palavra-chave do tema." },
                   subtitle: { type: "string", description: "8-14 palavras, complementa headline." },
                   body_text: { type: "string", description: "40-90 palavras quando layout pede texto longo (centered, content, columns)." },
@@ -426,7 +454,7 @@ LEMBRETE CRÍTICO:
     const requestPayload = {
       model,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT(body) },
+        { role: "system", content: SYSTEM_PROMPT(body, creativeBrief) },
         { role: "user", content: userPrompt },
       ],
       tools,
@@ -508,7 +536,7 @@ LEMBRETE CRÍTICO:
             ...requestPayload,
             model: "google/gemini-2.5-pro",
             messages: [
-              { role: "system", content: SYSTEM_PROMPT(body) },
+              { role: "system", content: SYSTEM_PROMPT(body, creativeBrief) },
               { role: "user", content: `${userPrompt}\n\nATENÇÃO: devolva EXATAMENTE ${slidesCount} slides no array 'slides'. Nem mais, nem menos. Cada slide completo (Passo C).` },
             ],
           }),
@@ -563,9 +591,24 @@ LEMBRETE CRÍTICO:
         layout = LAYOUT_POOL.find((l) => l !== lastLayout && l !== layout) ?? LAYOUT_POOL[(i + 1) % LAYOUT_POOL.length];
       }
       lastLayout = layout;
-      // Transições: apenas dynamic/fade — as legadas foram removidas.
-      const transition = preferDynamic ? "dynamic" : "fade";
-      return { ...s, visual_accents: accents, image_strategy: strategy, layout_template: layout, transition };
+      // Fase 3 (Motion Director): a transição de cada slide NÃO é mais
+      // fixada aqui nem escolhida livremente pela IA (isso foi removido do
+      // schema — era a causa raiz da divergência de WYSIWYG original).
+      // - preferDynamic=false → sinaliza "fade", que src/lib/slideTransitions.ts
+      //   interpreta como "sem magic move" e escolhe uma transição cinematográfica
+      //   legada com base em narrative_act/animation_intent.
+      // - preferDynamic=true (padrão) → o campo fica de fora do slide; o mesmo
+      //   pickTransition() decide entre "dynamic" e as 12 legadas usando
+      //   narrative_act/animation_intent + creative_brief.allowed_transitions,
+      //   sem duplicar essa tabela de regras aqui no backend.
+      const { transition: _ignoredAiTransition, ...sWithoutTransition } = s;
+      return {
+        ...sWithoutTransition,
+        visual_accents: accents,
+        image_strategy: strategy,
+        layout_template: layout,
+        ...(preferDynamic ? {} : { transition: "fade" as const }),
+      };
     });
 
     // Garante presenters_data normalizado quando falas ativadas
@@ -611,13 +654,14 @@ LEMBRETE CRÍTICO:
       estimated_cost_usd: estimatedCost,
       actual_cost_usd: actualCost,
       duration_ms: Date.now() - t0,
-      metadata: { title: body.title, type: body.type, plan: ent.plan },
+      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style },
     });
 
     return new Response(JSON.stringify({
       slides: parsed.slides,
       dynamic_theme: parsed.dynamic_theme ?? null,
       font_pairing: parsed.font_pairing ?? null,
+      creative_brief: creativeBrief,
       _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
