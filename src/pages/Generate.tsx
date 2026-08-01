@@ -564,6 +564,7 @@ const Generate = () => {
                             <SlideRendererWithChoreo
                               slide={{ slide_type: s.slide_type, layout_template: s.layout_template, content: s as any }}
                               themeId={theme} fontId={fontStyle} dynamicTheme={dynamicTheme} index={i} noAnimate
+                              creativeBrief={creativeBrief}
                             />
                           </div>
                         </div>

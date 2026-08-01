@@ -113,6 +113,7 @@ export const SlideStage = ({
                 index={idx}
                 dynamicMode={dynamicMode}
                 enableVideo={enableVideo}
+                creativeBrief={creativeBrief}
               />
             )}
           </ChoreographyProvider>

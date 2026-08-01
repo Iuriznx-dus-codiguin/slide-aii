@@ -88,6 +88,7 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
               <SlideRendererWithChoreo
                 slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
                 themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} index={idx} noAnimate
+                creativeBrief={pres.creative_brief}
               />
             </div>
           )}
