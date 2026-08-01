@@ -24,8 +24,9 @@ import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
-import { reasonMessage } from "@/hooks/useEntitlement";
-import { Lock, CreditCard } from "lucide-react";
+import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
+import { Lock, CreditCard, RefreshCw, AlertTriangle } from "lucide-react";
+
 
 // Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
 const FREE_GENERATIONS_LIMIT = 1;
