@@ -146,7 +146,29 @@ const Auth = () => {
         </Link>
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-elegant">
-          {showReset ? (
+          {awaitingConfirmation ? (
+            <div className="space-y-4 text-center">
+              <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <MailCheck className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="font-display text-2xl font-bold">Confirme seu email</h1>
+              <p className="text-sm text-muted-foreground">
+                Enviamos um link de confirmação para <strong className="text-foreground">{pendingEmail}</strong>.
+                Clique no link para ativar sua conta. Se não encontrar, verifique a caixa de <strong className="text-foreground">spam</strong> ou promoções.
+              </p>
+              <Button variant="outline" className="w-full" onClick={handleResend} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />} Reenviar email
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setAwaitingConfirmation(false); setPendingEmail(null); }}
+                className="text-sm text-muted-foreground hover:text-foreground w-full"
+              >
+                Voltar ao login
+              </button>
+            </div>
+          ) : showReset ? (
+
             <form onSubmit={handleReset} className="space-y-4">
               <h1 className="font-display text-2xl font-bold">Recuperar senha</h1>
               <p className="text-sm text-muted-foreground">Enviaremos um link para redefinir sua senha.</p>
