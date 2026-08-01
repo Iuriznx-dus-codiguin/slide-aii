@@ -61,7 +61,7 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email, password,
       options: {
         emailRedirectTo: `${window.location.origin}/onboarding`,
@@ -69,18 +69,52 @@ const Auth = () => {
       },
     });
     setLoading(false);
+    if (error) {
+      toast.error(
+        error.message.toLowerCase().includes("rate")
+          ? "Muitas tentativas de envio de email. Aguarde alguns minutos e tente novamente."
+          : error.message,
+      );
+      return;
+    }
+    setPendingEmail(email);
+    if (data.session) {
+      toast.success("Conta criada!");
+      navigate("/onboarding");
+    } else {
+      // Confirmação por email ativa: o usuário ainda NÃO está logado.
+      setAwaitingConfirmation(true);
+      toast.success("Enviamos um link de confirmação para o seu email.");
+    }
+  };
+
+  const handleResend = async () => {
+    if (!pendingEmail) return;
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: pendingEmail,
+      options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+    });
+    setLoading(false);
     if (error) toast.error(error.message);
-    else { toast.success("Conta criada! Verifique seu email se necessário."); navigate("/onboarding"); }
+    else toast.success("Email reenviado. Confira também a caixa de spam.");
   };
 
   const handleGoogle = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: `${window.location.origin}/dashboard`,
     });
-    if (error) { setLoading(false); toast.error(error.message); }
+    if (result.error) {
+      setLoading(false);
+      toast.error(result.error.message || "Não foi possível entrar com o Google.");
+      return;
+    }
+    if (result.redirected) return;
+    navigate("/dashboard");
   };
+
 
   const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
