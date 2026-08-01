@@ -33,10 +33,17 @@ interface Profile {
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTabState] = useState(searchParams.get("tab") ?? "conta");
+  const setTab = (v: string) => {
+    setTabState(v);
+    setSearchParams(v === "conta" ? {} : { tab: v }, { replace: true });
+  };
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+
 
   useEffect(() => { document.title = "Meu Perfil — SlideAI"; }, []);
 
