@@ -9,7 +9,7 @@ export interface Entitlement {
   reason:
     | "dev" | "single" | "subscription"
     | "no_plan" | "system_error" | "monthly_limit_reached"
-    | "subscription_canceled" | "loading";
+    | "subscription_canceled" | "subscription_expired" | "loading";
   plan:
     | "free" | "single"
     | "mensal" | "trimestral" | "anual"
@@ -24,6 +24,10 @@ export interface Entitlement {
   refresh: () => Promise<void>;
 }
 
+/** `true` quando o bloqueio se resolve reativando/renovando a assinatura. */
+export const needsRenewal = (reason: Entitlement["reason"]): boolean =>
+  reason === "subscription_canceled" || reason === "subscription_expired";
+
 /** Mensagem amigável por `ent.reason`. */
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
@@ -33,12 +37,15 @@ export const reasonMessage = (reason: Entitlement["reason"]): string => {
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
     case "subscription_canceled":
       return "Sua assinatura foi cancelada. Reative um plano para voltar a gerar apresentações — todas as suas apresentações continuam salvas na sua conta.";
+    case "subscription_expired":
+      return "Sua assinatura expirou e as gerações estão pausadas. Renove o plano para voltar a gerar — suas apresentações continuam salvas.";
     case "no_plan":
       return "Escolha um plano para gerar apresentações.";
     default:
       return "";
   }
 };
+
 
 export const useEntitlement = (): Entitlement => {
   const { user } = useAuth();
