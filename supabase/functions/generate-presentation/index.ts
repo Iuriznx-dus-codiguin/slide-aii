@@ -8,6 +8,17 @@
 // Esse brief é injetado no SYSTEM_PROMPT principal e persistido em
 // presentations.creative_brief. Ver supabase/functions/_shared/creativeDirector.ts.
 //
+// Fase 2 (Story Engine): em paralelo com o Creative Director (nenhum depende
+// do outro — Promise.all), outra chamada rápida (buildStoryOutline) planeja
+// o arco narrativo completo ANTES da escrita de conteúdo — para cada slide,
+// seu narrative_act, função narrativa e mensagem-chave. Esse esboço vira uma
+// seção injetada no prompt (substitui o antigo PASSO B, que pedia pra IA
+// inventar o arco na MESMA respiração em que escrevia o conteúdo de N
+// slides) e a fonte de verdade para narrative_act no pós-processamento — a
+// IA escreve o conteúdo de cada cena já sabendo seu papel, em vez de
+// decidir a história inteira e escrever o texto final ao mesmo tempo.
+// Ver supabase/functions/_shared/storyEngine.ts.
+//
 // Fase 3 (Motion Director): este arquivo não escolhe mais a transição de
 // cada slide (nem "dynamic" nem "fade" fixos). Só sinaliza "fade" quando o
 // usuário desativou explicitamente o magic move (preferDynamic=false); caso
@@ -17,6 +28,7 @@
 // SlideViewer, sem duplicar a regra aqui no backend.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
+import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,7 +78,7 @@ const personaGuide = (p?: string) => {
   }
 };
 
-const SYSTEM_PROMPT = (req: GenerateRequest, creativeBrief: CreativeBrief) => {
+const SYSTEM_PROMPT = (req: GenerateRequest, creativeBrief: CreativeBrief, storyOutline: StoryOutline) => {
   const presenters = Math.max(1, req.presentersCount ?? 1);
   const presenterList = (req.presentersNames ?? []).slice(0, presenters);
   const speeches = req.includeSpeeches;
@@ -99,17 +111,7 @@ PROFUNDIDADE: ${depth}
 APRESENTADORES (${presenters}): ${presenterList.length ? presenterList.join(", ") : "Apresentador único"}
 ${presenters > 1 ? `→ Crie "ÂNCORAS DE TRANSIÇÃO" entre apresentadores. Divida fala EQUITATIVAMENTE em blocos de 2-3 slides.` : ""}
 
-═══════════════════════════════════════════════════
-PASSO B — ARCO NARRATIVO FLEXÍVEL
-═══════════════════════════════════════════════════
-Distribua os ${req.slidesCount} slides com LIBERDADE — o arco clássico (hook → tension → journey → proof → climax) é uma REFERÊNCIA, não uma prisão. Você pode:
-  • Abrir com "hook" ou direto em "journey" quando o tema pede contexto imediato.
-  • Ter MÚLTIPLOS picos de "proof" (dados/casos) em vez de UM climax único.
-  • Alternar tension ↔ journey várias vezes (ex: problema→solução→problema maior→solução maior).
-  • Usar "climax" só quando fizer sentido narrativo — pode não haver climax explícito.
-Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e uma referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo, dado→interpretação).
-VARIE a sequência de narrative_act — evite padrão rígido "hook, tension, journey×N, proof, climax".
-
+${outlineToPromptSection(storyOutline)}
 ═══════════════════════════════════════════════════
 PASSO C — REGRA DE OURO: TODO SLIDE É COMPLETO
 ═══════════════════════════════════════════════════
@@ -305,17 +307,29 @@ Deno.serve(async (req) => {
     // buildCreativeBrief sempre resolve, no pior caso com o fallback
     // determinístico (buildDefaultBrief), então esta etapa nunca derruba a
     // geração principal.
-    const creativeBrief = await buildCreativeBrief(
-      {
-        title: body.title,
-        description: body.description,
-        type: body.type,
-        persona: body.persona,
-        depthLevel: body.depthLevel,
-        slidesCount,
-      },
-      { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
-    );
+    // ───────────── Fase 1 + Fase 2 em paralelo ─────────────
+    // Creative Director (direção criativa) e Story Engine (esboço narrativo)
+    // não dependem um do outro — os dois só precisam do request bruto do
+    // usuário. Promise.all evita pagar a latência das duas chamadas em série.
+    // Nenhum dos dois lança exceção: qualquer falha cai no fallback
+    // determinístico correspondente (buildDefaultBrief / buildDefaultOutline).
+    const [creativeBrief, storyOutline] = await Promise.all([
+      buildCreativeBrief(
+        {
+          title: body.title,
+          description: body.description,
+          type: body.type,
+          persona: body.persona,
+          depthLevel: body.depthLevel,
+          slidesCount,
+        },
+        { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
+      ),
+      buildStoryOutline(
+        { title: body.title, description: body.description, type: body.type, slidesCount },
+        { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
+      ),
+    ]);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
     while (presenterNames.length < presenters) presenterNames.push(`Apresentador ${presenterNames.length + 1}`);
 
@@ -454,7 +468,7 @@ LEMBRETE CRÍTICO:
     const requestPayload = {
       model,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT(body, creativeBrief) },
+        { role: "system", content: SYSTEM_PROMPT(body, creativeBrief, storyOutline) },
         { role: "user", content: userPrompt },
       ],
       tools,
@@ -536,7 +550,7 @@ LEMBRETE CRÍTICO:
             ...requestPayload,
             model: "google/gemini-2.5-pro",
             messages: [
-              { role: "system", content: SYSTEM_PROMPT(body, creativeBrief) },
+              { role: "system", content: SYSTEM_PROMPT(body, creativeBrief, storyOutline) },
               { role: "user", content: `${userPrompt}\n\nATENÇÃO: devolva EXATAMENTE ${slidesCount} slides no array 'slides'. Nem mais, nem menos. Cada slide completo (Passo C).` },
             ],
           }),
@@ -591,6 +605,12 @@ LEMBRETE CRÍTICO:
         layout = LAYOUT_POOL.find((l) => l !== lastLayout && l !== layout) ?? LAYOUT_POOL[(i + 1) % LAYOUT_POOL.length];
       }
       lastLayout = layout;
+      // Fase 2 (Story Engine): narrative_act persistido é SEMPRE o do
+      // outline já planejado (storyOutline.beats[i]), nunca o que a IA
+      // eventualmente reescreveu durante a geração de conteúdo — mesma
+      // filosofia do anti-repetição de layout acima: uma única fonte de
+      // verdade determinística, não a IA re-decidindo no meio da escrita.
+      const narrativeAct = storyOutline.beats[i]?.narrative_act ?? s.narrative_act;
       // Fase 3 (Motion Director): a transição de cada slide NÃO é mais
       // fixada aqui nem escolhida livremente pela IA (isso foi removido do
       // schema — era a causa raiz da divergência de WYSIWYG original).
@@ -607,6 +627,7 @@ LEMBRETE CRÍTICO:
         visual_accents: accents,
         image_strategy: strategy,
         layout_template: layout,
+        narrative_act: narrativeAct,
         ...(preferDynamic ? {} : { transition: "fade" as const }),
       };
     });
@@ -654,7 +675,7 @@ LEMBRETE CRÍTICO:
       estimated_cost_usd: estimatedCost,
       actual_cost_usd: actualCost,
       duration_ms: Date.now() - t0,
-      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style },
+      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape },
     });
 
     return new Response(JSON.stringify({
