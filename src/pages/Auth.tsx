@@ -21,6 +21,9 @@ const Auth = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+
 
   useEffect(() => {
     document.title = "Entrar — SlideAI";
