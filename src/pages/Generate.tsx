@@ -18,6 +18,7 @@ import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
+import type { CreativeBrief } from "@/lib/creativeBrief";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
@@ -110,6 +111,10 @@ const Generate = () => {
   // Preview state
   const [slides, setSlides] = useState<AISlide[]>([]);
   const [dynamicTheme, setDynamicTheme] = useState<Partial<ThemeColors> | null>(null);
+  // Fase 1 (Creative Director Engine): brief retornado por generate-presentation,
+  // persistido em presentations.creative_brief e usado pelo Motion Director
+  // (SlideStage → src/lib/slideTransitions.tsx) para restringir transições.
+  const [creativeBrief, setCreativeBrief] = useState<CreativeBrief | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   // Direção de navegação para o SlideStage (mesmo papel do prevIdxRef no
   // SlideViewer/Editor).
@@ -264,6 +269,8 @@ const Generate = () => {
       const fontId = resolveFontPairing(data.font_pairing, autoFontForContext(type, theme, title));
       setAiFontPairing(data.font_pairing ?? null);
       setDynamicTheme(dyn);
+      // Fase 1: brief do Creative Director Engine — usado pelo Motion Director.
+      setCreativeBrief((data.creative_brief as CreativeBrief) ?? null);
       setSlides(withImages);
       setStepIdx(STEPS.length - 1);
       setCurrentSlide(0);
@@ -341,6 +348,9 @@ const Generate = () => {
         include_speeches: includeSpeeches,
         // Bloco 12: tema dinâmico vive no nível da apresentação
         dynamic_theme: dynArg ?? null,
+        // Fase 1: brief do Creative Director Engine — consumido pelo Motion
+        // Director (Editor/SlideViewer) para restringir transições.
+        creative_brief: creativeBrief ?? null,
       } as any).select().single();
       if (pErr) throw pErr;
 
@@ -532,6 +542,7 @@ const Generate = () => {
                   idx={currentSlide}
                   prevIdxRef={prevSlideIdxRef}
                   layoutGroupId="generate-preview"
+                  creativeBrief={creativeBrief}
                 />
               </div>
             </div>

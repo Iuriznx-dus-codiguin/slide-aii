@@ -115,7 +115,7 @@ const Editor = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any }) | null>(null);
+  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any; creative_brief?: CreativeBrief | null }) | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   // Usado pelo SlideStage para saber a direção (avançar/voltar) da navegação
@@ -147,7 +147,7 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       const presLoaded = {
         ...p,
@@ -520,6 +520,7 @@ const Editor = () => {
                     idx={activeIdx}
                     prevIdxRef={prevActiveIdxRef}
                     layoutGroupId={pres.id ?? "draft"}
+                    creativeBrief={pres.creative_brief}
                   />
                 </div>
 
