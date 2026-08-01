@@ -217,9 +217,16 @@ const Generate = () => {
         toast.error(reasonMessage("system_error"));
         return;
       }
+      if (needsRenewal(ent.reason)) {
+        toast.error(reasonMessage(ent.reason), {
+          action: { label: "Renovar", onClick: () => navigate("/perfil?tab=assinatura") },
+        });
+        return;
+      }
       setShowPayment(true);
       return;
     }
+
 
     setPhase("loading");
     setStepIdx(0);
