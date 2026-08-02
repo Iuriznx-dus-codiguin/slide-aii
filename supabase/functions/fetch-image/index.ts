@@ -17,6 +17,7 @@
 // chamadas por qualquer pessoa de posse da chave pública do projeto, sem
 // nenhum vínculo com conta e sem limite algum.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { findMatchingAsset, recordAsset, touchAsset } from "../_shared/assetIntelligence.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,6 +265,21 @@ Deno.serve(async (req) => {
     }
 
     if (strategy === "ai") {
+      // ───────────── Fase 5: Asset Intelligence Engine ─────────────
+      // Antes de gastar $0.039 numa nova geração, verifica se o mesmo
+      // usuário já pagou por uma imagem equivalente antes (mesmo style +
+      // prompt semanticamente parecido). Nunca bloqueia o fluxo — qualquer
+      // falha aqui cai direto no comportamento de antes (Pexels-first →
+      // geração por IA), então esta etapa só pode ECONOMIZAR, nunca quebrar.
+      const queryForMatch = body.ai_prompt || body.query || "";
+      const cached = await findMatchingAsset(admin, userId, body.style, queryForMatch);
+      if (cached) {
+        await touchAsset(admin, cached.id, cached.usage_count);
+        return new Response(JSON.stringify({ url: cached.url, source: "asset-library" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // PEXELS-FIRST: tenta Pexels mesmo quando estratégia é "ai" — só recorre à IA se Pexels não retornar nada útil.
       const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
       if (PEXELS_API_KEY && body.query) {
@@ -308,6 +324,10 @@ Deno.serve(async (req) => {
           error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
+      // Fase 5: registra o asset recém-pago na biblioteca do usuário para
+      // reaproveitamento futuro. Fire-and-forget seguro — recordAsset nunca
+      // lança, e um b64 data-URL longo demais é truncado, não descartado.
+      await recordAsset(admin, userId, gen.url, body.style, queryForMatch);
       return new Response(JSON.stringify({ url: gen.url, source: gen.source }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

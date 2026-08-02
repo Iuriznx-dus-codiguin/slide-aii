@@ -19,7 +19,9 @@ import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { SlideRenderer, type SlideData } from "@/components/SlideRenderer";
 import { ChoreographyProvider, useSlideChoreography, type ChoreographyName, type AnimationIntent } from "@/lib/slideChoreography";
 import { pickTransition, getTransitionConfig, REDUCED_MOTION_TRANSITION_CONFIG, type SlideTransition } from "@/lib/slideTransitions";
+import type { NarrativeAct } from "@/components/CinematicHUD";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import type { CreativeBrief } from "@/lib/creativeBrief";
 
 export interface SlideStageProps {
   /** Identificador estável do slide (id do banco, ou um id de rascunho local) — usado como key do AnimatePresence. Cai para `idx` se ausente. */
@@ -41,17 +43,33 @@ export interface SlideStageProps {
   layoutGroupId: string;
   /** Acento de cor para o glow de transição e Overlays; cai para um roxo padrão. */
   accent?: string;
+  /**
+   * Documento do Creative Director Engine (Fase 1), quando disponível
+   * (presentations.creative_brief). Usado pelo Motion Director para
+   * restringir a escolha de transição a allowed_transitions/forbidden_effects.
+   * Opcional — apresentações geradas antes desta feature simplesmente não têm.
+   */
+  creativeBrief?: CreativeBrief | null;
 }
 
 export const SlideStage = ({
-  slideId, slide, themeId, fontId, dynamicTheme, idx, prevIdxRef, enableVideo = false, layoutGroupId, accent: accentProp,
+  slideId, slide, themeId, fontId, dynamicTheme, idx, prevIdxRef, enableVideo = false, layoutGroupId, accent: accentProp, creativeBrief,
 }: SlideStageProps) => {
   const accent = accentProp ?? dynamicTheme?.accent ?? "#A855F7";
   const transitionHint = slide?.content?.transition as SlideTransition | undefined;
   const choreoHint = slide?.content?.choreography as ChoreographyName | undefined;
   const animationIntent = slide?.content?.animation_intent as AnimationIntent | undefined;
+  const narrativeAct = slide?.content?.narrative_act as NarrativeAct | undefined;
 
-  const slideTransition = pickTransition(idx, slide?.slide_type, transitionHint);
+  // Fase 3 (Motion Director): decide a transição a partir de narrative_act/
+  // animation_intent (sempre presentes em conteúdo gerado por IA) e, quando
+  // disponível, das restrições do Creative Brief. Ver src/lib/slideTransitions.tsx.
+  const slideTransition = pickTransition(idx, slide?.slide_type, transitionHint, {
+    narrativeAct,
+    animationIntent,
+    allowed: creativeBrief?.allowed_transitions as SlideTransition[] | undefined,
+    forbidden: creativeBrief?.forbidden_effects,
+  });
   const prefersReducedMotion = usePrefersReducedMotion();
   const cfg = prefersReducedMotion ? REDUCED_MOTION_TRANSITION_CONFIG : getTransitionConfig(slideTransition, accent);
   const choreo = useSlideChoreography(idx, slide?.slide_type, choreoHint, animationIntent);
@@ -96,6 +114,7 @@ export const SlideStage = ({
                 index={idx}
                 dynamicMode={dynamicMode}
                 enableVideo={enableVideo}
+                creativeBrief={creativeBrief}
               />
             )}
           </ChoreographyProvider>

@@ -15,6 +15,12 @@
 
 import type { Transition, Variants } from "framer-motion";
 import type { CSSProperties, ReactNode } from "react";
+// Reaproveita NarrativeAct (CinematicHUD) e AnimationIntent (slideChoreography)
+// já existentes em vez de duplicar — mesma lição aplicada duas vezes na
+// mesma implementação: a auditoria já achou "mesmo conceito, duas
+// definições" no código antigo; não vamos criar um terceiro/quarto caso.
+import type { NarrativeAct } from "@/components/CinematicHUD";
+import type { AnimationIntent as MotionAnimationIntent } from "@/lib/slideChoreography";
 
 export type SlideTransition =
   | "dynamic"     // NOVO PADRÃO: container fica neutro; título/imagem-hero em
@@ -58,23 +64,108 @@ export interface TransitionConfig {
   mode?: "sync" | "wait";
 }
 
+// ────────────────────────────────────────────────────────────────
+// Motion Director (Fase 3 da nova arquitetura de motores)
+// ────────────────────────────────────────────────────────────────
+// Por que determinístico e não a IA escolhendo livremente: a divergência de
+// WYSIWYG que motivou a criação do SlideStage veio exatamente de decisões de
+// transição tomadas de forma inconsistente entre telas. A solução não é
+// devolver essa liberdade à IA (regressaria o mesmo bug) — é decidir aqui,
+// em UM lugar, com uma tabela fixa, a partir de campos que a IA já emite de
+// forma confiável e coesa (narrative_act, animation_intent — ver
+// generate-presentation/index.ts). O backend não escolhe mais a transição;
+// só sinaliza "fade" quando o usuário desativou o magic move. Este arquivo é
+// a ÚNICA fonte de verdade da regra — evita duplicar a tabela no backend
+// (Deno) e aqui (Vite), que seria recriar o mesmo tipo de inconsistência
+// encontrado na auditoria (animation_transition x content.transition).
+export interface MotionDirectorContext {
+  narrativeAct?: NarrativeAct;
+  animationIntent?: MotionAnimationIntent;
+  /** creative_brief.allowed_transitions (Creative Director Engine), quando disponível. */
+  allowed?: SlideTransition[];
+  /** creative_brief.forbidden_effects (Creative Director Engine), quando disponível. */
+  forbidden?: string[];
+}
+
+// Mapeamento por posição no Círculo Narrativo — usado quando não há
+// animation_intent reconhecido (ou como reforço quando os dois concordam).
+const ACT_TRANSITIONS: Partial<Record<NarrativeAct, SlideTransition[]>> = {
+  climax: ["portal", "shatter"],
+  proof: ["mosaic", "ribbon", "split"],
+  tension: ["wipe", "blinds"],
+  hook: ["dynamic"],
+  journey: ["dynamic"],
+};
+
+// Mapeamento por intenção de animação — tem prioridade sobre narrative_act
+// por ser mais específico (o mesmo ato narrativo pode conter tanto um
+// slide de dado quanto uma citação, por exemplo).
+const INTENT_TRANSITIONS: Partial<Record<MotionAnimationIntent, SlideTransition[]>> = {
+  "quote-spotlight": ["iris", "letterbox"],
+  "section-break": ["fold", "blinds"],
+  "calm-fade": ["morph", "stack"],
+  "data-reveal": ["mosaic", "ribbon"],
+  "emphasis-stat": ["portal", "shatter"],
+  "hero-impact": ["dynamic"],
+  "narrative-build": ["dynamic"],
+};
+
+function candidateTransitions(context: MotionDirectorContext | undefined, excludeDynamic: boolean): SlideTransition[] {
+  const byIntent = context?.animationIntent ? INTENT_TRANSITIONS[context.animationIntent] : undefined;
+  const byAct = context?.narrativeAct ? ACT_TRANSITIONS[context.narrativeAct] : undefined;
+  const specific = byIntent ?? byAct; // escolha ideal pela narrativa, pode ser undefined
+  // allowed_transitions do Creative Brief define o UNIVERSO permitido para o
+  // tema (ex.: um tema institucional pode restringir a só ["dynamic","fold","dissolve"]).
+  // Sem brief, o universo é todas as 13.
+  const universe: SlideTransition[] = context?.allowed?.length ? context.allowed : (["dynamic", ...ALL_TRANSITIONS] as SlideTransition[]);
+  // Prioriza a interseção (a escolha certa PARA ESTE SLIDE, dentro do que o
+  // tema permite). Se a narrativa pedir algo fora do universo permitido
+  // (ex.: climax pede "shatter" mas o brief proíbe), cai para o universo
+  // inteiro em vez de voltar para "dynamic" por acidente.
+  let pool = specific ? specific.filter((t) => universe.includes(t)) : universe;
+  if (pool.length === 0) pool = universe;
+  if (context?.forbidden?.length) pool = pool.filter((t) => !context.forbidden!.includes(t));
+  if (excludeDynamic) pool = pool.filter((t) => t !== "dynamic");
+  if (pool.length === 0) pool = excludeDynamic ? ALL_TRANSITIONS : (["dynamic", ...ALL_TRANSITIONS] as SlideTransition[]);
+  return pool;
+}
+
 /**
  * Decide transição por contexto. Aceita hint manual via content.transition.
- * "dynamic" é o padrão universal quando NENHUMA transição foi explicitamente
- * escolhida (nem pela IA na geração, nem manualmente no editor) — antes desta
- * mudança, o fallback sem hint fazia um rodízio determinístico pelas 12
- * transições legadas por slide_type. Uma vez que um slide já tem
- * content.transition preenchido (incluindo apresentações já existentes antes
- * desta mudança), esse valor continua sendo respeitado sem alteração —
- * nenhuma apresentação existente muda de transição por causa disto.
+ *
+ * Precedência:
+ * 1) hint === "dynamic" → sempre respeitado (compatibilidade total).
+ * 2) hint é uma das 12 transições legadas → sempre respeitado (nenhuma
+ *    apresentação já salva antes desta mudança muda de transição por causa
+ *    disto — ver slideTransitions.test.ts).
+ * 3) hint === "fade" → sinal de "magic move desativado" (preferDynamic=false
+ *    no gerador). ANTES desta mudança, "fade" não era um SlideTransition
+ *    válido e caía silenciosamente no default "dynamic" — ou seja, a
+ *    preferência do usuário de desativar o magic move era ignorada na
+ *    prática. Corrigido: agora escolhe uma transição cinematográfica legada
+ *    (nunca "dynamic") usando o Motion Director.
+ * 4) Sem hint reconhecido, mas com narrative_act/animation_intent
+ *    disponíveis (todo slide gerado pela IA tem isso) → Motion Director
+ *    decide deterministicamente entre "dynamic" e as 12 legadas.
+ * 5) Sem hint e sem contexto (ex.: slide manual novo no Editor) → mantém o
+ *    comportamento histórico: "dynamic".
  */
 export function pickTransition(
-  _index: number,
+  index: number,
   _slideType?: string,
-  hint?: SlideTransition,
+  hint?: SlideTransition | string,
+  context?: MotionDirectorContext,
 ): SlideTransition {
   if (hint === "dynamic") return "dynamic";
-  if (hint && ALL_TRANSITIONS.includes(hint)) return hint;
+  if (hint && (ALL_TRANSITIONS as string[]).includes(hint)) return hint as SlideTransition;
+  if (hint === "fade") {
+    const pool = candidateTransitions(context, true);
+    return pool[index % pool.length];
+  }
+  if (context?.narrativeAct || context?.animationIntent) {
+    const pool = candidateTransitions(context, false);
+    return pool[index % pool.length];
+  }
   return "dynamic";
 }
 

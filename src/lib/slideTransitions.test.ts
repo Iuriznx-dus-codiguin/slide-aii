@@ -25,6 +25,72 @@ describe("pickTransition", () => {
   });
 });
 
+describe("pickTransition — Motion Director (Fase 3)", () => {
+  it("BUG CORRIGIDO: hint 'fade' (preferDynamic=false) nunca mais cai silenciosamente em 'dynamic'", () => {
+    // Antes desta mudança: "fade" não era um SlideTransition válido, então
+    // `ALL_TRANSITIONS.includes("fade")` era false e a função caía direto no
+    // fallback "dynamic" — ou seja, o usuário desativava o magic move e o
+    // slide continuava usando magic move mesmo assim. Este teste trava o
+    // comportamento corrigido: "fade" nunca deve resultar em "dynamic".
+    for (let i = 0; i < ALL_TRANSITIONS.length * 2; i++) {
+      const result = pickTransition(i, "bullet_points", "fade");
+      expect(result).not.toBe("dynamic");
+      expect(ALL_TRANSITIONS).toContain(result);
+    }
+  });
+
+  it("é determinístico: mesmo index + mesmo contexto sempre produz a mesma transição", () => {
+    const a = pickTransition(3, "data_chart", undefined, { narrativeAct: "proof" });
+    const b = pickTransition(3, "data_chart", undefined, { narrativeAct: "proof" });
+    expect(a).toBe(b);
+  });
+
+  it("narrative_act='climax' escolhe entre as transições de alto impacto (nunca dynamic)", () => {
+    for (let i = 0; i < 4; i++) {
+      const result = pickTransition(i, "content", undefined, { narrativeAct: "climax" });
+      expect(["portal", "shatter"]).toContain(result);
+    }
+  });
+
+  it("narrative_act='hook'/'journey' preferem manter a continuidade do magic move", () => {
+    expect(pickTransition(0, "title_slide", undefined, { narrativeAct: "hook" })).toBe("dynamic");
+    expect(pickTransition(1, "content", undefined, { narrativeAct: "journey" })).toBe("dynamic");
+  });
+
+  it("animation_intent tem prioridade sobre narrative_act quando os dois estão presentes", () => {
+    // journey normalmente mantém "dynamic", mas quote-spotlight (mais
+    // específico) deve vencer e escolher entre iris/letterbox.
+    const result = pickTransition(0, "quote", undefined, {
+      narrativeAct: "journey",
+      animationIntent: "quote-spotlight",
+    });
+    expect(["iris", "letterbox"]).toContain(result);
+  });
+
+  it("respeita allowed_transitions do Creative Brief, mesmo quando restringe bastante", () => {
+    const result = pickTransition(0, "content", undefined, {
+      narrativeAct: "climax", // normalmente portal/shatter
+      allowed: ["fold"], // brief institucional proíbe efeitos "quebrados"
+    });
+    expect(result).toBe("fold");
+  });
+
+  it("respeita forbidden_effects filtrando a lista legada mesmo sem hint 'fade'", () => {
+    for (let i = 0; i < 6; i++) {
+      const result = pickTransition(i, "content", undefined, {
+        narrativeAct: "climax", // portal/shatter
+        forbidden: ["shatter"],
+      });
+      expect(result).not.toBe("shatter");
+    }
+  });
+
+  it("sem hint e sem contexto narrativo, mantém o padrão histórico 'dynamic' (compatibilidade com Editor)", () => {
+    expect(pickTransition(7, "content", undefined, {})).toBe("dynamic");
+  });
+});
+
+
 describe("getTransitionConfig — modo dynamic", () => {
   const cfg = getTransitionConfig("dynamic", "#A855F7");
 

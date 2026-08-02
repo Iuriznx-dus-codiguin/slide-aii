@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { resolveTheme, FONTS, type ThemeColors } from "@/lib/slugify";
 import {
-  PRESETS, presetForSlide, presetFromLegacy, kenBurnsVariants,
+  PRESETS, presetForSlide, presetFromLegacy, presetFromIntent, kenBurnsVariants,
   parseNumberFromString, useAnimatedNumber, formatAnimatedNumber, EASE,
   type CinematicPreset,
 } from "@/lib/animations";
@@ -37,6 +37,7 @@ import {
 } from "@/components/SlideDecorations";
 import { useImageInsight } from "@/lib/imageAnalysis";
 import { useChoreo } from "@/lib/slideChoreography";
+import { computeCompositionSpec, type SpacingBrief } from "@/lib/compositionEngine";
 
 export type VisualAccent =
   | "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines"
@@ -59,6 +60,8 @@ export interface SlideContent {
   ai_image_prompt?: string;
   animation?: string;
   animation_intent?: AnimationIntent;
+  /** Posição no Círculo Narrativo (Fase 2 — Story Engine). Consumido também pelo Motion Director. */
+  narrative_act?: import("@/components/CinematicHUD").NarrativeAct;
   cover_variant?: CoverVariant;
   /** IA: elementos visuais decorativos sugeridos. */
   visual_accents?: VisualAccent[];
@@ -123,6 +126,13 @@ interface Props {
   dynamicMode?: boolean;
   /** Ativa o backdrop em vídeo do AmbientBackdrop (ver SlideViewer). */
   enableVideo?: boolean;
+  /**
+   * Fase 1 (Creative Director Engine): usado pela Fase 4 (Design Intelligence)
+   * para restringir a faixa de padding/gap ao spacing do tema. Opcional —
+   * apresentações sem brief caem no comportamento "balanced" (equivalente ao
+   * padding fixo de antes desta feature).
+   */
+  creativeBrief?: SpacingBrief | null;
 }
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -579,7 +589,7 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode, noAnim
   );
 };
 
-export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false, dynamicMode = false, enableVideo = false }: Props) => {
+export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false, dynamicMode = false, enableVideo = false, creativeBrief }: Props) => {
   const theme = resolveTheme(themeId, dynamicTheme);
   const font = FONTS[fontId] ?? FONTS["modern-sans"];
   const displayFont = font.display ?? font.family;
@@ -588,11 +598,13 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   const choreo = useChoreo();
 
 
-  // Escolha do preset cinematográfico:
-  // 1) se a IA setou animation, mapeia legacy → preset
-  // 2) senão, deduz pelo tipo de slide
+  // Escolha do preset cinematográfico (precedência corrigida — ver comentário
+  // em presetFromIntent, src/lib/animations.ts):
+  // 1) animation_intent (papel narrativo, bem guiado no prompt) decide primeiro
+  // 2) animation (legado, sem guidance no schema) como fallback
+  // 3) senão, deduz pelo tipo de slide
   const preset: CinematicPreset =
-    presetFromLegacy(c.animation) ?? presetForSlide(slide.slide_type, slide.layout_template);
+    presetFromIntent(c.animation_intent) ?? presetFromLegacy(c.animation) ?? presetForSlide(slide.slide_type, slide.layout_template);
   const variants = PRESETS[preset];
 
   // Quando noAnimate (thumbnails / print), pulamos diretamente ao "show"
@@ -671,6 +683,21 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
     color: theme.text,
     fontFamily: font.family,
   };
+
+  // Fase 4 (Design Intelligence Engine): padding/gap deixam de ser fixos
+  // (p-[5%]/p-[6%]/p-[4%]/gap-[3%] hardcoded nas classes Tailwind de cada
+  // sub-componente) e passam a ser calculados por slide, a partir da
+  // densidade real de conteúdo + creative_brief.spacing. containerStyle já é
+  // passado como `style` para os 7 sub-componentes (QuoteSlide, StatSlide,
+  // ChartSlide, DefaultSlide, TwoColumnsSlide, ImageSplitSlide, FullImageSlide)
+  // — style inline tem precedência sobre a classe Tailwind, então nenhuma
+  // dessas 7 JSX precisou ser tocada para a substituição ter efeito.
+  const compositionSpec = computeCompositionSpec(
+    { headline: c.headline, subtitle: c.subtitle, bodyText: c.body_text, bullets: c.bullets, hasChart: !!c.chart },
+    creativeBrief,
+  );
+  containerStyle.padding = compositionSpec.padding;
+  containerStyle.gap = compositionSpec.gap;
 
   /* ---------- TITLE SLIDE → escolhe entre 6 covers ---------- */
   if (isTitle) {

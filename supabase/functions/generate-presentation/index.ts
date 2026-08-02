@@ -1,7 +1,47 @@
 // Generate presentation: estrutura completa com DNA narrativo,
 // Círculo Narrativo (Hook→Tensão→Jornada→Prova→Clímax), multi-apresentador
 // e falas opcionais. Motor híbrido: GPT-4.1 (OpenAI) primário; Gemini 2.5 Pro fallback.
+//
+// Fase 1 (Creative Director Engine): antes de gerar qualquer slide, uma
+// chamada de IA separada e rápida (buildCreativeBrief) decide a direção
+// criativa completa (tom, densidade, ritmo, transições permitidas/proibidas).
+// Esse brief é injetado no SYSTEM_PROMPT principal e persistido em
+// presentations.creative_brief. Ver supabase/functions/_shared/creativeDirector.ts.
+//
+// Fase 2 (Story Engine): em paralelo com o Creative Director (nenhum depende
+// do outro — Promise.all), outra chamada rápida (buildStoryOutline) planeja
+// o arco narrativo completo ANTES da escrita de conteúdo — para cada slide,
+// seu narrative_act, função narrativa e mensagem-chave. Esse esboço vira uma
+// seção injetada no prompt (substitui o antigo PASSO B, que pedia pra IA
+// inventar o arco na MESMA respiração em que escrevia o conteúdo de N
+// slides) e a fonte de verdade para narrative_act no pós-processamento — a
+// IA escreve o conteúdo de cada cena já sabendo seu papel, em vez de
+// decidir a história inteira e escrever o texto final ao mesmo tempo.
+// Ver supabase/functions/_shared/storyEngine.ts.
+//
+// Fase 6 (Brand Identity Extraction): também em paralelo com as Fases 1+2,
+// se o usuário forneceu uma URL de marca (brandUrl), extractBrandIdentity
+// tenta extrair cor primária/acento, fontes e logo do HTML estático dessa
+// URL (heurística por regex — meta theme-color, hex mais frequentes, links
+// de Google Fonts, og:image/favicon; ver limitações documentadas no
+// próprio módulo). Quando a extração tem confiança suficiente, o resultado
+// SOBRESCREVE dynamic_theme (accent/accent2) — a marca do usuário vence a
+// criatividade da IA quando ele pediu isso explicitamente. Nunca bloqueia
+// a geração: URL ausente, inválida, ou extração sem sinais úteis → null,
+// dynamic_theme decidido pela IA como antes desta feature.
+// Ver supabase/functions/_shared/brandIdentity.ts.
+//
+// Fase 3 (Motion Director): este arquivo não escolhe mais a transição de
+// cada slide (nem "dynamic" nem "fade" fixos). Só sinaliza "fade" quando o
+// usuário desativou explicitamente o magic move (preferDynamic=false); caso
+// contrário, o campo fica de fora e src/lib/slideTransitions.ts decide de
+// forma determinística com base em narrative_act/animation_intent — a
+// mesma lógica testada (slideTransitions.test.ts) usada no Editor/Generate/
+// SlideViewer, sem duplicar a regra aqui no backend.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
+import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
+import { extractBrandIdentity, brandIdentityToThemeOverride, type BrandIdentity } from "../_shared/brandIdentity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +74,8 @@ interface GenerateRequest {
   max_budget_usd?: number;
   /** Quando true (padrão), a IA prioriza a transição "dynamic" (magic move) na maioria dos slides. */
   preferDynamic?: boolean;
+  /** Fase 6 (Brand Identity): URL opcional do site/marca do usuário para extrair paleta/fontes/logo. */
+  brandUrl?: string;
 }
 
 const personaGuide = (p?: string) => {
@@ -51,7 +93,7 @@ const personaGuide = (p?: string) => {
   }
 };
 
-const SYSTEM_PROMPT = (req: GenerateRequest) => {
+const SYSTEM_PROMPT = (req: GenerateRequest, creativeBrief: CreativeBrief, storyOutline: StoryOutline) => {
   const presenters = Math.max(1, req.presentersCount ?? 1);
   const presenterList = (req.presentersNames ?? []).slice(0, presenters);
   const speeches = req.includeSpeeches;
@@ -64,6 +106,7 @@ const SYSTEM_PROMPT = (req: GenerateRequest) => {
 
 Sua missão: gerar APRESENTAÇÕES VISUAIS RICAS, COM CONTEÚDO PROFUNDO, PESQUISA DENSA, NARRATIVA EDITORIAL e DIREÇÃO DE ARTE COESA — mesmo quando o título é curto ou a descrição é vaga.
 
+${briefToPromptSection(creativeBrief)}
 ═══════════════════════════════════════════════════
 PASSO 0 — ÂNCORA TEMÁTICA (CRÍTICO)
 ═══════════════════════════════════════════════════
@@ -83,17 +126,7 @@ PROFUNDIDADE: ${depth}
 APRESENTADORES (${presenters}): ${presenterList.length ? presenterList.join(", ") : "Apresentador único"}
 ${presenters > 1 ? `→ Crie "ÂNCORAS DE TRANSIÇÃO" entre apresentadores. Divida fala EQUITATIVAMENTE em blocos de 2-3 slides.` : ""}
 
-═══════════════════════════════════════════════════
-PASSO B — ARCO NARRATIVO FLEXÍVEL
-═══════════════════════════════════════════════════
-Distribua os ${req.slidesCount} slides com LIBERDADE — o arco clássico (hook → tension → journey → proof → climax) é uma REFERÊNCIA, não uma prisão. Você pode:
-  • Abrir com "hook" ou direto em "journey" quando o tema pede contexto imediato.
-  • Ter MÚLTIPLOS picos de "proof" (dados/casos) em vez de UM climax único.
-  • Alternar tension ↔ journey várias vezes (ex: problema→solução→problema maior→solução maior).
-  • Usar "climax" só quando fizer sentido narrativo — pode não haver climax explícito.
-Cada slide DEVE ter narrative_act ∈ {hook, tension, journey, proof, climax} e uma referência LÓGICA ao slide anterior (causa→efeito, problema→solução, conceito→exemplo, dado→interpretação).
-VARIE a sequência de narrative_act — evite padrão rígido "hook, tension, journey×N, proof, climax".
-
+${outlineToPromptSection(storyOutline)}
 ═══════════════════════════════════════════════════
 PASSO C — REGRA DE OURO: TODO SLIDE É COMPLETO
 ═══════════════════════════════════════════════════
@@ -147,8 +180,7 @@ PASSO E — VARIAÇÃO INTENCIONAL DE MODELOS DE PÁGINA, ACENTOS E ANIMAÇÕES
   * comparison / múltiplos itens → "card-stack"
   * arquitetura / estrutura em camadas → "layered-panels"
   * capa ou slide de impacto que pede fundo imersivo → "gradient-drift" (camada única de fundo)
-- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos.
-- transition: use SEMPRE "dynamic"${req.preferDynamic === false ? ` — exceto quando o usuário desativou o magic move, aí use "fade" em todos os slides.` : ` (magic move de título/imagem-hero entre slides). Não existem outras transições — a variedade vem do MODELO da página, não do efeito de troca.`}
+- animation_intent ∈ {hero-impact, narrative-build, data-reveal, emphasis-stat, quote-spotlight, section-break, calm-fade} — ALTERNE: nunca repita o mesmo animation_intent em slides consecutivos. Este campo agora também governa a ESCOLHA DA TRANSIÇÃO entre slides (feita deterministicamente fora deste prompt, pelo Motion Director) — capriche na escolha honesta do papel narrativo de cada slide, não apenas na variedade.
 
 ═══════════════════════════════════════════════════
 PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
@@ -283,6 +315,37 @@ Deno.serve(async (req) => {
     const slidesCount = Math.max(3, Math.min(15, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
     const presenters = Math.max(1, body.presentersCount ?? 1);
+
+    // ───────────── Fase 1: Creative Director Engine ─────────────
+    // Chamada separada e rápida (modelo "flash"/"mini") que decide a direção
+    // criativa ANTES de qualquer slide ser escrito. Nunca lança exceção —
+    // buildCreativeBrief sempre resolve, no pior caso com o fallback
+    // determinístico (buildDefaultBrief), então esta etapa nunca derruba a
+    // geração principal.
+    // ───────────── Fase 1 + Fase 2 + Fase 6 em paralelo ─────────────
+    // Creative Director, Story Engine e Brand Identity não dependem um do
+    // outro — Promise.all evita pagar a latência das três em série.
+    // Nenhum lança exceção: qualquer falha cai no fallback correspondente
+    // (buildDefaultBrief / buildDefaultOutline / null, respectivamente).
+    const [creativeBrief, storyOutline, brandIdentity] = await Promise.all([
+      buildCreativeBrief(
+        {
+          title: body.title,
+          description: body.description,
+          type: body.type,
+          persona: body.persona,
+          depthLevel: body.depthLevel,
+          slidesCount,
+        },
+        { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
+      ),
+      buildStoryOutline(
+        { title: body.title, description: body.description, type: body.type, slidesCount },
+        { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
+      ),
+      extractBrandIdentity(body.brandUrl),
+    ]);
+    const brandThemeOverride = brandIdentityToThemeOverride(brandIdentity);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
     while (presenterNames.length < presenters) presenterNames.push(`Apresentador ${presenterNames.length + 1}`);
 
@@ -363,11 +426,6 @@ LEMBRETE CRÍTICO:
                     description: "1-3 elementos decorativos/visuais. Combine com o conteúdo. Varie a cada slide.",
                     items: { type: "string", enum: ["orbital-rings", "dot-grid", "floating-shapes", "diagonal-lines", "corner-brackets", "data-pattern", "wave-form", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"] },
                   },
-                  transition: {
-                    type: "string",
-                    enum: ["dynamic", "fade"],
-                    description: "Use 'dynamic' (magic move de título/imagem-hero) por padrão; 'fade' apenas quando o usuário desativou o magic move.",
-                  },
                   headline: { type: "string", description: "2-6 palavras, máx 40 chars. Contém palavra-chave do tema." },
                   subtitle: { type: "string", description: "8-14 palavras, complementa headline." },
                   body_text: { type: "string", description: "40-90 palavras quando layout pede texto longo (centered, content, columns)." },
@@ -426,7 +484,7 @@ LEMBRETE CRÍTICO:
     const requestPayload = {
       model,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT(body) },
+        { role: "system", content: SYSTEM_PROMPT(body, creativeBrief, storyOutline) },
         { role: "user", content: userPrompt },
       ],
       tools,
@@ -508,7 +566,7 @@ LEMBRETE CRÍTICO:
             ...requestPayload,
             model: "google/gemini-2.5-pro",
             messages: [
-              { role: "system", content: SYSTEM_PROMPT(body) },
+              { role: "system", content: SYSTEM_PROMPT(body, creativeBrief, storyOutline) },
               { role: "user", content: `${userPrompt}\n\nATENÇÃO: devolva EXATAMENTE ${slidesCount} slides no array 'slides'. Nem mais, nem menos. Cada slide completo (Passo C).` },
             ],
           }),
@@ -563,9 +621,31 @@ LEMBRETE CRÍTICO:
         layout = LAYOUT_POOL.find((l) => l !== lastLayout && l !== layout) ?? LAYOUT_POOL[(i + 1) % LAYOUT_POOL.length];
       }
       lastLayout = layout;
-      // Transições: apenas dynamic/fade — as legadas foram removidas.
-      const transition = preferDynamic ? "dynamic" : "fade";
-      return { ...s, visual_accents: accents, image_strategy: strategy, layout_template: layout, transition };
+      // Fase 2 (Story Engine): narrative_act persistido é SEMPRE o do
+      // outline já planejado (storyOutline.beats[i]), nunca o que a IA
+      // eventualmente reescreveu durante a geração de conteúdo — mesma
+      // filosofia do anti-repetição de layout acima: uma única fonte de
+      // verdade determinística, não a IA re-decidindo no meio da escrita.
+      const narrativeAct = storyOutline.beats[i]?.narrative_act ?? s.narrative_act;
+      // Fase 3 (Motion Director): a transição de cada slide NÃO é mais
+      // fixada aqui nem escolhida livremente pela IA (isso foi removido do
+      // schema — era a causa raiz da divergência de WYSIWYG original).
+      // - preferDynamic=false → sinaliza "fade", que src/lib/slideTransitions.ts
+      //   interpreta como "sem magic move" e escolhe uma transição cinematográfica
+      //   legada com base em narrative_act/animation_intent.
+      // - preferDynamic=true (padrão) → o campo fica de fora do slide; o mesmo
+      //   pickTransition() decide entre "dynamic" e as 12 legadas usando
+      //   narrative_act/animation_intent + creative_brief.allowed_transitions,
+      //   sem duplicar essa tabela de regras aqui no backend.
+      const { transition: _ignoredAiTransition, ...sWithoutTransition } = s;
+      return {
+        ...sWithoutTransition,
+        visual_accents: accents,
+        image_strategy: strategy,
+        layout_template: layout,
+        narrative_act: narrativeAct,
+        ...(preferDynamic ? {} : { transition: "fade" as const }),
+      };
     });
 
     // Garante presenters_data normalizado quando falas ativadas
@@ -611,13 +691,19 @@ LEMBRETE CRÍTICO:
       estimated_cost_usd: estimatedCost,
       actual_cost_usd: actualCost,
       duration_ms: Date.now() - t0,
-      metadata: { title: body.title, type: body.type, plan: ent.plan },
+      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape, brand_extracted: !!brandThemeOverride },
     });
 
     return new Response(JSON.stringify({
       slides: parsed.slides,
-      dynamic_theme: parsed.dynamic_theme ?? null,
+      // Fase 6: quando o usuário forneceu uma URL de marca e a extração teve
+      // confiança suficiente (ver brandIdentityToThemeOverride), accent/accent2
+      // extraídos do site sobrescrevem o que a IA decidiu — a marca do usuário
+      // vence a criatividade da IA quando ele pediu isso explicitamente.
+      dynamic_theme: brandThemeOverride ? { ...(parsed.dynamic_theme ?? {}), ...brandThemeOverride } : (parsed.dynamic_theme ?? null),
       font_pairing: parsed.font_pairing ?? null,
+      creative_brief: creativeBrief,
+      brand_identity: brandIdentity,
       _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
