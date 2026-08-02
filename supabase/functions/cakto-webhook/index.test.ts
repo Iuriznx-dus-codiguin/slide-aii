@@ -10,7 +10,8 @@ import {
   hasValidSecret, resolvePlan,
 } from "./lib.ts";
 
-const SECRET = "f8c3de3d-1fea-4d7c-a8b0-29f63c4c3454";
+// Valor fictício: testes nunca devem conter o segredo real do webhook.
+const SECRET = "test-only-cakto-webhook-secret";
 
 const payloadFor = (event: string, overrides: Record<string, unknown> = {}) => ({
   secret: SECRET,
