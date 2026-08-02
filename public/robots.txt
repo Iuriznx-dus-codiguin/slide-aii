@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://slide-aii.lovable.app/sitemap.xml
+Sitemap: https://slideai.com.br/sitemap.xml

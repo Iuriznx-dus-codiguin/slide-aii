@@ -1,1 +1,6 @@
 project_id = "goistdwnwksaskbffsni"
+
+# Webhooks externos da Cakto não possuem JWT do app; a função valida o
+# CAKTO_WEBHOOK_SECRET internamente antes de processar qualquer evento.
+[functions.cakto-webhook]
+verify_jwt = false
