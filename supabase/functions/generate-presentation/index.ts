@@ -19,6 +19,18 @@
 // decidir a história inteira e escrever o texto final ao mesmo tempo.
 // Ver supabase/functions/_shared/storyEngine.ts.
 //
+// Fase 6 (Brand Identity Extraction): também em paralelo com as Fases 1+2,
+// se o usuário forneceu uma URL de marca (brandUrl), extractBrandIdentity
+// tenta extrair cor primária/acento, fontes e logo do HTML estático dessa
+// URL (heurística por regex — meta theme-color, hex mais frequentes, links
+// de Google Fonts, og:image/favicon; ver limitações documentadas no
+// próprio módulo). Quando a extração tem confiança suficiente, o resultado
+// SOBRESCREVE dynamic_theme (accent/accent2) — a marca do usuário vence a
+// criatividade da IA quando ele pediu isso explicitamente. Nunca bloqueia
+// a geração: URL ausente, inválida, ou extração sem sinais úteis → null,
+// dynamic_theme decidido pela IA como antes desta feature.
+// Ver supabase/functions/_shared/brandIdentity.ts.
+//
 // Fase 3 (Motion Director): este arquivo não escolhe mais a transição de
 // cada slide (nem "dynamic" nem "fade" fixos). Só sinaliza "fade" quando o
 // usuário desativou explicitamente o magic move (preferDynamic=false); caso
@@ -29,6 +41,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
+import { extractBrandIdentity, brandIdentityToThemeOverride, type BrandIdentity } from "../_shared/brandIdentity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +74,8 @@ interface GenerateRequest {
   max_budget_usd?: number;
   /** Quando true (padrão), a IA prioriza a transição "dynamic" (magic move) na maioria dos slides. */
   preferDynamic?: boolean;
+  /** Fase 6 (Brand Identity): URL opcional do site/marca do usuário para extrair paleta/fontes/logo. */
+  brandUrl?: string;
 }
 
 const personaGuide = (p?: string) => {
@@ -307,13 +322,12 @@ Deno.serve(async (req) => {
     // buildCreativeBrief sempre resolve, no pior caso com o fallback
     // determinístico (buildDefaultBrief), então esta etapa nunca derruba a
     // geração principal.
-    // ───────────── Fase 1 + Fase 2 em paralelo ─────────────
-    // Creative Director (direção criativa) e Story Engine (esboço narrativo)
-    // não dependem um do outro — os dois só precisam do request bruto do
-    // usuário. Promise.all evita pagar a latência das duas chamadas em série.
-    // Nenhum dos dois lança exceção: qualquer falha cai no fallback
-    // determinístico correspondente (buildDefaultBrief / buildDefaultOutline).
-    const [creativeBrief, storyOutline] = await Promise.all([
+    // ───────────── Fase 1 + Fase 2 + Fase 6 em paralelo ─────────────
+    // Creative Director, Story Engine e Brand Identity não dependem um do
+    // outro — Promise.all evita pagar a latência das três em série.
+    // Nenhum lança exceção: qualquer falha cai no fallback correspondente
+    // (buildDefaultBrief / buildDefaultOutline / null, respectivamente).
+    const [creativeBrief, storyOutline, brandIdentity] = await Promise.all([
       buildCreativeBrief(
         {
           title: body.title,
@@ -329,7 +343,9 @@ Deno.serve(async (req) => {
         { title: body.title, description: body.description, type: body.type, slidesCount },
         { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
       ),
+      extractBrandIdentity(body.brandUrl),
     ]);
+    const brandThemeOverride = brandIdentityToThemeOverride(brandIdentity);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
     while (presenterNames.length < presenters) presenterNames.push(`Apresentador ${presenterNames.length + 1}`);
 
@@ -675,14 +691,19 @@ LEMBRETE CRÍTICO:
       estimated_cost_usd: estimatedCost,
       actual_cost_usd: actualCost,
       duration_ms: Date.now() - t0,
-      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape },
+      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape, brand_extracted: !!brandThemeOverride },
     });
 
     return new Response(JSON.stringify({
       slides: parsed.slides,
-      dynamic_theme: parsed.dynamic_theme ?? null,
+      // Fase 6: quando o usuário forneceu uma URL de marca e a extração teve
+      // confiança suficiente (ver brandIdentityToThemeOverride), accent/accent2
+      // extraídos do site sobrescrevem o que a IA decidiu — a marca do usuário
+      // vence a criatividade da IA quando ele pediu isso explicitamente.
+      dynamic_theme: brandThemeOverride ? { ...(parsed.dynamic_theme ?? {}), ...brandThemeOverride } : (parsed.dynamic_theme ?? null),
       font_pairing: parsed.font_pairing ?? null,
       creative_brief: creativeBrief,
+      brand_identity: brandIdentity,
       _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
