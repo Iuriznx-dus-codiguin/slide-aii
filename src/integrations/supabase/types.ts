@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      assets: {
+        Row: {
+          created_at: string
+          id: string
+          last_used_at: string
+          metadata: Json
+          presentation_id: string | null
+          query: string | null
+          source: string
+          url: string
+          usage_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_used_at?: string
+          metadata?: Json
+          presentation_id?: string | null
+          query?: string | null
+          source: string
+          url: string
+          usage_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_used_at?: string
+          metadata?: Json
+          presentation_id?: string | null
+          query?: string | null
+          source?: string
+          url?: string
+          usage_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_rate_limits: {
         Row: {
           fn_name: string
@@ -311,6 +358,8 @@ export type Database = {
           depth_level: string | null
           description: string | null
           dynamic_theme: Json | null
+          brand_identity: Json | null
+          creative_brief: Json | null
           font_style: string | null
           id: string
           include_speeches: boolean
@@ -337,6 +386,8 @@ export type Database = {
           depth_level?: string | null
           description?: string | null
           dynamic_theme?: Json | null
+          brand_identity?: Json | null
+          creative_brief?: Json | null
           font_style?: string | null
           id?: string
           include_speeches?: boolean
@@ -363,6 +414,8 @@ export type Database = {
           depth_level?: string | null
           description?: string | null
           dynamic_theme?: Json | null
+          brand_identity?: Json | null
+          creative_brief?: Json | null
           font_style?: string | null
           id?: string
           include_speeches?: boolean

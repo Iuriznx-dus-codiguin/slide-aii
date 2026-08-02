@@ -31,6 +31,8 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugify";
 import { toast } from "sonner";
 import React from "react";
+import type { CreativeBrief } from "@/lib/creativeBrief";
+import type { BrandIdentity } from "@/lib/brandIdentity";
 
 const LAYOUTS = [
   "title-only", "title-content", "two-columns", "image-right", "image-left",
@@ -71,7 +73,7 @@ interface Pres {
 
 // Bloco 13: thumbnail renderizado em 800x450 (4x menos pixels que 1920x1080)
 // + React.memo + lazy rendering (placeholder se >2 posições do ativo).
-const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme, lazyHide }: any) => {
+const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fontId, dynamicTheme, lazyHide, creativeBrief }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   return (
@@ -88,7 +90,7 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
               <SlideRendererWithChoreo
                 slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
                 themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} index={idx} noAnimate
-                creativeBrief={pres.creative_brief}
+                creativeBrief={creativeBrief}
               />
             </div>
           )}
@@ -116,7 +118,7 @@ const Editor = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any; creative_brief?: CreativeBrief | null }) | null>(null);
+  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any; creative_brief?: CreativeBrief | null; brand_identity?: BrandIdentity | null }) | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   // Usado pelo SlideStage para saber a direção (avançar/voltar) da navegação
@@ -148,7 +150,7 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,brand_identity").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       const presLoaded = {
         ...p,
@@ -481,6 +483,7 @@ const Editor = () => {
                         onClick={() => setActiveIdx(i)} onDelete={() => deleteSlide(i)}
                         themeId={pres.theme} fontId={pres.font_style} dynamicTheme={dynamicTheme}
                         lazyHide={Math.abs(i - activeIdx) > 2}
+                        creativeBrief={pres.creative_brief}
                       />
                     </div>
                   ))}

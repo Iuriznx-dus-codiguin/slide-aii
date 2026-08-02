@@ -18,7 +18,8 @@ import { useEffect } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { SlideRenderer, type SlideData } from "@/components/SlideRenderer";
 import { ChoreographyProvider, useSlideChoreography, type ChoreographyName, type AnimationIntent } from "@/lib/slideChoreography";
-import { pickTransition, getTransitionConfig, REDUCED_MOTION_TRANSITION_CONFIG, type SlideTransition, type NarrativeAct } from "@/lib/slideTransitions";
+import { pickTransition, getTransitionConfig, REDUCED_MOTION_TRANSITION_CONFIG, type SlideTransition } from "@/lib/slideTransitions";
+import type { NarrativeAct } from "@/components/CinematicHUD";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 
