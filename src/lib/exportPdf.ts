@@ -9,6 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { createElement } from "react";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import type { ThemeColors } from "@/lib/slugify";
+import type { CreativeBrief } from "@/lib/creativeBrief";
 
 interface SlideRow {
   id?: string;
@@ -24,6 +25,13 @@ interface ExportPdfOpts {
   fontId: string;
   slides: SlideRow[];
   dynamicTheme?: Partial<ThemeColors> | null;
+  /**
+   * Brief do Creative Director. Sem ele o PDF era rasterizado com a
+   * densidade/espaçamento padrão do SlideRenderer, enquanto a tela usava a
+   * densidade do brief — o arquivo exportado não batia com o que o usuário
+   * via. Mesma fonte de verdade nos dois caminhos.
+   */
+  creativeBrief?: CreativeBrief | null;
   onProgress?: (current: number, total: number) => void;
 }
 
