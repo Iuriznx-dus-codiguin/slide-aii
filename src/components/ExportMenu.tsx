@@ -73,11 +73,14 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     try {
       const rows = await fetchSlides();
       if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      const art = await fetchArtDirection();
       await exportPresentationToPdf({
         title,
         themeId,
         fontId,
         slides: rows as any,
+        dynamicTheme: art.dynamicTheme,
+        creativeBrief: art.creativeBrief,
         onProgress: (cur, total) => {
           const pct = Math.round((cur / total) * 100);
           toast.loading(`Renderizando PDF (${pct}%)…`, { id: t });
