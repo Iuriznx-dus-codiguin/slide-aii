@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      assets: {
+        Row: {
+          created_at: string
+          id: string
+          last_used_at: string
+          metadata: Json
+          presentation_id: string | null
+          query: string | null
+          source: string
+          url: string
+          usage_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_used_at?: string
+          metadata?: Json
+          presentation_id?: string | null
+          query?: string | null
+          source: string
+          url: string
+          usage_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_used_at?: string
+          metadata?: Json
+          presentation_id?: string | null
+          query?: string | null
+          source?: string
+          url?: string
+          usage_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_rate_limits: {
         Row: {
           fn_name: string
@@ -306,7 +353,9 @@ export type Database = {
       }
       presentations: {
         Row: {
+          brand_identity: Json | null
           created_at: string
+          creative_brief: Json | null
           deleted_at: string | null
           depth_level: string | null
           description: string | null
@@ -332,7 +381,9 @@ export type Database = {
           view_count: number
         }
         Insert: {
+          brand_identity?: Json | null
           created_at?: string
+          creative_brief?: Json | null
           deleted_at?: string | null
           depth_level?: string | null
           description?: string | null
@@ -358,7 +409,9 @@ export type Database = {
           view_count?: number
         }
         Update: {
+          brand_identity?: Json | null
           created_at?: string
+          creative_brief?: Json | null
           deleted_at?: string | null
           depth_level?: string | null
           description?: string | null
