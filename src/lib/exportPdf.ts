@@ -45,6 +45,7 @@ async function rasterizeSlide(
   fontId: string,
   dynamicTheme: Partial<ThemeColors> | null | undefined,
   index: number,
+  creativeBrief: CreativeBrief | null | undefined,
 ): Promise<string> {
   // Off-screen container — keep visible to the layout engine but out of viewport.
   const host = document.createElement("div");
@@ -73,6 +74,7 @@ async function rasterizeSlide(
         fontId,
         dynamicTheme,
         index,
+        creativeBrief,
         noAnimate: true,
       }),
     );
