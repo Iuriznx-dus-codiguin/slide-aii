@@ -707,7 +707,10 @@ const Editor = () => {
                       try {
                         toast.loading("Buscando imagem...", { id: "img" });
                         const { data } = await supabase.functions.invoke("fetch-image", {
-                          body: { query: c.image_query, ai_prompt: c.ai_image_prompt, strategy: c.image_strategy || "pexels", orientation: "landscape" },
+                          // `style` é parte da chave de cache do Asset
+                          // Intelligence — sem ele, trocar a imagem no Editor
+                          // sempre paga uma geração nova.
+                          body: { query: c.image_query, ai_prompt: c.ai_image_prompt, strategy: c.image_strategy || "pexels", style: c.image_style, orientation: "landscape" },
                         });
                         if (data?.url) updateContent(activeIdx, { image_url: data.url });
                         toast.success("Imagem atualizada!", { id: "img" });
