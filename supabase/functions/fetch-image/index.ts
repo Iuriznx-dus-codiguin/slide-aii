@@ -331,11 +331,14 @@ Deno.serve(async (req) => {
           error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      // Fase 5: registra o asset recém-pago na biblioteca do usuário para
-      // reaproveitamento futuro. Fire-and-forget seguro — recordAsset nunca
-      // lança, e um b64 data-URL longo demais é truncado, não descartado.
-      await recordAsset(admin, userId, gen.url, body.style, queryForMatch);
-      return new Response(JSON.stringify({ url: gen.url, source: gen.source }), {
+      // Fase 5: sobe o binário gerado para o Storage e registra a URL
+      // persistente na biblioteca do usuário. Sem este passo o retorno era um
+      // data-URL base64, que recordAsset descarta (>2000 chars) — a
+      // biblioteca nunca crescia e cada slide carregava centenas de KB de
+      // base64 dentro do banco.
+      const persistedUrl = await persistGeneratedImage(admin, userId, gen.url);
+      await recordAsset(admin, userId, persistedUrl, body.style, queryForMatch);
+      return new Response(JSON.stringify({ url: persistedUrl, source: gen.source }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
