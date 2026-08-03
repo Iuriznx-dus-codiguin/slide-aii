@@ -120,6 +120,7 @@ export async function exportPresentationToPdf({
   fontId,
   slides,
   dynamicTheme = null,
+  creativeBrief = null,
   onProgress,
 }: ExportPdfOpts) {
   if (!slides.length) throw new Error("Nenhum slide para exportar");
@@ -136,10 +137,12 @@ export async function exportPresentationToPdf({
       slides[i],
       themeId,
       fontId,
-      // dynamic_theme vive no content do primeiro slide e vale para o deck inteiro
-      // (não há lógica condicional por índice aqui — é sempre a mesma fonte).
-      slides[0]?.content?.dynamic_theme ?? dynamicTheme,
+      // Fonte de verdade do tema: a coluna presentations.dynamic_theme
+      // (passada por quem chama). O legado content.dynamic_theme do primeiro
+      // slide fica só como fallback para decks antigos.
+      dynamicTheme ?? slides[0]?.content?.dynamic_theme ?? null,
       i,
+      creativeBrief,
     );
     if (i > 0) pdf.addPage([PDF_W, PDF_H], "landscape");
     pdf.addImage(dataUrl, "PNG", 0, 0, PDF_W, PDF_H, undefined, "FAST");
