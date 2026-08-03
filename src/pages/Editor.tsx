@@ -421,6 +421,25 @@ const Editor = () => {
             <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
             <span className="font-display font-semibold truncate text-sm">{pres.title}</span>
           </div>
+          {/* Fase 6: sinaliza que a paleta deste deck veio da identidade de
+              marca extraída de uma URL — antes não havia indicação nenhuma de
+              que as cores não eram escolha da IA. */}
+          {pres.brand_identity?.source_url && (
+            <span
+              className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground max-w-[220px]"
+              title={`Identidade de marca extraída de ${pres.brand_identity.source_url} (confiança: ${pres.brand_identity.confidence})`}
+            >
+              {pres.brand_identity.primary_color && (
+                <span
+                  className="h-2.5 w-2.5 rounded-full flex-shrink-0 ring-1 ring-border"
+                  style={{ backgroundColor: pres.brand_identity.primary_color }}
+                />
+              )}
+              <span className="truncate">
+                Marca: {(() => { try { return new URL(pres.brand_identity.source_url).hostname.replace(/^www\./, ""); } catch { return pres.brand_identity.source_url; } })()}
+              </span>
+            </span>
+          )}
           <div className="h-5 w-px bg-border hidden md:block" />
           <div className="flex items-center gap-1">
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={undo} disabled={!undoStack.current.length} title="Desfazer (Ctrl+Z)">
@@ -707,7 +726,10 @@ const Editor = () => {
                       try {
                         toast.loading("Buscando imagem...", { id: "img" });
                         const { data } = await supabase.functions.invoke("fetch-image", {
-                          body: { query: c.image_query, ai_prompt: c.ai_image_prompt, strategy: c.image_strategy || "pexels", orientation: "landscape" },
+                          // `style` é parte da chave de cache do Asset
+                          // Intelligence — sem ele, trocar a imagem no Editor
+                          // sempre paga uma geração nova.
+                          body: { query: c.image_query, ai_prompt: c.ai_image_prompt, strategy: c.image_strategy || "pexels", style: c.image_style, orientation: "landscape" },
                         });
                         if (data?.url) updateContent(activeIdx, { image_url: data.url });
                         toast.success("Imagem atualizada!", { id: "img" });

@@ -324,7 +324,10 @@ const Generate = () => {
         if (needsRefresh) {
           try {
             const { data: imgData } = await supabase.functions.invoke("fetch-image", {
-              body: { query: newS.image_query, ai_prompt: newS.ai_image_prompt, strategy: newS.image_strategy, orientation: "landscape" },
+              // `style` precisa ir junto: o Asset Intelligence casa assets
+              // pelo par (style, prompt) — omiti-lo aqui fazia todo re-fetch
+              // vindo do chat errar o cache e pagar geração nova.
+              body: { query: newS.image_query, ai_prompt: newS.ai_image_prompt, strategy: newS.image_strategy, style: newS.image_style, orientation: "landscape" },
             });
             return { ...newS, image_url: imgData?.url ?? null };
           } catch { return newS; }

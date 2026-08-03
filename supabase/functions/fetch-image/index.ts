@@ -18,6 +18,7 @@
 // nenhum vínculo com conta e sem limite algum.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findMatchingAsset, recordAsset, touchAsset } from "../_shared/assetIntelligence.ts";
+import { persistGeneratedImage } from "../_shared/assetStorage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -243,18 +244,24 @@ Deno.serve(async (req) => {
       }) ?? photos[0];
       const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
       // Fallback: se Pexels não retornou nada útil, tenta gerar via IA usando ai_prompt|query.
+      // BUG CORRIGIDO: aqui se usava uma variável `prompt` que nunca foi
+      // declarada nesta função — em Deno isso resolvia para o global
+      // `prompt` (a função de input do runtime), então o prompt enviado à
+      // OpenAI era literalmente o source da função. Toda imagem gerada neste
+      // caminho vinha sem relação nenhuma com o slide.
       if (!url) {
-        {
-          try {
-            const gen = await generateAiImage(`${prompt}. Cinematic, professional, presentation hero image.`);
-            if (gen.url) {
-              return new Response(JSON.stringify({ url: gen.url, source: `${gen.source}-fallback` }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              });
-            }
-          } catch (e) {
-            console.warn("AI fallback after Pexels miss failed:", e);
+        const fallbackPrompt = body.ai_prompt || body.query || "abstract professional background";
+        try {
+          const gen = await generateAiImage(`${fallbackPrompt}. Cinematic, professional, presentation hero image.`);
+          if (gen.url) {
+            const persisted = await persistGeneratedImage(admin, userId, gen.url);
+            await recordAsset(admin, userId, persisted, body.style, fallbackPrompt);
+            return new Response(JSON.stringify({ url: persisted, source: `${gen.source}-fallback` }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
           }
+        } catch (e) {
+          console.warn("AI fallback after Pexels miss failed:", e);
         }
       }
       return new Response(JSON.stringify({
@@ -324,11 +331,14 @@ Deno.serve(async (req) => {
           error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      // Fase 5: registra o asset recém-pago na biblioteca do usuário para
-      // reaproveitamento futuro. Fire-and-forget seguro — recordAsset nunca
-      // lança, e um b64 data-URL longo demais é truncado, não descartado.
-      await recordAsset(admin, userId, gen.url, body.style, queryForMatch);
-      return new Response(JSON.stringify({ url: gen.url, source: gen.source }), {
+      // Fase 5: sobe o binário gerado para o Storage e registra a URL
+      // persistente na biblioteca do usuário. Sem este passo o retorno era um
+      // data-URL base64, que recordAsset descarta (>2000 chars) — a
+      // biblioteca nunca crescia e cada slide carregava centenas de KB de
+      // base64 dentro do banco.
+      const persistedUrl = await persistGeneratedImage(admin, userId, gen.url);
+      await recordAsset(admin, userId, persistedUrl, body.style, queryForMatch);
+      return new Response(JSON.stringify({ url: persistedUrl, source: gen.source }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

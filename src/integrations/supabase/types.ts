@@ -353,13 +353,13 @@ export type Database = {
       }
       presentations: {
         Row: {
+          brand_identity: Json | null
           created_at: string
+          creative_brief: Json | null
           deleted_at: string | null
           depth_level: string | null
           description: string | null
           dynamic_theme: Json | null
-          brand_identity: Json | null
-          creative_brief: Json | null
           font_style: string | null
           id: string
           include_speeches: boolean
@@ -381,13 +381,13 @@ export type Database = {
           view_count: number
         }
         Insert: {
+          brand_identity?: Json | null
           created_at?: string
+          creative_brief?: Json | null
           deleted_at?: string | null
           depth_level?: string | null
           description?: string | null
           dynamic_theme?: Json | null
-          brand_identity?: Json | null
-          creative_brief?: Json | null
           font_style?: string | null
           id?: string
           include_speeches?: boolean
@@ -409,13 +409,13 @@ export type Database = {
           view_count?: number
         }
         Update: {
+          brand_identity?: Json | null
           created_at?: string
+          creative_brief?: Json | null
           deleted_at?: string | null
           depth_level?: string | null
           description?: string | null
           dynamic_theme?: Json | null
-          brand_identity?: Json | null
-          creative_brief?: Json | null
           font_style?: string | null
           id?: string
           include_speeches?: boolean

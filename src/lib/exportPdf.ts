@@ -9,6 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { createElement } from "react";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import type { ThemeColors } from "@/lib/slugify";
+import type { CreativeBrief } from "@/lib/creativeBrief";
 
 interface SlideRow {
   id?: string;
@@ -24,6 +25,13 @@ interface ExportPdfOpts {
   fontId: string;
   slides: SlideRow[];
   dynamicTheme?: Partial<ThemeColors> | null;
+  /**
+   * Brief do Creative Director. Sem ele o PDF era rasterizado com a
+   * densidade/espaçamento padrão do SlideRenderer, enquanto a tela usava a
+   * densidade do brief — o arquivo exportado não batia com o que o usuário
+   * via. Mesma fonte de verdade nos dois caminhos.
+   */
+  creativeBrief?: CreativeBrief | null;
   onProgress?: (current: number, total: number) => void;
 }
 
@@ -37,6 +45,7 @@ async function rasterizeSlide(
   fontId: string,
   dynamicTheme: Partial<ThemeColors> | null | undefined,
   index: number,
+  creativeBrief: CreativeBrief | null | undefined,
 ): Promise<string> {
   // Off-screen container — keep visible to the layout engine but out of viewport.
   const host = document.createElement("div");
@@ -65,6 +74,7 @@ async function rasterizeSlide(
         fontId,
         dynamicTheme,
         index,
+        creativeBrief,
         noAnimate: true,
       }),
     );
@@ -110,6 +120,7 @@ export async function exportPresentationToPdf({
   fontId,
   slides,
   dynamicTheme = null,
+  creativeBrief = null,
   onProgress,
 }: ExportPdfOpts) {
   if (!slides.length) throw new Error("Nenhum slide para exportar");
@@ -126,10 +137,12 @@ export async function exportPresentationToPdf({
       slides[i],
       themeId,
       fontId,
-      // dynamic_theme vive no content do primeiro slide e vale para o deck inteiro
-      // (não há lógica condicional por índice aqui — é sempre a mesma fonte).
-      slides[0]?.content?.dynamic_theme ?? dynamicTheme,
+      // Fonte de verdade do tema: a coluna presentations.dynamic_theme
+      // (passada por quem chama). O legado content.dynamic_theme do primeiro
+      // slide fica só como fallback para decks antigos.
+      dynamicTheme ?? slides[0]?.content?.dynamic_theme ?? null,
       i,
+      creativeBrief,
     );
     if (i > 0) pdf.addPage([PDF_W, PDF_H], "landscape");
     pdf.addImage(dataUrl, "PNG", 0, 0, PDF_W, PDF_H, undefined, "FAST");

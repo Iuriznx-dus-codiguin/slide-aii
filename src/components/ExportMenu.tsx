@@ -33,6 +33,24 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     return rows ?? [];
   };
 
+  /**
+   * Direção de arte do deck. Vive na tabela presentations (dynamic_theme,
+   * creative_brief) desde o Creative Presentation Engine — o export de PDF
+   * não lia nenhum dos dois, então o arquivo saía com a paleta e a densidade
+   * padrão em vez das que o usuário vê na tela.
+   */
+  const fetchArtDirection = async () => {
+    const { data } = await supabase
+      .from("presentations")
+      .select("dynamic_theme,creative_brief")
+      .eq("id", presentationId)
+      .maybeSingle();
+    return {
+      dynamicTheme: (data as any)?.dynamic_theme ?? null,
+      creativeBrief: (data as any)?.creative_brief ?? null,
+    };
+  };
+
   const handlePptx = async () => {
     setBusy(true);
     const t = toast.loading("Gerando PPTX…");
@@ -55,11 +73,14 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     try {
       const rows = await fetchSlides();
       if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      const art = await fetchArtDirection();
       await exportPresentationToPdf({
         title,
         themeId,
         fontId,
         slides: rows as any,
+        dynamicTheme: art.dynamicTheme,
+        creativeBrief: art.creativeBrief,
         onProgress: (cur, total) => {
           const pct = Math.round((cur / total) * 100);
           toast.loading(`Renderizando PDF (${pct}%)…`, { id: t });
