@@ -58,7 +58,8 @@ interface GenerateRequest {
   includeCharts: boolean;
   includeImages: boolean;
   persona?: "technical-authority" | "inspirational-leader" | "salesperson" | "educator";
-  depthLevel?: "high-level" | "deep-dive";
+  /** Profundidade dos textos: influencia contextualização, riqueza de detalhes e extensão. */
+  textDepth?: "short" | "balanced" | "long";
   presentersCount?: number;
   presentersNames?: string[];
   includeSpeeches?: boolean;
@@ -66,8 +67,6 @@ interface GenerateRequest {
   max_budget_usd?: number;
   /** Quando true (padrão), a IA prioriza a transição "dynamic" (magic move) na maioria dos slides. */
   preferDynamic?: boolean;
-  /** Fase 6 (Brand Identity): URL opcional do site/marca do usuário para extrair paleta/fontes/logo. */
-  brandUrl?: string;
 }
 
 const personaGuide = (p?: string) => {
@@ -85,14 +84,41 @@ const personaGuide = (p?: string) => {
   }
 };
 
+/**
+ * Profundidade dos textos (Curto | Equilibrado | Longo).
+ * Não é só contagem de palavras: cada nível muda o que o slide precisa
+ * ENTREGAR de contexto — de afirmação seca (curto) até causa, exemplo, dado e
+ * implicação encadeados (longo).
+ */
+const depthGuide = (d?: string) => {
+  switch (d) {
+    case "short":
+      return `CURTO — máxima síntese. Cada slide entrega UMA ideia afiada.
+  • body_text: 18-35 palavras OU ausente quando há bullets.
+  • bullets: 3 itens de 6-10 palavras, cada um autoexplicativo.
+  • Sem digressões: afirme e siga. Contexto só quando indispensável para entender.
+  • Prefira número + consequência direta ("40% menos custo → equipe realocada").`;
+    case "long":
+      return `LONGO — profundidade editorial real. Cada slide DEVE contextualizar, não só afirmar.
+  • body_text: 90-140 palavras estruturadas em 3 movimentos: (1) contexto/origem do ponto, (2) mecânica ou causa — COMO/POR QUE acontece, (3) implicação prática para o público.
+  • bullets: 4-5 itens de 14-22 palavras, cada um com dado, exemplo concreto OU consequência (nunca rótulos soltos).
+  • Traga nuance: exceções, trade-offs, contraponto ou o erro comum sobre o tema.
+  • Ancore no tempo e no espaço (quando, onde, quem) sempre que o assunto permitir.
+  • PROIBIDO encher com sinônimos — profundidade vem de INFORMAÇÃO NOVA por frase.`;
+    default:
+      return `EQUILIBRADO — clareza com substância.
+  • body_text: 45-80 palavras: afirmação + justificativa curta + consequência.
+  • bullets: 3-4 itens de 10-16 palavras, cada um com um dado ou exemplo.
+  • Explique o "porquê" de cada ponto em uma frase — sem virar ensaio.`;
+  }
+};
+
 const SYSTEM_PROMPT = (req: GenerateRequest, creativeBrief: CreativeBrief, storyOutline: StoryOutline) => {
   const presenters = Math.max(1, req.presentersCount ?? 1);
   const presenterList = (req.presentersNames ?? []).slice(0, presenters);
   const speeches = req.includeSpeeches;
   const persona = personaGuide(req.persona);
-  const depth = req.depthLevel === "deep-dive"
-    ? "DEEP-DIVE OPERACIONAL — vá fundo em mecânica, processos, números, exemplos detalhados."
-    : "HIGH-LEVEL EXECUTIVO — síntese estratégica, sem perder densidade conceitual.";
+  const depth = depthGuide(req.textDepth);
 
   return `Você é um diretor criativo sênior + pesquisador + roteirista de palco, com experiência equivalente à equipe de design da Apple, Stripe, Pitch.com e à direção de TED Talks.
 
@@ -319,14 +345,14 @@ Deno.serve(async (req) => {
     // outro — Promise.all evita pagar a latência das três em série.
     // Nenhum lança exceção: qualquer falha cai no fallback correspondente
     // (buildDefaultBrief / buildDefaultOutline / null, respectivamente).
-    const [creativeBrief, storyOutline, brandIdentity] = await Promise.all([
+    const [creativeBrief, storyOutline] = await Promise.all([
       buildCreativeBrief(
         {
           title: body.title,
           description: body.description,
           type: body.type,
           persona: body.persona,
-          depthLevel: body.depthLevel,
+          depthLevel: body.textDepth === "long" ? "deep-dive" : "high-level",
           slidesCount,
         },
         { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
@@ -335,9 +361,7 @@ Deno.serve(async (req) => {
         { title: body.title, description: body.description, type: body.type, slidesCount },
         { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
       ),
-      extractBrandIdentity(body.brandUrl),
     ]);
-    const brandThemeOverride = brandIdentityToThemeOverride(brandIdentity);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
     while (presenterNames.length < presenters) presenterNames.push(`Apresentador ${presenterNames.length + 1}`);
 
@@ -636,7 +660,10 @@ LEMBRETE CRÍTICO:
         image_strategy: strategy,
         layout_template: layout,
         narrative_act: narrativeAct,
-        ...(preferDynamic ? {} : { transition: "fade" as const }),
+        // Separação estrita dos modos: "dynamic" = magic move em TODOS os
+        // slides; "fade" = modo clássico, resolvido pelas 12 transições
+        // cinematográficas em src/lib/slideTransitions.tsx. Nunca misturado.
+        transition: preferDynamic ? ("dynamic" as const) : ("fade" as const),
       };
     });
 
@@ -683,19 +710,14 @@ LEMBRETE CRÍTICO:
       estimated_cost_usd: estimatedCost,
       actual_cost_usd: actualCost,
       duration_ms: Date.now() - t0,
-      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape, brand_extracted: !!brandThemeOverride },
+      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape, text_depth: body.textDepth ?? "balanced" },
     });
 
     return new Response(JSON.stringify({
       slides: parsed.slides,
-      // Fase 6: quando o usuário forneceu uma URL de marca e a extração teve
-      // confiança suficiente (ver brandIdentityToThemeOverride), accent/accent2
-      // extraídos do site sobrescrevem o que a IA decidiu — a marca do usuário
-      // vence a criatividade da IA quando ele pediu isso explicitamente.
-      dynamic_theme: brandThemeOverride ? { ...(parsed.dynamic_theme ?? {}), ...brandThemeOverride } : (parsed.dynamic_theme ?? null),
+      dynamic_theme: parsed.dynamic_theme ?? null,
       font_pairing: parsed.font_pairing ?? null,
       creative_brief: creativeBrief,
-      brand_identity: brandIdentity,
       _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
