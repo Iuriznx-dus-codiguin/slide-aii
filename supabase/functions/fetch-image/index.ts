@@ -254,68 +254,51 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const orientation = body.orientation || "landscape";
+    const avoidUrls = body.avoid_urls ?? [];
+
     if (strategy === "pexels") {
-      const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
-      if (!PEXELS_API_KEY) {
-        return new Response(JSON.stringify({ url: null, error: "PEXELS_API_KEY not configured" }), {
+      const found = await searchPexels(body.query || "abstract", orientation, avoidUrls);
+      if (found.url) {
+        // Consistência da biblioteca (auditoria): ativos Pexels também são
+        // registrados agora. Antes só imagens de IA entravam em public.assets,
+        // então a "biblioteca de ativos" do usuário mostrava, na melhor das
+        // hipóteses, ~40% do que a apresentação realmente usava.
+        await recordAsset(admin, userId, found.url, body.style, body.query || "", "pexels");
+        return new Response(JSON.stringify({
+          url: found.url, source: "pexels",
+          photographer: found.photographer, photographer_url: found.photographer_url,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      // Pexels não achou nada útil → gera por IA como último recurso.
+      // BUG histórico corrigido: aqui se usava uma variável `prompt` nunca
+      // declarada, que resolvia para o global `prompt` do runtime Deno.
+      const fallbackPrompt = body.ai_prompt || body.query || "abstract professional background";
+      const cachedFallback = await findMatchingAsset(admin, userId, body.style, fallbackPrompt);
+      if (cachedFallback) {
+        await touchAsset(admin, cachedFallback.id, cachedFallback.usage_count);
+        return new Response(JSON.stringify({ url: cachedFallback.url, source: "asset-library" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const q = encodeURIComponent(body.query || "abstract");
-      const orientation = body.orientation || "landscape";
-      const r = await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=15&orientation=${orientation}`, {
-        headers: { Authorization: PEXELS_API_KEY },
+      const genFb = await generateAiImage(`${fallbackPrompt}. ${body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, presentation hero image."}`);
+      if (genFb.url) {
+        const persisted = await persistGeneratedImage(admin, userId, genFb.url);
+        await recordAsset(admin, userId, persisted, body.style, fallbackPrompt, "ai");
+        return new Response(JSON.stringify({ url: persisted, source: `${genFb.source}-fallback` }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ url: null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      if (!r.ok) {
-        const t = await r.text();
-        console.error("Pexels error:", r.status, t);
-        return new Response(JSON.stringify({ url: null, error: "Pexels error" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const data = await r.json();
-      const avoid = new Set((body.avoid_urls ?? []).map((u) => u));
-      const photos = (data.photos ?? []) as any[];
-      const photo = photos.find((p) => {
-        const candidate = p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? "";
-        return candidate && !avoid.has(candidate);
-      }) ?? photos[0];
-      const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
-      // Fallback: se Pexels não retornou nada útil, tenta gerar via IA usando ai_prompt|query.
-      // BUG CORRIGIDO: aqui se usava uma variável `prompt` que nunca foi
-      // declarada nesta função — em Deno isso resolvia para o global
-      // `prompt` (a função de input do runtime), então o prompt enviado à
-      // OpenAI era literalmente o source da função. Toda imagem gerada neste
-      // caminho vinha sem relação nenhuma com o slide.
-      if (!url) {
-        const fallbackPrompt = body.ai_prompt || body.query || "abstract professional background";
-        try {
-          const gen = await generateAiImage(`${fallbackPrompt}. Cinematic, professional, presentation hero image.`);
-          if (gen.url) {
-            const persisted = await persistGeneratedImage(admin, userId, gen.url);
-            await recordAsset(admin, userId, persisted, body.style, fallbackPrompt);
-            return new Response(JSON.stringify({ url: persisted, source: `${gen.source}-fallback` }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-        } catch (e) {
-          console.warn("AI fallback after Pexels miss failed:", e);
-        }
-      }
-      return new Response(JSON.stringify({
-        url,
-        photographer: photo?.photographer ?? null,
-        photographer_url: photo?.photographer_url ?? null,
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (strategy === "ai") {
       // ───────────── Fase 5: Asset Intelligence Engine ─────────────
-      // Antes de gastar $0.039 numa nova geração, verifica se o mesmo
-      // usuário já pagou por uma imagem equivalente antes (mesmo style +
-      // prompt semanticamente parecido). Nunca bloqueia o fluxo — qualquer
-      // falha aqui cai direto no comportamento de antes (Pexels-first →
-      // geração por IA), então esta etapa só pode ECONOMIZAR, nunca quebrar.
+      // Antes de gastar dinheiro numa nova geração, verifica se o mesmo
+      // usuário já pagou por uma imagem equivalente (mesmo style + prompt
+      // semanticamente parecido). Falha aqui nunca bloqueia: cai na geração.
       const queryForMatch = body.ai_prompt || body.query || "";
       const cached = await findMatchingAsset(admin, userId, body.style, queryForMatch);
       if (cached) {
@@ -325,61 +308,47 @@ Deno.serve(async (req) => {
         });
       }
 
-      // PEXELS-FIRST: tenta Pexels mesmo quando estratégia é "ai" — só recorre à IA se Pexels não retornar nada útil.
-      const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
-      if (PEXELS_API_KEY && body.query) {
-        try {
-          const q = encodeURIComponent(body.query);
-          const orientation = body.orientation || "landscape";
-          const r0 = await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=15&orientation=${orientation}`, {
-            headers: { Authorization: PEXELS_API_KEY },
-          });
-          if (r0.ok) {
-            const data0 = await r0.json();
-            const avoid = new Set((body.avoid_urls ?? []).map((u) => u));
-            const photos = (data0.photos ?? []) as any[];
-            const photo = photos.find((p) => {
-              const candidate = p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? "";
-              return candidate && !avoid.has(candidate);
-            });
-            if (photo) {
-              const url = photo?.src?.large2x ?? photo?.src?.large ?? photo?.src?.original ?? null;
-              if (url) {
-                return new Response(JSON.stringify({
-                  url, source: "pexels-fallback",
-                  photographer: photo?.photographer ?? null,
-                  photographer_url: photo?.photographer_url ?? null,
-                }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("Pexels-first fallback failed, going to AI:", e);
-        }
-      }
-
+      // INCONSISTÊNCIA CORRIGIDA (auditoria desta rodada): este caminho fazia
+      // "Pexels-first" — ou seja, quando o Diretor Criativo pedia
+      // explicitamente strategy="ai" (ilustração, 3D, aquarela, recorte sem
+      // fundo…), a função devolvia silenciosamente uma FOTO da Pexels sempre
+      // que a busca retornasse qualquer coisa. Na prática a estratégia "ai"
+      // quase nunca rodava: o estilo pedido era ignorado e a tabela
+      // public.assets nunca crescia. Agora "ai" significa IA de verdade, e a
+      // Pexels só entra se a geração falhar. Quem quer economizar continua
+      // protegido: no modo economia, generate-presentation converte todo
+      // "ai" em "pexels" ANTES de chegar aqui.
       const basePrompt = body.ai_prompt || body.query || "abstract beautiful illustration";
       const styleSuffix = body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, high quality, presentation hero image.";
-      const finalPrompt = `${basePrompt}. ${styleSuffix}`;
+      const gen = await generateAiImage(`${basePrompt}. ${styleSuffix}`);
 
-      const gen = await generateAiImage(finalPrompt);
-      if (!gen.url) {
+      if (gen.url) {
+        // Fase 5: sobe o binário para o Storage (data-URLs base64 de centenas
+        // de KB não são cacheáveis nem devem viver dentro de slides.content)
+        // e registra a URL persistente na biblioteca do usuário.
+        const persistedUrl = await persistGeneratedImage(admin, userId, gen.url);
+        await recordAsset(admin, userId, persistedUrl, body.style, queryForMatch, "ai");
+        return new Response(JSON.stringify({ url: persistedUrl, source: gen.source }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // IA indisponível (rate limit, crédito, erro) → Pexels como rede de
+      // segurança para o slide não ficar sem imagem nenhuma.
+      const rescue = await searchPexels(body.query || basePrompt, orientation, avoidUrls);
+      if (rescue.url) {
+        await recordAsset(admin, userId, rescue.url, body.style, body.query || "", "pexels");
         return new Response(JSON.stringify({
-          url: null,
-          error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
+          url: rescue.url, source: "pexels-rescue",
+          photographer: rescue.photographer, photographer_url: rescue.photographer_url,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      // Fase 5: sobe o binário gerado para o Storage e registra a URL
-      // persistente na biblioteca do usuário. Sem este passo o retorno era um
-      // data-URL base64, que recordAsset descarta (>2000 chars) — a
-      // biblioteca nunca crescia e cada slide carregava centenas de KB de
-      // base64 dentro do banco.
-      const persistedUrl = await persistGeneratedImage(admin, userId, gen.url);
-      await recordAsset(admin, userId, persistedUrl, body.style, queryForMatch);
-      return new Response(JSON.stringify({ url: persistedUrl, source: gen.source }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({
+        url: null,
+        error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
 
     return new Response(JSON.stringify({ url: null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
