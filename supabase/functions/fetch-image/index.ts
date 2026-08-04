@@ -119,6 +119,44 @@ async function generateAiImage(
   }
 }
 
+/**
+ * Busca uma foto na Pexels evitando URLs já usadas na apresentação.
+ * Centralizado aqui porque agora existem TRÊS caminhos que precisam disso
+ * (strategy "pexels", fallback da strategy "ai" e a capa) — antes o mesmo
+ * bloco estava copiado duas vezes com pequenas divergências de comportamento.
+ */
+async function searchPexels(
+  query: string,
+  orientation: string,
+  avoidUrls: string[],
+): Promise<{ url: string | null; photographer?: string | null; photographer_url?: string | null }> {
+  const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
+  if (!PEXELS_API_KEY || !query) return { url: null };
+  try {
+    const r = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=15&orientation=${orientation}`,
+      { headers: { Authorization: PEXELS_API_KEY } },
+    );
+    if (!r.ok) {
+      console.error("Pexels error:", r.status, (await r.text().catch(() => "")).slice(0, 200));
+      return { url: null };
+    }
+    const data = await r.json();
+    const avoid = new Set(avoidUrls);
+    const photos = (data.photos ?? []) as any[];
+    const pick = (p: any) => p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? null;
+    const photo = photos.find((p) => { const c = pick(p); return c && !avoid.has(c); }) ?? photos[0];
+    return {
+      url: photo ? pick(photo) : null,
+      photographer: photo?.photographer ?? null,
+      photographer_url: photo?.photographer_url ?? null,
+    };
+  } catch (e) {
+    console.warn("Pexels search failed:", e instanceof Error ? e.message : e);
+    return { url: null };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
