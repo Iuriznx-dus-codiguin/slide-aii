@@ -19,29 +19,21 @@
 // decidir a história inteira e escrever o texto final ao mesmo tempo.
 // Ver supabase/functions/_shared/storyEngine.ts.
 //
-// Fase 6 (Brand Identity Extraction): também em paralelo com as Fases 1+2,
-// se o usuário forneceu uma URL de marca (brandUrl), extractBrandIdentity
-// tenta extrair cor primária/acento, fontes e logo do HTML estático dessa
-// URL (heurística por regex — meta theme-color, hex mais frequentes, links
-// de Google Fonts, og:image/favicon; ver limitações documentadas no
-// próprio módulo). Quando a extração tem confiança suficiente, o resultado
-// SOBRESCREVE dynamic_theme (accent/accent2) — a marca do usuário vence a
-// criatividade da IA quando ele pediu isso explicitamente. Nunca bloqueia
-// a geração: URL ausente, inválida, ou extração sem sinais úteis → null,
-// dynamic_theme decidido pela IA como antes desta feature.
-// Ver supabase/functions/_shared/brandIdentity.ts.
+// PROFUNDIDADE DE TEXTO (substitui a antiga Fase 6 — Brand Identity, removida
+// a pedido do produto): o usuário escolhe "short" | "balanced" | "long" e essa
+// escolha altera não só a QUANTIDADE de palavras, mas o NÍVEL DE
+// CONTEXTUALIZAÇÃO exigido de cada slide (exemplos, causas, dados,
+// implicações). Ver depthGuide() abaixo.
 //
 // Fase 3 (Motion Director): este arquivo não escolhe mais a transição de
-// cada slide (nem "dynamic" nem "fade" fixos). Só sinaliza "fade" quando o
-// usuário desativou explicitamente o magic move (preferDynamic=false); caso
-// contrário, o campo fica de fora e src/lib/slideTransitions.ts decide de
-// forma determinística com base em narrative_act/animation_intent — a
-// mesma lógica testada (slideTransitions.test.ts) usada no Editor/Generate/
-// SlideViewer, sem duplicar a regra aqui no backend.
+// cada slide entre as 12 cinematográficas. Ele só grava o MODO escolhido pelo
+// usuário — "dynamic" (magic move) ou "fade" (clássico) — e
+// src/lib/slideTransitions.tsx resolve o resto de forma determinística, sem
+// misturar os dois modos dentro da mesma apresentação.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
-import { extractBrandIdentity, brandIdentityToThemeOverride, type BrandIdentity } from "../_shared/brandIdentity.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
