@@ -236,6 +236,20 @@ ${req.includeImages ? `- REGRA DE OURO: TODO slide de conteúdo DEVE ter image_q
 - NUNCA repita a MESMA query — varie ângulo, contexto, sujeito.
 - Para títulos curtos/ambíguos: ancore a query no SUBTEMA específico do slide, não no título genérico.` : `- includeImages=false: pule image_query e compense com visual_accents mais densos.`}
 
+═══════════════════════════════════════════════════
+PASSO F.2 — CAPA: SÍMBOLO MAIS REPRESENTATIVO DO TEMA (CRÍTICO)
+═══════════════════════════════════════════════════
+- A capa (title_slide) SEMPRE tem imagem. Nunca deixe image_strategy="none" nela.
+- image_query da capa deve ser o SÍMBOLO VISUAL MAIS ICÔNICO E LITERAL do assunto — não uma metáfora abstrata, não "business background".
+  * "História da Espanha" → "spain flag waving" ou "alhambra granada architecture"
+  * "Fotossíntese" → "green leaf macro sunlight"
+  * "Mercado financeiro brasileiro" → "sao paulo avenida paulista skyline"
+  * "Segunda Guerra Mundial" → "ww2 historical black and white soldiers"
+  * "Anatomia do coração" → "human heart anatomical model"
+- Faça a pergunta: "se alguém visse SÓ esta imagem, adivinharia o tema?" Se não, troque.
+- Prefira cover_variant "full-bleed-image" ou "asymmetric-grid" quando o símbolo for forte visualmente.
+- image_strategy da capa: "pexels" para lugares/objetos/pessoas/bandeiras reais; "ai" só quando o símbolo não existe fotografável.
+
 REGRAS CRÍTICAS DE CONTEÚDO:
 1. Idioma: ${req.language === "en" ? "INGLÊS" : req.language === "es" ? "ESPANHOL" : "PORTUGUÊS BRASILEIRO"} natural, profissional, fluido.
 2. Cada slide com PROPÓSITO claro — NUNCA placeholders ou "Lorem".

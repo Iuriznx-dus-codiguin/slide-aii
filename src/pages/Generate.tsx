@@ -19,7 +19,6 @@ import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { toast } from "sonner";
 import type { CreativeBrief } from "@/lib/creativeBrief";
-import type { BrandIdentity } from "@/lib/brandIdentity";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
@@ -101,13 +100,11 @@ const Generate = () => {
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
   const [preferDynamic, setPreferDynamic] = useState(true);
-  // Fase 6 (Brand Identity Extraction): URL opcional do site do usuário.
-  const [brandUrl, setBrandUrl] = useState("");
   // DNA narrativo (Fase 2.5+)
   const [persona, setPersona] = useState<string>("educator");
-  // Profundidade fixada em "high-level" — deixou de ser exposta no form
-  // (o produto escolhe a versão mais legível por padrão).
-  const depthLevel = "high-level";
+  // Profundidade dos textos (substitui a antiga "Identidade de marca"):
+  // controla contextualização e riqueza de detalhes, não só nº de palavras.
+  const [textDepth, setTextDepth] = useState<"short" | "balanced" | "long">("balanced");
   const [presentersCount, setPresentersCount] = useState(1);
   const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
   const [includeSpeeches, setIncludeSpeeches] = useState(false);
@@ -119,8 +116,6 @@ const Generate = () => {
   // persistido em presentations.creative_brief e usado pelo Motion Director
   // (SlideStage → src/lib/slideTransitions.tsx) para restringir transições.
   const [creativeBrief, setCreativeBrief] = useState<CreativeBrief | null>(null);
-  // Fase 6: identidade de marca extraída da URL fornecida (se houver).
-  const [brandIdentity, setBrandIdentity] = useState<BrandIdentity | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   // Direção de navegação para o SlideStage (mesmo papel do prevIdxRef no
   // SlideViewer/Editor).
@@ -247,9 +242,8 @@ const Generate = () => {
         body: {
           title, description, slidesCount, type, language, theme, fontStyle,
           includeCharts, includeImages,
-          persona, depthLevel, presentersCount, presentersNames, includeSpeeches,
+          persona, textDepth, presentersCount, presentersNames, includeSpeeches,
           preferDynamic,
-          brandUrl: brandUrl.trim() || undefined,
           image_budget_mode: modeFromBudget(devSettings.maxBudgetUsd),
           max_budget_usd: devSettings.maxBudgetUsd,
         },
@@ -285,8 +279,6 @@ const Generate = () => {
       setDynamicTheme(dyn);
       // Fase 1: brief do Creative Director Engine — usado pelo Motion Director.
       setCreativeBrief((data.creative_brief as CreativeBrief) ?? null);
-      // Fase 6: identidade de marca extraída (null se nenhuma URL foi fornecida ou nada foi encontrado).
-      setBrandIdentity((data.brand_identity as BrandIdentity) ?? null);
       setSlides(withImages);
       setStepIdx(STEPS.length - 1);
       setCurrentSlide(0);
@@ -361,7 +353,7 @@ const Generate = () => {
         user_id: user.id, title, description, type, language, theme, font_style: fontArg ?? fontStyle,
         slug, slides_count: slidesArg.length, is_paid: true, is_published: true,
         persona,
-        depth_level: depthLevel,
+        depth_level: textDepth,
         presenters_count: presentersCount,
         presenters_names: presentersNames,
         include_speeches: includeSpeeches,
@@ -370,8 +362,6 @@ const Generate = () => {
         // Fase 1: brief do Creative Director Engine — consumido pelo Motion
         // Director (Editor/SlideViewer) para restringir transições.
         creative_brief: creativeBrief ?? null,
-        // Fase 6: identidade de marca extraída (auditoria/exibição no Editor).
-        brand_identity: brandIdentity ?? null,
       } as any).select().single();
       if (pErr) throw pErr;
 
@@ -908,19 +898,20 @@ const Generate = () => {
               <div className="rounded-xl border border-border p-3 sm:col-span-2">
                 <div className="min-w-0 mb-2">
                   <div className="font-medium text-sm flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Identidade de marca (opcional)
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Profundidade dos textos
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Cole a URL do seu site — a IA tenta extrair sua cor principal e usar no lugar da paleta que ela escolheria sozinha.
+                    Define quanta contextualização, exemplos e detalhes cada slide traz.
                   </div>
                 </div>
-                <Input
-                  type="url"
-                  placeholder="https://suaempresa.com.br"
-                  value={brandUrl}
-                  onChange={(e) => setBrandUrl(e.target.value)}
-                  className="h-9 text-sm"
-                />
+                <Select value={textDepth} onValueChange={(v) => setTextDepth(v as typeof textDepth)}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="short">Curto — uma ideia afiada por slide</SelectItem>
+                    <SelectItem value="balanced">Equilibrado — clareza com substância</SelectItem>
+                    <SelectItem value="long">Longo — contexto, causa, exemplo e implicação</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
