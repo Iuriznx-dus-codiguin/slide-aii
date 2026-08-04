@@ -12,7 +12,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { CreativeBrief } from "@/lib/creativeBrief";
-import type { BrandIdentity } from "@/lib/brandIdentity";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -22,7 +21,6 @@ interface Pres {
   // (ver SlideStage → src/lib/slideTransitions.tsx). Null para apresentações
   // geradas antes desta feature.
   creative_brief?: CreativeBrief | null;
-  brand_identity?: BrandIdentity | null;
 }
 interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
 interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
@@ -45,7 +43,7 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme,creative_brief,brand_identity").eq("slug", slug).maybeSingle();
+      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as unknown as Pres);
       document.title = `${p.title} — SlideAI`;

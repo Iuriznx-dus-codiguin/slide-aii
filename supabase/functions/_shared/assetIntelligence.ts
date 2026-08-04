@@ -95,15 +95,46 @@ function isCacheableUrl(url: string): boolean {
   return /^https?:\/\//i.test(url) && url.length <= MAX_CACHEABLE_URL_LENGTH;
 }
 
-/** Registra um asset recém-gerado por IA na biblioteca do usuário. Fire-and-forget seguro (nunca lança). */
-export async function recordAsset(admin: any, userId: string | null, url: string, style: string | undefined, queryText: string): Promise<void> {
+/**
+ * Registra um ativo na biblioteca do usuário — tanto os gerados por IA
+ * (source="ai", os que custam dinheiro e alimentam o cache de
+ * reaproveitamento) quanto os vindos da Pexels (source="pexels", registrados
+ * para que a interface consiga listar TODOS os ativos de uma apresentação,
+ * não só metade deles).
+ *
+ * Consistência (auditoria desta rodada): antes este insert era cego — duas
+ * requisições concorrentes com a mesma imagem criavam DUAS linhas, e um
+ * mesmo asset reaproveitado em outra apresentação duplicava de novo. Agora
+ * usa upsert sobre o índice único (user_id, url), então a tabela tem no
+ * máximo uma linha por imagem por usuário, com o contador de uso somando em
+ * cima da linha existente.
+ *
+ * Fire-and-forget seguro (nunca lança) — falha aqui jamais pode bloquear a
+ * entrega da imagem ao usuário.
+ */
+export async function recordAsset(
+  admin: any,
+  userId: string | null,
+  url: string,
+  style: string | undefined,
+  queryText: string,
+  source: "ai" | "pexels" = "ai",
+): Promise<void> {
   if (!userId || !url || !isCacheableUrl(url)) return;
   try {
-    await admin.from("assets").insert({
-      user_id: userId, url, source: "ai",
+    // Se já existe, só atualiza uso/recência — não cria duplicata.
+    const { data: existing } = await admin.from("assets")
+      .select("id,usage_count").eq("user_id", userId).eq("url", url).maybeSingle();
+    if (existing?.id) {
+      await touchAsset(admin, existing.id, existing.usage_count ?? 0);
+      return;
+    }
+    const { error } = await admin.from("assets").upsert({
+      user_id: userId, url, source,
       query: queryText.slice(0, 500),
       metadata: { style: style ?? null },
-    });
+    }, { onConflict: "user_id,url", ignoreDuplicates: true });
+    if (error) console.warn("assetIntelligence: registro falhou —", error.message);
   } catch (e) {
     console.warn("assetIntelligence: registro falhou (não bloqueia fetch-image) —", (e as Error).message);
   }
@@ -112,8 +143,9 @@ export async function recordAsset(admin: any, userId: string | null, url: string
 /** Atualiza o contador de uso quando um asset existente é reaproveitado. Não crítico — falha silenciosa é aceitável. */
 export async function touchAsset(admin: any, id: string, currentUsageCount: number): Promise<void> {
   try {
-    await admin.from("assets").update({ usage_count: currentUsageCount + 1, last_used_at: new Date().toISOString() }).eq("id", id);
+    await admin.from("assets").update({ usage_count: (currentUsageCount ?? 0) + 1, last_used_at: new Date().toISOString() }).eq("id", id);
   } catch {
     // contador de popularidade, não afeta cobrança nem segurança — falha aqui é aceitável.
   }
 }
+

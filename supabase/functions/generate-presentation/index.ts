@@ -19,29 +19,21 @@
 // decidir a história inteira e escrever o texto final ao mesmo tempo.
 // Ver supabase/functions/_shared/storyEngine.ts.
 //
-// Fase 6 (Brand Identity Extraction): também em paralelo com as Fases 1+2,
-// se o usuário forneceu uma URL de marca (brandUrl), extractBrandIdentity
-// tenta extrair cor primária/acento, fontes e logo do HTML estático dessa
-// URL (heurística por regex — meta theme-color, hex mais frequentes, links
-// de Google Fonts, og:image/favicon; ver limitações documentadas no
-// próprio módulo). Quando a extração tem confiança suficiente, o resultado
-// SOBRESCREVE dynamic_theme (accent/accent2) — a marca do usuário vence a
-// criatividade da IA quando ele pediu isso explicitamente. Nunca bloqueia
-// a geração: URL ausente, inválida, ou extração sem sinais úteis → null,
-// dynamic_theme decidido pela IA como antes desta feature.
-// Ver supabase/functions/_shared/brandIdentity.ts.
+// PROFUNDIDADE DE TEXTO (substitui a antiga Fase 6 — Brand Identity, removida
+// a pedido do produto): o usuário escolhe "short" | "balanced" | "long" e essa
+// escolha altera não só a QUANTIDADE de palavras, mas o NÍVEL DE
+// CONTEXTUALIZAÇÃO exigido de cada slide (exemplos, causas, dados,
+// implicações). Ver depthGuide() abaixo.
 //
 // Fase 3 (Motion Director): este arquivo não escolhe mais a transição de
-// cada slide (nem "dynamic" nem "fade" fixos). Só sinaliza "fade" quando o
-// usuário desativou explicitamente o magic move (preferDynamic=false); caso
-// contrário, o campo fica de fora e src/lib/slideTransitions.ts decide de
-// forma determinística com base em narrative_act/animation_intent — a
-// mesma lógica testada (slideTransitions.test.ts) usada no Editor/Generate/
-// SlideViewer, sem duplicar a regra aqui no backend.
+// cada slide entre as 12 cinematográficas. Ele só grava o MODO escolhido pelo
+// usuário — "dynamic" (magic move) ou "fade" (clássico) — e
+// src/lib/slideTransitions.tsx resolve o resto de forma determinística, sem
+// misturar os dois modos dentro da mesma apresentação.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
-import { extractBrandIdentity, brandIdentityToThemeOverride, type BrandIdentity } from "../_shared/brandIdentity.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,7 +58,8 @@ interface GenerateRequest {
   includeCharts: boolean;
   includeImages: boolean;
   persona?: "technical-authority" | "inspirational-leader" | "salesperson" | "educator";
-  depthLevel?: "high-level" | "deep-dive";
+  /** Profundidade dos textos: influencia contextualização, riqueza de detalhes e extensão. */
+  textDepth?: "short" | "balanced" | "long";
   presentersCount?: number;
   presentersNames?: string[];
   includeSpeeches?: boolean;
@@ -74,8 +67,6 @@ interface GenerateRequest {
   max_budget_usd?: number;
   /** Quando true (padrão), a IA prioriza a transição "dynamic" (magic move) na maioria dos slides. */
   preferDynamic?: boolean;
-  /** Fase 6 (Brand Identity): URL opcional do site/marca do usuário para extrair paleta/fontes/logo. */
-  brandUrl?: string;
 }
 
 const personaGuide = (p?: string) => {
@@ -93,14 +84,41 @@ const personaGuide = (p?: string) => {
   }
 };
 
+/**
+ * Profundidade dos textos (Curto | Equilibrado | Longo).
+ * Não é só contagem de palavras: cada nível muda o que o slide precisa
+ * ENTREGAR de contexto — de afirmação seca (curto) até causa, exemplo, dado e
+ * implicação encadeados (longo).
+ */
+const depthGuide = (d?: string) => {
+  switch (d) {
+    case "short":
+      return `CURTO — máxima síntese. Cada slide entrega UMA ideia afiada.
+  • body_text: 18-35 palavras OU ausente quando há bullets.
+  • bullets: 3 itens de 6-10 palavras, cada um autoexplicativo.
+  • Sem digressões: afirme e siga. Contexto só quando indispensável para entender.
+  • Prefira número + consequência direta ("40% menos custo → equipe realocada").`;
+    case "long":
+      return `LONGO — profundidade editorial real. Cada slide DEVE contextualizar, não só afirmar.
+  • body_text: 90-140 palavras estruturadas em 3 movimentos: (1) contexto/origem do ponto, (2) mecânica ou causa — COMO/POR QUE acontece, (3) implicação prática para o público.
+  • bullets: 4-5 itens de 14-22 palavras, cada um com dado, exemplo concreto OU consequência (nunca rótulos soltos).
+  • Traga nuance: exceções, trade-offs, contraponto ou o erro comum sobre o tema.
+  • Ancore no tempo e no espaço (quando, onde, quem) sempre que o assunto permitir.
+  • PROIBIDO encher com sinônimos — profundidade vem de INFORMAÇÃO NOVA por frase.`;
+    default:
+      return `EQUILIBRADO — clareza com substância.
+  • body_text: 45-80 palavras: afirmação + justificativa curta + consequência.
+  • bullets: 3-4 itens de 10-16 palavras, cada um com um dado ou exemplo.
+  • Explique o "porquê" de cada ponto em uma frase — sem virar ensaio.`;
+  }
+};
+
 const SYSTEM_PROMPT = (req: GenerateRequest, creativeBrief: CreativeBrief, storyOutline: StoryOutline) => {
   const presenters = Math.max(1, req.presentersCount ?? 1);
   const presenterList = (req.presentersNames ?? []).slice(0, presenters);
   const speeches = req.includeSpeeches;
   const persona = personaGuide(req.persona);
-  const depth = req.depthLevel === "deep-dive"
-    ? "DEEP-DIVE OPERACIONAL — vá fundo em mecânica, processos, números, exemplos detalhados."
-    : "HIGH-LEVEL EXECUTIVO — síntese estratégica, sem perder densidade conceitual.";
+  const depth = depthGuide(req.textDepth);
 
   return `Você é um diretor criativo sênior + pesquisador + roteirista de palco, com experiência equivalente à equipe de design da Apple, Stripe, Pitch.com e à direção de TED Talks.
 
@@ -218,6 +236,20 @@ ${req.includeImages ? `- REGRA DE OURO: TODO slide de conteúdo DEVE ter image_q
 - NUNCA repita a MESMA query — varie ângulo, contexto, sujeito.
 - Para títulos curtos/ambíguos: ancore a query no SUBTEMA específico do slide, não no título genérico.` : `- includeImages=false: pule image_query e compense com visual_accents mais densos.`}
 
+═══════════════════════════════════════════════════
+PASSO F.2 — CAPA: SÍMBOLO MAIS REPRESENTATIVO DO TEMA (CRÍTICO)
+═══════════════════════════════════════════════════
+- A capa (title_slide) SEMPRE tem imagem. Nunca deixe image_strategy="none" nela.
+- image_query da capa deve ser o SÍMBOLO VISUAL MAIS ICÔNICO E LITERAL do assunto — não uma metáfora abstrata, não "business background".
+  * "História da Espanha" → "spain flag waving" ou "alhambra granada architecture"
+  * "Fotossíntese" → "green leaf macro sunlight"
+  * "Mercado financeiro brasileiro" → "sao paulo avenida paulista skyline"
+  * "Segunda Guerra Mundial" → "ww2 historical black and white soldiers"
+  * "Anatomia do coração" → "human heart anatomical model"
+- Faça a pergunta: "se alguém visse SÓ esta imagem, adivinharia o tema?" Se não, troque.
+- Prefira cover_variant "full-bleed-image" ou "asymmetric-grid" quando o símbolo for forte visualmente.
+- image_strategy da capa: "pexels" para lugares/objetos/pessoas/bandeiras reais; "ai" só quando o símbolo não existe fotografável.
+
 REGRAS CRÍTICAS DE CONTEÚDO:
 1. Idioma: ${req.language === "en" ? "INGLÊS" : req.language === "es" ? "ESPANHOL" : "PORTUGUÊS BRASILEIRO"} natural, profissional, fluido.
 2. Cada slide com PROPÓSITO claro — NUNCA placeholders ou "Lorem".
@@ -327,14 +359,14 @@ Deno.serve(async (req) => {
     // outro — Promise.all evita pagar a latência das três em série.
     // Nenhum lança exceção: qualquer falha cai no fallback correspondente
     // (buildDefaultBrief / buildDefaultOutline / null, respectivamente).
-    const [creativeBrief, storyOutline, brandIdentity] = await Promise.all([
+    const [creativeBrief, storyOutline] = await Promise.all([
       buildCreativeBrief(
         {
           title: body.title,
           description: body.description,
           type: body.type,
           persona: body.persona,
-          depthLevel: body.depthLevel,
+          depthLevel: body.textDepth === "long" ? "deep-dive" : "high-level",
           slidesCount,
         },
         { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
@@ -343,9 +375,7 @@ Deno.serve(async (req) => {
         { title: body.title, description: body.description, type: body.type, slidesCount },
         { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY, useOpenAI },
       ),
-      extractBrandIdentity(body.brandUrl),
     ]);
-    const brandThemeOverride = brandIdentityToThemeOverride(brandIdentity);
     const presenterNames = (body.presentersNames ?? []).slice(0, presenters);
     while (presenterNames.length < presenters) presenterNames.push(`Apresentador ${presenterNames.length + 1}`);
 
@@ -644,7 +674,10 @@ LEMBRETE CRÍTICO:
         image_strategy: strategy,
         layout_template: layout,
         narrative_act: narrativeAct,
-        ...(preferDynamic ? {} : { transition: "fade" as const }),
+        // Separação estrita dos modos: "dynamic" = magic move em TODOS os
+        // slides; "fade" = modo clássico, resolvido pelas 12 transições
+        // cinematográficas em src/lib/slideTransitions.tsx. Nunca misturado.
+        transition: preferDynamic ? ("dynamic" as const) : ("fade" as const),
       };
     });
 
@@ -691,19 +724,14 @@ LEMBRETE CRÍTICO:
       estimated_cost_usd: estimatedCost,
       actual_cost_usd: actualCost,
       duration_ms: Date.now() - t0,
-      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape, brand_extracted: !!brandThemeOverride },
+      metadata: { title: body.title, type: body.type, plan: ent.plan, creative_brief_style: creativeBrief.visual_style, arc_shape: storyOutline.arc_shape, text_depth: body.textDepth ?? "balanced" },
     });
 
     return new Response(JSON.stringify({
       slides: parsed.slides,
-      // Fase 6: quando o usuário forneceu uma URL de marca e a extração teve
-      // confiança suficiente (ver brandIdentityToThemeOverride), accent/accent2
-      // extraídos do site sobrescrevem o que a IA decidiu — a marca do usuário
-      // vence a criatividade da IA quando ele pediu isso explicitamente.
-      dynamic_theme: brandThemeOverride ? { ...(parsed.dynamic_theme ?? {}), ...brandThemeOverride } : (parsed.dynamic_theme ?? null),
+      dynamic_theme: parsed.dynamic_theme ?? null,
       font_pairing: parsed.font_pairing ?? null,
       creative_brief: creativeBrief,
-      brand_identity: brandIdentity,
       _metrics: { actual_cost_usd: actualCost, images_pexels: imagesPexels, images_ai: imagesAi, duration_ms: Date.now() - t0 },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

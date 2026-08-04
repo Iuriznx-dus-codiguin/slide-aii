@@ -131,24 +131,29 @@ function candidateTransitions(context: MotionDirectorContext | undefined, exclud
 }
 
 /**
- * Decide transição por contexto. Aceita hint manual via content.transition.
+ * Decide a transição de UM slide dentro de UM dos dois modos de animação.
+ *
+ * SEPARAÇÃO ESTRITA (corrigido nesta rodada):
+ *   • Modo MAGIC MOVE  → SEMPRE "dynamic" em todos os slides. É um modo de
+ *     transformação contínua (os mesmos elementos se movem entre slides);
+ *     intercalar um "shatter" ou um "portal" no meio quebra exatamente a
+ *     ilusão de continuidade que o modo existe para criar.
+ *   • Modo CLÁSSICO    → SEMPRE uma das 12 transições cinematográficas
+ *     tradicionais, NUNCA "dynamic".
+ *
+ * Antes, o caminho "sem hint, mas com narrative_act/animation_intent"
+ * escolhia num pool que INCLUÍA "dynamic" junto das legadas — o resultado era
+ * uma apresentação com magic move em alguns slides e transição clássica em
+ * outros, sem que o usuário tivesse pedido isso. Essa era a mistura relatada.
  *
  * Precedência:
- * 1) hint === "dynamic" → sempre respeitado (compatibilidade total).
- * 2) hint é uma das 12 transições legadas → sempre respeitado (nenhuma
- *    apresentação já salva antes desta mudança muda de transição por causa
- *    disto — ver slideTransitions.test.ts).
- * 3) hint === "fade" → sinal de "magic move desativado" (preferDynamic=false
- *    no gerador). ANTES desta mudança, "fade" não era um SlideTransition
- *    válido e caía silenciosamente no default "dynamic" — ou seja, a
- *    preferência do usuário de desativar o magic move era ignorada na
- *    prática. Corrigido: agora escolhe uma transição cinematográfica legada
- *    (nunca "dynamic") usando o Motion Director.
- * 4) Sem hint reconhecido, mas com narrative_act/animation_intent
- *    disponíveis (todo slide gerado pela IA tem isso) → Motion Director
- *    decide deterministicamente entre "dynamic" e as 12 legadas.
- * 5) Sem hint e sem contexto (ex.: slide manual novo no Editor) → mantém o
- *    comportamento histórico: "dynamic".
+ * 1) hint === "dynamic" → magic move (o gerador grava isso quando o switch
+ *    "Slide Dinâmico" está ligado).
+ * 2) hint === "fade" → modo clássico; o Motion Director escolhe entre as 12
+ *    legadas por narrative_act/animation_intent (nunca "dynamic").
+ * 3) hint é uma das 12 legadas → respeitado literalmente (escolha manual no
+ *    Editor e compatibilidade com decks antigos).
+ * 4) Sem hint → magic move ("dynamic"), o padrão histórico do produto.
  */
 export function pickTransition(
   index: number,
@@ -158,16 +163,13 @@ export function pickTransition(
 ): SlideTransition {
   if (hint === "dynamic") return "dynamic";
   if (hint && (ALL_TRANSITIONS as string[]).includes(hint)) return hint as SlideTransition;
-  if (hint === "fade") {
+  if (hint === "fade" || hint === "classic") {
     const pool = candidateTransitions(context, true);
-    return pool[index % pool.length];
-  }
-  if (context?.narrativeAct || context?.animationIntent) {
-    const pool = candidateTransitions(context, false);
     return pool[index % pool.length];
   }
   return "dynamic";
 }
+
 
 /* ---------- helpers ---------- */
 const T = (duration: number, ease: readonly number[] = EASE_EDITORIAL): Transition => ({

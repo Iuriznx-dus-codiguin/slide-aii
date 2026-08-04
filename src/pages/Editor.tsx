@@ -32,7 +32,6 @@ import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugif
 import { toast } from "sonner";
 import React from "react";
 import type { CreativeBrief } from "@/lib/creativeBrief";
-import type { BrandIdentity } from "@/lib/brandIdentity";
 
 const LAYOUTS = [
   "title-only", "title-content", "two-columns", "image-right", "image-left",
@@ -118,7 +117,7 @@ const Editor = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any; creative_brief?: CreativeBrief | null; brand_identity?: BrandIdentity | null }) | null>(null);
+  const [pres, setPres] = useState<(Pres & { dynamic_theme?: any; creative_brief?: CreativeBrief | null }) | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   // Usado pelo SlideStage para saber a direção (avançar/voltar) da navegação
@@ -150,7 +149,7 @@ const Editor = () => {
     if (!slug) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,brand_identity").eq("slug", slug).maybeSingle();
+        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       const presLoaded = {
         ...p,
@@ -421,25 +420,6 @@ const Editor = () => {
             <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
             <span className="font-display font-semibold truncate text-sm">{pres.title}</span>
           </div>
-          {/* Fase 6: sinaliza que a paleta deste deck veio da identidade de
-              marca extraída de uma URL — antes não havia indicação nenhuma de
-              que as cores não eram escolha da IA. */}
-          {pres.brand_identity?.source_url && (
-            <span
-              className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground max-w-[220px]"
-              title={`Identidade de marca extraída de ${pres.brand_identity.source_url} (confiança: ${pres.brand_identity.confidence})`}
-            >
-              {pres.brand_identity.primary_color && (
-                <span
-                  className="h-2.5 w-2.5 rounded-full flex-shrink-0 ring-1 ring-border"
-                  style={{ backgroundColor: pres.brand_identity.primary_color }}
-                />
-              )}
-              <span className="truncate">
-                Marca: {(() => { try { return new URL(pres.brand_identity.source_url).hostname.replace(/^www\./, ""); } catch { return pres.brand_identity.source_url; } })()}
-              </span>
-            </span>
-          )}
           <div className="h-5 w-px bg-border hidden md:block" />
           <div className="flex items-center gap-1">
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={undo} disabled={!undoStack.current.length} title="Desfazer (Ctrl+Z)">
