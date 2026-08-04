@@ -40,45 +40,67 @@ describe("pickTransition — Motion Director (Fase 3)", () => {
   });
 
   it("é determinístico: mesmo index + mesmo contexto sempre produz a mesma transição", () => {
-    const a = pickTransition(3, "data_chart", undefined, { narrativeAct: "proof" });
-    const b = pickTransition(3, "data_chart", undefined, { narrativeAct: "proof" });
+    const a = pickTransition(3, "data_chart", "fade", { narrativeAct: "proof" });
+    const b = pickTransition(3, "data_chart", "fade", { narrativeAct: "proof" });
     expect(a).toBe(b);
   });
 
-  it("narrative_act='climax' escolhe entre as transições de alto impacto (nunca dynamic)", () => {
+  it("SEM MISTURA: no modo magic move (sem hint), TODO slide é 'dynamic', independente do contexto narrativo", () => {
+    // Regressão da inconsistência relatada: antes, contexto narrativo sem
+    // hint escolhia num pool que incluía as legadas, produzindo decks com
+    // magic move em alguns slides e transição clássica em outros.
+    const contexts = [
+      { narrativeAct: "climax" as const },
+      { narrativeAct: "proof" as const },
+      { animationIntent: "quote-spotlight" as const },
+      { animationIntent: "data-reveal" as const, narrativeAct: "tension" as const },
+    ];
+    contexts.forEach((ctx, i) => {
+      expect(pickTransition(i, "content", undefined, ctx)).toBe("dynamic");
+    });
+  });
+
+  it("SEM MISTURA: no modo clássico ('fade'), nenhum slide usa magic move", () => {
+    const contexts = [
+      { narrativeAct: "hook" as const },
+      { narrativeAct: "journey" as const },
+      { animationIntent: "hero-impact" as const },
+      { animationIntent: "narrative-build" as const },
+    ];
+    contexts.forEach((ctx, i) => {
+      const result = pickTransition(i, "content", "fade", ctx);
+      expect(result).not.toBe("dynamic");
+      expect(ALL_TRANSITIONS).toContain(result);
+    });
+  });
+
+  it("no modo clássico, narrative_act='climax' escolhe entre as transições de alto impacto", () => {
     for (let i = 0; i < 4; i++) {
-      const result = pickTransition(i, "content", undefined, { narrativeAct: "climax" });
+      const result = pickTransition(i, "content", "fade", { narrativeAct: "climax" });
       expect(["portal", "shatter"]).toContain(result);
     }
   });
 
-  it("narrative_act='hook'/'journey' preferem manter a continuidade do magic move", () => {
-    expect(pickTransition(0, "title_slide", undefined, { narrativeAct: "hook" })).toBe("dynamic");
-    expect(pickTransition(1, "content", undefined, { narrativeAct: "journey" })).toBe("dynamic");
-  });
-
-  it("animation_intent tem prioridade sobre narrative_act quando os dois estão presentes", () => {
-    // journey normalmente mantém "dynamic", mas quote-spotlight (mais
-    // específico) deve vencer e escolher entre iris/letterbox.
-    const result = pickTransition(0, "quote", undefined, {
+  it("animation_intent tem prioridade sobre narrative_act no modo clássico", () => {
+    const result = pickTransition(0, "quote", "fade", {
       narrativeAct: "journey",
       animationIntent: "quote-spotlight",
     });
     expect(["iris", "letterbox"]).toContain(result);
   });
 
-  it("respeita allowed_transitions do Creative Brief, mesmo quando restringe bastante", () => {
-    const result = pickTransition(0, "content", undefined, {
-      narrativeAct: "climax", // normalmente portal/shatter
-      allowed: ["fold"], // brief institucional proíbe efeitos "quebrados"
+  it("respeita allowed_transitions do Creative Brief no modo clássico", () => {
+    const result = pickTransition(0, "content", "fade", {
+      narrativeAct: "climax",
+      allowed: ["fold"],
     });
     expect(result).toBe("fold");
   });
 
-  it("respeita forbidden_effects filtrando a lista legada mesmo sem hint 'fade'", () => {
+  it("respeita forbidden_effects no modo clássico", () => {
     for (let i = 0; i < 6; i++) {
-      const result = pickTransition(i, "content", undefined, {
-        narrativeAct: "climax", // portal/shatter
+      const result = pickTransition(i, "content", "fade", {
+        narrativeAct: "climax",
         forbidden: ["shatter"],
       });
       expect(result).not.toBe("shatter");
@@ -88,6 +110,7 @@ describe("pickTransition — Motion Director (Fase 3)", () => {
   it("sem hint e sem contexto narrativo, mantém o padrão histórico 'dynamic' (compatibilidade com Editor)", () => {
     expect(pickTransition(7, "content", undefined, {})).toBe("dynamic");
   });
+
 });
 
 
