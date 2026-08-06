@@ -210,9 +210,17 @@ ${catalogText}
 OCORRÊNCIAS RECENTES DESTE USUÁRIO:
 ${recentText}`;
 
+    // Só o prompt do sistema construído aqui pode ter papel "system".
+    // Linhas do histórico com outro papel são conteúdo de conversa e entram
+    // como user/assistant — assim nenhuma mensagem gravada consegue se
+    // apresentar ao modelo como regra de sistema (prompt injection).
+    const safeHistory = ((history ?? []) as ChatMsg[])
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role, content: String(m.content ?? "").slice(0, 4000) }));
+
     const messages: ChatMsg[] = [
       { role: "system", content: systemPrompt },
-      ...((history ?? []) as ChatMsg[]),
+      ...safeHistory,
     ];
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
