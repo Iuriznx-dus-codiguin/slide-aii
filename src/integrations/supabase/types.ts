@@ -774,6 +774,7 @@ export type Database = {
         Returns: boolean
       }
       increment_own_generations_count: { Args: never; Returns: number }
+      increment_profile_generations: { Args: { _uid: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "developer" | "user"
