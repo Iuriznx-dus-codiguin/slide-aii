@@ -67,6 +67,18 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "invalid_message", request_id: requestId }), { status: 400, headers: respHeaders });
     }
 
+    // Rate limit por usuário: o chat de suporte chama o modelo a cada
+    // mensagem, então sem teto uma conta podia consumir crédito em rajada.
+    if (!action) {
+      const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+        _key: `user:${userId}`, _fn: "support-chat", _max_per_hour: 60,
+      });
+      if (withinLimit === false) {
+        return new Response(JSON.stringify({ error: "rate_limited", request_id: requestId }), { status: 429, headers: respHeaders });
+      }
+    }
+
+
     // ─────────────── AÇÃO: confirmação do usuário (sim/não)
     if (action === "confirm_yes" || action === "confirm_no") {
       if (!conversationId) {
