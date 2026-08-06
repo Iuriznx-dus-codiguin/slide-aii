@@ -741,42 +741,7 @@ export type Database = {
       }
     }
     Views: {
-      public_profiles: {
-        Row: {
-          avatar_url: string | null
-          bio: string | null
-          created_at: string | null
-          full_name: string | null
-          id: string | null
-          location: string | null
-          social_links: Json | null
-          username: string | null
-          website: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          id?: string | null
-          location?: string | null
-          social_links?: Json | null
-          username?: string | null
-          website?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          id?: string | null
-          location?: string | null
-          social_links?: Json | null
-          username?: string | null
-          website?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       can_user_generate: { Args: { _uid: string }; Returns: Json }
@@ -786,6 +751,20 @@ export type Database = {
       }
       consume_single_credit: { Args: { _uid: string }; Returns: boolean }
       generate_ticket_id: { Args: never; Returns: string }
+      get_public_profile: {
+        Args: { _username: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          full_name: string
+          id: string
+          location: string
+          social_links: Json
+          username: string
+          website: string
+        }[]
+      }
       grant_single_credit: { Args: { _uid: string }; Returns: number }
       has_role: {
         Args: {
