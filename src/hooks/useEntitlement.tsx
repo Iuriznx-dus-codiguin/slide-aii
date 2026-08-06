@@ -68,7 +68,11 @@ export const useEntitlement = (): Entitlement => {
       supabase.from("generation_logs")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id).eq("status", "success")
-        .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+        // UTC de propósito: o servidor (can_user_generate) usa
+        // date_trunc('month', now()) em UTC. Calcular o início do mês em
+        // horário local fazia a tela mostrar uma cota diferente da aplicada
+        // na cobrança nos primeiros/últimos dias do mês.
+        .gte("created_at", new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString()),
     ]);
 
     const plan = (profile?.plan ?? "free") as Entitlement["plan"];

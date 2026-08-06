@@ -187,6 +187,26 @@ Deno.serve(async (req) => {
     const body: FetchImageBody = await req.json();
     const strategy = body.strategy;
 
+    // Validação de entrada (auditoria): tudo aqui vira prompt de IA ou query
+    // de API externa. Sem teto, um cliente podia enviar um prompt enorme
+    // (custo de tokens) ou centenas de avoid_urls (URL da Pexels gigante).
+    const clean = (v: unknown, max: number) =>
+      String(v ?? "").replace(/[\u0000-\u001f]+/g, " ").replace(/\s{2,}/g, " ").trim().slice(0, max);
+    body.query = clean(body.query, 300);
+    body.ai_prompt = clean(body.ai_prompt, 1200);
+    body.avoid_urls = (Array.isArray(body.avoid_urls) ? body.avoid_urls : [])
+      .filter((u) => typeof u === "string" && u.length <= 2048).slice(0, 30);
+    const ALLOWED_STRATEGIES = ["pexels", "ai", "none", "video"];
+    if (!ALLOWED_STRATEGIES.includes(strategy)) {
+      return new Response(JSON.stringify({ url: null, error: "Estratégia inválida." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Estilo fora do catálogo viraria "undefined" dentro do prompt final.
+    if (body.style && !(body.style in STYLE_SUFFIX)) body.style = undefined;
+
+
+
     if (strategy === "ai") {
       // Único caminho com custo real em dólar por chamada — exige conta.
       if (!userId) {

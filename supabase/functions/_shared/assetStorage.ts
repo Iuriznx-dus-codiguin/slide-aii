@@ -20,12 +20,22 @@
 const BUCKET = "slide-images";
 /** ~10 anos. Uma apresentação publicada precisa continuar renderizando indefinidamente. */
 const SIGNED_URL_TTL_SECONDS = 315_360_000;
+/**
+ * Tetos aplicados no único ponto de escrita do bucket (o bucket em si não
+ * expõe configuração de limite pelas ferramentas disponíveis). Serve de
+ * proteção contra upload de arquivo inesperadamente grande ou de tipo não
+ * previsto vindo de uma resposta de provedor de IA.
+ */
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const ALLOWED_CONTENT_TYPES = ["image/webp", "image/png", "image/jpeg", "image/jpg", "image/avif"];
 
 function parseDataUrl(dataUrl: string): { bytes: Uint8Array; contentType: string; ext: string } | null {
   const m = dataUrl.match(/^data:([^;,]+);base64,(.+)$/s);
   if (!m) return null;
-  const contentType = m[1];
+  const contentType = m[1].toLowerCase();
+  if (!ALLOWED_CONTENT_TYPES.includes(contentType)) return null;
   const bin = atob(m[2]);
+  if (bin.length > MAX_UPLOAD_BYTES) return null;
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   const ext = contentType.split("/")[1]?.replace("jpeg", "jpg") ?? "webp";

@@ -364,10 +364,8 @@ export type Database = {
           id: string
           include_speeches: boolean
           is_paid: boolean
-          is_password_protected: boolean
           is_published: boolean
           language: string | null
-          password_hash: string | null
           persona: string | null
           presenters_count: number
           presenters_names: Json | null
@@ -392,10 +390,8 @@ export type Database = {
           id?: string
           include_speeches?: boolean
           is_paid?: boolean
-          is_password_protected?: boolean
           is_published?: boolean
           language?: string | null
-          password_hash?: string | null
           persona?: string | null
           presenters_count?: number
           presenters_names?: Json | null
@@ -420,10 +416,8 @@ export type Database = {
           id?: string
           include_speeches?: boolean
           is_paid?: boolean
-          is_password_protected?: boolean
           is_published?: boolean
           language?: string | null
-          password_hash?: string | null
           persona?: string | null
           presenters_count?: number
           presenters_names?: Json | null
@@ -757,6 +751,20 @@ export type Database = {
       }
       consume_single_credit: { Args: { _uid: string }; Returns: boolean }
       generate_ticket_id: { Args: never; Returns: string }
+      get_public_profile: {
+        Args: { _username: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          full_name: string
+          id: string
+          location: string
+          social_links: Json
+          username: string
+          website: string
+        }[]
+      }
       grant_single_credit: { Args: { _uid: string }; Returns: number }
       has_role: {
         Args: {
@@ -766,6 +774,7 @@ export type Database = {
         Returns: boolean
       }
       increment_own_generations_count: { Args: never; Returns: number }
+      increment_profile_generations: { Args: { _uid: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "developer" | "user"

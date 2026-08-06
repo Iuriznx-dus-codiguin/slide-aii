@@ -47,30 +47,53 @@ export const normalizeSecret = (value: string | null | undefined): string | null
     .trim();
 };
 
+/**
+ * Comparação em tempo constante — evita que um atacante descubra o segredo
+ * medindo quanto tempo a checagem leva para falhar (timing attack).
+ */
+const timingSafeEqual = (a: string, b: string): boolean => {
+  const ea = new TextEncoder().encode(a);
+  const eb = new TextEncoder().encode(b);
+  // Compara sempre o mesmo número de bytes, independentemente do tamanho.
+  const len = Math.max(ea.length, eb.length);
+  let diff = ea.length ^ eb.length;
+  for (let i = 0; i < len; i++) diff |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
+  return diff === 0;
+};
+
 export const hasValidSecret = (
   providedValues: Array<string | null | undefined>,
   expected: string | null | undefined,
 ): boolean => {
   const normalizedExpected = normalizeSecret(expected);
   if (!normalizedExpected) return false;
-  return providedValues.some((value) => normalizeSecret(value) === normalizedExpected);
+  // reduce (e não some) de propósito: não interrompe no primeiro acerto,
+  // mantendo o custo da verificação independente de qual campo bateu.
+  return providedValues.reduce<boolean>((ok, value) => {
+    const normalized = normalizeSecret(value);
+    return (normalized !== null && timingSafeEqual(normalized, normalizedExpected)) || ok;
+  }, false);
 };
 
-/** Coleta todos os lugares onde a Cakto pode enviar o segredo. */
+/**
+ * Coleta todos os lugares onde a Cakto pode enviar o segredo.
+ *
+ * Segurança (auditoria): a query string (`?token=`/`?secret=`) foi REMOVIDA
+ * das origens aceitas. URLs completas são gravadas em logs de CDN, proxies e
+ * históricos de requisição — um segredo ali vaza sem que ninguém perceba.
+ * A Cakto envia o segredo por header ou no corpo, que continuam suportados.
+ */
 export const collectProvidedSecrets = (
   headers: Headers,
-  url: string,
+  _url: string,
   payload: any,
 ): Array<string | null> => {
-  const search = new URL(url).searchParams;
   return [
     headers.get("x-cakto-token"),
     headers.get("x-cakto-secret"),
     headers.get("x-webhook-secret"),
     headers.get("x-signature"),
     headers.get("authorization"),
-    search.get("token"),
-    search.get("secret"),
     typeof payload?.secret === "string" ? payload.secret : null,
     typeof payload?.data?.secret === "string" ? payload.data.secret : null,
   ];
