@@ -202,6 +202,9 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Estilo fora do catálogo viraria "undefined" dentro do prompt final.
+    if (body.style && !(body.style in STYLE_SUFFIX)) body.style = undefined;
+
 
 
     if (strategy === "ai") {
