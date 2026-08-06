@@ -711,6 +711,11 @@ LEMBRETE CRÍTICO:
       await admin.rpc("consume_single_credit", { _uid: userId });
     }
 
+    // Contador de perfil incrementado no servidor (antes era autodeclarado
+    // pelo cliente, o que podia divergir de generation_logs).
+    await admin.rpc("increment_profile_generations", { _uid: userId });
+
+
     // Log de sucesso para o painel de métricas Dev
     await admin.from("generation_logs").insert({
       user_id: userId,
