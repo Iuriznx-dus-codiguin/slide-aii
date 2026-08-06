@@ -337,12 +337,42 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ───────────── Rate limit por hora (abuso de custo) ─────────────
+  // O plano já limita o total mensal, mas nada impedia disparar dezenas de
+  // gerações em rajada (script, aba duplicada, conta MAX). Desenvolvedores
+  // ficam isentos para não atrapalhar testes internos.
+  if (ent.reason !== "dev") {
+    const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+      _key: `user:${userId}`, _fn: "generate-presentation", _max_per_hour: 12,
+    });
+    if (withinLimit === false) {
+      return new Response(JSON.stringify({
+        error: "Muitas gerações em pouco tempo. Aguarde alguns minutos e tente novamente.",
+        reason: "rate_limited",
+      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+  }
+
   try {
     const body: GenerateRequest = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const useOpenAI = !!OPENAI_API_KEY;
     if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");
+
+    // ───────────── Sanitização anti prompt-injection ─────────────
+    // Título e descrição são texto livre do usuário e vão direto para o
+    // prompt. Sem limite de tamanho e sem delimitação, um usuário podia
+    // colar "ignore as instruções acima…" e reescrever as regras de custo,
+    // idioma e formato. Aqui o conteúdo é truncado, tem quebras de linha
+    // colapsadas e é entregue dentro de um bloco explicitamente marcado
+    // como DADO — nunca como instrução.
+    const sanitize = (v: unknown, max: number): string =>
+      String(v ?? "").replace(/[\u0000-\u001f]+/g, " ").replace(/\s{2,}/g, " ").trim().slice(0, max);
+    body.title = sanitize(body.title, 200);
+    body.description = sanitize(body.description, 1500);
+    if (!body.title) throw new Error("Título obrigatório.");
+
 
     const slidesCount = Math.max(3, Math.min(15, body.slidesCount || 8));
     const isAutoTheme = body.theme === "auto";
