@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
     const { slides, instruction, dynamic_theme } = parsedBody ?? {};
     if (!instruction || !Array.isArray(slides)) {
       return new Response(JSON.stringify({ error: "Faltam campos: slides[] e instruction" }), {
+
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
