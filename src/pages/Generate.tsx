@@ -392,12 +392,10 @@ const Generate = () => {
         throw sErr;
       }
 
-      // Incremento atômico via RPC — evita perder contagem quando o usuário
-      // gera mais de uma apresentação em sucessão rápida (o padrão anterior
-      // lia generations_count e gravava o valor calculado em duas chamadas
-      // separadas, o que perde incrementos sob concorrência).
-      const { error: incErr } = await supabase.rpc("increment_own_generations_count");
-      if (incErr) console.error("increment_own_generations_count falhou:", incErr);
+      // O contador de gerações é incrementado no SERVIDOR (edge function
+      // generate-presentation), junto do registro em generation_logs — que é
+      // a fonte de verdade da cota. Antes ele era autodeclarado pelo cliente,
+      // o que permitia divergência entre o painel e a cobrança real.
 
       toast.success("Apresentação criada! Abrindo editor…");
       navigate(mode === "view" ? `/slides/${slug}` : `/editor/${slug}`);
