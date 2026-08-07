@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
+import { createLogger } from "../_shared/observability.ts";
 
 
 const corsHeaders = {
@@ -294,17 +295,20 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {
+    await log.security("unauthorized", { status: 401, detail: { reason: "missing_token" } });
     return new Response(JSON.stringify({ error: "Não autenticado." }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
   if (userErr || !userData?.user) {
+    await log.security("unauthorized", { status: 401, detail: { reason: "invalid_session" } });
     return new Response(JSON.stringify({ error: "Sessão inválida." }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const userId = userData.user.id;
+  log.setUser(userId);
 
   // Verifica permissão via função SQL
   const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
@@ -316,6 +320,7 @@ Deno.serve(async (req) => {
   }
   const ent = entitle as { allowed: boolean; reason: string; plan?: string; used?: number };
   if (!ent.allowed) {
+    await log.security("forbidden", { status: 403, detail: { reason: ent.reason, plan: ent.plan } });
     // Bloco 9: monthly_limit_reached → 429 com mensagem explícita
     if (ent.reason === "monthly_limit_reached") {
       return new Response(JSON.stringify({
