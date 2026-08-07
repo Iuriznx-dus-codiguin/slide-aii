@@ -14,19 +14,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   addMonths, classifyEvent, collectProvidedSecrets, cyclePeriodMonths, dig,
-  extractCaktoId, extractEmail, extractEventType, extractStatus, hasValidSecret, resolvePlan,
+  extractCaktoId, extractEmail, extractEventType, extractStatus, hasValidSecret,
+  normalizeSecret, parseExpectedSecrets, resolvePlan,
 } from "./lib.ts";
+import { createLogger, fingerprint } from "../_shared/observability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cakto-token, x-cakto-secret, x-webhook-secret, x-signature",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cakto-token, x-cakto-secret, x-webhook-secret, x-webhook-token, x-signature, x-request-id",
 };
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -35,23 +31,50 @@ Deno.serve(async (req) => {
   const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const WEBHOOK_SECRET = Deno.env.get("CAKTO_WEBHOOK_SECRET");
   const admin = createClient(SUPABASE_URL, SERVICE);
+  const log = createLogger("cakto-webhook", req, admin);
+  await log.setIpFrom(req);
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify({ ...(body as object), request_id: log.requestId }), {
+      status,
+      headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" },
+    });
 
   if (!WEBHOOK_SECRET) {
-    console.error("cakto-webhook: CAKTO_WEBHOOK_SECRET not configured — refusing all webhooks.");
+    await log.security("webhook_error", { severity: "critical", status: 500, detail: { reason: "secret_not_configured" } });
     return json({ error: "Webhook not configured." }, 500);
   }
 
   let payload: any = {};
   try { payload = await req.json(); } catch { payload = {}; }
 
-  if (!hasValidSecret(collectProvidedSecrets(req.headers, req.url, payload), WEBHOOK_SECRET)) {
-    console.warn("cakto-webhook: invalid secret", {
-      hasHeaderToken: !!req.headers.get("x-cakto-token"),
-      hasAuthorization: !!req.headers.get("authorization"),
-      hasBodySecret: typeof payload?.secret === "string",
+  const provided = collectProvidedSecrets(req.headers, req.url, payload);
+  if (!hasValidSecret(provided, WEBHOOK_SECRET)) {
+    // Diagnóstico sem vazar segredo: comparamos FINGERPRINTS (hash curto).
+    // Se o fingerprint enviado pela Cakto for diferente do esperado, o valor
+    // cadastrado no painel da Cakto não é o mesmo de CAKTO_WEBHOOK_SECRET.
+    const providedFps = await Promise.all(
+      provided.map((v) => fingerprint(normalizeSecret(v))),
+    );
+    const expectedFps = await Promise.all(
+      parseExpectedSecrets(WEBHOOK_SECRET).map((v) => fingerprint(v)),
+    );
+    await log.security("webhook_invalid_secret", {
+      status: 401,
+      detail: {
+        provided_fingerprints: providedFps.filter(Boolean),
+        expected_fingerprints: expectedFps,
+        sources: {
+          header_token: !!req.headers.get("x-cakto-token"),
+          authorization: !!req.headers.get("authorization"),
+          body_secret: typeof payload?.secret === "string",
+        },
+        event_type: extractEventType(payload) || null,
+      },
     });
     return json({ error: "unauthorized" }, 401);
   }
+
 
   const event_type = extractEventType(payload);
   const status = extractStatus(payload);
