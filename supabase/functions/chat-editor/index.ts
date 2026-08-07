@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
     });
   }
   const userId = userData.user.id;
+  log.setUser(userId);
 
   // ── Elegibilidade + rate limit ──
   // Antes, esta função só verificava o token (usuário logado), mas nunca

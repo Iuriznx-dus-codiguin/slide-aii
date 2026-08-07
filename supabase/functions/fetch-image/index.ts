@@ -176,6 +176,7 @@ Deno.serve(async (req) => {
   if (token) {
     const { data: userData } = await admin.auth.getUser(token);
     userId = userData?.user?.id ?? null;
+    log.setUser(userId);
   }
 
   // Chave de rate limit: por usuário quando autenticado, por IP quando não.

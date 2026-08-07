@@ -4,3 +4,7 @@ project_id = "goistdwnwksaskbffsni"
 # CAKTO_WEBHOOK_SECRET internamente antes de processar qualquer evento.
 [functions.cakto-webhook]
 verify_jwt = false
+# Preview de link compartilhado: crawlers (WhatsApp, LinkedIn, X) nunca enviam
+# JWT. A função só lê apresentações publicadas.
+[functions.og-preview]
+verify_jwt = false
