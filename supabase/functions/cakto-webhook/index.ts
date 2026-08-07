@@ -120,16 +120,16 @@ Deno.serve(async (req) => {
 
   if (insertErr) {
     if (insertErr.code === "23505") {
-      console.info("cakto-webhook: duplicate delivery ignored", cakto_id);
+      log.info("duplicate_delivery", { cakto_id });
       return json({ ok: true, note: "duplicate delivery ignored" });
     }
-    console.error("cakto-webhook: failed to record payment_event", insertErr);
+    log.error("payment_event_insert_failed", { code: insertErr.code });
     return json({ error: "Falha ao registrar evento de pagamento." }, 500);
   }
   const eventRowId = insertedEvent!.id as string;
 
   if (!userId) {
-    console.warn("cakto-webhook: user not found", { email, event_type });
+    log.warn("user_not_found", { event_type });
     await admin.from("payment_events")
       .update({ processed: true, error_message: "user not found by email" })
       .eq("id", eventRowId);
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
 
       if (plan === "single") {
         const { error: creditErr } = await admin.rpc("grant_single_credit", { _uid: userId });
-        if (creditErr) console.error("cakto-webhook: grant_single_credit failed", creditErr);
+        if (creditErr) log.error("grant_single_credit_failed", { message: creditErr.message });
       }
     } else if (action === "refund") {
       await admin.from("profiles").update({
@@ -169,16 +169,17 @@ Deno.serve(async (req) => {
         subscription_status: "canceled",
       }).eq("id", userId);
     } else {
-      console.info("cakto-webhook: event ignored", { event_type, status });
+      log.info("event_ignored", { event_type, status });
     }
 
     await admin.from("payment_events").update({ processed: true }).eq("id", eventRowId);
   } catch (e) {
-    console.error("cakto-webhook process error", e);
+    log.error("process_error", { message: e instanceof Error ? e.message : String(e) });
     await admin.from("payment_events").update({
       error_message: e instanceof Error ? e.message : String(e),
     }).eq("id", eventRowId);
   }
 
+  log.info("processed", { event_type, action, plan });
   return json({ ok: true, event: event_type, action, plan, userId });
 });
