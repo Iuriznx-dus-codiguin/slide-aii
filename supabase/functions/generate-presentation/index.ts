@@ -286,6 +286,9 @@ Deno.serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const log = createLogger("generate-presentation", req, admin);
+  await log.setIpFrom(req);
+
 
   // ───────────── Autenticação + Entitlement (RIGOROSO) ─────────────
   const authHeader = req.headers.get("Authorization") || "";
