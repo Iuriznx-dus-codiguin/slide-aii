@@ -160,6 +160,11 @@ const DevDashboard = () => {
             </section>
 
             <section>
+              <SecurityEventsPanel />
+            </section>
+
+
+            <section>
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Feed em tempo real — últimas apresentações</CardTitle>
