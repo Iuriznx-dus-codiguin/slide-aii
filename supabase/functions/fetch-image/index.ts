@@ -19,6 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findMatchingAsset, recordAsset, touchAsset } from "../_shared/assetIntelligence.ts";
 import { persistGeneratedImage } from "../_shared/assetStorage.ts";
+import { createLogger } from "../_shared/observability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -210,6 +211,7 @@ Deno.serve(async (req) => {
     if (strategy === "ai") {
       // Único caminho com custo real em dólar por chamada — exige conta.
       if (!userId) {
+        await log.security("unauthorized", { status: 401, detail: { strategy: "ai" } });
         return new Response(JSON.stringify({ url: null, error: "Autenticação necessária para geração de imagem por IA." }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -218,6 +220,7 @@ Deno.serve(async (req) => {
         _key: rlKey, _fn: "fetch-image-ai", _max_per_hour: 15,
       });
       if (withinAiLimit === false) {
+        await log.security("rate_limited", { status: 429, detail: { strategy: "ai", max_per_hour: 15 } });
         return new Response(JSON.stringify({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -229,6 +232,7 @@ Deno.serve(async (req) => {
         _key: rlKey, _fn: "fetch-image-public", _max_per_hour: 60,
       });
       if (withinLimit === false) {
+        await log.security("rate_limited", { status: 429, detail: { strategy, max_per_hour: 60 } });
         return new Response(JSON.stringify({ url: null, error: "Limite de requisições de imagem atingido. Aguarde um pouco." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

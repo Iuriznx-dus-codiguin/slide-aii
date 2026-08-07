@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
     .eq("is_published", true)
     .maybeSingle();
 
-  const target = `${SITE}/p/${slug}`;
+  const target = `${SITE}/slides/${slug}`;
 
   if (error || !pres) {
     log.info("preview_not_found", { slug });

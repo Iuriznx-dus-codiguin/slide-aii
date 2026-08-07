@@ -9,6 +9,7 @@
 // com uma mensagem clara quando o usuário não tem uso disponível, e aplica
 // rate limit de 30 edições/hora por usuário como defesa adicional.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createLogger } from "../_shared/observability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,6 +74,7 @@ Deno.serve(async (req) => {
   }
   const ent = entitle as { allowed: boolean; reason: string };
   if (!ent.allowed) {
+    await log.security("forbidden", { status: 403, detail: { reason: ent.reason } });
     return new Response(JSON.stringify({
       error: ent.reason === "monthly_limit_reached"
         ? "Você atingiu o limite de gerações este mês, o que também pausa a edição por chat até a renovação."
@@ -86,6 +88,7 @@ Deno.serve(async (req) => {
     _key: `user:${userId}`, _fn: "chat-editor", _max_per_hour: 40,
   });
   if (withinLimit === false) {
+    await log.security("rate_limited", { status: 429, detail: { max_per_hour: 40 } });
     return new Response(JSON.stringify({ error: "Muitas edições em pouco tempo. Aguarde alguns minutos." }), {
       status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
