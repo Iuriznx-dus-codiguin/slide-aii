@@ -507,6 +507,45 @@ export type Database = {
         }
         Relationships: []
       }
+      security_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          event_type: string
+          fn_name: string | null
+          id: string
+          ip_hash: string | null
+          request_id: string | null
+          severity: string
+          status_code: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          event_type: string
+          fn_name?: string | null
+          id?: string
+          ip_hash?: string | null
+          request_id?: string | null
+          severity?: string
+          status_code?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          event_type?: string
+          fn_name?: string | null
+          id?: string
+          ip_hash?: string | null
+          request_id?: string | null
+          severity?: string
+          status_code?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       slide_views: {
         Row: {
           created_at: string
@@ -747,6 +786,10 @@ export type Database = {
       can_user_generate: { Args: { _uid: string }; Returns: Json }
       check_rate_limit: {
         Args: { _fn: string; _key: string; _max_per_hour: number }
+        Returns: boolean
+      }
+      check_rate_limit_daily: {
+        Args: { _fn: string; _key: string; _max_per_day: number }
         Returns: boolean
       }
       consume_single_credit: { Args: { _uid: string }; Returns: boolean }
