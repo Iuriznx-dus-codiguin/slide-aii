@@ -164,6 +164,8 @@ Deno.serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const log = createLogger("fetch-image", req, admin);
+  await log.setIpFrom(req);
 
   // Resolve usuário se um token vier presente, mas NÃO exige — o
   // visualizador público chama esta função (estratégia "video"/"pexels")
