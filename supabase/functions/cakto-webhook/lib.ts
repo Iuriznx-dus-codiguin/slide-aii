@@ -61,17 +61,34 @@ const timingSafeEqual = (a: string, b: string): boolean => {
   return diff === 0;
 };
 
+/**
+ * `CAKTO_WEBHOOK_SECRET` aceita MAIS DE UM valor separado por vírgula,
+ * ponto-e-vírgula ou quebra de linha. Motivo prático: a Cakto envia o
+ * segredo cadastrado no painel dela, e durante uma rotação (ou entre o
+ * ambiente de teste e o de produção) os dois valores precisam ser aceitos
+ * ao mesmo tempo — sem isso, toda entrega cai em 401 no meio da troca.
+ */
+export const parseExpectedSecrets = (expected: string | null | undefined): string[] =>
+  String(expected ?? "")
+    .split(/[\s,;]+/)
+    .map((v) => normalizeSecret(v))
+    .filter((v): v is string => !!v);
+
 export const hasValidSecret = (
   providedValues: Array<string | null | undefined>,
   expected: string | null | undefined,
 ): boolean => {
-  const normalizedExpected = normalizeSecret(expected);
-  if (!normalizedExpected) return false;
+  const expectedList = parseExpectedSecrets(expected);
+  if (expectedList.length === 0) return false;
   // reduce (e não some) de propósito: não interrompe no primeiro acerto,
   // mantendo o custo da verificação independente de qual campo bateu.
   return providedValues.reduce<boolean>((ok, value) => {
     const normalized = normalizeSecret(value);
-    return (normalized !== null && timingSafeEqual(normalized, normalizedExpected)) || ok;
+    if (normalized === null) return ok;
+    const match = expectedList.reduce<boolean>(
+      (acc, exp) => timingSafeEqual(normalized, exp) || acc, false,
+    );
+    return match || ok;
   }, false);
 };
 
@@ -88,16 +105,24 @@ export const collectProvidedSecrets = (
   _url: string,
   payload: any,
 ): Array<string | null> => {
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
   return [
     headers.get("x-cakto-token"),
     headers.get("x-cakto-secret"),
     headers.get("x-webhook-secret"),
+    headers.get("x-webhook-token"),
     headers.get("x-signature"),
+    headers.get("x-hub-signature"),
     headers.get("authorization"),
-    typeof payload?.secret === "string" ? payload.secret : null,
-    typeof payload?.data?.secret === "string" ? payload.data.secret : null,
+    str(payload?.secret),
+    str(payload?.token),
+    str(payload?.webhook_secret),
+    str(payload?.data?.secret),
+    str(payload?.data?.token),
+    str(payload?.data?.webhook_secret),
   ];
 };
+
 
 export const extractEventType = (payload: any): string =>
   String(dig(payload, ["event", "type", "data.event", "status"]) ?? "").toLowerCase();
