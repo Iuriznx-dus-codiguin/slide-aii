@@ -337,21 +337,39 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ───────────── Rate limit por hora (abuso de custo) ─────────────
+  // ───────────── Rate limit por hora / por dia (abuso de custo) ─────────────
   // O plano já limita o total mensal, mas nada impedia disparar dezenas de
-  // gerações em rajada (script, aba duplicada, conta MAX). Desenvolvedores
-  // ficam isentos para não atrapalhar testes internos.
-  if (ent.reason !== "dev") {
+  // gerações em rajada (script, aba duplicada, conta MAX).
+  // Desenvolvedores NÃO são mais isentos: como não pagam por geração, uma
+  // conta dev é justamente a que pode queimar mais dólares sem freio. Para
+  // eles o teto é diário e mais apertado (5 apresentações/dia), suficiente
+  // para testar e insuficiente para estourar o custo de IA.
+  const isDev = ent.reason === "dev";
+  if (isDev) {
+    const { data: withinDaily } = await admin.rpc("check_rate_limit_daily", {
+      _key: `user:${userId}`, _fn: "generate-presentation-dev", _max_per_day: 5,
+    });
+    if (withinDaily === false) {
+      await log.security("daily_limit", { status: 429, detail: { scope: "dev", max_per_day: 5 } });
+      return new Response(JSON.stringify({
+        error: "Modo desenvolvedor: limite de 5 apresentações por dia atingido. Renova à meia-noite (UTC).",
+        reason: "dev_daily_limit",
+      }), { status: 429, headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" } });
+    }
+  }
+  {
     const { data: withinLimit } = await admin.rpc("check_rate_limit", {
-      _key: `user:${userId}`, _fn: "generate-presentation", _max_per_hour: 12,
+      _key: `user:${userId}`, _fn: "generate-presentation", _max_per_hour: isDev ? 5 : 12,
     });
     if (withinLimit === false) {
+      await log.security("rate_limited", { status: 429, detail: { scope: isDev ? "dev" : "user" } });
       return new Response(JSON.stringify({
         error: "Muitas gerações em pouco tempo. Aguarde alguns minutos e tente novamente.",
         reason: "rate_limited",
-      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }), { status: 429, headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" } });
     }
   }
+
 
   try {
     const body: GenerateRequest = await req.json();
