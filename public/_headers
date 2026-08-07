@@ -1,0 +1,22 @@
+# Cabeçalhos de segurança aplicados pelo host estático (Lovable/Netlify-style).
+# Objetivo: reduzir a superfície de exploração via navegador — clickjacking,
+# injeção de script, vazamento de referrer e downgrade para HTTP.
+#
+# Notas sobre a CSP:
+#  • 'unsafe-inline'/'unsafe-eval' em script-src são exigidos pelo bundle do
+#    Vite/React e por bibliotecas de animação; removê-los quebraria o app.
+#  • connect-src precisa do backend (Supabase REST/Realtime/Storage) e da API
+#    da Pexels; img-src precisa de data:/blob: por causa das imagens de IA.
+#  • frame-ancestors 'none' é a defesa real contra clickjacking (mais forte
+#    que X-Frame-Options, mantido por compatibilidade com navegadores antigos).
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Cross-Origin-Resource-Policy: same-site
+  X-XSS-Protection: 0
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://pay.cakto.com.br; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.pexels.com https://*.lovable.app https://*.lovable.dev; frame-src https://pay.cakto.com.br; worker-src 'self' blob:; upgrade-insecure-requests

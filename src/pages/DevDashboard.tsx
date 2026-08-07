@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { estimateGenerationCost, modeFromBudget, modeLabel } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
+import SecurityEventsPanel from "@/components/SecurityEventsPanel";
 import { DevMetricsPanel } from "@/components/DevMetricsPanel";
 
 interface Metrics {
@@ -158,6 +159,11 @@ const DevDashboard = () => {
             <section>
               <DevMetricsPanel />
             </section>
+
+            <section>
+              <SecurityEventsPanel />
+            </section>
+
 
             <section>
               <Card>

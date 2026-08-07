@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
+import { createLogger } from "../_shared/observability.ts";
 
 
 const corsHeaders = {
@@ -286,22 +287,28 @@ Deno.serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const log = createLogger("generate-presentation", req, admin);
+  await log.setIpFrom(req);
+
 
   // ───────────── Autenticação + Entitlement (RIGOROSO) ─────────────
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {
+    await log.security("unauthorized", { status: 401, detail: { reason: "missing_token" } });
     return new Response(JSON.stringify({ error: "Não autenticado." }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
   if (userErr || !userData?.user) {
+    await log.security("unauthorized", { status: 401, detail: { reason: "invalid_session" } });
     return new Response(JSON.stringify({ error: "Sessão inválida." }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const userId = userData.user.id;
+  log.setUser(userId);
 
   // Verifica permissão via função SQL
   const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
@@ -313,6 +320,7 @@ Deno.serve(async (req) => {
   }
   const ent = entitle as { allowed: boolean; reason: string; plan?: string; used?: number };
   if (!ent.allowed) {
+    await log.security("forbidden", { status: 403, detail: { reason: ent.reason, plan: ent.plan } });
     // Bloco 9: monthly_limit_reached → 429 com mensagem explícita
     if (ent.reason === "monthly_limit_reached") {
       return new Response(JSON.stringify({
@@ -337,21 +345,39 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ───────────── Rate limit por hora (abuso de custo) ─────────────
+  // ───────────── Rate limit por hora / por dia (abuso de custo) ─────────────
   // O plano já limita o total mensal, mas nada impedia disparar dezenas de
-  // gerações em rajada (script, aba duplicada, conta MAX). Desenvolvedores
-  // ficam isentos para não atrapalhar testes internos.
-  if (ent.reason !== "dev") {
+  // gerações em rajada (script, aba duplicada, conta MAX).
+  // Desenvolvedores NÃO são mais isentos: como não pagam por geração, uma
+  // conta dev é justamente a que pode queimar mais dólares sem freio. Para
+  // eles o teto é diário e mais apertado (5 apresentações/dia), suficiente
+  // para testar e insuficiente para estourar o custo de IA.
+  const isDev = ent.reason === "dev";
+  if (isDev) {
+    const { data: withinDaily } = await admin.rpc("check_rate_limit_daily", {
+      _key: `user:${userId}`, _fn: "generate-presentation-dev", _max_per_day: 5,
+    });
+    if (withinDaily === false) {
+      await log.security("daily_limit", { status: 429, detail: { scope: "dev", max_per_day: 5 } });
+      return new Response(JSON.stringify({
+        error: "Modo desenvolvedor: limite de 5 apresentações por dia atingido. Renova à meia-noite (UTC).",
+        reason: "dev_daily_limit",
+      }), { status: 429, headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" } });
+    }
+  }
+  {
     const { data: withinLimit } = await admin.rpc("check_rate_limit", {
-      _key: `user:${userId}`, _fn: "generate-presentation", _max_per_hour: 12,
+      _key: `user:${userId}`, _fn: "generate-presentation", _max_per_hour: isDev ? 5 : 12,
     });
     if (withinLimit === false) {
+      await log.security("rate_limited", { status: 429, detail: { scope: isDev ? "dev" : "user" } });
       return new Response(JSON.stringify({
         error: "Muitas gerações em pouco tempo. Aguarde alguns minutos e tente novamente.",
         reason: "rate_limited",
-      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }), { status: 429, headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" } });
     }
   }
+
 
   try {
     const body: GenerateRequest = await req.json();
