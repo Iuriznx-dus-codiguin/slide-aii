@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Sparkles, Loader2, User, Globe, MapPin, Link2, Instagram, Twitter, Linkedin, Github, Copy, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, User, Globe, MapPin, Link2, Instagram, Twitter, Linkedin, Github, Copy, Check, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AccountPanel } from "@/components/AccountPanel";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface Profile {
   id: string;
@@ -43,14 +44,19 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [actualViews, setActualViews] = useState(0);
 
 
   useEffect(() => { document.title = "Meu Perfil — SlideAI"; }, []);
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle().then(({ data }) => {
-      setProfile(data as Profile);
+    Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      supabase.from("presentations").select("view_count").eq("user_id", user.id).is("deleted_at", null),
+    ]).then(([profileResult, presentationResult]) => {
+      setProfile(profileResult.data as Profile);
+      setActualViews((presentationResult.data ?? []).reduce((sum, item) => sum + (item.view_count ?? 0), 0));
       setLoading(false);
     });
   }, [user]);
@@ -61,6 +67,7 @@ const ProfilePage = () => {
     e.preventDefault();
     if (!user || !profile) return;
     setSaving(true);
+    if (profile.username && profile.username.length < 3) { setSaving(false); toast.error("O nome de usuário precisa ter ao menos 3 caracteres."); return; }
     const { error } = await supabase.from("profiles").update({
       full_name: profile.full_name,
       role: profile.role,
@@ -71,7 +78,8 @@ const ProfilePage = () => {
       avatar_url: profile.avatar_url,
     }).eq("id", user.id);
     setSaving(false);
-    if (error) toast.error(error.message);
+    if (error?.code === "23505") toast.error("Este nome de usuário já está em uso.");
+    else if (error) toast.error(error.message);
     else toast.success("Perfil atualizado");
   };
 
@@ -121,12 +129,7 @@ const ProfilePage = () => {
           <Link to="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Dashboard
           </Link>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="font-display font-bold">SlideAI</span>
-          </div>
+          <BrandLogo size={30} />
         </div>
       </header>
 
@@ -149,7 +152,7 @@ const ProfilePage = () => {
             <p className="text-sm text-muted-foreground">{user?.email}</p>
             <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
               <span><strong className="text-foreground">{profile?.generations_count ?? 0}</strong> gerações</span>
-              <span><strong className="text-foreground">{profile?.total_views ?? 0}</strong> visualizações</span>
+              <span><strong className="text-foreground">{actualViews}</strong> visualizações</span>
             </div>
           </div>
         </div>
@@ -244,6 +247,7 @@ const ProfilePage = () => {
                       <Button size="sm" variant="ghost" onClick={copyPortfolio}>
                         {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       </Button>
+                      <Button size="sm" variant="ghost" asChild><a href={portfolioUrl} target="_blank" rel="noreferrer" aria-label="Abrir portfólio"><ExternalLink className="h-3.5 w-3.5" /></a></Button>
                     </div>
                   )}
 
@@ -274,9 +278,7 @@ const ProfilePage = () => {
                   <Button variant="hero" onClick={savePortfolio} disabled={saving}>
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />} Salvar portfólio
                   </Button>
-                  <p className="text-[11px] text-muted-foreground">
-                    Em breve: escolha quais apresentações aparecem no seu portfólio público.
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">O portfólio exibe automaticamente suas apresentações publicadas e remove itens enviados à lixeira.</p>
                 </CardContent>
               </Card>
             </div>

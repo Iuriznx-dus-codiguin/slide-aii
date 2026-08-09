@@ -120,12 +120,16 @@ export const collectProvidedSecrets = (
     str(payload?.data?.secret),
     str(payload?.data?.token),
     str(payload?.data?.webhook_secret),
+    str(payload?.payload?.secret),
+    str(payload?.payload?.token),
+    str(payload?.event_data?.secret),
+    str(payload?.event_data?.token),
   ];
 };
 
 
 export const extractEventType = (payload: any): string =>
-  String(dig(payload, ["event", "type", "data.event", "status"]) ?? "").toLowerCase();
+  String(dig(payload, ["event", "type", "data.event", "payload.event", "event_data.event", "status"]) ?? "").toLowerCase();
 
 export const extractStatus = (payload: any): string | undefined =>
   (dig(payload, ["data.status", "status", "data.transaction.status", "payment_status"]) as
@@ -135,7 +139,7 @@ export const extractStatus = (payload: any): string | undefined =>
 export const extractEmail = (payload: any): string | undefined =>
   (dig(payload, [
     "data.customer.email", "customer.email", "data.buyer.email",
-    "buyer.email", "data.email", "email",
+    "buyer.email", "data.email", "email", "payload.data.customer.email", "event_data.customer.email",
   ]) as string | undefined)?.toLowerCase();
 
 export const extractCaktoId = (payload: any): string | undefined =>

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, ArrowLeft, BookOpen, LifeBuoy, Sparkles, ChevronRight, HelpCircle } from "lucide-react";
+import { Search, ArrowLeft, BookOpen, LifeBuoy, ChevronRight, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface Article {
   id: string;
@@ -75,10 +76,7 @@ const HelpCenter = () => {
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="font-display text-lg font-bold">SlideAI</span>
+            <BrandLogo size={34} />
           </Link>
           <div className="flex items-center gap-2">
             <Link to="/dashboard">
@@ -176,7 +174,7 @@ const HelpCenter = () => {
             <LifeBuoy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground mb-2">Nenhum artigo encontrado para "{search}".</p>
             <p className="text-sm text-muted-foreground">
-              Tente outros termos ou <button onClick={() => window.dispatchEvent(new CustomEvent("slideai:open-support"))} className="text-primary underline">fale com o suporte</button>.
+              Tente outros termos ou <Link to="/suporte/nova" className="text-primary underline">fale com o suporte</Link>.
             </p>
           </div>
         )}
@@ -208,9 +206,7 @@ const HelpCenter = () => {
           <LifeBuoy className="h-8 w-8 text-primary mx-auto mb-3" />
           <h3 className="font-display text-xl font-bold mb-2">Não encontrou o que procurava?</h3>
           <p className="text-sm text-muted-foreground mb-4">Nosso assistente inteligente pode diagnosticar seu problema em segundos.</p>
-          <Button onClick={() => window.dispatchEvent(new CustomEvent("slideai:open-support"))} variant="hero">
-            Falar com o suporte
-          </Button>
+          <Button asChild variant="hero"><Link to="/suporte/nova">Falar com o suporte</Link></Button>
         </section>
       </main>
     </div>

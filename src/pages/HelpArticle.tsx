@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, BookOpen, Sparkles, LifeBuoy, Copy, Check, AlertTriangle, ChevronRight } from "lucide-react";
+import { ArrowLeft, BookOpen, LifeBuoy, Copy, Check, AlertTriangle, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface Article {
   id: string;
@@ -89,10 +90,7 @@ const HelpArticle = () => {
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="font-display text-lg font-bold">SlideAI</span>
+            <BrandLogo size={34} />
           </Link>
           <Link to="/ajuda">
             <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /> Central de Ajuda</Button>
@@ -189,7 +187,7 @@ const HelpArticle = () => {
                 <Button
                   variant={feedback === "down" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => { setFeedback("down"); window.dispatchEvent(new CustomEvent("slideai:open-support")); }}
+                  onClick={() => { setFeedback("down"); navigate("/suporte/nova"); }}
                   disabled={feedback !== null}
                 >👎 Não, preciso de ajuda</Button>
               </div>
@@ -216,9 +214,7 @@ const HelpArticle = () => {
             <div className="mt-12 rounded-2xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-6 text-center">
               <LifeBuoy className="h-6 w-6 text-primary mx-auto mb-2" />
               <p className="text-sm text-muted-foreground mb-3">Ainda com dúvidas?</p>
-              <Button size="sm" onClick={() => window.dispatchEvent(new CustomEvent("slideai:open-support"))}>
-                Falar com o suporte
-              </Button>
+               <Button size="sm" asChild><Link to="/suporte/nova">Falar com o suporte</Link></Button>
             </div>
           </>
         )}

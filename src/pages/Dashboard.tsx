@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil } from "lucide-react";
+import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil, Globe, Lock } from "lucide-react";
 import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 interface Pres {
   id: string; title: string; slug: string; slides_count: number; view_count: number;
   created_at: string; theme: string; font_style: string;
+  is_published: boolean;
   cover?: { slide_type: string; layout_template: string; content: any } | null;
 }
 
@@ -31,7 +32,7 @@ const Dashboard = () => {
   const load = async () => {
     if (!user) return;
     const { data } = await supabase.from("presentations")
-      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style")
+      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style,is_published")
       .eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false });
     const items = (data as any[]) ?? [];
 
@@ -55,6 +56,13 @@ const Dashboard = () => {
     await supabase.from("presentations").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     toast.success("Movido para a lixeira");
     load();
+  };
+
+  const togglePublished = async (presentation: Pres) => {
+    const { error } = await supabase.from("presentations").update({ is_published: !presentation.is_published }).eq("id", presentation.id);
+    if (error) return toast.error("Não foi possível alterar a publicação.");
+    setList((current) => current.map((item) => item.id === presentation.id ? { ...item, is_published: !item.is_published } : item));
+    toast.success(presentation.is_published ? "Apresentação removida das áreas públicas" : "Apresentação publicada");
   };
 
   const filtered = list.filter((p) => p.title.toLowerCase().includes(search.toLowerCase()));
@@ -153,7 +161,7 @@ const Dashboard = () => {
                     <h2 className="font-semibold truncate text-base">{p.title}</h2>
                     <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                       <span>{p.slides_count} slides</span>
-                      <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span>
+                      <div className="flex items-center gap-3"><span className="flex items-center gap-1">{p.is_published ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}{p.is_published ? "Pública" : "Privada"}</span><span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span></div>
                     </div>
                     <div className="flex gap-1.5 mt-3">
                       <Link to={`/slides/${p.slug}`} className="flex-1">
@@ -166,6 +174,9 @@ const Dashboard = () => {
                         </Button>
                       </Link>
                       <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label={`Exportar ${p.title}`} />
+                      <Button variant="ghost" size="sm" onClick={() => togglePublished(p)} title={p.is_published ? "Tornar privada" : "Publicar"} aria-label={p.is_published ? `Tornar ${p.title} privada` : `Publicar ${p.title}`}>
+                        {p.is_published ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

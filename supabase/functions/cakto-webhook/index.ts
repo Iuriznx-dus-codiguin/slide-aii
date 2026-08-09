@@ -46,7 +46,21 @@ Deno.serve(async (req) => {
   }
 
   let payload: any = {};
-  try { payload = await req.json(); } catch { payload = {}; }
+  const rawBody = await req.text().catch(() => "");
+  if (rawBody) {
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      const form = new URLSearchParams(rawBody);
+      payload = Object.fromEntries(form.entries());
+      for (const field of ["payload", "data", "event_data"]) {
+        const encoded = payload[field];
+        if (typeof encoded === "string" && /^[{[]/.test(encoded.trim())) {
+          try { payload[field] = JSON.parse(encoded); } catch { /* mantém o valor original */ }
+        }
+      }
+    }
+  }
 
   const provided = collectProvidedSecrets(req.headers, req.url, payload);
   if (!hasValidSecret(provided, WEBHOOK_SECRET)) {

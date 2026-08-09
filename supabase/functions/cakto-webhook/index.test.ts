@@ -44,10 +44,15 @@ Deno.test("aceita segredo em headers alternativos", () => {
   assertEquals(authorized(body, { authorization: `Bearer ${SECRET}` }), true);
 });
 
-Deno.test("aceita segredo em query param", () => {
+Deno.test("rejeita segredo em query param para evitar vazamento em logs", () => {
   const url = `https://x/functions/v1/cakto-webhook?token=${SECRET}`;
-  assertEquals(authorized({ event: "purchase_approved" }, {}, url), true);
-  assertEquals(authorized({ event: "purchase_approved" }, {}, `https://x/f?secret=${SECRET}`), true);
+  assertEquals(authorized({ event: "purchase_approved" }, {}, url), false);
+  assertEquals(authorized({ event: "purchase_approved" }, {}, `https://x/f?secret=${SECRET}`), false);
+});
+
+Deno.test("aceita segredo em envelopes usados por integrações", () => {
+  assertEquals(authorized({ payload: { secret: SECRET } }), true);
+  assertEquals(authorized({ event_data: { token: SECRET } }), true);
 });
 
 Deno.test("tolera espaços e prefixos no segredo", () => {
