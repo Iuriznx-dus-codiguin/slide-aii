@@ -20,6 +20,8 @@ import AdminSupport from "./pages/AdminSupport.tsx";
 import HelpCenter from "./pages/HelpCenter.tsx";
 import HelpArticle from "./pages/HelpArticle.tsx";
 import ProfilePage from "./pages/Profile.tsx";
+import Support from "./pages/Support.tsx";
+import PublicProfile from "./pages/PublicProfile.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { DevModePanel } from "./components/DevModePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -46,6 +48,9 @@ const App = () => (
               <Route path="/editor/:slug" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/suporte" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+              <Route path="/suporte/:conversationId" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+              <Route path="/u/:username" element={<PublicProfile />} />
               <Route path="/ajuda" element={<HelpCenter />} />
               <Route path="/ajuda/:slug" element={<HelpArticle />} />
               <Route path="/templates" element={<Templates />} />

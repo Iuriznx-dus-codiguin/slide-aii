@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ type State = "open" | "diagnosing" | "awaiting_user" | "awaiting_confirmation" |
 type HelpLink = { slug: string; title: string };
 
 export const SupportWidget = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -32,11 +33,11 @@ export const SupportWidget = () => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { code?: string } | undefined;
       if (detail?.code) setErrorCode(detail.code);
-      setOpen(true);
+      navigate("/suporte/nova");
     };
     window.addEventListener("slideai:open-support", handler);
     return () => window.removeEventListener("slideai:open-support", handler);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
