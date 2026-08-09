@@ -187,7 +187,7 @@ const HelpArticle = () => {
                 <Button
                   variant={feedback === "down" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => { setFeedback("down"); window.dispatchEvent(new CustomEvent("slideai:open-support")); }}
+                  onClick={() => { setFeedback("down"); navigate("/suporte/nova"); }}
                   disabled={feedback !== null}
                 >👎 Não, preciso de ajuda</Button>
               </div>

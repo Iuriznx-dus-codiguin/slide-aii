@@ -44,14 +44,19 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [actualViews, setActualViews] = useState(0);
 
 
   useEffect(() => { document.title = "Meu Perfil — SlideAI"; }, []);
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle().then(({ data }) => {
-      setProfile(data as Profile);
+    Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      supabase.from("presentations").select("view_count").eq("user_id", user.id).is("deleted_at", null),
+    ]).then(([profileResult, presentationResult]) => {
+      setProfile(profileResult.data as Profile);
+      setActualViews((presentationResult.data ?? []).reduce((sum, item) => sum + (item.view_count ?? 0), 0));
       setLoading(false);
     });
   }, [user]);
@@ -147,7 +152,7 @@ const ProfilePage = () => {
             <p className="text-sm text-muted-foreground">{user?.email}</p>
             <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
               <span><strong className="text-foreground">{profile?.generations_count ?? 0}</strong> gerações</span>
-              <span><strong className="text-foreground">{profile?.total_views ?? 0}</strong> visualizações</span>
+              <span><strong className="text-foreground">{actualViews}</strong> visualizações</span>
             </div>
           </div>
         </div>
