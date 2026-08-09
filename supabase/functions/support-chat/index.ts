@@ -146,11 +146,21 @@ Deno.serve(async (req) => {
         .select("id, ticket_id").single();
       if (convErr) throw convErr;
       conversationId = conv.id;
+    } else {
+      const { data: existingConversation, error: ownershipError } = await admin
+        .from("support_conversations")
+        .select("id,user_id,state")
+        .eq("id", conversationId)
+        .maybeSingle();
+      if (ownershipError || !existingConversation || existingConversation.user_id !== user.id) {
+        return new Response(JSON.stringify({ error: "not_found", request_id: requestId }), { status: 404, headers: respHeaders });
+      }
     }
 
-    await admin.from("support_messages").insert({
+    const { error: userMessageError } = await admin.from("support_messages").insert({
       conversation_id: conversationId, role: "user", content: message, code_ref: errorCodeHint,
     });
+    if (userMessageError) throw userMessageError;
 
     // Contexto
     const [{ data: history }, { data: catalog }, { data: recentOcc }, { data: articles }] = await Promise.all([
@@ -171,7 +181,7 @@ Deno.serve(async (req) => {
 
     const helpText = scored.length
       ? scored.map(({ a }) => `### ${a.title} (${a.category})\n${a.content_md}`).join("\n\n")
-      : "(nenhum artigo diretamente relacionado — se for dúvida de uso, responda com base no conhecimento geral do produto listado acima)";
+      : "(nenhum artigo diretamente relacionado; use o CONTEXTO OPERACIONAL DO PRODUTO abaixo sem inventar recursos)";
 
     const catalogText = (catalog ?? []).map((c: any) =>
       `[${c.code}] (${c.severity}/${c.module}) ${c.title} — ${c.user_description}` +
@@ -189,18 +199,29 @@ Dois papéis simultâneos:
 1) GUIA DE USO — responder "como faço X no SlideAI" usando os ARTIGOS DE AJUDA abaixo.
 2) DIAGNÓSTICO TÉCNICO — identificar problemas usando o CATÁLOGO DE ERROS.
 
+CONTEXTO OPERACIONAL DO PRODUTO:
+- O SlideAI gera apresentações a partir de tema, descrição recomendada, profundidade de texto e preferências visuais.
+- Tema inteligente adapta composição, cores, tipografia e imagens ao assunto.
+- Imagens podem vir do Pexels ou ser geradas por IA e podem ser trocadas no editor.
+- O modo Clássico usa transições tradicionais; Magic Move usa transformações/morph de elementos, sem mistura.
+- Após gerar, o usuário é levado ao editor manual; também pode visualizar, compartilhar e exportar em PDF/PPTX.
+- O dashboard organiza apresentações, edições, links, exportações, visualizações e lixeira.
+- O perfil possui dados pessoais, assinatura, segurança e portfólio público em /u/usuario com apresentações publicadas.
+- Planos atuais: geração única, PRO (20 gerações/mês) e MAX para maior volume; pagamentos aprovados atualizam a conta automaticamente.
+- Para perguntas legítimas sobre esses fluxos que não tenham artigo exato, dê uma orientação útil baseada somente neste contexto e faça no máximo uma pergunta objetiva se faltar um dado essencial.
+
 ESCOPO ESTRITO:
 - Você SÓ responde sobre o SlideAI (uso da plataforma, geração de slides, planos, pagamentos, erros, conta).
 - Perguntas fora desse escopo (curiosidades gerais, opiniões, quem é o dono, política, outros produtos, tarefas genéricas de IA) devem ser recusadas de forma CURTA e profissional em 1 a 2 frases, redirecionando exatamente assim: "Sou o assistente de suporte do SlideAI e respondo apenas sobre o uso da plataforma, sua conta, pagamentos e erros. Como posso te ajudar com isso?" Não ofereça alternativas, links externos, nem sugira como o usuário poderia obter a resposta por outros meios. Não liste passos para investigar por conta própria.
 - Nunca especule sobre propriedade, equipe, empresa ou informações internas que não estejam nos artigos.
 
 REGRAS INVIOLÁVEIS:
-- NUNCA invente códigos, causas ou passos. Se algo não está no catálogo NEM nos artigos, admita em 1 frase.
+- NUNCA invente códigos, causas, políticas ou recursos. Se não houver artigo exato, mas a pergunta estiver coberta pelo contexto operacional, responda de forma válida e prática com base nele.
 - Se o usuário der um código exato (ex: "PAY-003"), responda com título, causa e passos EXATOS do catálogo.
 - Se descrever um sintoma sem código, identifique a hipótese mais provável. Se houver ambiguidade real entre 2+ códigos, faça UMA pergunta objetiva antes de responder.
 - Se o código exigir escalação ([ESCALAR], severidade critical, pagamento ou segurança), diga que um humano será acionado e termine com <ESCALATE>.
 - Se resolveu a dúvida ou aplicou uma solução, termine com <RESOLVED>. Isso NÃO fecha a conversa — o usuário confirmará.
-- Se não achou correspondência no catálogo/artigos E a pergunta é legítima sobre SlideAI, termine com <UNCATALOGUED>.
+- Use <UNCATALOGUED> apenas para falhas técnicas sem correspondência e que exijam investigação humana; não escale automaticamente dúvidas normais de uso cobertas pelo contexto operacional.
 - Tom: profissional, empático, direto, CONCISO. Português do Brasil. Passos sempre numerados. Sem preâmbulos longos.
 - Nunca peça senha/token nem exponha dados sensíveis.
 
