@@ -15,6 +15,15 @@ const safeExternalUrl = (value: string | null | undefined) => {
   try { const url = new URL(value.startsWith("http") ? value : `https://${value}`); return ["http:", "https:"].includes(url.protocol) ? url.href : null; } catch { return null; }
 };
 
+const setRobots = (content: string | null) => {
+  const existing = document.querySelector<HTMLMetaElement>('meta[name="robots"][data-dynamic="true"]');
+  if (!content) { existing?.remove(); return; }
+  const tag = existing ?? Object.assign(document.createElement("meta"), { name: "robots" });
+  tag.setAttribute("data-dynamic", "true");
+  tag.content = content;
+  if (!existing) document.head.appendChild(tag);
+};
+
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<PublicProfileData | null>(null);
@@ -33,10 +42,16 @@ export default function PublicProfile() {
           .eq("user_id", found.id).eq("is_published", true).is("deleted_at", null).order("created_at", { ascending: false });
         setPresentations((items as PresentationData[]) ?? []);
         document.title = `${found.full_name || `@${found.username}`} — SlideAI`;
+        setRobots(null);
+      } else {
+        document.title = "Portfólio não encontrado — SlideAI";
+        setRobots("noindex, follow");
       }
       setLoading(false);
     })();
+    return () => setRobots(null);
   }, [username]);
+
 
   if (loading) return <div className="container mx-auto max-w-6xl space-y-6 px-6 py-16"><Skeleton className="h-24 w-24 rounded-full" /><Skeleton className="h-10 w-80" /><Skeleton className="h-56 w-full" /></div>;
   if (!profile) return <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"><Presentation className="h-12 w-12 text-muted-foreground" /><h1 className="text-2xl font-bold">Portfólio não encontrado</h1><p className="text-muted-foreground">Este perfil não existe ou não está público.</p><Button asChild><Link to="/">Conhecer o SlideAI</Link></Button></div>;
