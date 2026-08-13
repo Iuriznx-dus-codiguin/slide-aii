@@ -41,6 +41,7 @@ export default function PublicProfile() {
   if (loading) return <div className="container mx-auto max-w-6xl space-y-6 px-6 py-16"><Skeleton className="h-24 w-24 rounded-full" /><Skeleton className="h-10 w-80" /><Skeleton className="h-56 w-full" /></div>;
   if (!profile) return <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"><Presentation className="h-12 w-12 text-muted-foreground" /><h1 className="text-2xl font-bold">Portfólio não encontrado</h1><p className="text-muted-foreground">Este perfil não existe ou não está público.</p><Button asChild><Link to="/">Conhecer o SlideAI</Link></Button></div>;
 
+
   const website = safeExternalUrl(profile.website);
   const initials = (profile.full_name || profile.username).slice(0, 2).toUpperCase();
   return (
