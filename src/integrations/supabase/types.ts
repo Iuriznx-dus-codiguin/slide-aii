@@ -432,8 +432,39 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_access_requests: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          owner_id: string
+          requester_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          owner_id: string
+          requester_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          owner_id?: string
+          requester_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          allow_access_requests: boolean
           avatar_url: string | null
           bio: string | null
           cakto_customer_id: string | null
@@ -458,6 +489,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          allow_access_requests?: boolean
           avatar_url?: string | null
           bio?: string | null
           cakto_customer_id?: string | null
@@ -482,6 +514,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          allow_access_requests?: boolean
           avatar_url?: string | null
           bio?: string | null
           cakto_customer_id?: string | null
@@ -784,6 +817,10 @@ export type Database = {
     }
     Functions: {
       can_user_generate: { Args: { _uid: string }; Returns: Json }
+      can_view_portfolio: {
+        Args: { _owner: string; _viewer: string }
+        Returns: boolean
+      }
       check_rate_limit: {
         Args: { _fn: string; _key: string; _max_per_hour: number }
         Returns: boolean
@@ -794,6 +831,36 @@ export type Database = {
       }
       consume_single_credit: { Args: { _uid: string }; Returns: boolean }
       generate_ticket_id: { Args: never; Returns: string }
+      get_portfolio_presentations: {
+        Args: { _owner: string }
+        Returns: {
+          cover_image_url: string
+          created_at: string
+          description: string
+          id: string
+          slides_count: number
+          slug: string
+          title: string
+          view_count: number
+        }[]
+      }
+      get_profile_for_viewer: {
+        Args: { _username: string }
+        Returns: {
+          access_state: string
+          allow_access_requests: boolean
+          avatar_url: string
+          bio: string
+          created_at: string
+          full_name: string
+          id: string
+          is_public: boolean
+          location: string
+          social_links: Json
+          username: string
+          website: string
+        }[]
+      }
       get_public_profile: {
         Args: { _username: string }
         Returns: {
