@@ -48,6 +48,9 @@ export default function AdminSupport() {
   const [editing, setEditing] = useState<Cat | null>(null);
   const [promoting, setPromoting] = useState<{ occ: Occ; draft: Partial<Cat> } | null>(null);
   const [convDetail, setConvDetail] = useState<{ conv: Conv; msgs: Msg[] } | null>(null);
+  const [reply, setReply] = useState("");
+  const [markResolved, setMarkResolved] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
   const [historyFor, setHistoryFor] = useState<{ code: string; rows: Hist[] } | null>(null);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
   const [filters, setFilters] = useState<{ code: string; status: string; severity: string }>({ code: "", status: "", severity: "" });
