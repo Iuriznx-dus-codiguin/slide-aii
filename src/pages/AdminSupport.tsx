@@ -48,6 +48,9 @@ export default function AdminSupport() {
   const [editing, setEditing] = useState<Cat | null>(null);
   const [promoting, setPromoting] = useState<{ occ: Occ; draft: Partial<Cat> } | null>(null);
   const [convDetail, setConvDetail] = useState<{ conv: Conv; msgs: Msg[] } | null>(null);
+  const [reply, setReply] = useState("");
+  const [markResolved, setMarkResolved] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
   const [historyFor, setHistoryFor] = useState<{ code: string; rows: Hist[] } | null>(null);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
   const [filters, setFilters] = useState<{ code: string; status: string; severity: string }>({ code: "", status: "", severity: "" });
@@ -475,6 +478,28 @@ export default function AdminSupport() {
             ))}
             {convDetail?.msgs.length === 0 && <p className="text-sm text-muted-foreground">Sem mensagens.</p>}
           </div>
+
+          {convDetail && (
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-medium">Responder manualmente como equipe</p>
+              <Textarea
+                rows={4}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder="Escreva a resposta que o usuário verá no atendimento…"
+                maxLength={4000}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch checked={markResolved} onCheckedChange={setMarkResolved} />
+                  Marcar atendimento como resolvido
+                </label>
+                <Button size="sm" onClick={sendReply} disabled={sendingReply || !reply.trim()}>
+                  {sendingReply ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-1" />} Enviar resposta
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
