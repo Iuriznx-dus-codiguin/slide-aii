@@ -98,11 +98,7 @@ const ProfilePage = () => {
     const rows = (data as AccessRequest[]) ?? [];
     setRequests(rows);
     const ids = Array.from(new Set(rows.map((r) => r.requester_id)));
-    if (ids.length) {
-      const { data: people } = await supabase.rpc("get_public_profile", { _username: "" });
-      void people; // perfis privados não são expostos; usamos apenas o identificador curto
-      setRequesterNames(Object.fromEntries(ids.map((id) => [id, `Usuário ${id.slice(0, 8)}`])));
-    }
+    setRequesterNames(Object.fromEntries(ids.map((id) => [id, `Usuário ${id.slice(0, 8)}`])));
   }, [user]);
 
   useEffect(() => {
