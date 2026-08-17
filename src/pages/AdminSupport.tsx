@@ -475,6 +475,28 @@ export default function AdminSupport() {
             ))}
             {convDetail?.msgs.length === 0 && <p className="text-sm text-muted-foreground">Sem mensagens.</p>}
           </div>
+
+          {convDetail && (
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-medium">Responder manualmente como equipe</p>
+              <Textarea
+                rows={4}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder="Escreva a resposta que o usuário verá no atendimento…"
+                maxLength={4000}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch checked={markResolved} onCheckedChange={setMarkResolved} />
+                  Marcar atendimento como resolvido
+                </label>
+                <Button size="sm" onClick={sendReply} disabled={sendingReply || !reply.trim()}>
+                  {sendingReply ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-1" />} Enviar resposta
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
