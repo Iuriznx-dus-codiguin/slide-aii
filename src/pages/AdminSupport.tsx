@@ -142,6 +142,31 @@ export default function AdminSupport() {
     const { data } = await supabase.from("support_messages")
       .select("*").eq("conversation_id", conv.id).order("created_at");
     setConvDetail({ conv, msgs: (data ?? []) as any });
+    setReply("");
+    setMarkResolved(false);
+  };
+
+  const sendReply = async () => {
+    if (!convDetail || !reply.trim()) return;
+    setSendingReply(true);
+    const content = reply.trim();
+    const { error } = await supabase.from("support_messages").insert({
+      conversation_id: convDetail.conv.id,
+      role: "assistant" as any,
+      content,
+      metadata: { source: "human_agent" } as any,
+    });
+    if (error) { setSendingReply(false); toast.error(error.message); return; }
+    await supabase.from("support_conversations").update({
+      state: (markResolved ? "resolved" : "awaiting_user") as any,
+      resolved_by_human: markResolved ? true : convDetail.conv.resolved_by_ai === true ? false : null,
+      closed_at: markResolved ? new Date().toISOString() : null,
+    } as any).eq("id", convDetail.conv.id);
+    setSendingReply(false);
+    setReply("");
+    toast.success("Resposta enviada ao usuário");
+    await openConversation(convDetail.conv);
+    load();
   };
 
   const openHistory = async (code: string) => {
