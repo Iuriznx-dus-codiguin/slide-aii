@@ -23,7 +23,6 @@ const WELCOME: Msg = {
 };
 
 export const SupportWidget = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
