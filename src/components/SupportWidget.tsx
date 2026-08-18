@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown, BookOpen,
   History, Minus, Plus, ArrowLeft, ExternalLink, CheckCircle2, Clock3,
