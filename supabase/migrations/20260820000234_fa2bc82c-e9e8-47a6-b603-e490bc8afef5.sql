@@ -1,0 +1,1 @@
+-- see /tmp/help.sql content inlined below
