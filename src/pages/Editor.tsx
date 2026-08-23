@@ -135,10 +135,17 @@ const Editor = () => {
   const [chatBusy, setChatBusy] = useState(false);
   const [inlineEdit, setInlineEdit] = useState(false);
 
+  // Cota de edição por IA: 10 mensagens OU 3 edições complexas por apresentação.
+  // Persistida por apresentação e reenviada ao backend, que é quem decide.
+  const [aiUsage, setAiUsage] = useState({ messages: 0, complex: 0 });
+  const aiUndoRef = useRef<SlideRow[] | null>(null);
+  const [canUndoAi, setCanUndoAi] = useState(false);
+
   // Undo/redo stacks (snapshots of full slides array)
   const undoStack = useRef<SlideRow[][]>([]);
   const redoStack = useRef<SlideRow[][]>([]);
   const skipNextSnapshot = useRef(false);
+
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
