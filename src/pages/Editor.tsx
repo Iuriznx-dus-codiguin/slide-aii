@@ -322,10 +322,19 @@ const Editor = () => {
     return () => clearInterval(id);
   }, [pres, save]);
 
-  // Chat IA do editor manual — usa a mesma edge function chat-editor
+  // Chat IA do editor manual — Edit Director Engine (edge function chat-editor).
+  // Envia contexto completo (deck + presentation_id, de onde o backend puxa
+  // creative_brief/dynamic_theme/tokens), histórico da conversa para comandos
+  // sequenciais e os contadores de cota; recebe de volta o deck atualizado e o
+  // estado anterior, que fica guardado para desfazer a última edição da IA.
   const sendChat = async () => {
     const instruction = chatInput.trim();
     if (!instruction || chatBusy) return;
+    if (aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX) {
+      toast.error(AI_LIMIT_MESSAGE);
+      setChat((c) => [...c, { role: "assistant", content: AI_LIMIT_MESSAGE }]);
+      return;
+    }
     setChatInput("");
     setChat((c) => [...c, { role: "user", content: instruction }]);
     setChatBusy(true);
@@ -340,10 +349,29 @@ const Editor = () => {
         speaker_notes: s.speaker_notes || s.content?.speaker_notes,
       }));
       const { data, error } = await supabase.functions.invoke("chat-editor", {
-        body: { slides: aiSlides, dynamic_theme: dynamicTheme, instruction },
+        body: {
+          slides: aiSlides,
+          dynamic_theme: dynamicTheme,
+          instruction,
+          presentation_id: pres?.id,
+          history: chat.slice(-8),
+          usage: { messages: aiUsage.messages, complex_edits: aiUsage.complex },
+        },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error && !data?.error) throw error;
+      if (data?.error) {
+        if (data.reason === "edit_quota_reached") {
+          setAiUsage({ messages: AI_MAX_MESSAGES, complex: AI_MAX_COMPLEX });
+          setChat((c) => [...c, { role: "assistant", content: AI_LIMIT_MESSAGE }]);
+          toast.error(AI_LIMIT_MESSAGE);
+          return;
+        }
+        throw new Error(data.error);
+      }
+
+      // Snapshot para desfazer a edição da IA (além do undo genérico)
+      aiUndoRef.current = JSON.parse(JSON.stringify(slides));
+      setCanUndoAi(true);
 
       // Aplicar updates: mantém ID e position originais por índice
       pushSnapshot();
@@ -372,6 +400,12 @@ const Editor = () => {
       }));
       skipNextSnapshot.current = true;
       setSlides(updated as any);
+      if (data.usage) {
+        setAiUsage({
+          messages: Number(data.usage.messages) || aiUsage.messages + 1,
+          complex: Number(data.usage.complex_edits) || aiUsage.complex,
+        });
+      }
       setChat((c) => [...c, { role: "assistant", content: data.assistant_message || "Pronto, atualizei!" }]);
     } catch (e: any) {
       console.error(e);
@@ -381,6 +415,17 @@ const Editor = () => {
       setChatBusy(false);
     }
   };
+
+  const undoAiEdit = () => {
+    const snap = aiUndoRef.current;
+    if (!snap) return;
+    skipNextSnapshot.current = true;
+    setSlides(JSON.parse(JSON.stringify(snap)));
+    aiUndoRef.current = null;
+    setCanUndoAi(false);
+    toast.success("Última edição da IA desfeita.");
+  };
+
 
   // Keyboard shortcuts
   useEffect(() => {
