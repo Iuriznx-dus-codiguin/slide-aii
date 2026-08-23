@@ -113,7 +113,15 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
 };
 const SortableThumb = React.memo(SortableThumbInner);
 
+// Cota de edição por IA (espelha MAX_CHAT_MESSAGES/MAX_COMPLEX_EDITS na edge
+// function chat-editor — o backend é a autoridade; aqui é só UX).
+const AI_MAX_MESSAGES = 10;
+const AI_MAX_COMPLEX = 3;
+const AI_LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
+const aiUsageKey = (id: string) => `slideai:edit-usage:${id}`;
+
 const Editor = () => {
+
   const { slug } = useParams();
   const navigate = useNavigate();
 
