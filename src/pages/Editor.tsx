@@ -190,6 +190,24 @@ const Editor = () => {
     [pres, slides]
   );
 
+  // Carrega/persiste a cota de edição por IA desta apresentação.
+  useEffect(() => {
+    if (!pres?.id) return;
+    try {
+      const raw = localStorage.getItem(aiUsageKey(pres.id));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setAiUsage({ messages: Number(parsed.messages) || 0, complex: Number(parsed.complex) || 0 });
+      }
+    } catch { /* storage indisponível — cota volta a zero, backend segue limitando */ }
+  }, [pres?.id]);
+
+  useEffect(() => {
+    if (!pres?.id) return;
+    try { localStorage.setItem(aiUsageKey(pres.id), JSON.stringify(aiUsage)); } catch { /* ignore */ }
+  }, [pres?.id, aiUsage]);
+
+
   // Bloco 12.3: debounce de 500ms para snapshots — evita um por keystroke.
   const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushSnapshot = useCallback(() => {
