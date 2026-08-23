@@ -7,7 +7,7 @@ const features = [
   { icon: Sparkles, title: "Animações cinematográficas", desc: "Transições e entradas profissionais aplicadas automaticamente." },
   { icon: ImageIcon, title: "Banco de imagens", desc: "Acesso a milhões de fotos via Unsplash diretamente no editor." },
   { icon: BarChart3, title: "Gráficos automáticos", desc: "Detectamos dados no seu tema e geramos visualizações lindas." },
-  { icon: Palette, title: "Paletas e fontes premium", desc: "6 temas de cores e 4 famílias tipográficas para cada estilo." },
+  { icon: Palette, title: "Ajustes conversando com IA", desc: "Peça em português e a IA aplica: sem configurações manuais." },
   { icon: FileDown, title: "Exportar PDF / PPTX", desc: "Baixe em formatos universais ou compartilhe por link público." },
   { icon: Link2, title: "Link público compartilhável", desc: "Apresente em qualquer dispositivo, com modo full-screen e contagem de visualizações." },
 ];

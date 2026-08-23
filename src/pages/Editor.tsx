@@ -113,7 +113,15 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
 };
 const SortableThumb = React.memo(SortableThumbInner);
 
+// Cota de edição por IA (espelha MAX_CHAT_MESSAGES/MAX_COMPLEX_EDITS na edge
+// function chat-editor — o backend é a autoridade; aqui é só UX).
+const AI_MAX_MESSAGES = 10;
+const AI_MAX_COMPLEX = 3;
+const AI_LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
+const aiUsageKey = (id: string) => `slideai:edit-usage:${id}`;
+
 const Editor = () => {
+
   const { slug } = useParams();
   const navigate = useNavigate();
 
@@ -135,10 +143,17 @@ const Editor = () => {
   const [chatBusy, setChatBusy] = useState(false);
   const [inlineEdit, setInlineEdit] = useState(false);
 
+  // Cota de edição por IA: 10 mensagens OU 3 edições complexas por apresentação.
+  // Persistida por apresentação e reenviada ao backend, que é quem decide.
+  const [aiUsage, setAiUsage] = useState({ messages: 0, complex: 0 });
+  const aiUndoRef = useRef<SlideRow[] | null>(null);
+  const [canUndoAi, setCanUndoAi] = useState(false);
+
   // Undo/redo stacks (snapshots of full slides array)
   const undoStack = useRef<SlideRow[][]>([]);
   const redoStack = useRef<SlideRow[][]>([]);
   const skipNextSnapshot = useRef(false);
+
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -174,6 +189,24 @@ const Editor = () => {
     () => (pres as any)?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null,
     [pres, slides]
   );
+
+  // Carrega/persiste a cota de edição por IA desta apresentação.
+  useEffect(() => {
+    if (!pres?.id) return;
+    try {
+      const raw = localStorage.getItem(aiUsageKey(pres.id));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setAiUsage({ messages: Number(parsed.messages) || 0, complex: Number(parsed.complex) || 0 });
+      }
+    } catch { /* storage indisponível — cota volta a zero, backend segue limitando */ }
+  }, [pres?.id]);
+
+  useEffect(() => {
+    if (!pres?.id) return;
+    try { localStorage.setItem(aiUsageKey(pres.id), JSON.stringify(aiUsage)); } catch { /* ignore */ }
+  }, [pres?.id, aiUsage]);
+
 
   // Bloco 12.3: debounce de 500ms para snapshots — evita um por keystroke.
   const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -322,10 +355,19 @@ const Editor = () => {
     return () => clearInterval(id);
   }, [pres, save]);
 
-  // Chat IA do editor manual — usa a mesma edge function chat-editor
+  // Chat IA do editor manual — Edit Director Engine (edge function chat-editor).
+  // Envia contexto completo (deck + presentation_id, de onde o backend puxa
+  // creative_brief/dynamic_theme/tokens), histórico da conversa para comandos
+  // sequenciais e os contadores de cota; recebe de volta o deck atualizado e o
+  // estado anterior, que fica guardado para desfazer a última edição da IA.
   const sendChat = async () => {
     const instruction = chatInput.trim();
     if (!instruction || chatBusy) return;
+    if (aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX) {
+      toast.error(AI_LIMIT_MESSAGE);
+      setChat((c) => [...c, { role: "assistant", content: AI_LIMIT_MESSAGE }]);
+      return;
+    }
     setChatInput("");
     setChat((c) => [...c, { role: "user", content: instruction }]);
     setChatBusy(true);
@@ -340,10 +382,29 @@ const Editor = () => {
         speaker_notes: s.speaker_notes || s.content?.speaker_notes,
       }));
       const { data, error } = await supabase.functions.invoke("chat-editor", {
-        body: { slides: aiSlides, dynamic_theme: dynamicTheme, instruction },
+        body: {
+          slides: aiSlides,
+          dynamic_theme: dynamicTheme,
+          instruction,
+          presentation_id: pres?.id,
+          history: chat.slice(-8),
+          usage: { messages: aiUsage.messages, complex_edits: aiUsage.complex },
+        },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error && !data?.error) throw error;
+      if (data?.error) {
+        if (data.reason === "edit_quota_reached") {
+          setAiUsage({ messages: AI_MAX_MESSAGES, complex: AI_MAX_COMPLEX });
+          setChat((c) => [...c, { role: "assistant", content: AI_LIMIT_MESSAGE }]);
+          toast.error(AI_LIMIT_MESSAGE);
+          return;
+        }
+        throw new Error(data.error);
+      }
+
+      // Snapshot para desfazer a edição da IA (além do undo genérico)
+      aiUndoRef.current = JSON.parse(JSON.stringify(slides));
+      setCanUndoAi(true);
 
       // Aplicar updates: mantém ID e position originais por índice
       pushSnapshot();
@@ -372,6 +433,12 @@ const Editor = () => {
       }));
       skipNextSnapshot.current = true;
       setSlides(updated as any);
+      if (data.usage) {
+        setAiUsage({
+          messages: Number(data.usage.messages) || aiUsage.messages + 1,
+          complex: Number(data.usage.complex_edits) || aiUsage.complex,
+        });
+      }
       setChat((c) => [...c, { role: "assistant", content: data.assistant_message || "Pronto, atualizei!" }]);
     } catch (e: any) {
       console.error(e);
@@ -381,6 +448,17 @@ const Editor = () => {
       setChatBusy(false);
     }
   };
+
+  const undoAiEdit = () => {
+    const snap = aiUndoRef.current;
+    if (!snap) return;
+    skipNextSnapshot.current = true;
+    setSlides(JSON.parse(JSON.stringify(snap)));
+    aiUndoRef.current = null;
+    setCanUndoAi(false);
+    toast.success("Última edição da IA desfeita.");
+  };
+
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -572,8 +650,9 @@ const Editor = () => {
               <div className="space-y-3">
                 {chat.length === 0 && (
                   <div className="text-xs text-muted-foreground text-center py-6">
-                    Peça mudanças em linguagem natural.<br />
-                    Ex: <em>"deixa o slide 3 mais visual"</em>, <em>"resume tudo"</em>.
+                    Peça mudanças em linguagem natural — a IA aplica direto nos slides.<br />
+                    Ex: <em>"reduza o texto dos slides"</em>, <em>"não gostei da página 3, regere ela"</em>,{" "}
+                    <em>"troque o gráfico por uma imagem"</em>.
                   </div>
                 )}
                 {chat.map((m, i) => (
@@ -592,16 +671,30 @@ const Editor = () => {
                 )}
               </div>
             </ScrollArea>
-            <div className="p-2 border-t border-border">
+            <div className="p-2 border-t border-border space-y-2">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>
+                  {aiUsage.messages}/{AI_MAX_MESSAGES} mensagens · {aiUsage.complex}/{AI_MAX_COMPLEX} edições complexas
+                </span>
+                {canUndoAi && (
+                  <button onClick={undoAiEdit} className="text-primary hover:underline font-medium">
+                    Desfazer edição da IA
+                  </button>
+                )}
+              </div>
               <div className="flex gap-1.5">
                 <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                  placeholder="Ex: tom mais formal" rows={2} className="resize-none text-xs" disabled={chatBusy} />
-                <Button size="icon" variant="hero" onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="self-end h-9 w-9">
+                  placeholder="Ex: reduza o texto do slide 4" rows={2} className="resize-none text-xs"
+                  disabled={chatBusy || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX} />
+                <Button size="icon" variant="hero" onClick={sendChat}
+                  disabled={chatBusy || !chatInput.trim() || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX}
+                  className="self-end h-9 w-9">
                   <Send className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
+
           </aside>
         )}
 
