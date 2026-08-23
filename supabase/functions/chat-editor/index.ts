@@ -1,37 +1,41 @@
-// Chat-based slide editor. Receives the current slide JSON + user instruction,
-// returns the updated slide JSON. Used in the /gerar chat panel.
+// Chat-based slide editor (v2 — Edit Director Engine).
 //
-// Segurança: esta função já autenticava o usuário, mas não verificava se ele
-// tinha direito de uso segundo o plano (diferente de generate-presentation) —
-// uma conta gratuita podia chamá-la indefinidamente, gerando custo real de IA
-// sem controle algum. Agora reaproveita a mesma função can_user_generate do
-// fluxo principal (somente leitura, não consome crédito) para negar acesso
-// com uma mensagem clara quando o usuário não tem uso disponível, e aplica
-// rate limit de 30 edições/hora por usuário como defesa adicional.
+// Antes: mandava o deck inteiro para o modelo e pedia o deck inteiro de volta,
+// sem contexto de direção criativa e sem noção de intenção/escopo — caro,
+// propenso a truncar e a reescrever slides que ninguém pediu.
+//
+// Agora: pipeline em 3 fases espelhando o motor criativo (ver
+// ../_shared/editDirector.ts), mas adaptado para EDIÇÃO PONTUAL:
+//   1. classifyEditIntent → intenção (reescrever / trocar elemento / ajustar
+//      design / regenerar) + escopo (1 slide, vários, deck) + complexidade,
+//      usando o histórico da conversa para comandos sequenciais;
+//   2. buildEditContext  → contexto completo (creative_brief persistido,
+//      dynamic_theme, tokens, metadados da apresentação, mapa do deck) com os
+//      slides em escopo enviados na íntegra e o resto compactado;
+//   3. apply_slide_edits → PATCH por índice, aplicado no servidor sobre o deck
+//      original (applyEdits), preservando o DNA de animação.
+//
+// Limite de uso por apresentação: 10 mensagens OU 3 edições complexas.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { createLogger } from "../_shared/observability.ts";
+import {
+  applyEdits,
+  buildEditContext,
+  classifyEditIntent,
+  EDIT_SYSTEM_PROMPT,
+  EDIT_TOOL,
+  summarizeDeck,
+} from "../_shared/editDirector.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `Você é um editor de slides com IA. Recebe o estado atual de uma apresentação (lista de slides em JSON) e uma instrução do usuário em português. Sua tarefa é:
+export const MAX_CHAT_MESSAGES = 10;
+export const MAX_COMPLEX_EDITS = 3;
+const LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
 
-1. Aplicar a instrução de forma cirúrgica.
-2. Devolver SEMPRE a apresentação inteira atualizada via tool call.
-3. Manter a coesão narrativa.
-4. Se a instrução pedir mudança em apenas um slide, modifique só ele.
-5. Se pedir reformulação geral (estilo, tom, idioma), aplique a todos.
-6. NUNCA invente novos campos fora do schema.
-7. Se a instrução for ambígua, interprete pelo MELHOR resultado visual e textual.
-8. Retorne também uma resposta curta (assistant_message) explicando em 1-2 frases o que foi feito.
-
-REGRA CRÍTICA DE PRESERVAÇÃO:
-PRESERVE OBRIGATORIAMENTE os valores existentes de visual_accents, narrative_act,
-animation_intent, cover_variant e transition de CADA slide — só altere se a
-instrução do usuário pedir EXPLICITAMENTE para mudá-los. Caso contrário, copie
-os valores originais para o slide retornado.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
