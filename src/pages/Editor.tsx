@@ -650,8 +650,9 @@ const Editor = () => {
               <div className="space-y-3">
                 {chat.length === 0 && (
                   <div className="text-xs text-muted-foreground text-center py-6">
-                    Peça mudanças em linguagem natural.<br />
-                    Ex: <em>"deixa o slide 3 mais visual"</em>, <em>"resume tudo"</em>.
+                    Peça mudanças em linguagem natural — a IA aplica direto nos slides.<br />
+                    Ex: <em>"reduza o texto dos slides"</em>, <em>"não gostei da página 3, regere ela"</em>,{" "}
+                    <em>"troque o gráfico por uma imagem"</em>.
                   </div>
                 )}
                 {chat.map((m, i) => (
@@ -670,16 +671,30 @@ const Editor = () => {
                 )}
               </div>
             </ScrollArea>
-            <div className="p-2 border-t border-border">
+            <div className="p-2 border-t border-border space-y-2">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>
+                  {aiUsage.messages}/{AI_MAX_MESSAGES} mensagens · {aiUsage.complex}/{AI_MAX_COMPLEX} edições complexas
+                </span>
+                {canUndoAi && (
+                  <button onClick={undoAiEdit} className="text-primary hover:underline font-medium">
+                    Desfazer edição da IA
+                  </button>
+                )}
+              </div>
               <div className="flex gap-1.5">
                 <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                  placeholder="Ex: tom mais formal" rows={2} className="resize-none text-xs" disabled={chatBusy} />
-                <Button size="icon" variant="hero" onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="self-end h-9 w-9">
+                  placeholder="Ex: reduza o texto do slide 4" rows={2} className="resize-none text-xs"
+                  disabled={chatBusy || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX} />
+                <Button size="icon" variant="hero" onClick={sendChat}
+                  disabled={chatBusy || !chatInput.trim() || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX}
+                  className="self-end h-9 w-9">
                   <Send className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
+
           </aside>
         )}
 
