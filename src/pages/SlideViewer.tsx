@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { CreativeBrief } from "@/lib/creativeBrief";
+import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
