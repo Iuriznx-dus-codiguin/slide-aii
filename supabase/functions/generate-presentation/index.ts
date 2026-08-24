@@ -745,22 +745,49 @@ LEMBRETE CRÍTICO:
       };
     });
 
-    // Garante presenters_data normalizado quando falas ativadas
+    // Garante presenters_data normalizado quando falas ativadas.
+    // Rede de segurança: se a IA não devolver exact_speech (ou devolver vazio),
+    // sintetizamos a fala a partir do conteúdo real do slide para que o roteiro
+    // NUNCA chegue vazio ao editor/apresentação.
     if (body.includeSpeeches) {
-      parsed.slides = parsed.slides.map((s: any) => {
+      const blockSize = Math.max(2, Math.ceil(parsed.slides.length / Math.max(1, presenterNames.length)));
+      const synthSpeech = (s: any, idx: number): string => {
+        const parts: string[] = [];
+        if (s.speaker_notes) parts.push(String(s.speaker_notes).trim());
+        if (!parts.length && s.headline) {
+          parts.push(idx === 0
+            ? `Vamos começar falando sobre ${s.headline}.`
+            : `Agora, sobre ${s.headline}.`);
+        }
+        if (s.subtitle) parts.push(String(s.subtitle).trim());
+        const bullets = Array.isArray(s.bullets) ? s.bullets.slice(0, 3) : [];
+        if (bullets.length) parts.push(`Destaco três pontos: ${bullets.join("; ")}.`);
+        if (s.stat_value) parts.push(`Repare no número ${s.stat_value}${s.stat_label ? ` — ${s.stat_label}` : ""}.`);
+        if (s.quote_text) parts.push(`Como disse ${s.quote_author || "o autor"}: "${s.quote_text}".`);
+        if (s.body_text && parts.length < 2) parts.push(String(s.body_text).trim());
+        return parts.filter(Boolean).join(" ").slice(0, 900);
+      };
+
+      parsed.slides = parsed.slides.map((s: any, idx: number) => {
         const existing = Array.isArray(s.presenters_data) ? s.presenters_data : [];
         const normalized = presenterNames.map((name, i) => {
           const found = existing.find((e: any) => e?.name === name) ?? existing[i] ?? {};
           return {
             id: crypto.randomUUID(),
             name,
-            exact_speech: found.exact_speech || "",
+            exact_speech: typeof found.exact_speech === "string" ? found.exact_speech.trim() : "",
             transition_anchor: found.transition_anchor || "",
           };
         });
+        const someoneSpeaks = normalized.some((p) => p.exact_speech.length > 0);
+        if (!someoneSpeaks && normalized.length > 0) {
+          const speakerIdx = Math.min(normalized.length - 1, Math.floor(idx / blockSize));
+          normalized[speakerIdx].exact_speech = synthSpeech(s, idx);
+        }
         return { ...s, presenters_data: normalized };
       });
     }
+
 
     // Métricas: contar imagens reais por estratégia
     const imagesPexels = parsed.slides.filter((s: any) => s.image_strategy === "pexels").length;

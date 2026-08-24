@@ -17,6 +17,7 @@ import {
   GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users,
 } from "lucide-react";
 import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
+import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -701,7 +702,10 @@ const Editor = () => {
         {/* Presenter Notes Panel — apenas quando include_speeches está ativo */}
         {notesOpen && pres.include_speeches && current && (
           <PresenterNotesPanel
-            slides={slides.map((s) => ({ headline: s.content?.headline, presenters_data: s.presenters_data ?? [] }))}
+            slides={slides.map((s, i) => ({
+              headline: s.content?.headline,
+              presenters_data: ensurePresenterSpeeches(s as any, pres.presenters_names ?? [], i) as any,
+            }))}
             activeIdx={activeIdx}
             presentationTitle={pres.title}
             presentersNames={pres.presenters_names ?? []}

@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { CreativeBrief } from "@/lib/creativeBrief";
+import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
 
 interface Pres {
   id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -23,7 +24,7 @@ interface Pres {
   creative_brief?: CreativeBrief | null;
 }
 interface PresenterEntry { id: string; name: string; technical_notes?: string; exact_speech?: string; transition_anchor?: string; }
-interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; presenters_data?: PresenterEntry[]; }
+interface SlideRow { id: string; position: number; slide_type: string; layout_template: string; content: any; speaker_notes?: string | null; presenters_data?: PresenterEntry[]; }
 
 const SlideViewer = () => {
   const { slug } = useParams();
@@ -47,7 +48,7 @@ const SlideViewer = () => {
       if (!p) { setLoading(false); return; }
       setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as unknown as Pres);
       document.title = `${p.title} — SlideAI`;
-      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content,presenters_data").eq("presentation_id", p.id).order("position");
+      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content,speaker_notes,presenters_data").eq("presentation_id", p.id).order("position");
       setSlides(((s as any[]) ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })) as any);
       setLoading(false);
       supabase.from("slide_views").insert({ presentation_id: p.id, user_agent: navigator.userAgent }).then(() => {});
@@ -169,7 +170,7 @@ const SlideViewer = () => {
               </PopoverContent>
             </Popover>
             {pres.include_speeches && (
-              <PresenterNotesPopover slide={current} presentersNames={pres.presenters_names ?? []} />
+              <PresenterNotesPopover slide={current} slideIndex={idx} presentersNames={pres.presenters_names ?? []} />
             )}
             <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
@@ -183,7 +184,7 @@ const SlideViewer = () => {
       {/* Floating presenter notes button (visible during fullscreen presentation) */}
       {fullscreen && pres.include_speeches && (
         <div className={`fixed top-4 right-4 z-50 transition-opacity ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
-          <PresenterNotesPopover slide={current} presentersNames={pres.presenters_names ?? []} floating />
+          <PresenterNotesPopover slide={current} slideIndex={idx} presentersNames={pres.presenters_names ?? []} floating />
         </div>
       )}
 
@@ -263,23 +264,21 @@ const SlideViewer = () => {
 /** Popover compacto para consultar falas/notas do slide atual durante a apresentação. */
 const PresenterNotesPopover = ({
   slide,
+  slideIndex = 0,
   presentersNames,
   floating,
 }: {
   slide?: SlideRow;
+  slideIndex?: number;
   presentersNames: string[];
   floating?: boolean;
 }) => {
-  const existing = (slide?.presenters_data ?? []) as PresenterEntry[];
-  const presenters: PresenterEntry[] =
-    presentersNames.length > 0
-      ? presentersNames.map((name, i) => {
-          const found = existing.find((e) => e.name === name) ?? existing[i];
-          return found
-            ? { ...found, name }
-            : { id: `${i}`, name, technical_notes: "", exact_speech: "", transition_anchor: "" };
-        })
-      : existing;
+  // Fallback: quando presenters_data vem vazio (apresentações antigas ou IA
+  // que não preencheu), derivamos a fala do conteúdo real do slide.
+  const presenters = useMemo(
+    () => ensurePresenterSpeeches(slide as any, presentersNames, slideIndex) as PresenterEntry[],
+    [slide, presentersNames, slideIndex],
+  );
 
   // Aba ativa por ÍNDICE (estável entre slides). O índice do apresentador
   // que de fato fala neste slide; se ninguém fala, mantém o primeiro.
