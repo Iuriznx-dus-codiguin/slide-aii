@@ -17,6 +17,7 @@ import {
   GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users,
 } from "lucide-react";
 import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
+import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
