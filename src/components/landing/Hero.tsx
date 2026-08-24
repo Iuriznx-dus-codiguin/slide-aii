@@ -31,7 +31,7 @@ export const Hero = () => {
             className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-6"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Powered by ChatGPT 5.6 PRO
+            Powered by Chatgpt 5.6 Pro
           </motion.div>
 
           <motion.h1
