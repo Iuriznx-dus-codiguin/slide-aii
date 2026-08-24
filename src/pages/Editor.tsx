@@ -701,7 +701,10 @@ const Editor = () => {
         {/* Presenter Notes Panel — apenas quando include_speeches está ativo */}
         {notesOpen && pres.include_speeches && current && (
           <PresenterNotesPanel
-            slides={slides.map((s) => ({ headline: s.content?.headline, presenters_data: s.presenters_data ?? [] }))}
+            slides={slides.map((s, i) => ({
+              headline: s.content?.headline,
+              presenters_data: ensurePresenterSpeeches(s as any, pres.presenters_names ?? [], i) as any,
+            }))}
             activeIdx={activeIdx}
             presentationTitle={pres.title}
             presentersNames={pres.presenters_names ?? []}
