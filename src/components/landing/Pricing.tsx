@@ -23,7 +23,7 @@ const perGen = {
   period: "≈ 3 Apresentações ",
   description: "Pague uma vez e crie suas primeiras apresentações. Sem assinatura, sem compromisso.",
   volume: "400 créditos + 100 Bônus ",
-  cta: "Criar apresentação",
+  cta: "Pagamento único",
 };
 
 // PRO — 3.200 créditos/mês em qualquer ciclo (+ bônus permanente na 1ª ativação).
