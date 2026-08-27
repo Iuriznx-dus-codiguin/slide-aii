@@ -17,12 +17,12 @@ const sharedBenefits = [
 ];
 
 const perGen = {
-  name: "Geração única",
+  name: "Pagamento único",
   tagline: "Ideal para começar",
   price: "14,90",
-  period: "por apresentação",
-  description: "Pague uma vez e crie a sua primeira apresentação. Sem assinatura, sem compromisso.",
-  volume: "500 créditos (≈ 1 apresentação completa)",
+  period: "≈ 3 Apresentações ",
+  description: "Pague uma vez e crie suas primeiras apresentações. Sem assinatura, sem compromisso.",
+  volume: "400 créditos + 100 Bônus ",
   cta: "Criar apresentação",
 };
 
@@ -169,7 +169,7 @@ export const Pricing = () => {
               </p>
             )}
             <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-glow">
-              <Sparkles className="h-3 w-3" /> 3.200 créditos por mês
+               <Sparkles className="h-3 w-3" /> 3.200 créditos + 800 Bônus
             </div>
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
               <a href="/gerar">{proPrice.cta}</a>
@@ -215,7 +215,7 @@ export const Pricing = () => {
               </p>
             )}
             <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-3 py-1 text-xs font-bold text-white shadow-glow">
-              <Crown className="h-3 w-3" /> Gerações ilimitadas
+               <Crown className="h-3 w-3" /> Créditos ilimitados
             </div>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-amber-500/50 hover:bg-amber-500/10">
               <a href="/gerar">{maxPrice.cta}</a>
