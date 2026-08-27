@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Printer, Users, X, FileDown, FileText } from "lucide-react";
+import { Download, Printer, Users, X, FileDown, FileText, Sparkles, Loader2 } from "lucide-react";
 import { exportScriptToPdf, exportScriptToDocx } from "@/lib/exportScript";
 
 export interface PresenterEntry {
@@ -38,8 +38,12 @@ interface PresenterNotesPanelProps {
   presentationTitle: string;
   presentersNames: string[];
   onUpdate: (slideIdx: number, presenters: PresenterEntry[]) => void;
+  onRegenerate?: (scope: "slide" | "all") => void;
+  regenerating?: "slide" | "all" | null;
+  regensLeft?: number | null;
   onClose: () => void;
 }
+
 
 function downloadTxt(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -118,6 +122,9 @@ export const PresenterNotesPanel = ({
   presentationTitle,
   presentersNames,
   onUpdate,
+  onRegenerate,
+  regenerating = null,
+  regensLeft = null,
   onClose,
 }: PresenterNotesPanelProps) => {
   const current = slides[activeIdx];
@@ -192,6 +199,44 @@ export const PresenterNotesPanel = ({
           Slide {activeIdx + 1} — <span className="font-medium text-foreground">{current?.headline || "(sem título)"}</span>
         </p>
       </div>
+
+      {onRegenerate && (
+        <div className="px-3 py-2 border-b border-border space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1 h-7 text-[11px] gap-1"
+              disabled={regenerating !== null || regensLeft === 0}
+              onClick={() => onRegenerate("slide")}
+            >
+              {regenerating === "slide"
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <Sparkles className="h-3 w-3" />}
+              Regerar este slide
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-7 text-[11px] gap-1"
+              disabled={regenerating !== null || regensLeft === 0}
+              onClick={() => onRegenerate("all")}
+            >
+              {regenerating === "all"
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <Sparkles className="h-3 w-3" />}
+              Regerar todos
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {regensLeft === 0
+              ? "Limite de regenerações atingido para esta apresentação."
+              : regensLeft !== null
+                ? `${regensLeft} regenerações restantes (máx. 5 por apresentação).`
+                : "Máx. 5 regenerações de falas por apresentação."}
+          </p>
+        </div>
+      )}
 
       {presenters.length === 0 ? (
         <div className="p-4 text-center text-xs text-muted-foreground">

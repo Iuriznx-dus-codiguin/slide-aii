@@ -1,0 +1,1 @@
+ALTER TABLE public.presentations ADD COLUMN IF NOT EXISTS speech_regen_count integer NOT NULL DEFAULT 0;
