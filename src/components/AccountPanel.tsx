@@ -48,8 +48,12 @@ export const AccountPanel = () => {
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {isDev && "Acesso desenvolvedor — gerações ilimitadas e bypass de paywall ativo."}
-                {ent.plan === "single" && `${ent.single_credits} crédito${ent.single_credits === 1 ? "" : "s"} de geração disponível${ent.single_credits === 1 ? "" : "s"}.`}
-                {isSubscription && renews && `Renova em ${renews}.`}
+                {ent.plan === "single" && `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis.`}
+                {isSubscription && (
+                  isMaxPlan(ent.plan)
+                    ? `Gerações ilimitadas${renews ? ` — renova em ${renews}.` : "."}`
+                    : `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis (${ent.credits_monthly.toLocaleString("pt-BR")} mensais + ${ent.credits_bonus.toLocaleString("pt-BR")} bônus)${renews ? ` — renova em ${renews}.` : "."}`
+                )}
                 {ent.plan === "free" && "Você ainda não possui um plano. Adquira para gerar apresentações."}
               </p>
               {showRenewalNotice && (
