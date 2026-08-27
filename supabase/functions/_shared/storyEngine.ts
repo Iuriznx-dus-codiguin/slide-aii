@@ -161,7 +161,8 @@ export async function buildStoryOutline(
           messages: [{ role: "user", content: outlinePrompt(input) }],
           tools: OUTLINE_TOOL,
           tool_choice: { type: "function", function: { name: "set_story_outline" } },
-          max_completion_tokens: 1600,
+          // ~107 tokens por slide (1600 calibrados em 15 slides), com piso de 1600.
+          max_completion_tokens: Math.max(1600, Math.round(input.slidesCount * 107)),
         }),
         signal: controller.signal,
       });

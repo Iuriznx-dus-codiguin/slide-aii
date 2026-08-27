@@ -1,0 +1,10 @@
+REVOKE EXECUTE ON FUNCTION public.ensure_monthly_credits(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.consume_credits(uuid, integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.grant_bonus_credits(uuid, integer, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.set_monthly_credits(uuid, integer, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ensure_monthly_credits(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.consume_credits(uuid, integer) TO service_role;
+GRANT EXECUTE ON FUNCTION public.grant_bonus_credits(uuid, integer, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.set_monthly_credits(uuid, integer, text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.can_user_generate(uuid, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_user_generate(uuid, integer) TO authenticated, service_role;

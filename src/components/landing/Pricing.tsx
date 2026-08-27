@@ -22,11 +22,11 @@ const perGen = {
   price: "14,90",
   period: "por apresentação",
   description: "Pague uma vez e crie a sua primeira apresentação. Sem assinatura, sem compromisso.",
-  volume: "1 apresentação completa",
+  volume: "500 créditos (≈ 1 apresentação completa)",
   cta: "Criar apresentação",
 };
 
-// PRO — 20 gerações/mês em qualquer ciclo.
+// PRO — 3.200 créditos/mês em qualquer ciclo (+ bônus permanente na 1ª ativação).
 // Trimestral: 15% off vs mensal (49,90 × 3 × 0,85 ≈ 127,90).
 const pro = {
   mensal:     { price: "49,90",  period: "por mês",       cta: "Assinar PRO mensal" },
@@ -34,7 +34,7 @@ const pro = {
   anual:      { price: "397,90", period: "por ano",       cta: "Assinar PRO anual",      monthlyEquivalent: "33,16" },
 };
 
-// MAX — ilimitado (teto interno oculto).
+// MAX — ilimitado (16.000 créditos/mês internos).
 const max = {
   mensal:     { price: "147,90",   period: "por mês",       cta: "Assinar MAX mensal" },
   trimestral: { price: "377,90",   period: "por trimestre", cta: "Assinar MAX trimestral", monthlyEquivalent: "125,97" },
@@ -169,7 +169,7 @@ export const Pricing = () => {
               </p>
             )}
             <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-glow">
-              <Sparkles className="h-3 w-3" /> Até 20 gerações por mês
+              <Sparkles className="h-3 w-3" /> 3.200 créditos por mês
             </div>
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
               <a href="/gerar">{proPrice.cta}</a>

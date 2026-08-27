@@ -17,6 +17,7 @@ import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
+import { estimateCreditsCost } from "@/lib/cakto";
 import { toast } from "sonner";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
@@ -136,7 +137,7 @@ const Generate = () => {
     if (!tpl) return;
     setTitle(tpl.seed.title);
     setDescription(tpl.seed.description);
-    setSlidesCount(Math.min(15, tpl.seed.slidesCount));
+    setSlidesCount(Math.max(5, Math.min(20, tpl.seed.slidesCount)));
     setType(tpl.seed.type);
     setTheme(tpl.seed.theme);
     // fontStyle é derivado do contexto — templates não sobrescrevem mais.
@@ -215,8 +216,8 @@ const Generate = () => {
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
     await ent.refresh();
     if (!ent.allowed && !isDeveloper) {
-      if (ent.reason === "monthly_limit_reached") {
-        toast.error(reasonMessage("monthly_limit_reached"));
+      if (ent.reason === "insufficient_credits") {
+        toast.error(reasonMessage("insufficient_credits"));
         return;
       }
       if (ent.reason === "system_error") {
@@ -251,8 +252,8 @@ const Generate = () => {
 
       if (error) throw error;
       if (data?.error) {
-        if (data.reason === "monthly_limit_reached") {
-          toast.error(reasonMessage("monthly_limit_reached"));
+        if (data.reason === "insufficient_credits") {
+          toast.error(data.error || reasonMessage("insufficient_credits"));
           setPhase("form");
           return;
         }
@@ -818,8 +819,14 @@ const Generate = () => {
                 <Label>Número de slides</Label>
                 <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
-              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={15} step={1} />
-              <p className="text-xs text-muted-foreground">De 3 a 15 slides — recomendado entre 6 e 12 para máxima coesão narrativa.</p>
+              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} />
+              <p className="text-xs text-muted-foreground">De 5 a 20 slides — recomendado entre 8 e 14 para máxima coesão narrativa.</p>
+              {!isDeveloper && (
+                <p className="text-xs text-muted-foreground">
+                  Custo estimado: <span className="font-semibold text-foreground">{estimateCreditsCost(slidesCount, textDepth, includeSpeeches).toLocaleString("pt-BR")} créditos</span>
+                  {ent.credits_available > 0 && ` — saldo atual: ${ent.credits_available.toLocaleString("pt-BR")}`}
+                </p>
+              )}
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">

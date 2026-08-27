@@ -2,22 +2,27 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
-import { PLAN_MONTHLY_LIMITS, isProPlan, isMaxPlan } from "@/lib/cakto";
+import { PLAN_MONTHLY_CREDITS, isProPlan, isMaxPlan } from "@/lib/cakto";
 
 export interface Entitlement {
   allowed: boolean;
   reason:
     | "dev" | "single" | "subscription"
-    | "no_plan" | "system_error" | "monthly_limit_reached"
+    | "no_plan" | "system_error" | "insufficient_credits"
     | "subscription_canceled" | "subscription_expired" | "loading";
   plan:
     | "free" | "single"
     | "mensal" | "trimestral" | "anual"
     | "max_mensal" | "max_trimestral" | "max_anual"
     | "dev";
-  single_credits: number;
-  used_this_month: number;
-  monthly_limit: number;
+  /** Créditos permanentes (comprados/bônus) — consumidos primeiro. */
+  credits_bonus: number;
+  /** Créditos mensais renováveis do plano. */
+  credits_monthly: number;
+  /** Soma disponível agora. */
+  credits_available: number;
+  /** Cota mensal do plano (0 para avulso/free). */
+  monthly_allowance: number;
   subscription_renews_at: string | null;
   subscription_status: string | null;
   loading: boolean;
@@ -31,8 +36,8 @@ export const needsRenewal = (reason: Entitlement["reason"]): boolean =>
 /** Mensagem amigável por `ent.reason`. */
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
-    case "monthly_limit_reached":
-      return "Você atingiu o limite deste mês. O limite renova no início do próximo período.";
+    case "insufficient_credits":
+      return "Seus créditos acabaram. A cota mensal renova no início do próximo mês — ou adquira uma geração avulsa.";
     case "system_error":
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
     case "subscription_canceled":
@@ -51,8 +56,8 @@ export const useEntitlement = (): Entitlement => {
   const { user } = useAuth();
   const { isDeveloper } = useDeveloperRole();
   const [state, setState] = useState<Omit<Entitlement, "refresh">>({
-    allowed: false, reason: "loading", plan: "free", single_credits: 0,
-    used_this_month: 0, monthly_limit: 20,
+    allowed: false, reason: "loading", plan: "free",
+    credits_bonus: 0, credits_monthly: 0, credits_available: 0, monthly_allowance: 0,
     subscription_renews_at: null, subscription_status: null, loading: true,
   });
 
@@ -61,24 +66,23 @@ export const useEntitlement = (): Entitlement => {
       setState((s) => ({ ...s, loading: false, allowed: false, reason: "no_plan" }));
       return;
     }
-    const [{ data: profile }, { count }] = await Promise.all([
-      supabase.from("profiles")
-        .select("plan, single_credits, subscription_renews_at, subscription_status")
-        .eq("id", user.id).maybeSingle(),
-      supabase.from("generation_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id).eq("status", "success")
-        // UTC de propósito: o servidor (can_user_generate) usa
-        // date_trunc('month', now()) em UTC. Calcular o início do mês em
-        // horário local fazia a tela mostrar uma cota diferente da aplicada
-        // na cobrança nos primeiros/últimos dias do mês.
-        .gte("created_at", new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString()),
-    ]);
+    const { data: profile } = await supabase.from("profiles")
+      .select("plan, credits_bonus, credits_monthly, credits_cycle_anchor, subscription_renews_at, subscription_status")
+      .eq("id", user.id).maybeSingle();
 
     const plan = (profile?.plan ?? "free") as Entitlement["plan"];
-    const single = (profile as any)?.single_credits ?? 0;
-    const used = count ?? 0;
-    const limit = PLAN_MONTHLY_LIMITS[plan] ?? 20;
+    const bonus = (profile as any)?.credits_bonus ?? 0;
+    const allowance = PLAN_MONTHLY_CREDITS[plan] ?? 0;
+    // Reset preguiçoso: o banco só persiste a redefinição no próximo débito,
+    // então a UI calcula o saldo mensal efetivo do mês corrente (UTC), igual
+    // ao que can_user_generate devolve.
+    const anchor = (profile as any)?.credits_cycle_anchor as string | null;
+    const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1))
+      .toISOString().slice(0, 10);
+    const monthly = allowance > 0 && (!anchor || anchor < monthStart)
+      ? allowance
+      : ((profile as any)?.credits_monthly ?? 0);
+    const available = bonus + monthly;
 
     const subStatus = (profile as any)?.subscription_status ?? null;
     const renewsAt = (profile as any)?.subscription_renews_at ?? null;
@@ -97,19 +101,19 @@ export const useEntitlement = (): Entitlement => {
       allowed = false; reason = "subscription_canceled";
     }
     else if (expired) { allowed = false; reason = "subscription_expired"; }
-    else if (plan === "single" && single > 0) { allowed = true; reason = "single"; }
-    else if (isProPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
-    else if (isMaxPlan(plan) && used < limit) { allowed = true; reason = "subscription"; }
-    else if (isProPlan(plan)) { allowed = false; reason = "monthly_limit_reached"; }
+    else if (plan === "single" && available > 0) { allowed = true; reason = "single"; }
+    else if ((isProPlan(plan) || isMaxPlan(plan)) && available > 0) { allowed = true; reason = "subscription"; }
+    else if (isProPlan(plan) || plan === "single") { allowed = false; reason = "insufficient_credits"; }
     else if (isMaxPlan(plan)) { allowed = false; reason = "system_error"; }
 
 
     setState({
       allowed, reason,
       plan: isDeveloper ? "dev" : plan,
-      single_credits: single,
-      used_this_month: used,
-      monthly_limit: limit,
+      credits_bonus: bonus,
+      credits_monthly: monthly,
+      credits_available: available,
+      monthly_allowance: allowance,
       subscription_renews_at: (profile as any)?.subscription_renews_at ?? null,
       subscription_status: subStatus,
       loading: false,
