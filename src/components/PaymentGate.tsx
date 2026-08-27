@@ -138,7 +138,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
             <div className="font-display font-bold mt-1">Plano PRO</div>
             <div className="text-lg font-semibold mt-1">{PLAN_PRICES[proId]}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-gradient-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-glow">
-              <Sparkles className="h-2.5 w-2.5" /> 20 gerações/mês
+              <Sparkles className="h-2.5 w-2.5" /> 3.200 créditos/mês
             </div>
             <Button size="sm" variant="hero" className="w-full mt-4 gap-1.5" onClick={() => startCheckout(proId)}>
               Pagar agora <ExternalLink className="h-3 w-3" />

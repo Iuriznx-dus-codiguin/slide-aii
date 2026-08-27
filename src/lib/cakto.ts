@@ -2,12 +2,12 @@
 //
 // Planos:
 // - "single":         Geração única (R$ 14,90)
-// - "mensal":         PRO Mensal      (R$ 49,90/mês)   — 20 gerações/mês
-// - "trimestral":     PRO Trimestral  (R$ 127,90/3m)   — 20 gerações/mês  (~15% off)
-// - "anual":          PRO Anual       (R$ 397,90/ano)  — 20 gerações/mês
-// - "max_mensal":     MAX Mensal      (R$ 147,90/mês)  — ilimitado (teto interno 100/mês)
-// - "max_trimestral": MAX Trimestral  (R$ 377,90/3m)   — ilimitado (teto interno 100/mês)
-// - "max_anual":      MAX Anual       (R$ 1.175,00/ano) — ilimitado (teto interno 100/mês)
+// - "mensal":         PRO Mensal      (R$ 49,90/mês)   — 3.200 créditos/mês
+// - "trimestral":     PRO Trimestral  (R$ 127,90/3m)   — 3.200 créditos/mês  (~15% off)
+// - "anual":          PRO Anual       (R$ 397,90/ano)  — 3.200 créditos/mês
+// - "max_mensal":     MAX Mensal      (R$ 147,90/mês)  — ilimitado (16.000 créditos/mês)
+// - "max_trimestral": MAX Trimestral  (R$ 377,90/3m)   — ilimitado (16.000 créditos/mês)
+// - "max_anual":      MAX Anual       (R$ 1.175,00/ano) — ilimitado (16.000 créditos/mês)
 export type PaidPlan =
   | "single"
   | "mensal" | "trimestral" | "anual"
@@ -51,15 +51,41 @@ export const PLAN_PRICES: Record<PaidPlan, string> = {
   max_anual:      "R$ 1.175,00/ano",
 };
 
-/** Limite mensal de gerações por plano. MAX tem teto oculto de 100 (retorna erro genérico). */
-export const PLAN_MONTHLY_LIMITS: Record<string, number> = {
-  mensal: 20,
-  trimestral: 20,
-  anual: 20,
-  max_mensal: 100,
-  max_trimestral: 100,
-  max_anual: 100,
+/** Cota mensal de créditos por plano (renovável a cada mês). */
+export const PLAN_MONTHLY_CREDITS: Record<string, number> = {
+  mensal: 3200,
+  trimestral: 3200,
+  anual: 3200,
+  max_mensal: 16000,
+  max_trimestral: 16000,
+  max_anual: 16000,
 };
+
+/** Bônus permanente concedido só na PRIMEIRA ativação da assinatura. */
+export const PLAN_SIGNUP_BONUS: Record<string, number> = {
+  mensal: 800,
+  trimestral: 1200,
+  anual: 2000,
+  max_mensal: 0,
+  max_trimestral: 0,
+  max_anual: 0,
+};
+
+/** Créditos permanentes creditados por compra avulsa (400 + 100 de bônus). */
+export const SINGLE_PURCHASE_CREDITS = 500;
+
+/** Custo em créditos de uma geração: 10/slide + profundidade + falas. */
+export const CREDITS_PER_SLIDE = 10;
+export const DEPTH_CREDITS: Record<string, number> = { short: 10, balanced: 20, long: 30 };
+export const SPEECHES_CREDITS = 50;
+export const estimateCreditsCost = (
+  slidesCount: number,
+  textDepth: string = "balanced",
+  includeSpeeches = false,
+): number =>
+  Math.max(5, Math.min(20, Math.round(slidesCount || 8))) * CREDITS_PER_SLIDE
+  + (DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced)
+  + (includeSpeeches ? SPEECHES_CREDITS : 0);
 
 export const isProPlan = (p?: string | null) =>
   p === "mensal" || p === "trimestral" || p === "anual";

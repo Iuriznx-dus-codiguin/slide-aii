@@ -136,7 +136,7 @@ const Generate = () => {
     if (!tpl) return;
     setTitle(tpl.seed.title);
     setDescription(tpl.seed.description);
-    setSlidesCount(Math.min(15, tpl.seed.slidesCount));
+    setSlidesCount(Math.max(5, Math.min(20, tpl.seed.slidesCount)));
     setType(tpl.seed.type);
     setTheme(tpl.seed.theme);
     // fontStyle é derivado do contexto — templates não sobrescrevem mais.
@@ -818,8 +818,8 @@ const Generate = () => {
                 <Label>Número de slides</Label>
                 <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
-              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={3} max={15} step={1} />
-              <p className="text-xs text-muted-foreground">De 3 a 15 slides — recomendado entre 6 e 12 para máxima coesão narrativa.</p>
+              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} />
+              <p className="text-xs text-muted-foreground">De 5 a 20 slides — recomendado entre 8 e 14 para máxima coesão narrativa.</p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
