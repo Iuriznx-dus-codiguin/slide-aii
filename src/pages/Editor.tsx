@@ -710,8 +710,12 @@ const Editor = () => {
             presentationTitle={pres.title}
             presentersNames={pres.presenters_names ?? []}
             onUpdate={updatePresenters}
+            onRegenerate={regenerateSpeeches}
+            regenerating={regeneratingSpeech}
+            regensLeft={regensLeft}
             onClose={() => setNotesOpen(false)}
           />
+
         )}
 
         {/* Right: inspector */}
