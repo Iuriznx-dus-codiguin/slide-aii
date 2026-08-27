@@ -36,6 +36,24 @@ import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "..
 import { createLogger } from "../_shared/observability.ts";
 
 
+// ───────────── Faixa de slides e custo em créditos ─────────────
+export const MIN_SLIDES = 5;
+export const MAX_SLIDES = 20;
+const CREDITS_PER_SLIDE = 10;
+const DEPTH_CREDITS: Record<string, number> = { short: 10, balanced: 20, long: 30 };
+const SPEECHES_CREDITS = 50;
+
+export function computeCreditsCost(input: {
+  slidesCount: number;
+  textDepth?: string | null;
+  includeSpeeches?: boolean;
+}): number {
+  const slides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(input.slidesCount || 8)));
+  return slides * CREDITS_PER_SLIDE
+    + (DEPTH_CREDITS[input.textDepth ?? "balanced"] ?? DEPTH_CREDITS.balanced)
+    + (input.includeSpeeches ? SPEECHES_CREDITS : 0);
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -310,8 +328,22 @@ Deno.serve(async (req) => {
   const userId = userData.user.id;
   log.setUser(userId);
 
-  // Verifica permissão via função SQL
-  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
+  // ───────────── Corpo lido ANTES do entitlement ─────────────
+  // O custo em créditos depende do pedido (slides, profundidade, falas),
+  // então o corpo precisa estar disponível já na checagem de saldo.
+  let rawBody: any = {};
+  try { rawBody = await req.json(); } catch { rawBody = {}; }
+  const requestedSlides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Number(rawBody?.slidesCount) || 8));
+  const creditsCost = computeCreditsCost({
+    slidesCount: requestedSlides,
+    textDepth: rawBody?.textDepth,
+    includeSpeeches: !!rawBody?.includeSpeeches,
+  });
+
+  // Verifica permissão via função SQL (agora por SALDO de créditos)
+  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", {
+    _uid: userId, _credits_cost: creditsCost,
+  });
   if (entErr) {
     console.error("can_user_generate err:", entErr);
     return new Response(JSON.stringify({ error: "Erro interno (E_INTERNAL_503). Tente novamente em alguns minutos." }), {
@@ -322,12 +354,15 @@ Deno.serve(async (req) => {
   if (!ent.allowed) {
     await log.security("forbidden", { status: 403, detail: { reason: ent.reason, plan: ent.plan } });
     // Bloco 9: monthly_limit_reached → 429 com mensagem explícita
-    if (ent.reason === "monthly_limit_reached") {
+    if (ent.reason === "insufficient_credits") {
+      const available = (ent as any).credits ?? 0;
       return new Response(JSON.stringify({
-        error: "Você atingiu o limite de 20 gerações este mês. Seu limite renova no início do próximo mês.",
-        reason: "monthly_limit_reached",
+        error: `Créditos insuficientes: esta geração custa ${creditsCost} créditos e você tem ${available}.`,
+        reason: "insufficient_credits",
+        credits: available,
+        required: creditsCost,
       }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (ent.reason === "system_error") {
@@ -379,8 +414,27 @@ Deno.serve(async (req) => {
   }
 
 
+  // ───────────── Débito imediato (antes de gastar IA) ─────────────
+  // O crédito é cobrado assim que a geração começa e NUNCA é revertido:
+  // o custo de IA já foi assumido mesmo se o usuário fechar a aba no meio.
+  if (!isDev && creditsCost > 0) {
+    const { data: charge, error: chargeErr } = await admin.rpc("consume_credits", {
+      _uid: userId, _credits_cost: creditsCost,
+    });
+    const result = charge as { ok?: boolean; reason?: string; available?: number } | null;
+    if (chargeErr || !result?.ok) {
+      await log.security("forbidden", { status: 402, detail: { reason: result?.reason ?? "charge_failed" } });
+      return new Response(JSON.stringify({
+        error: `Créditos insuficientes: esta geração custa ${creditsCost} créditos.`,
+        reason: "insufficient_credits",
+        credits: result?.available ?? 0,
+        required: creditsCost,
+      }), { status: 402, headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" } });
+    }
+  }
+
   try {
-    const body: GenerateRequest = await req.json();
+    const body: GenerateRequest = rawBody as GenerateRequest;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const useOpenAI = !!OPENAI_API_KEY;
@@ -400,7 +454,7 @@ Deno.serve(async (req) => {
     if (!body.title) throw new Error("Título obrigatório.");
 
 
-    const slidesCount = Math.max(3, Math.min(15, body.slidesCount || 8));
+    const slidesCount = requestedSlides;
     const isAutoTheme = body.theme === "auto";
     const presenters = Math.max(1, body.presentersCount ?? 1);
 
@@ -583,8 +637,13 @@ LEMBRETE CRÍTICO:
       ],
       tools,
       tool_choice: { type: "function", function: { name: "create_presentation" } },
-      // gpt-4.1 aceita até 32768; mantemos abaixo do teto para evitar 400 por payload grande.
-      max_completion_tokens: body.includeSpeeches ? 16384 : 12000,
+      // Escalado por slide (mesma razão calibrada em 15 slides: 800/slide sem
+      // falas, ~1092/slide com falas). Sem isso, decks de 20 saem truncados.
+      // Teto 32000 porque gpt-4.1 aceita até 32768.
+      max_completion_tokens: Math.min(
+        32000,
+        Math.max(8000, Math.round(slidesCount * (body.includeSpeeches ? 1092 : 800))),
+      ),
     };
 
     let aiResponse = await fetch(endpoint, {
@@ -650,7 +709,7 @@ LEMBRETE CRÍTICO:
 
     // Se veio muito menos que o pedido, tenta uma segunda passagem pelo Gemini
     // exigindo o número exato de slides. Evita cair no fallback com 1 slide só.
-    if (parsed.slides.length < Math.max(3, Math.ceil(slidesCount * 0.7)) && LOVABLE_API_KEY) {
+    if (parsed.slides.length < Math.max(MIN_SLIDES, Math.ceil(slidesCount * 0.7)) && LOVABLE_API_KEY) {
       console.warn("Contagem de slides baixa:", parsed.slides.length, "de", slidesCount, "— nova tentativa Gemini");
       try {
         const retry = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -797,11 +856,6 @@ LEMBRETE CRÍTICO:
     const actualCost = +(textUsd + imageUsd).toFixed(4);
     const estimatedCost = typeof body.max_budget_usd === "number" ? +body.max_budget_usd.toFixed(4) : actualCost;
 
-    // Consome crédito single quando aplicável
-    if (ent.plan === "single") {
-      await admin.rpc("consume_single_credit", { _uid: userId });
-    }
-
     // Contador de perfil incrementado no servidor (antes era autodeclarado
     // pelo cliente, o que podia divergir de generation_logs).
     await admin.rpc("increment_profile_generations", { _uid: userId });
@@ -815,6 +869,7 @@ LEMBRETE CRÍTICO:
       model,
       mode: budgetMode,
       slides_count: parsed.slides.length,
+      credits_charged: isDev ? 0 : creditsCost,
       images_pexels: imagesPexels,
       images_ai: imagesAi,
       estimated_cost_usd: estimatedCost,
@@ -837,6 +892,9 @@ LEMBRETE CRÍTICO:
     await admin.from("generation_logs").insert({
       user_id: userId, status: "error",
       reason: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+      // O crédito foi debitado antes da geração e não é revertido — o log de
+      // erro registra a mesma cobrança do log de sucesso.
+      credits_charged: isDev ? 0 : creditsCost,
       duration_ms: Date.now() - t0,
     });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
