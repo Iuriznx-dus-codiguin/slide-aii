@@ -28,7 +28,8 @@ describe("portfólio público — permissões", () => {
     for (const row of data ?? []) {
       expect(Object.keys(row)).not.toContain("email");
       expect(Object.keys(row)).not.toContain("plan");
-      expect(Object.keys(row)).not.toContain("single_credits");
+      expect(Object.keys(row)).not.toContain("credits_bonus");
+      expect(Object.keys(row)).not.toContain("credits_monthly");
     }
   });
 

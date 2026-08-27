@@ -215,8 +215,8 @@ const Generate = () => {
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
     await ent.refresh();
     if (!ent.allowed && !isDeveloper) {
-      if (ent.reason === "monthly_limit_reached") {
-        toast.error(reasonMessage("monthly_limit_reached"));
+      if (ent.reason === "insufficient_credits") {
+        toast.error(reasonMessage("insufficient_credits"));
         return;
       }
       if (ent.reason === "system_error") {
@@ -251,8 +251,8 @@ const Generate = () => {
 
       if (error) throw error;
       if (data?.error) {
-        if (data.reason === "monthly_limit_reached") {
-          toast.error(reasonMessage("monthly_limit_reached"));
+        if (data.reason === "insufficient_credits") {
+          toast.error(data.error || reasonMessage("insufficient_credits"));
           setPhase("form");
           return;
         }
