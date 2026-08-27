@@ -2,7 +2,7 @@ import { CreditCard, CheckCircle2, AlertCircle, ExternalLink, Crown, Zap, Calend
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEntitlement } from "@/hooks/useEntitlement";
-import { CHECKOUT_URLS, PLAN_LABELS, isSubscriptionPlan } from "@/lib/cakto";
+import { CHECKOUT_URLS, PLAN_LABELS, isSubscriptionPlan, isMaxPlan } from "@/lib/cakto";
 
 /** Seção "Minha conta" no Dashboard. */
 export const AccountPanel = () => {
