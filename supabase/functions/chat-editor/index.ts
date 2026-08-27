@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
   // tem direito de uso). Some-se um rate limit próprio como cinto de
   // segurança adicional, já que edição por chat pode ser chamada com maior
   // frequência que uma geração completa.
-  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId });
+  const { data: entitle, error: entErr } = await admin.rpc("can_user_generate", { _uid: userId, _credits_cost: 0 });
   if (entErr) {
     console.error("chat-editor: can_user_generate err:", entErr);
     return new Response(JSON.stringify({ error: "Erro interno. Tente novamente em instantes." }), {

@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   if (!presentationId) return json({ error: "Apresentação não informada." }, 400);
 
   // Elegibilidade (não consome geração — função somente-leitura)
-  const { data: entitle } = await admin.rpc("can_user_generate", { _uid: userId });
+  const { data: entitle } = await admin.rpc("can_user_generate", { _uid: userId, _credits_cost: 0 });
   const allowed = typeof entitle === "object" && entitle !== null
     ? (entitle as any).allowed !== false
     : entitle !== false;
