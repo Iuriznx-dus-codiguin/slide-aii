@@ -19,6 +19,23 @@ import {
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 
+// ── Tabela de créditos por plano ──
+// Avulso (R$14,90) credita 500 créditos permanentes (400 + 100 de vitrine).
+const SINGLE_PURCHASE_CREDITS = 500;
+const SUBSCRIPTION_PLANS = [
+  "mensal", "trimestral", "anual", "max_mensal", "max_trimestral", "max_anual",
+];
+/** Cota mensal renovável (redefinida a cada ciclo). */
+const PLAN_MONTHLY_CREDITS: Record<string, number> = {
+  mensal: 3200, trimestral: 3200, anual: 3200,
+  max_mensal: 16000, max_trimestral: 16000, max_anual: 16000,
+};
+/** Bônus permanente concedido só na PRIMEIRA ativação da assinatura. */
+const PLAN_SIGNUP_BONUS: Record<string, number> = {
+  mensal: 800, trimestral: 1200, anual: 2000,
+  max_mensal: 0, max_trimestral: 0, max_anual: 0,
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cakto-token, x-cakto-secret, x-webhook-secret, x-webhook-token, x-signature, x-request-id",
@@ -156,20 +173,67 @@ Deno.serve(async (req) => {
       const periodMonths = cyclePeriodMonths(plan);
       const renewsAt = periodMonths ? addMonths(now, periodMonths) : null;
 
-      const patch: Record<string, unknown> = {
-        plan,
-        subscription_status: "active",
-        subscription_period_start: now.toISOString(),
-        cakto_customer_id: customerId ?? null,
-        cakto_subscription_id: subscriptionId ?? null,
-      };
-      if (renewsAt) patch.subscription_renews_at = renewsAt.toISOString();
+      const { data: before } = await admin
+        .from("profiles")
+        .select("plan, subscription_status, cakto_subscription_id")
+        .eq("id", userId)
+        .maybeSingle();
 
-      await admin.from("profiles").update(patch).eq("id", userId);
+      const prevPlan = (before?.plan ?? "free") as string;
+      const prevIsSubscriber = SUBSCRIPTION_PLANS.includes(prevPlan)
+        && (before?.subscription_status ?? "active") !== "canceled";
 
       if (plan === "single") {
-        const { error: creditErr } = await admin.rpc("grant_single_credit", { _uid: userId });
-        if (creditErr) log.error("grant_single_credit_failed", { message: creditErr.message });
+        // Compra avulsa NÃO rebaixa o plano de quem já é assinante ativo:
+        // apenas credita o bônus permanente (500 = 400 + 100 de vitrine).
+        const patch: Record<string, unknown> = {
+          cakto_customer_id: customerId ?? before?.cakto_customer_id ?? null,
+        };
+        if (!prevIsSubscriber) {
+          patch.plan = "single";
+          patch.subscription_status = null;
+        }
+        await admin.from("profiles").update(patch).eq("id", userId);
+
+        const { error: creditErr } = await admin.rpc("grant_bonus_credits", {
+          _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
+        });
+        if (creditErr) log.error("grant_bonus_credits_failed", { message: creditErr.message });
+      } else {
+        const patch: Record<string, unknown> = {
+          plan,
+          subscription_status: "active",
+          subscription_period_start: now.toISOString(),
+          cakto_customer_id: customerId ?? null,
+          cakto_subscription_id: subscriptionId ?? null,
+        };
+        if (renewsAt) patch.subscription_renews_at = renewsAt.toISOString();
+        await admin.from("profiles").update(patch).eq("id", userId);
+
+        // Cota mensal SEMPRE redefinida (ativação ou renovação).
+        const monthly = PLAN_MONTHLY_CREDITS[plan] ?? 0;
+        const { error: monthlyErr } = await admin.rpc("set_monthly_credits", {
+          _uid: userId, _amount: monthly, _type: "subscription_monthly",
+        });
+        if (monthlyErr) log.error("set_monthly_credits_failed", { message: monthlyErr.message });
+
+        // Bônus permanente APENAS na primeira ativação — nunca em renovação.
+        const isRenewal = event_type.includes("renew")
+          || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
+        const isFirstActivation = !isRenewal && (
+          !before?.cakto_subscription_id
+          || (!!subscriptionId && before.cakto_subscription_id !== subscriptionId)
+          || event_type.includes("purchase_approved")
+          || event_type.includes("created")
+        );
+        const signupBonus = PLAN_SIGNUP_BONUS[plan] ?? 0;
+        if (isFirstActivation && signupBonus > 0) {
+          const { error: bonusErr } = await admin.rpc("grant_bonus_credits", {
+            _uid: userId, _amount: signupBonus, _type: "subscription_signup_bonus",
+          });
+          if (bonusErr) log.error("grant_signup_bonus_failed", { message: bonusErr.message });
+        }
+        log.info("subscription_credits", { plan, monthly, isRenewal, isFirstActivation });
       }
     } else if (action === "refund") {
       await admin.from("profiles").update({
