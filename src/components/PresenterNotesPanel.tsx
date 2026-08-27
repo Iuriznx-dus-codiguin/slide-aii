@@ -38,8 +38,12 @@ interface PresenterNotesPanelProps {
   presentationTitle: string;
   presentersNames: string[];
   onUpdate: (slideIdx: number, presenters: PresenterEntry[]) => void;
+  onRegenerate?: (scope: "slide" | "all") => void;
+  regenerating?: "slide" | "all" | null;
+  regensLeft?: number | null;
   onClose: () => void;
 }
+
 
 function downloadTxt(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
