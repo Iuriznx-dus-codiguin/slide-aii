@@ -61,6 +61,39 @@ export type Database = {
           },
         ]
       }
+      credit_transactions: {
+        Row: {
+          amount: number
+          balance_bonus_after: number
+          balance_monthly_after: number
+          created_at: string
+          id: string
+          metadata: Json
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_bonus_after: number
+          balance_monthly_after: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_bonus_after?: number
+          balance_monthly_after?: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       edge_rate_limits: {
         Row: {
           fn_name: string
@@ -226,6 +259,7 @@ export type Database = {
         Row: {
           actual_cost_usd: number
           created_at: string
+          credits_charged: number
           duration_ms: number
           estimated_cost_usd: number
           id: string
@@ -243,6 +277,7 @@ export type Database = {
         Insert: {
           actual_cost_usd?: number
           created_at?: string
+          credits_charged?: number
           duration_ms?: number
           estimated_cost_usd?: number
           id?: string
@@ -260,6 +295,7 @@ export type Database = {
         Update: {
           actual_cost_usd?: number
           created_at?: string
+          credits_charged?: number
           duration_ms?: number
           estimated_cost_usd?: number
           id?: string
@@ -473,6 +509,9 @@ export type Database = {
           cakto_customer_id: string | null
           cakto_subscription_id: string | null
           created_at: string
+          credits_bonus: number
+          credits_cycle_anchor: string | null
+          credits_monthly: number
           email: string | null
           full_name: string | null
           generations_count: number
@@ -481,7 +520,6 @@ export type Database = {
           location: string | null
           plan: string
           role: string | null
-          single_credits: number
           social_links: Json
           subscription_period_start: string | null
           subscription_renews_at: string | null
@@ -498,6 +536,9 @@ export type Database = {
           cakto_customer_id?: string | null
           cakto_subscription_id?: string | null
           created_at?: string
+          credits_bonus?: number
+          credits_cycle_anchor?: string | null
+          credits_monthly?: number
           email?: string | null
           full_name?: string | null
           generations_count?: number
@@ -506,7 +547,6 @@ export type Database = {
           location?: string | null
           plan?: string
           role?: string | null
-          single_credits?: number
           social_links?: Json
           subscription_period_start?: string | null
           subscription_renews_at?: string | null
@@ -523,6 +563,9 @@ export type Database = {
           cakto_customer_id?: string | null
           cakto_subscription_id?: string | null
           created_at?: string
+          credits_bonus?: number
+          credits_cycle_anchor?: string | null
+          credits_monthly?: number
           email?: string | null
           full_name?: string | null
           generations_count?: number
@@ -531,7 +574,6 @@ export type Database = {
           location?: string | null
           plan?: string
           role?: string | null
-          single_credits?: number
           social_links?: Json
           subscription_period_start?: string | null
           subscription_renews_at?: string | null
@@ -819,7 +861,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      can_user_generate: { Args: { _uid: string }; Returns: Json }
+      can_user_generate: {
+        Args: { _credits_cost?: number; _uid: string }
+        Returns: Json
+      }
       can_view_portfolio: {
         Args: { _owner: string; _viewer: string }
         Returns: boolean
@@ -832,7 +877,11 @@ export type Database = {
         Args: { _fn: string; _key: string; _max_per_day: number }
         Returns: boolean
       }
-      consume_single_credit: { Args: { _uid: string }; Returns: boolean }
+      consume_credits: {
+        Args: { _credits_cost: number; _uid: string }
+        Returns: Json
+      }
+      ensure_monthly_credits: { Args: { _uid: string }; Returns: undefined }
       generate_ticket_id: { Args: never; Returns: string }
       get_portfolio_presentations: {
         Args: { _owner: string }
@@ -878,7 +927,10 @@ export type Database = {
           website: string
         }[]
       }
-      grant_single_credit: { Args: { _uid: string }; Returns: number }
+      grant_bonus_credits: {
+        Args: { _amount: number; _type?: string; _uid: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -888,6 +940,11 @@ export type Database = {
       }
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
+      plan_monthly_credits: { Args: { _plan: string }; Returns: number }
+      set_monthly_credits: {
+        Args: { _amount: number; _type?: string; _uid: string }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "developer" | "user"
