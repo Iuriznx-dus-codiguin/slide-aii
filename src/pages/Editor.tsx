@@ -249,6 +249,46 @@ const Editor = () => {
     });
   };
 
+  // ── Regeneração de falas por IA (slide atual ou deck inteiro) ──
+  const [regeneratingSpeech, setRegeneratingSpeech] = useState<"slide" | "all" | null>(null);
+  const [regensLeft, setRegensLeft] = useState<number | null>(null);
+
+  const regenerateSpeeches = async (scope: "slide" | "all") => {
+    if (!pres || regeneratingSpeech) return;
+    setRegeneratingSpeech(scope);
+    try {
+      const { data, error } = await supabase.functions.invoke("regenerate-speeches", {
+        body: { presentationId: pres.id, scope, slideIndex: activeIdx },
+      });
+      const payload: any = data ?? {};
+      if (error || payload?.error) {
+        toast.error(payload?.error || "Não foi possível regenerar as falas.");
+        if (payload?.limitReached) setRegensLeft(0);
+        return;
+      }
+      pushSnapshot();
+      setSlides((prev) => {
+        const copy = [...prev];
+        for (const u of payload.updated ?? []) {
+          const i = copy.findIndex((_, idx) => idx === u.position);
+          if (i >= 0) copy[i] = { ...copy[i], presenters_data: u.presenters_data };
+        }
+        return copy;
+      });
+      if (typeof payload.remaining === "number") setRegensLeft(payload.remaining);
+      toast.success(
+        scope === "all"
+          ? "Falas de toda a apresentação regeneradas."
+          : `Falas do slide ${activeIdx + 1} regeneradas.`,
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao regenerar falas.");
+    } finally {
+      setRegeneratingSpeech(null);
+    }
+  };
+
+
   const undo = () => {
     const last = undoStack.current.pop();
     if (!last) return;
