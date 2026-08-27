@@ -17,6 +17,7 @@ import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
+import { estimateCreditsCost } from "@/lib/cakto";
 import { toast } from "sonner";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
