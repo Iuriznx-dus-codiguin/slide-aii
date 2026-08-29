@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AccountPanel } from "@/components/AccountPanel";
+import { CreditsPanel } from "@/components/CreditsPanel";
+
 import { uploadAvatar } from "@/lib/avatarUpload";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
