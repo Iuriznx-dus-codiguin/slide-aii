@@ -313,6 +313,11 @@ const ProfilePage = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="creditos">
+            <CreditsPanel />
+          </TabsContent>
+
+
           <TabsContent value="perfil">
             <form onSubmit={(e) => { e.preventDefault(); saveAll(); }} className="space-y-4 bg-card border border-border rounded-2xl p-6">
               <div className="grid md:grid-cols-2 gap-4">
