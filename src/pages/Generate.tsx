@@ -910,11 +910,17 @@ const Generate = () => {
                 <Select value={textDepth} onValueChange={(v) => setTextDepth(v as typeof textDepth)}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="short">Curto — uma ideia afiada por slide</SelectItem>
-                    <SelectItem value="balanced">Equilibrado — clareza com substância</SelectItem>
-                    <SelectItem value="long">Longo — contexto, causa, exemplo e implicação</SelectItem>
+                    <SelectItem value="short">Curto — uma ideia afiada por slide (+10 créditos)</SelectItem>
+                    <SelectItem value="balanced">Equilibrado — clareza com substância (+20 créditos)</SelectItem>
+                    <SelectItem value="long">Longo — contexto, causa, exemplo e implicação (+30 créditos)</SelectItem>
                   </SelectContent>
                 </Select>
+                {!isDeveloper && (
+                  <div className="mt-2">
+                    <CostChip label="Profundidade dos textos" value={DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced} />
+                  </div>
+                )}
+
               </div>
             </div>
 
