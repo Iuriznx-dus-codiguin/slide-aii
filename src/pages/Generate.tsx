@@ -27,7 +27,15 @@ import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
-import { Lock, CreditCard, RefreshCw, AlertTriangle } from "lucide-react";
+import { Lock, CreditCard, RefreshCw, AlertTriangle, Coins } from "lucide-react";
+
+/** Etiqueta de custo em créditos de uma etapa do formulário. */
+const CostChip = ({ label, value }: { label: string; value: number }) => (
+  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary">
+    <Coins className="h-3 w-3" /> {label} · +{value.toLocaleString("pt-BR")} créditos
+  </span>
+);
+
 
 
 // Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
