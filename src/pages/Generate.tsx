@@ -959,16 +959,56 @@ const Generate = () => {
                   ))}
                 </div>
               )}
-              <div className="flex items-center justify-between rounded-xl border border-border p-3">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm">Gerar falas dos apresentadores</div>
-                  <div className="text-[11px] text-muted-foreground">Script conciso (40-80 palavras) por slide, distribuído em blocos</div>
+              <div className="rounded-xl border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">Gerar falas dos apresentadores</div>
+                    <div className="text-[11px] text-muted-foreground">Script conciso (40-80 palavras) por slide, distribuído em blocos</div>
+                  </div>
+                  <Switch checked={includeSpeeches} onCheckedChange={setIncludeSpeeches} />
                 </div>
-                <Switch checked={includeSpeeches} onCheckedChange={setIncludeSpeeches} />
+                {!isDeveloper && includeSpeeches && (
+                  <CostChip label="Falas dos apresentadores" value={SPEECHES_CREDITS} />
+                )}
               </div>
             </div>
 
+            {!isDeveloper && (() => {
+              const slidesCost = slidesCount * CREDITS_PER_SLIDE;
+              const depthCost = DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced;
+              const speechCost = includeSpeeches ? SPEECHES_CREDITS : 0;
+              const total = slidesCost + depthCost + speechCost;
+              const after = ent.credits_available - total;
+              const insufficient = !isMaxPlan(ent.plan) && ent.credits_available > 0 && after < 0;
+              return (
+                <div className="rounded-2xl border border-primary/40 bg-primary/5 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Coins className="h-4 w-4 text-primary" /> Resumo de créditos
+                  </div>
+                  <dl className="text-xs space-y-1">
+                    <div className="flex justify-between"><dt className="text-muted-foreground">{slidesCount} slides × 10</dt><dd>{slidesCost.toLocaleString("pt-BR")}</dd></div>
+                    <div className="flex justify-between"><dt className="text-muted-foreground">Profundidade dos textos</dt><dd>{depthCost}</dd></div>
+                    {speechCost > 0 && (
+                      <div className="flex justify-between"><dt className="text-muted-foreground">Falas dos apresentadores</dt><dd>{speechCost}</dd></div>
+                    )}
+                    <div className="flex justify-between pt-2 mt-1 border-t border-primary/30 text-sm font-bold">
+                      <dt>Total</dt><dd className="text-primary">{total.toLocaleString("pt-BR")} créditos</dd>
+                    </div>
+                  </dl>
+                  <p className={`text-[11px] ${insufficient ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                    {isMaxPlan(ent.plan)
+                      ? "Plano MAX — gerações ilimitadas."
+                      : insufficient
+                        ? `Saldo insuficiente: você tem ${ent.credits_available.toLocaleString("pt-BR")} créditos.`
+                        : `Saldo atual: ${ent.credits_available.toLocaleString("pt-BR")} → após gerar: ${Math.max(0, after).toLocaleString("pt-BR")}`}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">A cota mensal é consumida primeiro; os créditos bônus só depois.</p>
+                </div>
+              );
+            })()}
+
             {/* No mobile o CTA fica fixo ao alcance do polegar. */}
+
             <Button variant="hero" size="xl"
               className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
               onClick={handleGenerate} disabled={ent.loading}>
