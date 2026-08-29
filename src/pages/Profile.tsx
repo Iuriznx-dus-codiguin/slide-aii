@@ -289,11 +289,13 @@ const ProfilePage = () => {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap">
             <TabsTrigger value="conta">Conta</TabsTrigger>
+            <TabsTrigger value="creditos">Créditos</TabsTrigger>
             <TabsTrigger value="perfil">Dados</TabsTrigger>
             <TabsTrigger value="portfolio">Portfólio</TabsTrigger>
             <TabsTrigger value="acessos">Acessos {pending.length > 0 && `(${pending.length})`}</TabsTrigger>
             <TabsTrigger value="assinatura">Assinatura</TabsTrigger>
             <TabsTrigger value="seguranca">Segurança</TabsTrigger>
+
           </TabsList>
 
           <TabsContent value="conta" className="space-y-4">
