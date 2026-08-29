@@ -822,12 +822,10 @@ const Generate = () => {
               <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} />
               <p className="text-xs text-muted-foreground">De 5 a 20 slides — recomendado entre 8 e 14 para máxima coesão narrativa.</p>
               {!isDeveloper && (
-                <p className="text-xs text-muted-foreground">
-                  Custo estimado: <span className="font-semibold text-foreground">{estimateCreditsCost(slidesCount, textDepth, includeSpeeches).toLocaleString("pt-BR")} créditos</span>
-                  {ent.credits_available > 0 && ` — saldo atual: ${ent.credits_available.toLocaleString("pt-BR")}`}
-                </p>
+                <CostChip label={`10 créditos × ${slidesCount} slides`} value={slidesCount * CREDITS_PER_SLIDE} />
               )}
             </div>
+
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
