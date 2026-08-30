@@ -1037,47 +1037,47 @@ const Generate = () => {
 
             </div>
 
-            {!isDeveloper && (() => {
-              const slidesCost = slidesCount * CREDITS_PER_SLIDE;
-              const depthCost = DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced;
-              const speechCost = includeSpeeches ? SPEECHES_CREDITS : 0;
-              const total = slidesCost + depthCost + speechCost;
-              const after = ent.credits_available - total;
-              const insufficient = !isMaxPlan(ent.plan) && ent.credits_available > 0 && after < 0;
-              return (
-                <div className="rounded-2xl border border-primary/40 bg-primary/5 p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Coins className="h-4 w-4 text-primary" /> Resumo de créditos
-                  </div>
-                  <dl className="text-xs space-y-1">
-                    <div className="flex justify-between"><dt className="text-muted-foreground">{slidesCount} slides × 10</dt><dd>{slidesCost.toLocaleString("pt-BR")}</dd></div>
-                    <div className="flex justify-between"><dt className="text-muted-foreground">Profundidade dos textos</dt><dd>{depthCost}</dd></div>
-                    {speechCost > 0 && (
-                      <div className="flex justify-between"><dt className="text-muted-foreground">Falas dos apresentadores</dt><dd>{speechCost}</dd></div>
-                    )}
-                    <div className="flex justify-between pt-2 mt-1 border-t border-primary/30 text-sm font-bold">
-                      <dt>Total</dt><dd className="text-primary">{total.toLocaleString("pt-BR")} créditos</dd>
-                    </div>
-                  </dl>
-                  <p className={`text-[11px] ${insufficient ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                    {isMaxPlan(ent.plan)
-                      ? "Plano MAX — gerações ilimitadas."
-                      : insufficient
-                        ? `Saldo insuficiente: você tem ${ent.credits_available.toLocaleString("pt-BR")} créditos.`
-                        : `Saldo atual: ${ent.credits_available.toLocaleString("pt-BR")} → após gerar: ${Math.max(0, after).toLocaleString("pt-BR")}`}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">A cota mensal é consumida primeiro; os créditos bônus só depois.</p>
+            {!unlimitedCredits && (
+              <div className={`rounded-2xl border p-4 space-y-2 ${insufficientCredits ? "border-destructive/50 bg-destructive/5" : "border-primary/40 bg-primary/5"}`}>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Coins className="h-4 w-4 text-primary" /> Subtotal da geração
                 </div>
-              );
-            })()}
+                <dl className="text-xs space-y-1">
+                  <div className="flex justify-between"><dt className="text-muted-foreground">{slidesCount} slides × {CREDITS_PER_SLIDE}</dt><dd>{slidesCost.toLocaleString("pt-BR")}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Profundidade dos textos</dt><dd>{depthCost}</dd></div>
+                  {speechCost > 0 && (
+                    <div className="flex justify-between"><dt className="text-muted-foreground">Falas dos apresentadores</dt><dd>{speechCost}</dd></div>
+                  )}
+                  <div className="flex justify-between pt-2 mt-1 border-t border-primary/30 text-sm font-bold">
+                    <dt>Subtotal</dt>
+                    <dd className="text-primary inline-flex items-center gap-1">
+                      {totalCost.toLocaleString("pt-BR")} <Sparkles className="h-3.5 w-3.5" />
+                    </dd>
+                  </div>
+                </dl>
+                <p className={`text-[11px] ${insufficientCredits ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                  {insufficientCredits
+                    ? `Saldo insuficiente: você tem ${ent.credits_available.toLocaleString("pt-BR")} créditos (mensal ${ent.credits_monthly.toLocaleString("pt-BR")} + bônus ${ent.credits_bonus.toLocaleString("pt-BR")}). Reduza os slides, a profundidade ou desative as falas.`
+                    : `Saldo atual: ${ent.credits_available.toLocaleString("pt-BR")} → após gerar: ${Math.max(0, balanceAfter).toLocaleString("pt-BR")}`}
+                </p>
+                {lowBalance && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-start gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                    Seus créditos estão acabando (mensal {ent.credits_monthly.toLocaleString("pt-BR")} · bônus {ent.credits_bonus.toLocaleString("pt-BR")}). Após esta geração restarão {Math.max(0, balanceAfter).toLocaleString("pt-BR")} créditos.
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground">A cota mensal é consumida primeiro; os créditos bônus só depois.</p>
+              </div>
+            )}
 
             {/* No mobile o CTA fica fixo ao alcance do polegar. */}
 
             <Button variant="hero" size="xl"
               className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
-              onClick={handleGenerate} disabled={ent.loading}>
-              <Sparkles className="h-4 w-4" /> {canGenerate ? "Gerar apresentação" : "Continuar para pagamento"}
+              onClick={handleGenerate} disabled={ent.loading || insufficientCredits}>
+              <Sparkles className="h-4 w-4" /> {insufficientCredits ? "Créditos insuficientes" : canGenerate ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>
+
           </div>
         </motion.div>
       </main>
