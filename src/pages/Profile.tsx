@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AccountPanel } from "@/components/AccountPanel";
+import { CreditsPanel } from "@/components/CreditsPanel";
+
 import { uploadAvatar } from "@/lib/avatarUpload";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -289,11 +291,13 @@ const ProfilePage = () => {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap">
             <TabsTrigger value="conta">Conta</TabsTrigger>
+            <TabsTrigger value="creditos">Créditos</TabsTrigger>
             <TabsTrigger value="perfil">Dados</TabsTrigger>
             <TabsTrigger value="portfolio">Portfólio</TabsTrigger>
             <TabsTrigger value="acessos">Acessos {pending.length > 0 && `(${pending.length})`}</TabsTrigger>
             <TabsTrigger value="assinatura">Assinatura</TabsTrigger>
             <TabsTrigger value="seguranca">Segurança</TabsTrigger>
+
           </TabsList>
 
           <TabsContent value="conta" className="space-y-4">
@@ -310,6 +314,11 @@ const ProfilePage = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="creditos">
+            <CreditsPanel />
+          </TabsContent>
+
 
           <TabsContent value="perfil">
             <form onSubmit={(e) => { e.preventDefault(); saveAll(); }} className="space-y-4 bg-card border border-border rounded-2xl p-6">
