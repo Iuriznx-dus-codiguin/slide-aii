@@ -122,6 +122,24 @@ const Generate = () => {
   const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
   const [includeSpeeches, setIncludeSpeeches] = useState(false);
 
+  // ── Custo em créditos da geração atual (usado nos indicadores e nas barreiras) ──
+  const slidesCost = slidesCount * CREDITS_PER_SLIDE;
+  const depthCost = DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced;
+  const speechCost = includeSpeeches ? SPEECHES_CREDITS : 0;
+  const totalCost = slidesCost + depthCost + speechCost;
+  const unlimitedCredits = isMaxPlan(ent.plan) || isDeveloper;
+  const balanceAfter = ent.credits_available - totalCost;
+  /** Bloqueia a geração: o custo excede o saldo disponível. */
+  const insufficientCredits = !unlimitedCredits && ent.allowed && balanceAfter < 0;
+  /** Saldo baixo (mensal + bônus quase zerados) — avisa antes de consumir. */
+  const lowBalance = !unlimitedCredits && ent.allowed && !insufficientCredits
+    && (ent.credits_available <= 300 || balanceAfter <= 100);
+  /** Máximo de slides que ainda cabe no saldo disponível. */
+  const maxAffordableSlides = unlimitedCredits
+    ? 20
+    : Math.max(5, Math.min(20, Math.floor((ent.credits_available - depthCost - speechCost) / CREDITS_PER_SLIDE)));
+
+
   // Preview state
   const [slides, setSlides] = useState<AISlide[]>([]);
   const [dynamicTheme, setDynamicTheme] = useState<Partial<ThemeColors> | null>(null);
