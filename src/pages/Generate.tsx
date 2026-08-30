@@ -264,6 +264,17 @@ const Generate = () => {
       return;
     }
 
+    // Barreira de proteção: nunca inicia uma geração que custe mais do que o saldo.
+    if (!unlimitedCredits && totalCost > ent.credits_available) {
+      toast.error(
+        `Saldo insuficiente: esta geração custa ${totalCost.toLocaleString("pt-BR")} créditos e você tem ${ent.credits_available.toLocaleString("pt-BR")}.`,
+        { action: { label: "Ver planos", onClick: () => navigate("/perfil?tab=creditos") } },
+      );
+      return;
+    }
+
+
+
 
     setPhase("loading");
     setStepIdx(0);
