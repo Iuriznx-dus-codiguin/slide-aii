@@ -857,15 +857,24 @@ const Generate = () => {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Número de slides</Label>
+                <div className="flex items-center gap-2">
+                  <Label>Número de slides</Label>
+                  {!unlimitedCredits && <CreditTag value={slidesCost} title={`${CREDITS_PER_SLIDE} créditos por slide`} />}
+                </div>
                 <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
               <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} />
               <p className="text-xs text-muted-foreground">De 5 a 20 slides — recomendado entre 8 e 14 para máxima coesão narrativa.</p>
-              {!isDeveloper && (
-                <CostChip label={`10 créditos × ${slidesCount} slides`} value={slidesCount * CREDITS_PER_SLIDE} />
+              {!unlimitedCredits && slidesCount > maxAffordableSlides && (
+                <p className="text-xs text-destructive font-medium">
+                  Seu saldo cobre até {maxAffordableSlides} slides com as opções atuais.
+                  <button type="button" className="underline ml-1" onClick={() => setSlidesCount(maxAffordableSlides)}>
+                    Ajustar
+                  </button>
+                </p>
               )}
             </div>
+
 
 
             <div className="grid sm:grid-cols-2 gap-4">
