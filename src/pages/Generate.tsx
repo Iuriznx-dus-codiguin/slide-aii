@@ -29,12 +29,16 @@ import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
 import { Lock, CreditCard, RefreshCw, AlertTriangle, Coins } from "lucide-react";
 
-/** Etiqueta de custo em créditos de uma etapa do formulário. */
-const CostChip = ({ label, value }: { label: string; value: number }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary">
-    <Coins className="h-3 w-3" /> {label} · +{value.toLocaleString("pt-BR")} créditos
+/** Indicador compacto de custo em créditos de uma etapa (número + símbolo de IA). */
+const CreditTag = ({ value, title }: { value: number; title?: string }) => (
+  <span
+    title={title ?? `${value} créditos`}
+    className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary tabular-nums"
+  >
+    {value.toLocaleString("pt-BR")} <Sparkles className="h-3 w-3" />
   </span>
 );
+
 
 
 
