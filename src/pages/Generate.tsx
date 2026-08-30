@@ -1007,18 +1007,34 @@ const Generate = () => {
                   ))}
                 </div>
               )}
-              <div className="rounded-xl border border-border p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm">Gerar falas dos apresentadores</div>
-                    <div className="text-[11px] text-muted-foreground">Script conciso (40-80 palavras) por slide, distribuído em blocos</div>
+              {(() => {
+                const canAffordSpeeches = unlimitedCredits
+                  || ent.credits_available >= slidesCost + depthCost + SPEECHES_CREDITS;
+                return (
+                  <div className="rounded-xl border border-border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          Gerar falas dos apresentadores
+                          {!unlimitedCredits && <CreditTag value={SPEECHES_CREDITS} title="Custo de ativar as falas" />}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">Script conciso (40-80 palavras) por slide, distribuído em blocos</div>
+                      </div>
+                      <Switch
+                        checked={includeSpeeches}
+                        disabled={!canAffordSpeeches && !includeSpeeches}
+                        onCheckedChange={setIncludeSpeeches}
+                      />
+                    </div>
+                    {!canAffordSpeeches && !includeSpeeches && (
+                      <p className="text-[11px] text-destructive">
+                        Saldo insuficiente para incluir as falas nesta configuração.
+                      </p>
+                    )}
                   </div>
-                  <Switch checked={includeSpeeches} onCheckedChange={setIncludeSpeeches} />
-                </div>
-                {!isDeveloper && includeSpeeches && (
-                  <CostChip label="Falas dos apresentadores" value={SPEECHES_CREDITS} />
-                )}
-              </div>
+                );
+              })()}
+
             </div>
 
             {!isDeveloper && (() => {
