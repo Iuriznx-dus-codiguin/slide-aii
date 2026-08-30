@@ -949,13 +949,16 @@ const Generate = () => {
                 <Switch checked={preferDynamic} onCheckedChange={setPreferDynamic} />
               </div>
               <div className="rounded-xl border border-border p-3 sm:col-span-2">
-                <div className="min-w-0 mb-2">
-                  <div className="font-medium text-sm flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Profundidade dos textos
+                <div className="min-w-0 mb-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" /> Profundidade dos textos
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Define quanta contextualização, exemplos e detalhes cada slide traz.
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Define quanta contextualização, exemplos e detalhes cada slide traz.
-                  </div>
+                  {!unlimitedCredits && <CreditTag value={depthCost} title="Custo da profundidade escolhida" />}
                 </div>
                 <Select value={textDepth} onValueChange={(v) => setTextDepth(v as typeof textDepth)}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -965,13 +968,8 @@ const Generate = () => {
                     <SelectItem value="long">Longo — contexto, causa, exemplo e implicação (+30 créditos)</SelectItem>
                   </SelectContent>
                 </Select>
-                {!isDeveloper && (
-                  <div className="mt-2">
-                    <CostChip label="Profundidade dos textos" value={DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced} />
-                  </div>
-                )}
-
               </div>
+
             </div>
 
             {/* DNA narrativo (Fase 2.5) — profundidade fica implícita ("high-level") */}
