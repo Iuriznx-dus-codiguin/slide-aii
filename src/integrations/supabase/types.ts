@@ -941,6 +941,7 @@ export type Database = {
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
+      revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
       set_monthly_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
