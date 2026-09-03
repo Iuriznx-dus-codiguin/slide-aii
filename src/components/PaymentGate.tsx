@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CHECKOUT_URLS, PLAN_PRICES, proPlanFor, maxPlanFor, type PaidPlan, type BillingCycle } from "@/lib/cakto";
+import { CHECKOUT_URLS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, SINGLE_PURCHASE_CREDITS, type PaidPlan, type BillingCycle } from "@/lib/cakto";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { toast } from "sonner";
 
@@ -123,7 +123,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
             <div className="font-display font-bold">Geração única</div>
             <div className="text-lg font-semibold mt-1">{PLAN_PRICES.single}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-bold text-primary">
-              1 apresentação
+              {SINGLE_PURCHASE_CREDITS.toLocaleString("pt-BR")} créditos
             </div>
             <Button size="sm" variant="outline" className="w-full mt-4 gap-1.5 border-primary/50" onClick={() => startCheckout("single")}>
               Pagar agora <ExternalLink className="h-3 w-3" />
@@ -138,7 +138,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
             <div className="font-display font-bold mt-1">Plano PRO</div>
             <div className="text-lg font-semibold mt-1">{PLAN_PRICES[proId]}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-gradient-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-glow">
-              <Sparkles className="h-2.5 w-2.5" /> 3.200 créditos/mês
+              <Sparkles className="h-2.5 w-2.5" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos/mês + {PLAN_SIGNUP_BONUS[proId].toLocaleString("pt-BR")} bônus
             </div>
             <Button size="sm" variant="hero" className="w-full mt-4 gap-1.5" onClick={() => startCheckout(proId)}>
               Pagar agora <ExternalLink className="h-3 w-3" />
@@ -153,7 +153,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
             <div className="font-display font-bold mt-1">Plano MAX</div>
             <div className="text-lg font-semibold mt-1">{PLAN_PRICES[maxId]}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-glow">
-              <Crown className="h-2.5 w-2.5" /> Gerações ilimitadas
+              <Crown className="h-2.5 w-2.5" /> Créditos ilimitados
             </div>
             <Button size="sm" variant="outline" className="w-full mt-4 gap-1.5 border-amber-500/50 hover:bg-amber-500/10" onClick={() => startCheckout(maxId)}>
               Pagar agora <ExternalLink className="h-3 w-3" />

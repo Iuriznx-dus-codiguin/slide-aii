@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
@@ -45,6 +46,8 @@ export const Pricing = () => {
   // Trimestral é o predefinido — melhor equilíbrio de compromisso/desconto.
   const [cycle, setCycle] = useState<Cycle>("trimestral");
   const proPrice = pro[cycle];
+  const proId = proPlanFor(cycle);
+  const proBonus = PLAN_SIGNUP_BONUS[proId] ?? 0;
   const maxPrice = max[cycle];
 
   return (
@@ -169,7 +172,7 @@ export const Pricing = () => {
               </p>
             )}
             <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-glow">
-               <Sparkles className="h-3 w-3" /> 3.200 créditos + 800 Bônus
+               <Sparkles className="h-3 w-3" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos + {proBonus.toLocaleString("pt-BR")} Bônus
             </div>
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
               <a href="/gerar">{proPrice.cta}</a>
