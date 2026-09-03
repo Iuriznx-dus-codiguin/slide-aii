@@ -236,10 +236,20 @@ Deno.serve(async (req) => {
         log.info("subscription_credits", { plan, monthly, isRenewal, isFirstActivation });
       }
     } else if (action === "refund") {
+      // Reembolso/chargeback: além de limpar o plano, os créditos concedidos por
+      // aquele pagamento são estornados (mensal + bônus zerados) e o movimento
+      // fica registrado no ledger `credit_transactions`.
       await admin.from("profiles").update({
         subscription_status: "canceled",
         plan: "free",
+        cakto_subscription_id: null,
       }).eq("id", userId);
+      const { data: revoked, error: revokeErr } = await admin.rpc("revoke_credits", {
+        _uid: userId, _type: "refund_revoke",
+      });
+      if (revokeErr) log.error("revoke_credits_failed", { message: revokeErr.message });
+      else log.info("credits_revoked", { revoked });
+
     } else if (action === "canceled") {
       // Não apaga o plano: apenas marca canceled. O entitlement bloqueia a geração
       // e a UI mostra "como renovar".
