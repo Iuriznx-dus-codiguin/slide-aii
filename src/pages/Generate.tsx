@@ -129,8 +129,11 @@ const Generate = () => {
   const totalCost = slidesCost + depthCost + speechCost;
   const unlimitedCredits = isMaxPlan(ent.plan) || isDeveloper;
   const balanceAfter = ent.credits_available - totalCost;
-  /** Bloqueia a geração: o custo excede o saldo disponível. */
-  const insufficientCredits = !unlimitedCredits && ent.allowed && balanceAfter < 0;
+  /** Usuário tem algum saldo — só ele vê avisos de limite; quem não tem nada
+   *  compra após configurar (botão vira "Continuar para pagamento"). */
+  const hasBalance = ent.credits_available > 0;
+  /** Custo excede o saldo disponível: avisa, mas não bloqueia — o CTA leva ao pagamento. */
+  const insufficientCredits = !unlimitedCredits && hasBalance && balanceAfter < 0;
   /** Saldo baixo (mensal + bônus quase zerados) — avisa antes de consumir. */
   const lowBalance = !unlimitedCredits && ent.allowed && !insufficientCredits
     && (ent.credits_available <= 300 || balanceAfter <= 100);
@@ -247,7 +250,8 @@ const Generate = () => {
     await ent.refresh();
     if (!ent.allowed && !isDeveloper) {
       if (ent.reason === "insufficient_credits") {
-        toast.error(reasonMessage("insufficient_credits"));
+        // Saldo existe mas não cobre: abre o pagamento para completar/recarregar.
+        setShowPayment(true);
         return;
       }
       if (ent.reason === "system_error") {
@@ -264,12 +268,10 @@ const Generate = () => {
       return;
     }
 
-    // Barreira de proteção: nunca inicia uma geração que custe mais do que o saldo.
+    // Saldo insuficiente para esta configuração: em vez de bloquear, leva ao
+    // pagamento (o usuário pode comprar créditos/plano e voltar com tudo salvo).
     if (!unlimitedCredits && totalCost > ent.credits_available) {
-      toast.error(
-        `Saldo insuficiente: esta geração custa ${totalCost.toLocaleString("pt-BR")} créditos e você tem ${ent.credits_available.toLocaleString("pt-BR")}.`,
-        { action: { label: "Ver planos", onClick: () => navigate("/perfil?tab=creditos") } },
-      );
+      setShowPayment(true);
       return;
     }
 
@@ -865,7 +867,7 @@ const Generate = () => {
               </div>
               <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} />
               <p className="text-xs text-muted-foreground">De 5 a 20 slides — recomendado entre 8 e 14 para máxima coesão narrativa.</p>
-              {!unlimitedCredits && slidesCount > maxAffordableSlides && (
+              {!unlimitedCredits && hasBalance && slidesCount > maxAffordableSlides && (
                 <p className="text-xs text-destructive font-medium">
                   Seu saldo cobre até {maxAffordableSlides} slides com as opções atuais.
                   <button type="button" className="underline ml-1" onClick={() => setSlidesCount(maxAffordableSlides)}>
@@ -1008,7 +1010,7 @@ const Generate = () => {
                 </div>
               )}
               {(() => {
-                const canAffordSpeeches = unlimitedCredits
+                const canAffordSpeeches = unlimitedCredits || !hasBalance
                   || ent.credits_available >= slidesCost + depthCost + SPEECHES_CREDITS;
                 return (
                   <div className="rounded-xl border border-border p-3 space-y-2">
@@ -1056,9 +1058,11 @@ const Generate = () => {
                   </div>
                 </dl>
                 <p className={`text-[11px] ${insufficientCredits ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                  {insufficientCredits
-                    ? `Saldo insuficiente: você tem ${ent.credits_available.toLocaleString("pt-BR")} créditos (mensal ${ent.credits_monthly.toLocaleString("pt-BR")} + bônus ${ent.credits_bonus.toLocaleString("pt-BR")}). Reduza os slides, a profundidade ou desative as falas.`
-                    : `Saldo atual: ${ent.credits_available.toLocaleString("pt-BR")} → após gerar: ${Math.max(0, balanceAfter).toLocaleString("pt-BR")}`}
+                  {!hasBalance
+                    ? "Você ainda não tem créditos — ao continuar, escolha um plano e a geração inicia após a confirmação do pagamento."
+                    : insufficientCredits
+                      ? `Saldo insuficiente: você tem ${ent.credits_available.toLocaleString("pt-BR")} créditos (mensal ${ent.credits_monthly.toLocaleString("pt-BR")} + bônus ${ent.credits_bonus.toLocaleString("pt-BR")}). Ajuste as opções ou continue para adquirir mais créditos.`
+                      : `Saldo atual: ${ent.credits_available.toLocaleString("pt-BR")} → após gerar: ${Math.max(0, balanceAfter).toLocaleString("pt-BR")}`}
                 </p>
                 {lowBalance && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-start gap-1.5">
@@ -1074,8 +1078,8 @@ const Generate = () => {
 
             <Button variant="hero" size="xl"
               className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
-              onClick={handleGenerate} disabled={ent.loading || insufficientCredits}>
-              <Sparkles className="h-4 w-4" /> {insufficientCredits ? "Créditos insuficientes" : canGenerate ? "Gerar apresentação" : "Continuar para pagamento"}
+              onClick={handleGenerate} disabled={ent.loading}>
+              <Sparkles className="h-4 w-4" /> {unlimitedCredits || (canGenerate && !insufficientCredits) ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>
 
           </div>
