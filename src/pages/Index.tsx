@@ -8,23 +8,16 @@ import { Testimonials } from "@/components/landing/Testimonials";
 import { FAQ } from "@/components/landing/FAQ";
 import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
-import { useEffect } from "react";
+import { Seo } from "@/components/Seo";
 
 const Index = () => {
-  useEffect(() => {
-    document.title = "SlideAI — Crie apresentações incríveis em segundos com IA";
-    const desc = "Gere apresentações profissionais com inteligência artificial. Descreva o tema e receba slides editáveis com gráficos, imagens e design impecável.";
-    let meta = document.querySelector('meta[name="description"]');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.setAttribute("name", "description");
-      document.head.appendChild(meta);
-    }
-    meta.setAttribute("content", desc);
-  }, []);
-
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        title="SlideAI — Crie apresentações incríveis em segundos com IA"
+        description="Gere apresentações profissionais com inteligência artificial. Descreva o tema e receba slides editáveis com gráficos, imagens e design impecável."
+        path="/"
+      />
       <Navbar />
       <main>
         <Hero />

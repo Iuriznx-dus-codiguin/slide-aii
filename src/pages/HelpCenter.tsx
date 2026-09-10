@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BrandLogo } from "@/components/BrandLogo";
+import { Seo } from "@/components/Seo";
 
 interface Article {
   id: string;
@@ -25,11 +26,6 @@ const HelpCenter = () => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
 
-  useEffect(() => {
-    document.title = "Central de Ajuda — SlideAI";
-    const meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute("content", "Central de Ajuda do SlideAI — tutoriais, guias e respostas para tirar o máximo da plataforma.");
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -73,6 +69,11 @@ const HelpCenter = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        title="Central de Ajuda do SlideAI — tutoriais e guias"
+        description="Tutoriais, guias e respostas sobre créditos, geração de slides, edição com IA, exportação e assinatura do SlideAI."
+        path="/ajuda"
+      />
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
