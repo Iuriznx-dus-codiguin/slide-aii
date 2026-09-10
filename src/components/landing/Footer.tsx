@@ -34,17 +34,17 @@ export const Footer = () => {
               <li><a href="#features" className="hover:text-foreground transition-colors">Recursos</a></li>
               <li><a href="#pricing" className="hover:text-foreground transition-colors">Preços</a></li>
               <li><Link to="/gerar" className="hover:text-foreground transition-colors">Criar apresentação</Link></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Novidades</a></li>
+              <li><Link to="/templates" className="hover:text-foreground transition-colors">Templates</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-display font-bold mb-4">Empresa</h4>
             <ul className="space-y-2.5 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-foreground transition-colors">Sobre</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Contato</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Privacidade</a></li>
+              <li><Link to="/sobre" className="hover:text-foreground transition-colors">Sobre</Link></li>
+              <li><Link to="/ajuda" className="hover:text-foreground transition-colors">Central de Ajuda</Link></li>
+              <li><Link to="/contato" className="hover:text-foreground transition-colors">Contato</Link></li>
+              <li><Link to="/privacidade" className="hover:text-foreground transition-colors">Privacidade</Link></li>
             </ul>
           </div>
         </div>
