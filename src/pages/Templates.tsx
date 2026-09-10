@@ -9,13 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { TEMPLATES, TEMPLATE_CATEGORIES, type TemplateSeed } from "@/lib/templates";
+import { Seo } from "@/components/Seo";
 
 const Templates = () => {
   const navigate = useNavigate();
   const [cat, setCat] = useState<(typeof TEMPLATE_CATEGORIES)[number]>("Todos");
   const [preview, setPreview] = useState<TemplateSeed | null>(null);
 
-  useEffect(() => { document.title = "Templates — SlideAI"; }, []);
+
 
   const filtered = useMemo(
     () => cat === "Todos" ? TEMPLATES : TEMPLATES.filter((t) => t.category === cat),
@@ -26,6 +27,24 @@ const Templates = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <Seo
+        title="Templates de apresentação prontos — SlideAI"
+        description="Explore modelos de apresentação por categoria (pitch, aula, relatório e mais). A IA usa a estrutura como base e cria o conteúdo do zero para você."
+        path="/templates"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: "Templates de apresentação do SlideAI",
+          url: "https://slideai.com.br/templates",
+          numberOfItems: TEMPLATES.length,
+          itemListElement: TEMPLATES.map((t, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            name: t.title,
+            url: `https://slideai.com.br/templates#${t.id}`,
+          })),
+        }}
+      />
       <Navbar />
       <main className="flex-1 pt-24 pb-20">
         <div className="container mx-auto px-6">
