@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
+import { Seo } from "@/components/Seo";
 
 interface Article {
   id: string;
@@ -51,9 +52,6 @@ const HelpArticle = () => {
 
       if (!data) { setLoading(false); return; }
       setArticle(data as Article);
-      document.title = `${data.title} — Central de Ajuda`;
-      const meta = document.querySelector('meta[name="description"]');
-      if (meta) meta.setAttribute("content", stripMd((data as Article).content_md).slice(0, 155));
 
       // Buscar erros que referenciam esse artigo
       const { data: errs } = await supabase
@@ -85,8 +83,30 @@ const HelpArticle = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const summary = article ? stripMd(article.content_md).slice(0, 155) : "";
+
   return (
     <div className="min-h-screen bg-background">
+      {article && (
+        <Seo
+          title={`${article.title} — Central de Ajuda SlideAI`}
+          description={summary}
+          path={`/ajuda/${article.slug}`}
+          type="article"
+          jsonLd={{
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: article.title,
+            description: summary,
+            articleSection: article.category ?? undefined,
+            dateModified: article.updated_at,
+            inLanguage: "pt-BR",
+            mainEntityOfPage: `https://slideai.com.br/ajuda/${article.slug}`,
+            author: { "@type": "Organization", name: "SlideAI" },
+            publisher: { "@type": "Organization", name: "SlideAI" },
+          }}
+        />
+      )}
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
