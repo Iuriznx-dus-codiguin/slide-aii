@@ -882,6 +882,7 @@ export type Database = {
         Returns: Json
       }
       ensure_monthly_credits: { Args: { _uid: string }; Returns: undefined }
+      find_user_id_by_email: { Args: { _email: string }; Returns: string }
       generate_ticket_id: { Args: never; Returns: string }
       get_portfolio_presentations: {
         Args: { _owner: string }
