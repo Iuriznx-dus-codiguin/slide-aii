@@ -122,5 +122,36 @@ export const useEntitlement = (): Entitlement => {
 
   useEffect(() => { compute(); }, [compute]);
 
+  // Tempo real: quando o webhook da Cakto credita/atualiza o plano, o saldo
+  // muda na tela sem refresh nem polling.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`entitlement:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+        () => { compute(); },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "credit_transactions", filter: `user_id=eq.${user.id}` },
+        () => { compute(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, compute]);
+
+  // Também recalcula ao voltar para a aba (após pagar em outra janela).
+  useEffect(() => {
+    const onFocus = () => { compute(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [compute]);
+
   return { ...state, refresh: compute };
 };
