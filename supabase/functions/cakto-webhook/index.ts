@@ -118,20 +118,26 @@ Deno.serve(async (req) => {
   const subscriptionId = dig(payload, ["data.subscription.id", "subscription.id"]) as string | undefined;
 
   // Resolve o user_id pelo e-mail.
+  //
+  // Ordem: profiles.email (case-insensitive) → auth.users via
+  // `find_user_id_by_email` (SECURITY DEFINER, só service_role). O segundo
+  // passo é essencial: perfis antigos podem estar sem e-mail preenchido e,
+  // sem ele, o pagamento nunca era creditado a ninguém.
   let userId: string | null = null;
   if (email) {
     const { data: profile } = await admin
-      .from("profiles").select("id").eq("email", email).maybeSingle();
+      .from("profiles").select("id").ilike("email", email).maybeSingle();
     if (profile?.id) {
       userId = profile.id;
     } else {
-      try {
-        const anyAdmin = admin.auth.admin as any;
-        if (typeof anyAdmin.getUserByEmail === "function") {
-          const { data: u } = await anyAdmin.getUserByEmail(email);
-          if (u?.user?.id) userId = u.user.id;
-        }
-      } catch (_e) { /* ignore */ }
+      const { data: foundId, error: findErr } = await admin
+        .rpc("find_user_id_by_email", { _email: email });
+      if (findErr) log.error("find_user_by_email_failed", { message: findErr.message });
+      if (typeof foundId === "string" && foundId) {
+        userId = foundId;
+        // Backfill: garante que a próxima cobrança resolva no primeiro passo.
+        await admin.from("profiles").update({ email }).eq("id", userId);
+      }
     }
   }
 
