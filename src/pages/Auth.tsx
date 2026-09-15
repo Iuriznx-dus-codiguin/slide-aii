@@ -55,7 +55,7 @@ const Auth = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) toast.error(error.message);
-    else { toast.success("Bem-vindo de volta!"); navigate("/dashboard"); }
+    else { toast.success("Bem-vindo de volta!"); navigate(afterAuth); }
   };
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
