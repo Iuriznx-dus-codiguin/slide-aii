@@ -76,7 +76,7 @@ const Auth = () => {
     const { data, error } = await supabase.auth.signUp({
       email, password,
       options: {
-        emailRedirectTo: `${window.location.origin}/onboarding`,
+        emailRedirectTo: `${window.location.origin}${nextPath ?? "/onboarding"}`,
         data: { full_name: fullName },
       },
     });
