@@ -124,7 +124,7 @@ const Auth = () => {
       return;
     }
     if (result.redirected) return;
-    navigate("/dashboard");
+    navigate(afterAuth);
   };
 
 
