@@ -26,6 +26,7 @@ import PublicProfile from "./pages/PublicProfile.tsx";
 import About from "./pages/About.tsx";
 import Contact from "./pages/Contact.tsx";
 import Privacy from "./pages/Privacy.tsx";
+import OAuthConsent from "./pages/OAuthConsent.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { DevModePanel } from "./components/DevModePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/__dev" element={<ProtectedRoute><DevDashboard /></ProtectedRoute>} />
               <Route path="/admin/suporte" element={<ProtectedRoute><AdminSupport /></ProtectedRoute>} />
               <Route path="/slides/:slug" element={<SlideViewer />} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

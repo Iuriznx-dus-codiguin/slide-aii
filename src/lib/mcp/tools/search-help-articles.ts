@@ -1,6 +1,7 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { supabaseForUser } from "../supabase";
+import { asJson } from "../json";
 
 export default defineTool({
   name: "search_help_articles",
@@ -34,7 +35,7 @@ export default defineTool({
     }));
     return {
       content: [{ type: "text", text: JSON.stringify(articles, null, 2) }],
-      structuredContent: { articles },
+      structuredContent: asJson({ articles }),
     };
   },
 });
