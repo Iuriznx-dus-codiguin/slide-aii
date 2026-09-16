@@ -58,6 +58,11 @@ function supabaseForUser(ctx) {
   });
 }
 
+// src/lib/mcp/json.ts
+function asJson(value) {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
+
 // src/lib/mcp/tools/list-presentations.ts
 var list_presentations_default = defineTool({
   name: "list_presentations",
@@ -79,7 +84,7 @@ var list_presentations_default = defineTool({
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
       content: [{ type: "text", text: JSON.stringify(data ?? [], null, 2) }],
-      structuredContent: { presentations: data ?? [] }
+      structuredContent: asJson({ presentations: data ?? [] })
     };
   }
 });
@@ -117,7 +122,7 @@ var get_presentation_default = defineTool2({
     const payload = { presentation, slides };
     return {
       content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
-      structuredContent: payload
+      structuredContent: asJson(payload)
     };
   }
 });
@@ -153,7 +158,7 @@ var get_credit_balance_default = defineTool3({
     }
     return {
       content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
-      structuredContent: payload
+      structuredContent: asJson(payload)
     };
   }
 });
@@ -187,7 +192,7 @@ var search_help_articles_default = defineTool4({
     }));
     return {
       content: [{ type: "text", text: JSON.stringify(articles, null, 2) }],
-      structuredContent: { articles }
+      structuredContent: asJson({ articles })
     };
   }
 });
@@ -231,7 +236,7 @@ var update_presentation_default = defineTool5({
     }
     return {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      structuredContent: { presentation: data }
+      structuredContent: asJson({ presentation: data })
     };
   }
 });

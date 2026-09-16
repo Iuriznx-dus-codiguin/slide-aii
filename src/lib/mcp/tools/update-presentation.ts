@@ -1,6 +1,7 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { supabaseForUser } from "../supabase";
+import { asJson } from "../json";
 
 export default defineTool({
   name: "update_presentation",
@@ -46,7 +47,7 @@ export default defineTool({
     }
     return {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      structuredContent: { presentation: data },
+      structuredContent: asJson({ presentation: data }),
     };
   },
 });
