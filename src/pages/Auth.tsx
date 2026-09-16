@@ -106,7 +106,7 @@ const Auth = () => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: pendingEmail,
-      options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+      options: { emailRedirectTo: `${window.location.origin}${nextPath ?? "/onboarding"}` },
     });
     setLoading(false);
     if (error) toast.error(error.message);
