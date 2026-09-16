@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sparkles, Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,17 +20,24 @@ const nameSchema = z.string().trim().min(1, "Nome obrigatório").max(100);
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
+  // Destino pós-login: usado pela tela de consentimento OAuth (integrações de
+  // agentes), que precisa que o usuário volte exatamente para o pedido.
+  // Só aceitamos caminhos relativos do próprio site.
+  const rawNext = searchParams.get("next");
+  const nextPath = rawNext && /^\/(?!\/)/.test(rawNext) ? rawNext : null;
+  const afterAuth = nextPath ?? "/dashboard";
 
   useEffect(() => {
     document.title = "Entrar — SlideAI";
-    if (user) navigate("/dashboard");
-  }, [user, navigate]);
+    if (user) navigate(afterAuth);
+  }, [user, navigate, afterAuth]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -48,7 +55,7 @@ const Auth = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) toast.error(error.message);
-    else { toast.success("Bem-vindo de volta!"); navigate("/dashboard"); }
+    else { toast.success("Bem-vindo de volta!"); navigate(afterAuth); }
   };
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -69,7 +76,7 @@ const Auth = () => {
     const { data, error } = await supabase.auth.signUp({
       email, password,
       options: {
-        emailRedirectTo: `${window.location.origin}/onboarding`,
+        emailRedirectTo: `${window.location.origin}${nextPath ?? "/onboarding"}`,
         data: { full_name: fullName },
       },
     });
@@ -99,7 +106,7 @@ const Auth = () => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: pendingEmail,
-      options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+      options: { emailRedirectTo: `${window.location.origin}${nextPath ?? "/onboarding"}` },
     });
     setLoading(false);
     if (error) toast.error(error.message);
