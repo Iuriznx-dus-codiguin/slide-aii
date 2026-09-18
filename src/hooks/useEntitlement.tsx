@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
@@ -122,25 +122,31 @@ export const useEntitlement = (): Entitlement => {
 
   useEffect(() => { compute(); }, [compute]);
 
-  // Tempo real: quando o webhook da Cakto credita/atualiza o plano, o saldo
+// Tempo real: quando o webhook da Cakto credita/atualiza o plano, o saldo
   // muda na tela sem refresh nem polling.
+  const computeRef = useRef(compute);
+  useEffect(() => { computeRef.current = compute; }, [compute]);
+
   useEffect(() => {
     if (!user) return;
+    // Tópico único por montagem: reaproveitar o mesmo nome faz o Supabase
+    // devolver um canal já inscrito e lançar "cannot add callbacks after subscribe".
+    const topic = `entitlement:${user.id}:${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`entitlement:${user.id}`)
+      .channel(topic)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
-        () => { compute(); },
+        () => { computeRef.current(); },
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "credit_transactions", filter: `user_id=eq.${user.id}` },
-        () => { compute(); },
+        () => { computeRef.current(); },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user, compute]);
+  }, [user]);
 
   // Também recalcula ao voltar para a aba (após pagar em outra janela).
   useEffect(() => {
