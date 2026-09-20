@@ -121,6 +121,13 @@ const AI_MAX_COMPLEX = 3;
 const AI_LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
 const aiUsageKey = (id: string) => `slideai:edit-usage:${id}`;
 
+/** Assinatura dos campos que `save()` persiste — base da detecção de alterações não salvas. */
+const deckSignature = (rows: SlideRow[]): string =>
+  JSON.stringify(rows.map((s, i) => [
+    s.id, i, s.slide_type, s.layout_template, s.animation_transition || "fade",
+    s.speaker_notes || null, s.content ?? {}, s.presenters_data ?? [],
+  ]));
+
 const Editor = () => {
 
   const { slug } = useParams();
@@ -137,6 +144,14 @@ const Editor = () => {
   const [zoom, setZoom] = useState(0.7);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  // Estado único de "há trabalho não gravado": alimenta o indicador do topo, o
+  // autosave e o aviso de beforeunload. Comparar o deck atual com o último
+  // persistido (em vez de marcar um flag em cada mutação) garante que nenhum
+  // caminho de edição — incluindo undo/redo e as edições vindas da IA, que
+  // chamam setSlides direto — escape da detecção.
+  const [dirty, setDirty] = useState(false);
+  const savedSnapshotRef = useRef<string | null>(null);
+  const [savedMark, setSavedMark] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
@@ -180,6 +195,7 @@ const Editor = () => {
         presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [],
       })) as SlideRow[];
       setSlides(normalized);
+      savedSnapshotRef.current = deckSignature(normalized);
       if (presLoaded.include_speeches) setNotesOpen(true);
       setLoading(false);
     })();
@@ -208,6 +224,13 @@ const Editor = () => {
     try { localStorage.setItem(aiUsageKey(pres.id), JSON.stringify(aiUsage)); } catch { /* ignore */ }
   }, [pres?.id, aiUsage]);
 
+
+  // `savedMark` reavalia contra os slides ATUAIS depois de cada gravação: se o
+  // usuário editou enquanto o save estava em voo, o deck continua sujo.
+  useEffect(() => {
+    if (savedSnapshotRef.current === null) return;
+    setDirty(deckSignature(slides) !== savedSnapshotRef.current);
+  }, [slides, savedMark]);
 
   // Bloco 12.3: debounce de 500ms para snapshots — evita um por keystroke.
   const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -344,6 +367,9 @@ const Editor = () => {
   const save = useCallback(async (silent = false) => {
     if (!pres) return;
     setSaving(true);
+    // Assinatura do que está sendo gravado AGORA — aplicada só se o save der
+    // certo, para não marcar como salvo um deck que falhou no meio.
+    const attemptedSignature = deckSignature(slides);
     try {
       const rows = slides.map((s, i) => ({
         id: s.id,
@@ -379,6 +405,8 @@ const Editor = () => {
         dynamic_theme: (pres as any).dynamic_theme ?? dynamicTheme ?? null,
       } as any).eq("id", pres.id);
 
+      savedSnapshotRef.current = attemptedSignature;
+      setSavedMark((m) => m + 1);
       setLastSaved(new Date());
       if (!silent) toast.success("Salvo!");
     } catch (e: any) {
@@ -389,12 +417,34 @@ const Editor = () => {
     }
   }, [pres, slides, dynamicTheme]);
 
-  // Auto-save every 30s
+  // Auto-save a cada 30s, apenas quando há mudança pendente.
   useEffect(() => {
     if (!pres) return;
-    const id = setInterval(() => { save(true); }, 30000);
+    const id = setInterval(() => { if (dirty) save(true); }, 30000);
     return () => clearInterval(id);
-  }, [pres, save]);
+  }, [pres, save, dirty]);
+
+  // Fechar aba, recarregar ou sair do site com edição pendente: o navegador
+  // pede confirmação. Sem isso, tudo que foi feito desde o último autosave
+  // (até 30s de trabalho) sumia sem qualquer aviso.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Navegadores antigos só mostram o diálogo quando returnValue é definido.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  // Navegação interna (react-router) não dispara beforeunload — ao desmontar o
+  // editor com alterações pendentes, grava em background.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => () => { if (dirtyRef.current) void saveRef.current(true); }, []);
 
   // Chat IA do editor manual — Edit Director Engine (edge function chat-editor).
   // Envia contexto completo (deck + presentation_id, de onde o backend puxa
@@ -555,8 +605,8 @@ const Editor = () => {
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))}><ZoomIn className="h-4 w-4" /></Button>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground hidden md:inline">
-              {saving ? "Salvando..." : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Não salvo"}
+            <span className={`text-[11px] hidden md:inline ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
+              {saving ? "Salvando..." : dirty ? "Não salvo" : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Salvo"}
             </span>
             <Button variant={inlineEdit ? "hero" : "ghost"} size="sm" onClick={() => setInlineEdit((v) => !v)} title="Editar texto direto no canvas">
               <Pencil className="h-4 w-4" /> <span className="hidden md:inline">Inline</span>

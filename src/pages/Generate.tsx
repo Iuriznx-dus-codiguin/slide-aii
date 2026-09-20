@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
+import { defaultsForRole } from "@/lib/personaDefaults";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
@@ -161,6 +162,23 @@ const Generate = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { document.title = "Criar apresentação — SlideAI"; }, []);
+
+  // Pré-preencher a partir do perfil escolhido no onboarding (profiles.role).
+  // Só roda uma vez, e nunca quando há ?template= — o template é uma escolha
+  // explícita do usuário e tem precedência sobre o padrão do perfil.
+  const rolePrefillDone = useRef(false);
+  useEffect(() => {
+    if (rolePrefillDone.current || !user || searchParams.get("template")) return;
+    rolePrefillDone.current = true;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      const defaults = defaultsForRole(data?.role);
+      if (!defaults) return;
+      setPersona(defaults.persona);
+      setType(defaults.type);
+      setTextDepth(defaults.textDepth);
+    })();
+  }, [user, searchParams]);
 
   // Pré-preencher a partir de ?template=ID
   useEffect(() => {

@@ -57,14 +57,10 @@ export interface BriefInput {
   slidesCount: number;
 }
 
-// Espelha SlideTransition em src/lib/slideTransitions.tsx. Os dois precisam
-// ficar em sincronia manual (Deno e Vite são runtimes/bundles separados,
-// sem import compartilhado possível) — qualquer transição nova deve ser
-// adicionada nos dois lugares.
-export const ALL_TRANSITION_NAMES = [
-  "dynamic", "mosaic", "iris", "shatter", "ribbon", "blinds",
-  "fold", "portal", "wipe", "split", "morph", "stack", "letterbox",
-];
+// Nomes de transição vêm do módulo compartilhado com o front (ver
+// transitionNames.ts) — antes esta lista era uma cópia mantida à mão.
+import { ALL_TRANSITION_NAMES } from "./transitionNames.ts";
+export { ALL_TRANSITION_NAMES };
 
 // Fallback 100% determinístico — nunca falha, nunca depende de rede.
 // A geração de conteúdo NUNCA deve ser bloqueada por esta etapa.
