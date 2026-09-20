@@ -30,6 +30,24 @@ import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
 import { Lock, CreditCard, RefreshCw, AlertTriangle, Coins } from "lucide-react";
 
+/**
+ * Corpo JSON de um erro de edge function.
+ *
+ * `supabase.functions.invoke` resolve com um FunctionsHttpError genérico
+ * quando o status não é 2xx e não expõe o corpo — que é justamente onde o
+ * backend explica a causa (failure_code) e informa o estorno. A Response
+ * original fica em `error.context`.
+ */
+const readFunctionError = async (error: unknown): Promise<any | null> => {
+  const context = (error as { context?: unknown })?.context;
+  if (!(context instanceof Response)) return null;
+  try {
+    return await context.clone().json();
+  } catch {
+    return null;
+  }
+};
+
 /** Indicador compacto de custo em créditos de uma etapa (número + símbolo de IA). */
 const CreditTag = ({ value, title }: { value: number; title?: string }) => (
   <span
@@ -311,15 +329,25 @@ const Generate = () => {
         },
       });
 
-      if (error) throw error;
-      if (data?.error) {
-        if (data.reason === "insufficient_credits") {
-          toast.error(data.error || reasonMessage("insufficient_credits"));
+      // Numa resposta não-2xx o supabase-js entrega um FunctionsHttpError
+      // genérico ("non-2xx status code") e descarta o corpo — era por isso
+      // que toda falha virava a mesma frase na tela. O corpo real vem em
+      // `error.context` (a Response original) e traz a causa identificada
+      // pelo backend e quanto foi estornado.
+      const payload = data ?? (error ? await readFunctionError(error) : null);
+
+      if (payload?.error) {
+        if (typeof payload.credits_refunded === "number" && payload.credits_refunded > 0) {
+          await ent.refresh();
+        }
+        if (payload.reason === "insufficient_credits") {
+          toast.error(payload.error || reasonMessage("insufficient_credits"));
           setPhase("form");
           return;
         }
-        throw new Error(data.error);
+        throw new Error(payload.error);
       }
+      if (error) throw error;
       if (!data?.slides?.length) throw new Error("Nenhum slide gerado");
 
       setStepIdx(2);
