@@ -102,10 +102,13 @@ BEGIN
     RETURN jsonb_build_object('refunded', false, 'reason', 'already_refunded');
   END IF;
 
-  -- Divisão original da cobrança desta tentativa.
+  -- Divisão original da cobrança desta tentativa. Casa pelo valor exato para
+  -- não pegar o débito de outra geração em paralelo; se nada casar, devolve
+  -- tudo ao bônus (a soma estornada é sempre correta — o que poderia variar
+  -- é apenas a bolsa de destino).
   SELECT metadata INTO _last
   FROM public.credit_transactions
-  WHERE user_id = _uid AND type = 'consume'
+  WHERE user_id = _uid AND type = 'consume' AND amount = -_credits
   ORDER BY created_at DESC
   LIMIT 1;
 

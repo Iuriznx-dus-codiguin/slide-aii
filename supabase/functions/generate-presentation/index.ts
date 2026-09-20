@@ -760,7 +760,7 @@ LEMBRETE CRÍTICO:
       console.error("AI gateway error:", aiResponse.status, t);
       return await failGeneration({
         code: "ai_gateway_error",
-        message: `A IA respondeu com erro durante a geração. Seus créditos foram devolvidos e o problema foi registrado para a equipe.`,
+        message: "A IA respondeu com erro durante a geração. Seus créditos foram devolvidos e o problema foi registrado para a equipe.",
         status: 502,
         detail: { provider_status: aiResponse.status, provider_body: t.slice(0, 500) },
       });
