@@ -67,6 +67,7 @@ export interface BriefInput {
 // Nomes de transição vêm do módulo compartilhado com o front (ver
 // transitionNames.ts) — antes esta lista era uma cópia mantida à mão.
 import { ALL_TRANSITION_NAMES } from "./transitionNames.ts";
+import { normalizePresentationType } from "./presentationType.ts";
 export { ALL_TRANSITION_NAMES };
 
 // ────────────────────────────────────────────────────────────────
@@ -216,7 +217,7 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, +n.toFixed(2)));
 // A geração de conteúdo NUNCA deve ser bloqueada por esta etapa.
 export function buildDefaultBrief(input: BriefInput): CreativeBrief {
   const deepDive = input.depthLevel === "deep-dive";
-  const profile = TYPE_PROFILES[(input.type ?? "").trim().toLowerCase()] ?? DEFAULT_PROFILE;
+  const profile = TYPE_PROFILES[normalizePresentationType(input.type)] ?? DEFAULT_PROFILE;
   const personaOverride = PERSONA_OVERRIDES[input.persona ?? ""] ?? {};
   const merged = { ...profile, ...personaOverride };
 

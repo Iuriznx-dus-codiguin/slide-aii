@@ -25,6 +25,8 @@
 // Promise.all em generate-presentation/index.ts — mesmo padrão de
 // confiabilidade: nunca lança exceção, sempre cai num fallback determinístico.
 
+import { normalizePresentationType } from "./presentationType.ts";
+
 export type NarrativeActName = "hook" | "tension" | "journey" | "proof" | "climax";
 
 export interface StoryBeat {
@@ -143,7 +145,7 @@ const connectionFor = (prev: NarrativeActName, current: NarrativeActName): strin
 
 export function buildDefaultOutline(input: OutlineInput): StoryOutline {
   const n = Math.max(1, input.slidesCount);
-  const typeKey = (input.type ?? "").trim().toLowerCase();
+  const typeKey = normalizePresentationType(input.type);
   const middle = MIDDLE_PATTERNS[typeKey] ?? DEFAULT_MIDDLE;
   const title = input.title || "o tema";
 

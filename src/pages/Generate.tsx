@@ -73,6 +73,12 @@ const CreditTag = ({ value, title }: { value: number; title?: string }) => (
 // Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
 const FREE_GENERATIONS_LIMIT = 1;
 
+// Valores iniciais do formulário. Nomeados porque o pré-preenchimento por
+// perfil (profiles.role) só sobrescreve campos que ainda estão nestes valores.
+const INITIAL_PERSONA = "educator";
+const INITIAL_TYPE = "Escolar";
+const INITIAL_TEXT_DEPTH = "balanced" as const;
+
 const STEPS = [
   "Pesquisando o tema...",
   "Estruturando narrativa cinematográfica...",
@@ -112,7 +118,7 @@ const Generate = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [slidesCount, setSlidesCount] = useState(8);
-  const [type, setType] = useState("Escolar");
+  const [type, setType] = useState(INITIAL_TYPE);
   const [language, setLanguage] = useState("pt-BR");
   const [theme, setTheme] = useState("auto");
   // A fonte agora é escolhida automaticamente com base em tipo+tema+título e,
@@ -124,10 +130,10 @@ const Generate = () => {
   const [includeImages, setIncludeImages] = useState(true);
   const [preferDynamic, setPreferDynamic] = useState(true);
   // DNA narrativo (Fase 2.5+)
-  const [persona, setPersona] = useState<string>("educator");
+  const [persona, setPersona] = useState<string>(INITIAL_PERSONA);
   // Profundidade dos textos (substitui a antiga "Identidade de marca"):
   // controla contextualização e riqueza de detalhes, não só nº de palavras.
-  const [textDepth, setTextDepth] = useState<"short" | "balanced" | "long">("balanced");
+  const [textDepth, setTextDepth] = useState<"short" | "balanced" | "long">(INITIAL_TEXT_DEPTH);
   const [presentersCount, setPresentersCount] = useState(1);
   const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
   const [includeSpeeches, setIncludeSpeeches] = useState(false);
@@ -183,9 +189,12 @@ const Generate = () => {
       const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
       const defaults = defaultsForRole(data?.role);
       if (!defaults) return;
-      setPersona(defaults.persona);
-      setType(defaults.type);
-      setTextDepth(defaults.textDepth);
+      // A leitura é assíncrona: se o usuário já mexeu no campo enquanto ela
+      // estava em voo, a escolha dele vence. Só preenche o que ainda está no
+      // valor inicial do formulário.
+      setPersona((cur) => (cur === INITIAL_PERSONA ? defaults.persona : cur));
+      setType((cur) => (cur === INITIAL_TYPE ? defaults.type : cur));
+      setTextDepth((cur) => (cur === INITIAL_TEXT_DEPTH ? defaults.textDepth : cur));
     })();
   }, [user, searchParams]);
 
@@ -237,7 +246,10 @@ const Generate = () => {
     const fetchOne = async (i: number) => {
       const s = slidesList[i];
       const q = reservedQueries[i];
-      if (!q) { result[i] = s; return; }
+      // Pré-atribuído: garante que nenhuma posição do array fique vazia, o que
+      // faria um slide inteiro chegar como undefined na hora de persistir.
+      result[i] = s;
+      if (!q) return;
       try {
         let url = await fetchSlideImage({
           query: q,

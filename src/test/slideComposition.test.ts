@@ -6,11 +6,36 @@ import { describe, expect, it } from "vitest";
 import {
   accentCountFor,
   accentsFor,
+  ALL_VISUAL_ACCENTS,
   assignLayouts,
   NON_SIDE_IMAGE_LAYOUTS,
   SIDE_IMAGE_LAYOUTS,
   SIDE_IMAGE_SHARE_CAP,
+  SLIDE_LAYOUTS,
 } from "../../supabase/functions/_shared/slideComposition.ts";
+
+describe("SLIDE_LAYOUTS — repertório compartilhado", () => {
+  it("cobre os dois subconjuntos, sem nome fora do repertório", () => {
+    for (const l of [...SIDE_IMAGE_LAYOUTS, ...NON_SIDE_IMAGE_LAYOUTS]) {
+      expect(SLIDE_LAYOUTS, `layout fora do repertório: ${l}`).toContain(l);
+    }
+  });
+
+  it("não tem nomes duplicados e os dois subconjuntos não se sobrepõem", () => {
+    expect(new Set(SLIDE_LAYOUTS).size).toBe(SLIDE_LAYOUTS.length);
+    for (const l of NON_SIDE_IMAGE_LAYOUTS) {
+      expect(SIDE_IMAGE_LAYOUTS).not.toContain(l);
+    }
+  });
+
+  it("descarta modelo fora do repertório em vez de repassá-lo ao renderer", () => {
+    const out = assignLayouts(Array.from({ length: 20 }, (_, i) => ({
+      layout: i % 3 === 0 ? "image-right" : i % 3 === 1 ? "inexistente" : undefined,
+    })));
+    expect(out).not.toContain("inexistente");
+    for (const l of out) expect(SLIDE_LAYOUTS).toContain(l);
+  });
+});
 
 const sideImageCount = (layouts: string[]) =>
   layouts.slice(1).filter((l) => SIDE_IMAGE_LAYOUTS.includes(l)).length;
@@ -62,6 +87,30 @@ describe("assignLayouts — variedade de modelo de página", () => {
   it("não quebra em decks de 1 ou 2 slides", () => {
     expect(assignLayouts([{ layout: "split-hero" }])).toHaveLength(1);
     expect(assignLayouts([{}, {}])).toHaveLength(2);
+  });
+});
+
+describe("acentos — repertório válido", () => {
+  it("todo acento escolhido existe entre os 14 implementados", () => {
+    const intents = [
+      "emphasis-stat", "data-reveal", "quote-spotlight", "section-break",
+      "hero-impact", "narrative-build", "calm-fade", "desconhecido",
+    ];
+    const types = [
+      "title_slide", "stat", "data_chart", "quote", "comparison",
+      "section_divider", "conclusion", "content", undefined,
+    ];
+    for (const animation_intent of intents) {
+      for (const slide_type of types) {
+        for (let i = 0; i < 16; i++) {
+          for (const density of ["minimal", "moderate", "rich"]) {
+            for (const accent of accentsFor({ animation_intent, slide_type }, i, density)) {
+              expect(ALL_VISUAL_ACCENTS, `acento inválido: ${accent}`).toContain(accent);
+            }
+          }
+        }
+      }
+    }
   });
 });
 

@@ -102,6 +102,17 @@ describe("Creative Director — fallback determinístico", () => {
     expect(brief({ description: "x".repeat(300) }).visual_density).toBe("dense");
   });
 
+  it("tipos vindos de templates recebem o perfil equivalente, não o genérico", () => {
+    // src/lib/templates.ts grava rótulos que não existem no formulário
+    // ("Vendas", "Palestra", "Treinamento"…) e eles chegam assim ao backend.
+    const generico = brief({ type: "Algo Que Não Existe" });
+    expect(brief({ type: "Vendas" }).visual_style).toBe(brief({ type: "Marketing" }).visual_style);
+    expect(brief({ type: "Treinamento" }).visual_style).toBe(brief({ type: "Escolar" }).visual_style);
+    expect(brief({ type: "Educacional" }).visual_style).toBe(brief({ type: "Escolar" }).visual_style);
+    expect(brief({ type: "Pitch" }).visual_style).toBe(brief({ type: "Pitch de negócios" }).visual_style);
+    expect(brief({ type: "Vendas" }).visual_style).not.toBe(generico.visual_style);
+  });
+
   it("tipo desconhecido cai num perfil neutro sem quebrar", () => {
     const b = brief({ type: "Algo Que Não Existe" });
     expect(b.visual_style).toBeTruthy();
@@ -136,6 +147,14 @@ describe("Story Engine — fallback determinístico", () => {
     for (const b of o.beats.slice(1)) {
       expect(b.connects_to_previous).toBeTruthy();
     }
+  });
+
+  it("tipos de template herdam o ritmo do tipo equivalente", () => {
+    const acts = (o: ReturnType<typeof outline>) => o.beats.map((b) => b.narrative_act).join(",");
+    expect(acts(outline({ type: "Vendas", slidesCount: 10 })))
+      .toBe(acts(outline({ type: "Marketing", slidesCount: 10 })));
+    expect(acts(outline({ type: "Educacional", slidesCount: 10 })))
+      .toBe(acts(outline({ type: "Escolar", slidesCount: 10 })));
   });
 
   it("o ritmo do arco muda conforme o tipo da apresentação", () => {
@@ -188,7 +207,7 @@ describe("Story Engine — normalizeOutline", () => {
 
   it("ignora narrative_act inválido e mantém o do fallback", () => {
     const o = normalizeOutline({
-      beats: [{ index: 0, narrative_act: "explosao" as any, function: "f", key_message: "k", connects_to_previous: "" }],
+      beats: [{ index: 0, narrative_act: "explosao" as never, function: "f", key_message: "k", connects_to_previous: "" }],
     }, input);
     expect(o.beats[0].narrative_act).toBe("hook");
   });

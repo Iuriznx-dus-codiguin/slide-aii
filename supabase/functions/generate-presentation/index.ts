@@ -33,7 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
-import { accentsFor, assignLayouts } from "../_shared/slideComposition.ts";
+import { accentsFor, assignLayouts, SLIDE_LAYOUTS } from "../_shared/slideComposition.ts";
 import { createLogger } from "../_shared/observability.ts";
 
 
@@ -626,7 +626,7 @@ LEMBRETE CRÍTICO:
                 properties: {
                   slide_title: { type: "string" },
                   slide_type: { type: "string", enum: ["title_slide", "content", "bullet_points", "quote", "image_text", "data_chart", "section_divider", "conclusion"] },
-                  layout_template: { type: "string", enum: ["title-only", "title-content", "two-columns", "image-right", "image-left", "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight"] },
+                  layout_template: { type: "string", enum: SLIDE_LAYOUTS },
                   cover_variant: {
                     type: "string",
                     enum: ["split-hero", "typographic-bold", "full-bleed-image", "minimal-centered", "asymmetric-grid", "gradient-mesh"],

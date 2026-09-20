@@ -23,9 +23,30 @@
 //     todos os slides, e full-image/stat-highlight/data-chart seguem exibindo
 //     imagem. O que muda é o ARRANJO, não a presença de imagem.
 
-export const SIDE_IMAGE_LAYOUTS = ["image-right", "image-left"];
+/**
+ * Repertório completo de modelos de página — fonte única.
+ *
+ * Esta lista existia em três lugares: o enum da tool create_presentation
+ * (Deno), a constante LAYOUTS do Editor (Vite) e o pool de fallback do
+ * pós-processamento. Mesma armadilha dos nomes de transição: um modelo novo
+ * exigia lembrar de todos, e esquecer um deixava o Editor sem a opção ou a
+ * IA emitindo algo que a tela não sabe montar.
+ */
+export const SLIDE_LAYOUTS = [
+  "title-only", "title-content", "two-columns", "image-right", "image-left",
+  "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight",
+] as const;
 
-/** Modelos que não colocam imagem lateral ao lado do texto. */
+export type SlideLayout = (typeof SLIDE_LAYOUTS)[number];
+
+/** Modelos em que a imagem divide a tela com o texto — os "imagem + texto". */
+export const SIDE_IMAGE_LAYOUTS: string[] = ["image-right", "image-left"];
+
+/**
+ * Modelos usados para preencher e remanejar. "title-only" e "split-hero"
+ * ficam de fora de propósito: são modelos de abertura/divisória, não de
+ * conteúdo, e entrariam no rodízio produzindo slides quase vazios.
+ */
 export const NON_SIDE_IMAGE_LAYOUTS = [
   "two-columns", "stat-highlight", "quote", "centered",
   "data-chart", "title-content", "full-image",
@@ -60,7 +81,10 @@ export function assignLayouts(slides: LayoutInput[]): string[] {
     result.slice(Math.max(0, at - REPEAT_WINDOW), at).includes(layout);
 
   for (let i = 0; i < total; i++) {
-    const proposed = slides[i].layout?.trim();
+    // Nome fora do repertório é tratado como ausente: o renderer degrada para
+    // o slide de conteúdo padrão, e o Editor não teria a opção no seletor.
+    const raw = slides[i].layout?.trim();
+    const proposed = raw && (SLIDE_LAYOUTS as readonly string[]).includes(raw) ? raw : undefined;
 
     if (i === 0) {
       result.push(proposed || "split-hero");
@@ -133,12 +157,18 @@ const ACCENTS_BY_SLIDE_TYPE: Record<string, string[]> = {
   conclusion: ["animated-blob", "particle-field"],
 };
 
-const ACCENT_ROTATION = [
+/**
+ * Os 14 acentos implementados no SlideRenderer (AccentLayer). Um nome que não
+ * esteja aqui é descartado em vez de chegar à tela e não renderizar nada.
+ */
+export const ALL_VISUAL_ACCENTS = [
   "floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid",
   "corner-brackets", "wave-form", "data-pattern", "animated-blob",
   "pulse-grid", "particle-field", "layered-panels", "gradient-drift",
   "reactive-dots", "card-stack",
-];
+] as const;
+
+const ACCENT_ROTATION: readonly string[] = ALL_VISUAL_ACCENTS;
 
 export interface AccentInput {
   slide_type?: string;

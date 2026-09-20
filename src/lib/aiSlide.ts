@@ -11,7 +11,7 @@
 // valor anterior quando a IA não devolve o campo, a geração inicial não tem
 // valor anterior nenhum. Isso vira o parâmetro opcional `previous`.
 
-import type { SlideContent, VisualAccent } from "@/components/SlideRenderer";
+import type { ImageStyle, SlideContent, VisualAccent } from "@/components/SlideRenderer";
 
 /** Slide como a IA devolve (generate-presentation / chat-editor). */
 export interface AiSlide {
@@ -31,7 +31,7 @@ export interface AiSlide {
   image_query?: string;
   image_strategy?: "pexels" | "ai" | "none";
   ai_image_prompt?: string;
-  image_style?: string;
+  image_style?: ImageStyle;
   image_url?: string | null;
   chart?: SlideContent["chart"];
   cover_variant?: SlideContent["cover_variant"];
@@ -68,6 +68,10 @@ export function aiSlideToContent(ai: AiSlide, previous?: SlideContent): SlideCon
     image_strategy: ai.image_strategy,
     image_url: keep(ai.image_url, previous?.image_url) ?? null,
     ai_image_prompt: ai.ai_image_prompt,
+    // Persistido porque o Editor precisa reenviá-lo ao trocar a imagem: sem
+    // ele, a busca erra a chave de cache do Asset Intelligence (pagando uma
+    // geração nova) e pode reaproveitar um asset de outro estilo visual.
+    image_style: keep(ai.image_style, previous?.image_style),
     chart: ai.chart,
     animation: ai.animation,
     cover_variant: keep(ai.cover_variant, previous?.cover_variant),

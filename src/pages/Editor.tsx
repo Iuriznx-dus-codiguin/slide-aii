@@ -35,11 +35,10 @@ import React from "react";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { aiSlideToContent } from "@/lib/aiSlide";
 import { fetchSlideImage } from "@/lib/slideImage";
+import { SLIDE_LAYOUTS } from "../../supabase/functions/_shared/slideComposition.ts";
 
-const LAYOUTS = [
-  "title-only", "title-content", "two-columns", "image-right", "image-left",
-  "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight",
-];
+// Fonte única compartilhada com o backend — ver _shared/slideComposition.ts.
+const LAYOUTS = SLIDE_LAYOUTS;
 
 const TRANSITIONS = [
   "dynamic",
@@ -443,9 +442,8 @@ const Editor = () => {
   // Navegação interna (react-router) não dispara beforeunload — ao desmontar o
   // editor com alterações pendentes, grava em background.
   const saveRef = useRef(save);
-  saveRef.current = save;
   const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
+  useEffect(() => { saveRef.current = save; dirtyRef.current = dirty; });
   useEffect(() => () => { if (dirtyRef.current) void saveRef.current(true); }, []);
 
   // Chat IA do editor manual — Edit Director Engine (edge function chat-editor).
@@ -889,7 +887,7 @@ const Editor = () => {
                         query: c.image_query!,
                         ai_image_prompt: c.ai_image_prompt,
                         image_strategy: c.image_strategy,
-                        image_style: (c as any).image_style,
+                        image_style: c.image_style,
                       });
                       if (url) {
                         updateContent(activeIdx, { image_url: url });
