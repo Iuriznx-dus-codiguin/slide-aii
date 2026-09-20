@@ -33,6 +33,8 @@ import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugif
 import { toast } from "sonner";
 import React from "react";
 import type { CreativeBrief } from "@/lib/creativeBrief";
+import { aiSlideToContent } from "@/lib/aiSlide";
+import { fetchSlideImage } from "@/lib/slideImage";
 
 const LAYOUTS = [
   "title-only", "title-content", "two-columns", "image-right", "image-left",
@@ -506,21 +508,9 @@ const Editor = () => {
         layout_template: ns.layout_template ?? slides[i]?.layout_template ?? "title-content",
         animation_transition: ns.animation ?? slides[i]?.animation_transition ?? "fade",
         speaker_notes: ns.speaker_notes ?? slides[i]?.speaker_notes ?? null,
-        content: {
-          ...slides[i]?.content,
-          headline: ns.headline, subtitle: ns.subtitle, body_text: ns.body_text,
-          bullets: ns.bullets, stat_value: ns.stat_value, stat_label: ns.stat_label,
-          quote_text: ns.quote_text, quote_author: ns.quote_author,
-          image_query: ns.image_query, image_strategy: ns.image_strategy,
-          image_url: ns.image_url ?? slides[i]?.content?.image_url,
-          ai_image_prompt: ns.ai_image_prompt, chart: ns.chart, animation: ns.animation,
-          // Bloco 11.3: preserva campos "DNA" se a IA não devolveu
-          visual_accents: (ns as any).visual_accents ?? (slides[i]?.content as any)?.visual_accents,
-          narrative_act: (ns as any).narrative_act ?? (slides[i]?.content as any)?.narrative_act,
-          animation_intent: (ns as any).animation_intent ?? (slides[i]?.content as any)?.animation_intent,
-          cover_variant: (ns as any).cover_variant ?? (slides[i]?.content as any)?.cover_variant,
-          transition: (ns as any).transition ?? (slides[i]?.content as any)?.transition,
-        },
+        // Bloco 11.3: campos "DNA" (acentos, ato narrativo, variante de capa)
+        // preservados quando a IA não os devolve — ver aiSlideToContent.
+        content: aiSlideToContent(ns, slides[i]?.content),
       }));
       skipNextSnapshot.current = true;
       setSlides(updated as any);
@@ -894,17 +884,19 @@ const Editor = () => {
                   )}
                   <Button variant="outline" size="sm" className="w-full" disabled={!c.image_query}
                     onClick={async () => {
-                      try {
-                        toast.loading("Buscando imagem...", { id: "img" });
-                        const { data } = await supabase.functions.invoke("fetch-image", {
-                          // `style` é parte da chave de cache do Asset
-                          // Intelligence — sem ele, trocar a imagem no Editor
-                          // sempre paga uma geração nova.
-                          body: { query: c.image_query, ai_prompt: c.ai_image_prompt, strategy: c.image_strategy || "pexels", style: c.image_style, orientation: "landscape" },
-                        });
-                        if (data?.url) updateContent(activeIdx, { image_url: data.url });
+                      toast.loading("Buscando imagem...", { id: "img" });
+                      const url = await fetchSlideImage({
+                        query: c.image_query!,
+                        ai_image_prompt: c.ai_image_prompt,
+                        image_strategy: c.image_strategy,
+                        image_style: (c as any).image_style,
+                      });
+                      if (url) {
+                        updateContent(activeIdx, { image_url: url });
                         toast.success("Imagem atualizada!", { id: "img" });
-                      } catch (e: any) { toast.error(e.message || "Erro", { id: "img" }); }
+                      } else {
+                        toast.error("Não foi possível buscar a imagem.", { id: "img" });
+                      }
                     }}>
                     <ImageIcon className="h-4 w-4" /> Buscar / gerar imagem
                   </Button>
