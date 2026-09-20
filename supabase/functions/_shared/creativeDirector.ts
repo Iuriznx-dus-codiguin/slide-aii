@@ -31,22 +31,29 @@ export interface CreativeBrief {
   minimalism_degree: number;
   creativity_degree: number;
   abstraction_degree: number;
-  depth: "surface" | "deep";
   contrast: "low" | "medium" | "high";
   hierarchy_strength: "subtle" | "clear" | "bold";
   spacing: "tight" | "balanced" | "generous";
   asymmetry: "symmetric" | "balanced" | "asymmetric";
   narrative_type: "linear" | "problem-solution" | "before-after" | "story-arc" | "data-driven";
-  animation_speed: "slow" | "moderate" | "fast";
   element_density: "minimal" | "moderate" | "rich";
-  /** Subconjunto das 13 transições (ver src/lib/slideTransitions.ts) permitidas para este tema. */
+  /** Subconjunto das 13 transições (ver src/lib/slideTransitions.tsx) permitidas para este tema. */
   allowed_transitions: string[];
   /** Nomes de transições/efeitos a evitar (ex: tema sério evita "shatter"). */
   forbidden_effects: string[];
-  /** Reservado para o Motion Director (Fase 3+): nota sobre ritmo de câmera/zoom. */
-  camera_movements: string;
   rationale: string;
 }
+
+// Campos removidos desta interface por não terem NENHUM leitor no produto —
+// a IA gastava tokens preenchendo os três a cada geração:
+//   • camera_movements  — a própria descrição dizia "reservado para uso
+//     futuro do Motion Director"; nunca chegou a ser lido.
+//   • animation_speed   — nunca consumido; `pacing` já cobre o ritmo e é o
+//     campo que entra no prompt principal.
+//   • depth             — duplicava body.textDepth, que já governa a
+//     contextualização via depthGuide() no prompt de conteúdo.
+// Apresentações antigas têm esses campos em presentations.creative_brief
+// (coluna jsonb); chaves extras são simplesmente ignoradas na leitura.
 
 export interface BriefInput {
   title: string;
@@ -90,7 +97,6 @@ interface TypeProfile {
   asymmetry: CreativeBrief["asymmetry"];
   /** Efeitos que destoam deste contexto (ex.: estilhaçar slide em banca de TCC). */
   forbidden: string[];
-  camera: string;
 }
 
 const TYPE_PROFILES: Record<string, TypeProfile> = {
@@ -103,7 +109,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.7, creativity: 0.3, abstraction: 0.2,
     contrast: "medium", asymmetry: "symmetric",
     forbidden: ["shatter", "portal", "blinds"],
-    camera: "sem movimento — a atenção fica no dado, não no efeito",
   },
   científico: {
     audience: "pesquisadores e público técnico",
@@ -114,7 +119,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.75, creativity: 0.25, abstraction: 0.15,
     contrast: "medium", asymmetry: "symmetric",
     forbidden: ["shatter", "portal", "letterbox"],
-    camera: "sem movimento — leitura de gráficos exige estabilidade",
   },
   escolar: {
     audience: "turma e professor",
@@ -125,7 +129,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.4, creativity: 0.6, abstraction: 0.35,
     contrast: "high", asymmetry: "balanced",
     forbidden: [],
-    camera: "movimentos suaves entre seções para manter o ritmo da aula",
   },
   corporativo: {
     audience: "time interno e liderança",
@@ -136,7 +139,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.65, creativity: 0.4, abstraction: 0.3,
     contrast: "high", asymmetry: "balanced",
     forbidden: ["shatter"],
-    camera: "cortes secos, sem firula — reunião tem relógio correndo",
   },
   marketing: {
     audience: "clientes e potenciais compradores",
@@ -147,7 +149,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.35, creativity: 0.8, abstraction: 0.55,
     contrast: "high", asymmetry: "asymmetric",
     forbidden: [],
-    camera: "movimento constante — cada slide entra com impulso",
   },
   criativo: {
     audience: "público aberto a experimentação",
@@ -158,7 +159,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.25, creativity: 0.9, abstraction: 0.7,
     contrast: "high", asymmetry: "asymmetric",
     forbidden: [],
-    camera: "liberdade total — o efeito faz parte da mensagem",
   },
   "pitch de negócios": {
     audience: "investidores e decisores",
@@ -169,7 +169,6 @@ const TYPE_PROFILES: Record<string, TypeProfile> = {
     minimalism: 0.7, creativity: 0.55, abstraction: 0.3,
     contrast: "high", asymmetry: "asymmetric",
     forbidden: ["blinds"],
-    camera: "ritmo acelerado nos números, pausa no pedido final",
   },
 };
 
@@ -182,7 +181,6 @@ const DEFAULT_PROFILE: TypeProfile = {
   minimalism: 0.5, creativity: 0.6, abstraction: 0.4,
   contrast: "high", asymmetry: "balanced",
   forbidden: [],
-  camera: "movimentos discretos, priorizando clareza",
 };
 
 /** Ajustes que a persona do orador impõe por cima do perfil do tipo. */
@@ -245,17 +243,14 @@ export function buildDefaultBrief(input: BriefInput): CreativeBrief {
     minimalism_degree: clamp01(merged.minimalism),
     creativity_degree: clamp01(merged.creativity),
     abstraction_degree: clamp01(merged.abstraction),
-    depth: deepDive ? "deep" : "surface",
     contrast: merged.contrast,
     hierarchy_strength: merged.minimalism >= 0.65 ? "bold" : "clear",
     spacing: merged.minimalism >= 0.65 ? "generous" : "balanced",
     asymmetry: merged.asymmetry,
     narrative_type: merged.narrative_type,
-    animation_speed: pacing,
     element_density: visual_density === "dense" ? "rich" : visual_density === "sparse" ? "minimal" : "moderate",
     allowed_transitions: allowed,
     forbidden_effects: merged.forbidden,
-    camera_movements: merged.camera,
     rationale: `Direção derivada do contexto (${input.type || "tipo não informado"}, persona ${input.persona ?? "equilibrada"}, ${input.slidesCount} slides) — Creative Director de IA indisponível nesta geração.`,
   };
 }
@@ -284,13 +279,11 @@ const BRIEF_TOOL = [{
         minimalism_degree: { type: "number", description: "0 (maximalista) a 1 (minimalista)." },
         creativity_degree: { type: "number", description: "0 (convencional) a 1 (experimental)." },
         abstraction_degree: { type: "number", description: "0 (literal) a 1 (abstrato)." },
-        depth: { type: "string", enum: ["surface", "deep"] },
         contrast: { type: "string", enum: ["low", "medium", "high"] },
         hierarchy_strength: { type: "string", enum: ["subtle", "clear", "bold"] },
         spacing: { type: "string", enum: ["tight", "balanced", "generous"] },
         asymmetry: { type: "string", enum: ["symmetric", "balanced", "asymmetric"] },
         narrative_type: { type: "string", enum: ["linear", "problem-solution", "before-after", "story-arc", "data-driven"] },
-        animation_speed: { type: "string", enum: ["slow", "moderate", "fast"] },
         element_density: { type: "string", enum: ["minimal", "moderate", "rich"] },
         allowed_transitions: {
           type: "array",
@@ -302,7 +295,6 @@ const BRIEF_TOOL = [{
           items: { type: "string" },
           description: "Nomes de transições ou efeitos visuais a EVITAR neste tema (ex: um tema institucional sério pode proibir 'shatter').",
         },
-        camera_movements: { type: "string", description: "Nota curta sobre ritmo de câmera/zoom desejado (reservado para uso futuro do Motion Director)." },
         rationale: { type: "string", description: "1-2 frases justificando a direção escolhida." },
       },
       required: [

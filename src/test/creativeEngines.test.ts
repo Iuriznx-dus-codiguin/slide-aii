@@ -30,11 +30,21 @@ describe("Creative Director — fallback determinístico", () => {
     for (const field of [
       "objective", "audience", "technical_level", "visual_style", "formality",
       "emotional_identity", "pacing", "visual_density", "narrative_type",
-      "camera_movements", "rationale",
+      "contrast", "hierarchy_strength", "spacing", "asymmetry",
+      "element_density", "rationale",
     ] as const) {
       expect(b[field], `campo "${field}" vazio`).toBeTruthy();
     }
     expect(b.allowed_transitions.length).toBeGreaterThan(0);
+  });
+
+  it("não emite campos sem leitor — o brief só carrega o que é consumido", () => {
+    // camera_movements / animation_speed / depth foram removidos: a IA
+    // gastava tokens preenchendo, e nada no produto lia.
+    const b = brief() as unknown as Record<string, unknown>;
+    expect(b).not.toHaveProperty("camera_movements");
+    expect(b).not.toHaveProperty("animation_speed");
+    expect(b).not.toHaveProperty("depth");
   });
 
   it("mantém os graus normalizados entre 0 e 1", () => {
@@ -86,7 +96,7 @@ describe("Creative Director — fallback determinístico", () => {
   it("o tamanho do deck e a profundidade alteram ritmo e densidade", () => {
     expect(brief({ slidesCount: 16 }).pacing).toBe("fast");
     expect(brief({ slidesCount: 6 }).pacing).toBe("slow");
-    expect(brief({ depthLevel: "deep-dive" }).depth).toBe("deep");
+    expect(brief({ depthLevel: "deep-dive" }).technical_level).toBe("expert");
     expect(brief({ depthLevel: "deep-dive" }).visual_density).toBe("dense");
     // Descrição detalhada também é sinal de substância para densificar.
     expect(brief({ description: "x".repeat(300) }).visual_density).toBe("dense");

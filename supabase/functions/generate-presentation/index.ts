@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
+import { accentsFor, assignLayouts } from "../_shared/slideComposition.ts";
 import { createLogger } from "../_shared/observability.ts";
 
 
@@ -199,7 +200,7 @@ PASSO E — VARIAÇÃO INTENCIONAL DE MODELOS DE PÁGINA, ACENTOS E ANIMAÇÕES
 - Repertório de modelos e quando usar:
   * "quote" → citação em destaque, tipografia gigante, fundo imersivo (use 1-2 por apresentação).
   * "full-image" → imagem/fundo em tela cheia com texto sobreposto (momentos de impacto).
-  * "image-right" / "image-left" → conceito + imagem lateral (o cavalo de batalha; alterne o lado).
+  * "image-right" / "image-left" → conceito + imagem lateral. USE COM PARCIMÔNIA (teto no Passo E.1); alterne o lado quando usar.
   * "stat-highlight" → um número gigante + contexto curto.
   * "data-chart" → gráfico com dados e fonte.
   * "two-columns" → comparação, antes/depois, prós/contras.
@@ -225,7 +226,7 @@ PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
 Em uma apresentação de N slides garanta:
 - AO MENOS 1 slide com layout "two-columns".
 - AO MENOS 1 slide "stat-highlight" se pertinente ao tema.
-- AO MENOS ${req.includeImages ? "60% dos" : "0"} slides com imagem (image-right/image-left/full-image) quando includeImages=true.
+- NO MÁXIMO 30% dos slides com "image-right"/"image-left". Esse é um TETO, não uma meta: o deck fica monótono quando quase todo slide é uma foto ao lado de um parágrafo. Prefira "full-image", "stat-highlight", "data-chart", "two-columns", "quote" e "centered" — todos continuam podendo ter imagem, só que ocupando a tela de outro jeito.
 - AO MENOS 1 slide "centered" como divisória/seção.
 - Pelo menos 1 capa cinematográfica com cover_variant DIFERENTE de "split-hero" e "typographic-bold".
 - Varie cover_variant entre as 6 opções com base no tema/persona:
@@ -840,31 +841,36 @@ LEMBRETE CRÍTICO:
       firstTitle.cover_variant = COVERS[h % COVERS.length];
     }
 
-    // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
-    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"];
     // Modo derivado do teto único quando fornecido; fallback para o enviado.
     const budgetMode = typeof body.max_budget_usd === "number"
       ? (body.max_budget_usd <= 0.15 ? "economy" : body.max_budget_usd <= 0.45 ? "balanced" : "premium")
       : (body.image_budget_mode ?? "balanced");
     const pexelsOnly = budgetMode === "economy";
-    // Pool de modelos de página — usado para forçar variedade quando a IA
-    // repete o mesmo layout em sequência.
-    const LAYOUT_POOL = ["image-right", "two-columns", "stat-highlight", "quote", "centered", "image-left", "full-image", "title-content", "data-chart"];
     const preferDynamic = body.preferDynamic !== false;
-    let lastLayout = "";
+
+    // Modelos de página: distribuição determinística com janela anti-repetição
+    // e teto de slides "imagem + texto lateral" (ver _shared/slideComposition.ts).
+    const layouts = assignLayouts(
+      parsed.slides.map((s: any) => ({ layout: s.layout_template, slide_type: s.slide_type })),
+    );
+
     parsed.slides = parsed.slides.map((s: any, i: number) => {
-      const accents = Array.isArray(s.visual_accents) && s.visual_accents.length > 0
-        ? s.visual_accents
-        : [ACCENT_POOL[i % ACCENT_POOL.length], ACCENT_POOL[(i + 3) % ACCENT_POOL.length]];
       let strategy = s.image_strategy ?? (s.image_query ? "pexels" : "none");
       // Modo economia / dev override: nunca usar IA para imagens.
       if (pexelsOnly && strategy === "ai") strategy = "pexels";
-      // Modelos de página: nunca dois iguais seguidos (exceto capa).
-      let layout = s.layout_template || LAYOUT_POOL[i % LAYOUT_POOL.length];
-      if (i > 0 && layout === lastLayout) {
-        layout = LAYOUT_POOL.find((l) => l !== lastLayout && l !== layout) ?? LAYOUT_POOL[(i + 1) % LAYOUT_POOL.length];
-      }
-      lastLayout = layout;
+      const layout = layouts[i];
+      // Acentos por CONTEÚDO (papel narrativo/tipo do slide) e na quantidade
+      // que a densidade de elementos do brief pede — antes era só posicional.
+      const accents = accentsFor(
+        {
+          slide_type: s.slide_type,
+          animation_intent: s.animation_intent,
+          visual_accents: s.visual_accents,
+          hasImage: strategy !== "none",
+        },
+        i,
+        creativeBrief.element_density,
+      );
       // Fase 2 (Story Engine): narrative_act persistido é SEMPRE o do
       // outline já planejado (storyOutline.beats[i]), nunca o que a IA
       // eventualmente reescreveu durante a geração de conteúdo — mesma

@@ -248,8 +248,14 @@ export async function buildStoryOutline(
           messages: [{ role: "user", content: outlinePrompt(input) }],
           tools: OUTLINE_TOOL,
           tool_choice: { type: "function", function: { name: "set_story_outline" } },
-          // ~107 tokens por slide (1600 calibrados em 15 slides), com piso de 1600.
-          max_completion_tokens: Math.max(1600, Math.round(input.slidesCount * 107)),
+          // Orçamento POR SLIDE, não um piso que domina os decks pequenos.
+          // Antes era max(1600, slides*107): um deck de 5 slides recebia 320
+          // tokens/slide e um de 20 recebia 107 — ou seja, o orçamento por
+          // beat encolhia justamente quando o arco fica mais difícil de
+          // planejar, e os últimos beats saíam truncados (caindo no
+          // fallback). Cada beat custa ~70-85 tokens entre conteúdo e
+          // estrutura JSON; 135 dá folga real sem inflar o deck pequeno.
+          max_completion_tokens: Math.max(1400, Math.round(input.slidesCount * 135)),
         }),
         signal: controller.signal,
       });
