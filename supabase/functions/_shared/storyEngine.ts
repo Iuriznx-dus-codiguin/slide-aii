@@ -56,29 +56,116 @@ interface OutlineInput {
 // Vite são runtimes separados sem import compartilhado — sincronia manual.
 const ACTS: NarrativeActName[] = ["hook", "tension", "journey", "proof", "climax"];
 
-// Fallback 100% determinístico — nunca falha, nunca depende de rede. Quando
-// este fallback dispara, a chamada de conteúdo principal ainda roda
-// normalmente; o outline aqui é intencionalmente genérico (uma função
-// determinística não pode saber do que o slide 4 de UM tema específico deve
-// falar) — serve só para manter a VARIEDADE de narrative_act consistente
-// mesmo sem IA, evitando o padrão rígido que o PASSO B do prompt já pedia
-// para evitar manualmente.
+// ────────────────────────────────────────────────────────────────
+// Fallback determinístico
+// ────────────────────────────────────────────────────────────────
+// Antes, este fallback devolvia sempre o MESMO ciclo rígido
+// (hook → journey/tension/proof rotacionando → climax) com textos fixos
+// ("Desenvolve o tema com um novo ângulo ou dado") para qualquer
+// apresentação. Como o narrative_act também decide a transição de cada slide
+// no Motion Director, uma aula e um pitch saíam com exatamente o mesmo ritmo
+// visual sempre que o Story Engine de IA falhava.
+//
+// Continua 100% determinístico — nenhuma função offline pode saber o assunto
+// do slide 4 —, mas o RITMO do arco e a redação de cada beat agora vêm do
+// tipo da apresentação e do título informado, que são contexto real.
+
+/** Sequência do miolo (entre hook e climax) por tipo de apresentação. */
+const MIDDLE_PATTERNS: Record<string, NarrativeActName[]> = {
+  // Trabalhos de pesquisa: evidência acima de tensão dramática.
+  acadêmico: ["journey", "proof", "proof", "journey"],
+  científico: ["journey", "proof", "proof", "journey"],
+  // Aula: explicação encadeada, com checagens de entendimento.
+  escolar: ["journey", "journey", "proof"],
+  // Reunião: problema, encaminhamento, evidência.
+  corporativo: ["tension", "journey", "proof"],
+  // Venda: dor e transformação alternando, com prova social.
+  marketing: ["tension", "journey", "proof", "tension"],
+  // Autoral: constrói e quebra expectativa.
+  criativo: ["tension", "journey", "tension", "proof"],
+  // Investidor: dor, solução, tração — nessa ordem, repetindo.
+  "pitch de negócios": ["tension", "journey", "proof"],
+};
+
+const DEFAULT_MIDDLE: NarrativeActName[] = ["journey", "tension", "proof"];
+
+const ARC_SHAPES: Record<string, string> = {
+  acadêmico: "abertura contextual, múltiplos blocos de evidência, conclusão fundamentada",
+  científico: "abertura contextual, múltiplos blocos de evidência, conclusão fundamentada",
+  escolar: "abertura curiosa, explicação encadeada com checagens, fechamento em revisão",
+  corporativo: "problema, encaminhamento e prova alternando até a decisão final",
+  marketing: "dor e transformação alternando, com prova social antes do fechamento",
+  criativo: "construção e quebra de expectativa até um desfecho memorável",
+  "pitch de negócios": "dor, solução e tração em ciclos curtos até o pedido final",
+};
+
+/** Redação de cada beat a partir do ato e do assunto — sem inventar conteúdo. */
+const beatCopy = (act: NarrativeActName, title: string): Pick<StoryBeat, "function" | "key_message"> => {
+  switch (act) {
+    case "hook":
+      return {
+        function: "Captura atenção e ancora o assunto",
+        key_message: `Por que "${title}" merece atenção agora`,
+      };
+    case "tension":
+      return {
+        function: "Expõe o conflito, a lacuna ou o custo de não agir",
+        key_message: "O problema concreto que ainda não foi resolvido",
+      };
+    case "journey":
+      return {
+        function: "Avança a explicação com um ângulo novo do tema",
+        key_message: "Um passo a mais no entendimento, sem repetir o anterior",
+      };
+    case "proof":
+      return {
+        function: "Sustenta o argumento com dado, exemplo ou caso",
+        key_message: "A evidência que torna a afirmação anterior verificável",
+      };
+    case "climax":
+      return {
+        function: "Fecha com a conclusão de maior impacto",
+        key_message: `O que fica de "${title}" depois desta apresentação`,
+      };
+  }
+};
+
+/** Conexão declarada entre um beat e o anterior — depende do par de atos. */
+const connectionFor = (prev: NarrativeActName, current: NarrativeActName): string => {
+  if (prev === "tension" && current === "journey") return "Resposta direta ao problema levantado antes";
+  if (prev === "journey" && current === "proof") return "Evidência que confirma o ponto recém-explicado";
+  if (prev === "proof" && current === "tension") return "A evidência anterior revela um novo obstáculo";
+  if (prev === "proof" && current === "journey") return "A partir do dado confirmado, o tema avança";
+  if (current === "climax") return "Síntese do que foi construído até aqui";
+  if (prev === "hook") return "Desdobramento do gancho de abertura";
+  return "Continuação lógica direta do slide anterior";
+};
+
 export function buildDefaultOutline(input: OutlineInput): StoryOutline {
   const n = Math.max(1, input.slidesCount);
-  const middleCycle: NarrativeActName[] = ["journey", "tension", "proof"];
-  const beats: StoryBeat[] = [];
+  const typeKey = (input.type ?? "").trim().toLowerCase();
+  const middle = MIDDLE_PATTERNS[typeKey] ?? DEFAULT_MIDDLE;
+  const title = input.title || "o tema";
+
+  const acts: NarrativeActName[] = [];
   for (let i = 0; i < n; i++) {
-    const act: NarrativeActName =
-      i === 0 ? "hook" : i === n - 1 ? "climax" : middleCycle[(i - 1) % middleCycle.length];
-    beats.push({
-      index: i,
-      narrative_act: act,
-      function: i === 0 ? "Captura atenção e ancora o tema" : i === n - 1 ? "Fecha com a conclusão de maior impacto" : "Desenvolve o tema com um novo ângulo ou dado",
-      key_message: i === 0 ? `Por que "${input.title}" importa agora` : "Avançar a história com um elemento concreto novo",
-      connects_to_previous: i === 0 ? "" : "Continuação lógica direta do slide anterior",
-    });
+    if (i === 0) acts.push("hook");
+    else if (i === n - 1) acts.push("climax");
+    else acts.push(middle[(i - 1) % middle.length]);
   }
-  return { beats, arc_shape: "Arco padrão (fallback determinístico) — Story Engine de IA indisponível nesta geração." };
+
+  const beats: StoryBeat[] = acts.map((act, i) => ({
+    index: i,
+    narrative_act: act,
+    ...beatCopy(act, title),
+    connects_to_previous: i === 0 ? "" : connectionFor(acts[i - 1], act),
+  }));
+
+  const shape = ARC_SHAPES[typeKey] ?? "arco clássico com desenvolvimento alternando avanço e evidência";
+  return {
+    beats,
+    arc_shape: `${shape} (arco derivado do tipo "${input.type || "não informado"}" — Story Engine de IA indisponível nesta geração)`,
+  };
 }
 
 const OUTLINE_TOOL = [{
