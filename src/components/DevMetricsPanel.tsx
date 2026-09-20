@@ -55,6 +55,9 @@ export const DevMetricsPanel = () => {
     }, {}),
   ).sort((a, b) => b[1] - a[1]);
   const creditsRefunded = errorLogs.reduce((s, l) => s + Number(l.metadata?.credits_refunded || 0), 0);
+  // Falha em que o estorno não passou: o crédito ficou retido com o usuário
+  // sem a geração ter acontecido — exige ação manual.
+  const stuckCredits = errorLogs.filter((l) => l.metadata?.refund_failed === true);
   const totalGen = successLogs.length;
   const totalPexels = successLogs.reduce((s, l) => s + (l.images_pexels || 0), 0);
   const totalAi = successLogs.reduce((s, l) => s + (l.images_ai || 0), 0);
@@ -89,6 +92,11 @@ export const DevMetricsPanel = () => {
               </span>
               {creditsRefunded > 0 && <span>{creditsRefunded} créditos estornados</span>}
             </div>
+            {stuckCredits.length > 0 && (
+              <div className="mt-2 rounded-md bg-destructive/15 px-2 py-1 text-[11px] font-semibold text-destructive">
+                {stuckCredits.length} {stuckCredits.length === 1 ? "tentativa ficou" : "tentativas ficaram"} com crédito retido — estorno falhou, requer ação manual
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {failureCauses.map(([code, count]) => (
                 <span key={code} className="rounded-full border border-destructive/30 bg-background px-2 py-0.5 text-[11px] font-mono text-destructive">

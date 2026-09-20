@@ -449,6 +449,12 @@ Deno.serve(async (req) => {
    * generation_logs) e o crédito já debitado ficava retido. Aqui os três
    * pontos acontecem juntos: estorna, registra com uma CAUSA identificada e
    * devolve a mensagem específica daquela causa.
+   *
+   * `message` descreve APENAS a causa e o próximo passo. A frase sobre o
+   * estorno é montada aqui, a partir do que de fato aconteceu: afirmar a
+   * devolução no texto fixo de cada erro faria a tela mentir sempre que o
+   * estorno falhasse (RPC indisponível, por exemplo, enquanto a migration
+   * que a cria ainda não foi aplicada).
    */
   const failGeneration = async (opts: {
     code: string;
@@ -457,13 +463,22 @@ Deno.serve(async (req) => {
     detail?: Record<string, unknown>;
   }): Promise<Response> => {
     let refunded = 0;
+    let refundFailed = false;
     if (creditsCharged > 0) {
       const { data: refund, error: refundErr } = await admin.rpc("refund_generation_credits", {
         _uid: userId, _credits: creditsCharged, _reference: attemptRef, _reason: opts.code,
       });
       if (refundErr) console.error("refund_generation_credits falhou:", refundErr);
       else if ((refund as { refunded?: boolean } | null)?.refunded) refunded = creditsCharged;
+      refundFailed = refunded === 0;
     }
+
+    const refundNote = refunded > 0
+      ? ` Os ${refunded} créditos desta tentativa foram devolvidos.`
+      : refundFailed
+        ? " Não foi possível devolver os créditos automaticamente — a equipe já foi notificada."
+        : "";
+    const userMessage = `${opts.message}${refundNote}`;
 
     // Painel admin (DevMetricsPanel lê generation_logs em realtime).
     await admin.from("generation_logs").insert({
@@ -475,8 +490,10 @@ Deno.serve(async (req) => {
       duration_ms: Date.now() - t0,
       metadata: {
         failure_code: opts.code,
-        user_message: opts.message,
+        user_message: userMessage,
         credits_refunded: refunded,
+        // Sinaliza no painel admin que ficou crédito retido nesta tentativa.
+        refund_failed: refundFailed,
         attempt_ref: attemptRef,
         title: rawBody?.title ?? null,
         plan: ent.plan,
@@ -485,10 +502,11 @@ Deno.serve(async (req) => {
     });
 
     return new Response(JSON.stringify({
-      error: opts.message,
+      error: userMessage,
       reason: opts.code,
       failure_code: opts.code,
       credits_refunded: refunded,
+      refund_failed: refundFailed,
     }), {
       status: opts.status,
       headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" },
@@ -503,7 +521,7 @@ Deno.serve(async (req) => {
     if (!useOpenAI && !LOVABLE_API_KEY) {
       return await failGeneration({
         code: "no_ai_provider",
-        message: "Nenhum provedor de IA está configurado no momento. Seus créditos foram devolvidos e a equipe já foi avisada.",
+        message: "Nenhum provedor de IA está configurado no momento. A equipe já foi avisada.",
         status: 503,
       });
     }
@@ -522,7 +540,7 @@ Deno.serve(async (req) => {
     if (!body.title) {
       return await failGeneration({
         code: "missing_title",
-        message: "O título da apresentação chegou vazio. Seus créditos foram devolvidos — preencha o título e tente de novo.",
+        message: "O título da apresentação chegou vazio — preencha o título e tente de novo.",
         status: 400,
       });
     }
@@ -743,7 +761,7 @@ LEMBRETE CRÍTICO:
       if (aiResponse.status === 429) {
         return await failGeneration({
           code: "ai_rate_limited",
-          message: "O provedor de IA está sobrecarregado agora. Seus créditos foram devolvidos — tente novamente em alguns instantes.",
+          message: "O provedor de IA está sobrecarregado agora — tente novamente em alguns instantes.",
           status: 429,
           detail: { provider: useOpenAI ? "openai" : "lovable" },
         });
@@ -751,7 +769,7 @@ LEMBRETE CRÍTICO:
       if (aiResponse.status === 402) {
         return await failGeneration({
           code: "ai_quota_exhausted",
-          message: "A cota de IA da plataforma se esgotou. Seus créditos foram devolvidos e a equipe já foi avisada.",
+          message: "A cota de IA da plataforma se esgotou. A equipe já foi avisada.",
           status: 503,
           detail: { provider: useOpenAI ? "openai" : "lovable" },
         });
@@ -760,7 +778,7 @@ LEMBRETE CRÍTICO:
       console.error("AI gateway error:", aiResponse.status, t);
       return await failGeneration({
         code: "ai_gateway_error",
-        message: "A IA respondeu com erro durante a geração. Seus créditos foram devolvidos e o problema foi registrado para a equipe.",
+        message: "A IA respondeu com erro durante a geração. O problema foi registrado para a equipe.",
         status: 502,
         detail: { provider_status: aiResponse.status, provider_body: t.slice(0, 500) },
       });
@@ -773,7 +791,7 @@ LEMBRETE CRÍTICO:
       console.error("generate-presentation: no tool_call. finish=", finishReason, "raw=", JSON.stringify(data).slice(0, 800));
       return await failGeneration({
         code: "ai_no_structure",
-        message: "A IA não devolveu uma estrutura de slides válida. Seus créditos foram devolvidos — tente reduzir o número de slides ou desativar imagens/falas.",
+        message: "A IA não devolveu uma estrutura de slides válida — tente reduzir o número de slides ou desativar imagens/falas.",
         status: 502,
         detail: { finish_reason: finishReason ?? null },
       });
@@ -785,7 +803,7 @@ LEMBRETE CRÍTICO:
       console.error("generate-presentation: tool args JSON parse failed (likely truncation). finish=", finishReason, "len=", toolCall.function.arguments?.length);
       return await failGeneration({
         code: "ai_truncated",
-        message: "A resposta da IA foi cortada antes de terminar. Seus créditos foram devolvidos — reduza o número de slides ou desative as falas.",
+        message: "A resposta da IA foi cortada antes de terminar — reduza o número de slides ou desative as falas.",
         status: 502,
         detail: { finish_reason: finishReason ?? null, args_length: toolCall.function.arguments?.length ?? 0 },
       });
@@ -793,7 +811,7 @@ LEMBRETE CRÍTICO:
     if (!Array.isArray(parsed.slides) || parsed.slides.length === 0) {
       return await failGeneration({
         code: "ai_empty_slides",
-        message: "A IA não conseguiu montar nenhum slide para este título. Seus créditos foram devolvidos — tente reformular o título ou detalhar a descrição.",
+        message: "A IA não conseguiu montar nenhum slide para este título — tente reformular o título ou detalhar a descrição.",
         status: 502,
         detail: { finish_reason: finishReason ?? null },
       });
@@ -988,7 +1006,7 @@ LEMBRETE CRÍTICO:
     console.error("generate-presentation error:", e);
     return await failGeneration({
       code: "internal_error",
-      message: "Algo quebrou no meio da geração. Seus créditos foram devolvidos e o erro foi registrado para a equipe.",
+      message: "Algo quebrou no meio da geração. O erro foi registrado para a equipe.",
       status: 500,
       detail: { exception: e instanceof Error ? e.message.slice(0, 300) : "unknown" },
     });
