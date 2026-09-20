@@ -39,6 +39,11 @@ import { useImageInsight } from "@/lib/imageAnalysis";
 import { useChoreo } from "@/lib/slideChoreography";
 import { computeCompositionSpec, type SpacingBrief } from "@/lib/compositionEngine";
 
+/** Espelha o enum image_style da tool create_presentation (generate-presentation). */
+export type ImageStyle =
+  | "photo" | "illustration" | "no-background" | "3d-render"
+  | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
+
 export type VisualAccent =
   | "orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines"
   | "corner-brackets" | "data-pattern" | "wave-form"
@@ -58,6 +63,8 @@ export interface SlideContent {
   image_strategy?: "pexels" | "ai" | "none";
   image_url?: string | null;
   ai_image_prompt?: string;
+  /** Estilo visual pedido à IA. Faz parte da chave de cache do Asset Intelligence. */
+  image_style?: ImageStyle;
   animation?: string;
   animation_intent?: AnimationIntent;
   /** Posição no Círculo Narrativo (Fase 2 — Story Engine). Consumido também pelo Motion Director. */

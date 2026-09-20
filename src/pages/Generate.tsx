@@ -22,12 +22,40 @@ import { toast } from "sonner";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
+import { defaultsForRole } from "@/lib/personaDefaults";
+import { aiSlideToContent, type AiSlide } from "@/lib/aiSlide";
+import { fetchSlideImage } from "@/lib/slideImage";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
 import { type SlideContent } from "@/components/SlideRenderer";
 import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
 import { Lock, CreditCard, RefreshCw, AlertTriangle, Coins } from "lucide-react";
+
+/**
+ * Corpo JSON de um erro de edge function.
+ *
+ * `supabase.functions.invoke` resolve com um FunctionsHttpError genérico
+ * quando o status não é 2xx e não expõe o corpo — que é justamente onde o
+ * backend explica a causa (failure_code) e informa o estorno. A Response
+ * original fica em `error.context`.
+ */
+interface GenerationErrorBody {
+  error?: string;
+  reason?: string;
+  failure_code?: string;
+  credits_refunded?: number;
+}
+
+const readFunctionError = async (error: unknown): Promise<GenerationErrorBody | null> => {
+  const context = (error as { context?: unknown })?.context;
+  if (!(context instanceof Response)) return null;
+  try {
+    return await context.clone().json();
+  } catch {
+    return null;
+  }
+};
 
 /** Indicador compacto de custo em créditos de uma etapa (número + símbolo de IA). */
 const CreditTag = ({ value, title }: { value: number; title?: string }) => (
@@ -45,6 +73,12 @@ const CreditTag = ({ value, title }: { value: number; title?: string }) => (
 // Cota gratuita (escondida do usuário pago — pagos veem o teto real do plano)
 const FREE_GENERATIONS_LIMIT = 1;
 
+// Valores iniciais do formulário. Nomeados porque o pré-preenchimento por
+// perfil (profiles.role) só sobrescreve campos que ainda estão nestes valores.
+const INITIAL_PERSONA = "educator";
+const INITIAL_TYPE = "Escolar";
+const INITIAL_TEXT_DEPTH = "balanced" as const;
+
 const STEPS = [
   "Pesquisando o tema...",
   "Estruturando narrativa cinematográfica...",
@@ -55,29 +89,11 @@ const STEPS = [
   "Renderizando slides finais...",
 ];
 
-interface AISlide {
-  slide_title: string;
-  slide_type: string;
-  layout_template: string;
-  animation: string;
-  headline?: string;
-  subtitle?: string;
-  body_text?: string;
-  bullets?: string[];
-  stat_value?: string;
-  stat_label?: string;
-  quote_text?: string;
-  quote_author?: string;
-  speaker_notes?: string;
-  image_query?: string;
-  image_strategy?: "pexels" | "ai" | "none";
-  ai_image_prompt?: string;
-  image_style?: "photo" | "illustration" | "no-background" | "3d-render" | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
-  image_url?: string | null;
-  chart?: { type: string; labels: string[]; values: number[]; title?: string };
-  cover_variant?: "split-hero" | "typographic-bold" | "full-bleed-image" | "minimal-centered" | "asymmetric-grid" | "gradient-mesh";
-  visual_accents?: ("orbital-rings" | "dot-grid" | "floating-shapes" | "diagonal-lines" | "corner-brackets" | "data-pattern" | "wave-form")[];
-}
+// AISlide era uma terceira definição do mesmo slide, já divergente das
+// outras: listava 7 dos 14 visual_accents implementados e 6 cover_variant
+// escritos à mão. Agora vem de @/lib/aiSlide, que é a definição usada também
+// pelo Editor.
+type AISlide = AiSlide;
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -102,7 +118,7 @@ const Generate = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [slidesCount, setSlidesCount] = useState(8);
-  const [type, setType] = useState("Escolar");
+  const [type, setType] = useState(INITIAL_TYPE);
   const [language, setLanguage] = useState("pt-BR");
   const [theme, setTheme] = useState("auto");
   // A fonte agora é escolhida automaticamente com base em tipo+tema+título e,
@@ -114,10 +130,10 @@ const Generate = () => {
   const [includeImages, setIncludeImages] = useState(true);
   const [preferDynamic, setPreferDynamic] = useState(true);
   // DNA narrativo (Fase 2.5+)
-  const [persona, setPersona] = useState<string>("educator");
+  const [persona, setPersona] = useState<string>(INITIAL_PERSONA);
   // Profundidade dos textos (substitui a antiga "Identidade de marca"):
   // controla contextualização e riqueza de detalhes, não só nº de palavras.
-  const [textDepth, setTextDepth] = useState<"short" | "balanced" | "long">("balanced");
+  const [textDepth, setTextDepth] = useState<"short" | "balanced" | "long">(INITIAL_TEXT_DEPTH);
   const [presentersCount, setPresentersCount] = useState(1);
   const [presentersNames, setPresentersNames] = useState<string[]>(["Apresentador 1"]);
   const [includeSpeeches, setIncludeSpeeches] = useState(false);
@@ -161,6 +177,26 @@ const Generate = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { document.title = "Criar apresentação — SlideAI"; }, []);
+
+  // Pré-preencher a partir do perfil escolhido no onboarding (profiles.role).
+  // Só roda uma vez, e nunca quando há ?template= — o template é uma escolha
+  // explícita do usuário e tem precedência sobre o padrão do perfil.
+  const rolePrefillDone = useRef(false);
+  useEffect(() => {
+    if (rolePrefillDone.current || !user || searchParams.get("template")) return;
+    rolePrefillDone.current = true;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      const defaults = defaultsForRole(data?.role);
+      if (!defaults) return;
+      // A leitura é assíncrona: se o usuário já mexeu no campo enquanto ela
+      // estava em voo, a escolha dele vence. Só preenche o que ainda está no
+      // valor inicial do formulário.
+      setPersona((cur) => (cur === INITIAL_PERSONA ? defaults.persona : cur));
+      setType((cur) => (cur === INITIAL_TYPE ? defaults.type : cur));
+      setTextDepth((cur) => (cur === INITIAL_TEXT_DEPTH ? defaults.textDepth : cur));
+    })();
+  }, [user, searchParams]);
 
   // Pré-preencher a partir de ?template=ID
   useEffect(() => {
@@ -210,18 +246,21 @@ const Generate = () => {
     const fetchOne = async (i: number) => {
       const s = slidesList[i];
       const q = reservedQueries[i];
-      if (!q) { result[i] = s; return; }
+      // Pré-atribuído: garante que nenhuma posição do array fique vazia, o que
+      // faria um slide inteiro chegar como undefined na hora de persistir.
+      result[i] = s;
+      if (!q) return;
       try {
-        const { data } = await supabase.functions.invoke("fetch-image", {
-          body: { query: q, ai_prompt: s.ai_image_prompt, strategy: s.image_strategy, style: s.image_style, orientation: "landscape", avoid_urls: snapshotAvoid() },
+        let url = await fetchSlideImage({
+          query: q,
+          ai_image_prompt: s.ai_image_prompt,
+          image_strategy: s.image_strategy,
+          image_style: s.image_style,
+          avoidUrls: snapshotAvoid(),
         });
-        let url = data?.url ?? null;
         if (url && usedUrls.has(url)) url = null;
         if (url) usedUrls.add(url);
         result[i] = { ...s, image_url: url };
-      } catch (e) {
-        console.warn("Image fetch failed", e);
-        result[i] = s;
       } finally {
         done += 1;
         onProgress?.(done, total);
@@ -293,15 +332,25 @@ const Generate = () => {
         },
       });
 
-      if (error) throw error;
-      if (data?.error) {
-        if (data.reason === "insufficient_credits") {
-          toast.error(data.error || reasonMessage("insufficient_credits"));
+      // Numa resposta não-2xx o supabase-js entrega um FunctionsHttpError
+      // genérico ("non-2xx status code") e descarta o corpo — era por isso
+      // que toda falha virava a mesma frase na tela. O corpo real vem em
+      // `error.context` (a Response original) e traz a causa identificada
+      // pelo backend e quanto foi estornado.
+      const payload = data ?? (error ? await readFunctionError(error) : null);
+
+      if (payload?.error) {
+        if (typeof payload.credits_refunded === "number" && payload.credits_refunded > 0) {
+          await ent.refresh();
+        }
+        if (payload.reason === "insufficient_credits") {
+          toast.error(payload.error || reasonMessage("insufficient_credits"));
           setPhase("form");
           return;
         }
-        throw new Error(data.error);
+        throw new Error(payload.error);
       }
+      if (error) throw error;
       if (!data?.slides?.length) throw new Error("Nenhum slide gerado");
 
       setStepIdx(2);
@@ -358,15 +407,13 @@ const Generate = () => {
         const stratChanged = oldS?.image_strategy !== newS.image_strategy;
         const needsRefresh = (queryChanged || stratChanged) && newS.image_strategy && newS.image_strategy !== "none" && newS.image_query;
         if (needsRefresh) {
-          try {
-            const { data: imgData } = await supabase.functions.invoke("fetch-image", {
-              // `style` precisa ir junto: o Asset Intelligence casa assets
-              // pelo par (style, prompt) — omiti-lo aqui fazia todo re-fetch
-              // vindo do chat errar o cache e pagar geração nova.
-              body: { query: newS.image_query, ai_prompt: newS.ai_image_prompt, strategy: newS.image_strategy, style: newS.image_style, orientation: "landscape" },
-            });
-            return { ...newS, image_url: imgData?.url ?? null };
-          } catch { return newS; }
+          const url = await fetchSlideImage({
+            query: newS.image_query!,
+            ai_image_prompt: newS.ai_image_prompt,
+            image_strategy: newS.image_strategy,
+            image_style: newS.image_style,
+          });
+          return { ...newS, image_url: url };
         }
         return { ...newS, image_url: newS.image_url ?? oldS?.image_url ?? null };
       }));
@@ -417,18 +464,7 @@ const Generate = () => {
         speaker_notes: s.speaker_notes,
         animation_transition: s.animation || "fade",
         presenters_data: (s as any).presenters_data ?? [],
-        content: {
-          headline: s.headline, subtitle: s.subtitle, body_text: s.body_text,
-          bullets: s.bullets, stat_value: s.stat_value, stat_label: s.stat_label,
-          quote_text: s.quote_text, quote_author: s.quote_author,
-          image_query: s.image_query, image_strategy: s.image_strategy,
-          image_url: s.image_url, ai_image_prompt: s.ai_image_prompt,
-          chart: s.chart, animation: s.animation, cover_variant: s.cover_variant,
-          visual_accents: (s as any).visual_accents,
-          narrative_act: (s as any).narrative_act,
-          animation_intent: (s as any).animation_intent,
-          transition: (s as any).transition,
-        },
+        content: aiSlideToContent(s),
       })) as any;
       const { error: sErr } = await supabase.from("slides").insert(slidesToInsert);
       if (sErr) {

@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCreativeBrief, briefToPromptSection, type CreativeBrief } from "../_shared/creativeDirector.ts";
 import { buildStoryOutline, outlineToPromptSection, type StoryOutline } from "../_shared/storyEngine.ts";
+import { accentsFor, assignLayouts, SLIDE_LAYOUTS } from "../_shared/slideComposition.ts";
 import { createLogger } from "../_shared/observability.ts";
 
 
@@ -199,7 +200,7 @@ PASSO E — VARIAÇÃO INTENCIONAL DE MODELOS DE PÁGINA, ACENTOS E ANIMAÇÕES
 - Repertório de modelos e quando usar:
   * "quote" → citação em destaque, tipografia gigante, fundo imersivo (use 1-2 por apresentação).
   * "full-image" → imagem/fundo em tela cheia com texto sobreposto (momentos de impacto).
-  * "image-right" / "image-left" → conceito + imagem lateral (o cavalo de batalha; alterne o lado).
+  * "image-right" / "image-left" → conceito + imagem lateral. USE COM PARCIMÔNIA (teto no Passo E.1); alterne o lado quando usar.
   * "stat-highlight" → um número gigante + contexto curto.
   * "data-chart" → gráfico com dados e fonte.
   * "two-columns" → comparação, antes/depois, prós/contras.
@@ -225,7 +226,7 @@ PASSO E.1 — REGRA DE DISTRIBUIÇÃO (BALANCEAMENTO)
 Em uma apresentação de N slides garanta:
 - AO MENOS 1 slide com layout "two-columns".
 - AO MENOS 1 slide "stat-highlight" se pertinente ao tema.
-- AO MENOS ${req.includeImages ? "60% dos" : "0"} slides com imagem (image-right/image-left/full-image) quando includeImages=true.
+- NO MÁXIMO 30% dos slides com "image-right"/"image-left". Esse é um TETO, não uma meta: o deck fica monótono quando quase todo slide é uma foto ao lado de um parágrafo. Prefira "full-image", "stat-highlight", "data-chart", "two-columns", "quote" e "centered" — todos continuam podendo ter imagem, só que ocupando a tela de outro jeito.
 - AO MENOS 1 slide "centered" como divisória/seção.
 - Pelo menos 1 capa cinematográfica com cover_variant DIFERENTE de "split-hero" e "typographic-bold".
 - Varie cover_variant entre as 6 opções com base no tema/persona:
@@ -415,8 +416,13 @@ Deno.serve(async (req) => {
 
 
   // ───────────── Débito imediato (antes de gastar IA) ─────────────
-  // O crédito é cobrado assim que a geração começa e NUNCA é revertido:
-  // o custo de IA já foi assumido mesmo se o usuário fechar a aba no meio.
+  // O crédito é cobrado assim que a geração começa, para que fechar a aba no
+  // meio não saia de graça. A partir daqui, porém, QUALQUER falha é do
+  // sistema — o usuário já fez a parte dele —, então `failGeneration` abaixo
+  // estorna a cobrança desta tentativa.
+  let creditsCharged = 0;
+  // Identificador desta tentativa: torna o estorno idempotente no banco.
+  const attemptRef = crypto.randomUUID();
   if (!isDev && creditsCost > 0) {
     const { data: charge, error: chargeErr } = await admin.rpc("consume_credits", {
       _uid: userId, _credits_cost: creditsCost,
@@ -431,14 +437,94 @@ Deno.serve(async (req) => {
         required: creditsCost,
       }), { status: 402, headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" } });
     }
+    creditsCharged = creditsCost;
   }
+
+  /**
+   * Caminho único de falha pós-cobrança.
+   *
+   * Antes, cada erro retornava direto de dentro do `try`: a mensagem era
+   * sempre genérica na tela, nada chegava ao painel admin (os `return`
+   * pulavam o `catch`, que era o único lugar que gravava em
+   * generation_logs) e o crédito já debitado ficava retido. Aqui os três
+   * pontos acontecem juntos: estorna, registra com uma CAUSA identificada e
+   * devolve a mensagem específica daquela causa.
+   *
+   * `message` descreve APENAS a causa e o próximo passo. A frase sobre o
+   * estorno é montada aqui, a partir do que de fato aconteceu: afirmar a
+   * devolução no texto fixo de cada erro faria a tela mentir sempre que o
+   * estorno falhasse (RPC indisponível, por exemplo, enquanto a migration
+   * que a cria ainda não foi aplicada).
+   */
+  const failGeneration = async (opts: {
+    code: string;
+    message: string;
+    status: number;
+    detail?: Record<string, unknown>;
+  }): Promise<Response> => {
+    let refunded = 0;
+    let refundFailed = false;
+    if (creditsCharged > 0) {
+      const { data: refund, error: refundErr } = await admin.rpc("refund_generation_credits", {
+        _uid: userId, _credits: creditsCharged, _reference: attemptRef, _reason: opts.code,
+      });
+      if (refundErr) console.error("refund_generation_credits falhou:", refundErr);
+      else if ((refund as { refunded?: boolean } | null)?.refunded) refunded = creditsCharged;
+      refundFailed = refunded === 0;
+    }
+
+    const refundNote = refunded > 0
+      ? ` Os ${refunded} créditos desta tentativa foram devolvidos.`
+      : refundFailed
+        ? " Não foi possível devolver os créditos automaticamente — a equipe já foi notificada."
+        : "";
+    const userMessage = `${opts.message}${refundNote}`;
+
+    // Painel admin (DevMetricsPanel lê generation_logs em realtime).
+    await admin.from("generation_logs").insert({
+      user_id: userId,
+      status: "error",
+      reason: opts.code,
+      slides_count: requestedSlides,
+      credits_charged: creditsCharged - refunded,
+      duration_ms: Date.now() - t0,
+      metadata: {
+        failure_code: opts.code,
+        user_message: userMessage,
+        credits_refunded: refunded,
+        // Sinaliza no painel admin que ficou crédito retido nesta tentativa.
+        refund_failed: refundFailed,
+        attempt_ref: attemptRef,
+        title: rawBody?.title ?? null,
+        plan: ent.plan,
+        ...opts.detail,
+      },
+    });
+
+    return new Response(JSON.stringify({
+      error: userMessage,
+      reason: opts.code,
+      failure_code: opts.code,
+      credits_refunded: refunded,
+      refund_failed: refundFailed,
+    }), {
+      status: opts.status,
+      headers: { ...corsHeaders, ...log.headers, "Content-Type": "application/json" },
+    });
+  };
 
   try {
     const body: GenerateRequest = rawBody as GenerateRequest;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const useOpenAI = !!OPENAI_API_KEY;
-    if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");
+    if (!useOpenAI && !LOVABLE_API_KEY) {
+      return await failGeneration({
+        code: "no_ai_provider",
+        message: "Nenhum provedor de IA está configurado no momento. A equipe já foi avisada.",
+        status: 503,
+      });
+    }
 
     // ───────────── Sanitização anti prompt-injection ─────────────
     // Título e descrição são texto livre do usuário e vão direto para o
@@ -451,7 +537,13 @@ Deno.serve(async (req) => {
       String(v ?? "").replace(/[\u0000-\u001f]+/g, " ").replace(/\s{2,}/g, " ").trim().slice(0, max);
     body.title = sanitize(body.title, 200);
     body.description = sanitize(body.description, 1500);
-    if (!body.title) throw new Error("Título obrigatório.");
+    if (!body.title) {
+      return await failGeneration({
+        code: "missing_title",
+        message: "O título da apresentação chegou vazio — preencha o título e tente de novo.",
+        status: 400,
+      });
+    }
 
 
     const slidesCount = requestedSlides;
@@ -552,7 +644,7 @@ LEMBRETE CRÍTICO:
                 properties: {
                   slide_title: { type: "string" },
                   slide_type: { type: "string", enum: ["title_slide", "content", "bullet_points", "quote", "image_text", "data_chart", "section_divider", "conclusion"] },
-                  layout_template: { type: "string", enum: ["title-only", "title-content", "two-columns", "image-right", "image-left", "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight"] },
+                  layout_template: { type: "string", enum: SLIDE_LAYOUTS },
                   cover_variant: {
                     type: "string",
                     enum: ["split-hero", "typographic-bold", "full-bleed-image", "minimal-centered", "asymmetric-grid", "gradient-mesh"],
@@ -667,19 +759,28 @@ LEMBRETE CRÍTICO:
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em instantes." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return await failGeneration({
+          code: "ai_rate_limited",
+          message: "O provedor de IA está sobrecarregado agora — tente novamente em alguns instantes.",
+          status: 429,
+          detail: { provider: useOpenAI ? "openai" : "lovable" },
         });
       }
       if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos no workspace." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return await failGeneration({
+          code: "ai_quota_exhausted",
+          message: "A cota de IA da plataforma se esgotou. A equipe já foi avisada.",
+          status: 503,
+          detail: { provider: useOpenAI ? "openai" : "lovable" },
         });
       }
       const t = await aiResponse.text();
       console.error("AI gateway error:", aiResponse.status, t);
-      return new Response(JSON.stringify({ error: "Erro ao gerar apresentação." }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return await failGeneration({
+        code: "ai_gateway_error",
+        message: "A IA respondeu com erro durante a geração. O problema foi registrado para a equipe.",
+        status: 502,
+        detail: { provider_status: aiResponse.status, provider_body: t.slice(0, 500) },
       });
     }
 
@@ -688,22 +789,31 @@ LEMBRETE CRÍTICO:
     const finishReason = data.choices?.[0]?.finish_reason;
     if (!toolCall) {
       console.error("generate-presentation: no tool_call. finish=", finishReason, "raw=", JSON.stringify(data).slice(0, 800));
-      return new Response(JSON.stringify({ error: "A IA não retornou estrutura. Tente reduzir o número de slides ou desativar imagens/falas." }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return await failGeneration({
+        code: "ai_no_structure",
+        message: "A IA não devolveu uma estrutura de slides válida — tente reduzir o número de slides ou desativar imagens/falas.",
+        status: 502,
+        detail: { finish_reason: finishReason ?? null },
       });
     }
     let parsed: any;
     try {
       parsed = JSON.parse(toolCall.function.arguments);
-    } catch (e) {
+    } catch {
       console.error("generate-presentation: tool args JSON parse failed (likely truncation). finish=", finishReason, "len=", toolCall.function.arguments?.length);
-      return new Response(JSON.stringify({ error: "Resposta da IA truncada. Reduza o número de slides ou desative as falas." }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return await failGeneration({
+        code: "ai_truncated",
+        message: "A resposta da IA foi cortada antes de terminar — reduza o número de slides ou desative as falas.",
+        status: 502,
+        detail: { finish_reason: finishReason ?? null, args_length: toolCall.function.arguments?.length ?? 0 },
       });
     }
     if (!Array.isArray(parsed.slides) || parsed.slides.length === 0) {
-      return new Response(JSON.stringify({ error: "A IA não gerou nenhum slide. Tente reformular o título." }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return await failGeneration({
+        code: "ai_empty_slides",
+        message: "A IA não conseguiu montar nenhum slide para este título — tente reformular o título ou detalhar a descrição.",
+        status: 502,
+        detail: { finish_reason: finishReason ?? null },
       });
     }
 
@@ -749,31 +859,36 @@ LEMBRETE CRÍTICO:
       firstTitle.cover_variant = COVERS[h % COVERS.length];
     }
 
-    // Garante visual_accents (fallback rotativo) e image_strategy padrão pexels.
-    const ACCENT_POOL = ["floating-shapes", "diagonal-lines", "orbital-rings", "dot-grid", "corner-brackets", "wave-form", "data-pattern", "animated-blob", "pulse-grid", "particle-field", "layered-panels", "gradient-drift", "reactive-dots", "card-stack"];
     // Modo derivado do teto único quando fornecido; fallback para o enviado.
     const budgetMode = typeof body.max_budget_usd === "number"
       ? (body.max_budget_usd <= 0.15 ? "economy" : body.max_budget_usd <= 0.45 ? "balanced" : "premium")
       : (body.image_budget_mode ?? "balanced");
     const pexelsOnly = budgetMode === "economy";
-    // Pool de modelos de página — usado para forçar variedade quando a IA
-    // repete o mesmo layout em sequência.
-    const LAYOUT_POOL = ["image-right", "two-columns", "stat-highlight", "quote", "centered", "image-left", "full-image", "title-content", "data-chart"];
     const preferDynamic = body.preferDynamic !== false;
-    let lastLayout = "";
+
+    // Modelos de página: distribuição determinística com janela anti-repetição
+    // e teto de slides "imagem + texto lateral" (ver _shared/slideComposition.ts).
+    const layouts = assignLayouts(
+      parsed.slides.map((s: any) => ({ layout: s.layout_template, slide_type: s.slide_type })),
+    );
+
     parsed.slides = parsed.slides.map((s: any, i: number) => {
-      const accents = Array.isArray(s.visual_accents) && s.visual_accents.length > 0
-        ? s.visual_accents
-        : [ACCENT_POOL[i % ACCENT_POOL.length], ACCENT_POOL[(i + 3) % ACCENT_POOL.length]];
       let strategy = s.image_strategy ?? (s.image_query ? "pexels" : "none");
       // Modo economia / dev override: nunca usar IA para imagens.
       if (pexelsOnly && strategy === "ai") strategy = "pexels";
-      // Modelos de página: nunca dois iguais seguidos (exceto capa).
-      let layout = s.layout_template || LAYOUT_POOL[i % LAYOUT_POOL.length];
-      if (i > 0 && layout === lastLayout) {
-        layout = LAYOUT_POOL.find((l) => l !== lastLayout && l !== layout) ?? LAYOUT_POOL[(i + 1) % LAYOUT_POOL.length];
-      }
-      lastLayout = layout;
+      const layout = layouts[i];
+      // Acentos por CONTEÚDO (papel narrativo/tipo do slide) e na quantidade
+      // que a densidade de elementos do brief pede — antes era só posicional.
+      const accents = accentsFor(
+        {
+          slide_type: s.slide_type,
+          animation_intent: s.animation_intent,
+          visual_accents: s.visual_accents,
+          hasImage: strategy !== "none",
+        },
+        i,
+        creativeBrief.element_density,
+      );
       // Fase 2 (Story Engine): narrative_act persistido é SEMPRE o do
       // outline já planejado (storyOutline.beats[i]), nunca o que a IA
       // eventualmente reescreveu durante a geração de conteúdo — mesma
@@ -889,16 +1004,11 @@ LEMBRETE CRÍTICO:
     });
   } catch (e) {
     console.error("generate-presentation error:", e);
-    await admin.from("generation_logs").insert({
-      user_id: userId, status: "error",
-      reason: e instanceof Error ? e.message.slice(0, 200) : "unknown",
-      // O crédito foi debitado antes da geração e não é revertido — o log de
-      // erro registra a mesma cobrança do log de sucesso.
-      credits_charged: isDev ? 0 : creditsCost,
-      duration_ms: Date.now() - t0,
-    });
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return await failGeneration({
+      code: "internal_error",
+      message: "Algo quebrou no meio da geração. O erro foi registrado para a equipe.",
+      status: 500,
+      detail: { exception: e instanceof Error ? e.message.slice(0, 300) : "unknown" },
     });
   }
 });

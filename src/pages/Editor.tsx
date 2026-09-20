@@ -33,11 +33,12 @@ import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugif
 import { toast } from "sonner";
 import React from "react";
 import type { CreativeBrief } from "@/lib/creativeBrief";
+import { aiSlideToContent } from "@/lib/aiSlide";
+import { fetchSlideImage } from "@/lib/slideImage";
+import { SLIDE_LAYOUTS } from "../../supabase/functions/_shared/slideComposition.ts";
 
-const LAYOUTS = [
-  "title-only", "title-content", "two-columns", "image-right", "image-left",
-  "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight",
-];
+// Fonte única compartilhada com o backend — ver _shared/slideComposition.ts.
+const LAYOUTS = SLIDE_LAYOUTS;
 
 const TRANSITIONS = [
   "dynamic",
@@ -121,6 +122,13 @@ const AI_MAX_COMPLEX = 3;
 const AI_LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
 const aiUsageKey = (id: string) => `slideai:edit-usage:${id}`;
 
+/** Assinatura dos campos que `save()` persiste — base da detecção de alterações não salvas. */
+const deckSignature = (rows: SlideRow[]): string =>
+  JSON.stringify(rows.map((s, i) => [
+    s.id, i, s.slide_type, s.layout_template, s.animation_transition || "fade",
+    s.speaker_notes || null, s.content ?? {}, s.presenters_data ?? [],
+  ]));
+
 const Editor = () => {
 
   const { slug } = useParams();
@@ -137,6 +145,14 @@ const Editor = () => {
   const [zoom, setZoom] = useState(0.7);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  // Estado único de "há trabalho não gravado": alimenta o indicador do topo, o
+  // autosave e o aviso de beforeunload. Comparar o deck atual com o último
+  // persistido (em vez de marcar um flag em cada mutação) garante que nenhum
+  // caminho de edição — incluindo undo/redo e as edições vindas da IA, que
+  // chamam setSlides direto — escape da detecção.
+  const [dirty, setDirty] = useState(false);
+  const savedSnapshotRef = useRef<string | null>(null);
+  const [savedMark, setSavedMark] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
@@ -180,6 +196,7 @@ const Editor = () => {
         presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [],
       })) as SlideRow[];
       setSlides(normalized);
+      savedSnapshotRef.current = deckSignature(normalized);
       if (presLoaded.include_speeches) setNotesOpen(true);
       setLoading(false);
     })();
@@ -208,6 +225,13 @@ const Editor = () => {
     try { localStorage.setItem(aiUsageKey(pres.id), JSON.stringify(aiUsage)); } catch { /* ignore */ }
   }, [pres?.id, aiUsage]);
 
+
+  // `savedMark` reavalia contra os slides ATUAIS depois de cada gravação: se o
+  // usuário editou enquanto o save estava em voo, o deck continua sujo.
+  useEffect(() => {
+    if (savedSnapshotRef.current === null) return;
+    setDirty(deckSignature(slides) !== savedSnapshotRef.current);
+  }, [slides, savedMark]);
 
   // Bloco 12.3: debounce de 500ms para snapshots — evita um por keystroke.
   const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -344,6 +368,9 @@ const Editor = () => {
   const save = useCallback(async (silent = false) => {
     if (!pres) return;
     setSaving(true);
+    // Assinatura do que está sendo gravado AGORA — aplicada só se o save der
+    // certo, para não marcar como salvo um deck que falhou no meio.
+    const attemptedSignature = deckSignature(slides);
     try {
       const rows = slides.map((s, i) => ({
         id: s.id,
@@ -379,6 +406,8 @@ const Editor = () => {
         dynamic_theme: (pres as any).dynamic_theme ?? dynamicTheme ?? null,
       } as any).eq("id", pres.id);
 
+      savedSnapshotRef.current = attemptedSignature;
+      setSavedMark((m) => m + 1);
       setLastSaved(new Date());
       if (!silent) toast.success("Salvo!");
     } catch (e: any) {
@@ -389,12 +418,33 @@ const Editor = () => {
     }
   }, [pres, slides, dynamicTheme]);
 
-  // Auto-save every 30s
+  // Auto-save a cada 30s, apenas quando há mudança pendente.
   useEffect(() => {
     if (!pres) return;
-    const id = setInterval(() => { save(true); }, 30000);
+    const id = setInterval(() => { if (dirty) save(true); }, 30000);
     return () => clearInterval(id);
-  }, [pres, save]);
+  }, [pres, save, dirty]);
+
+  // Fechar aba, recarregar ou sair do site com edição pendente: o navegador
+  // pede confirmação. Sem isso, tudo que foi feito desde o último autosave
+  // (até 30s de trabalho) sumia sem qualquer aviso.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Navegadores antigos só mostram o diálogo quando returnValue é definido.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  // Navegação interna (react-router) não dispara beforeunload — ao desmontar o
+  // editor com alterações pendentes, grava em background.
+  const saveRef = useRef(save);
+  const dirtyRef = useRef(dirty);
+  useEffect(() => { saveRef.current = save; dirtyRef.current = dirty; });
+  useEffect(() => () => { if (dirtyRef.current) void saveRef.current(true); }, []);
 
   // Chat IA do editor manual — Edit Director Engine (edge function chat-editor).
   // Envia contexto completo (deck + presentation_id, de onde o backend puxa
@@ -456,21 +506,9 @@ const Editor = () => {
         layout_template: ns.layout_template ?? slides[i]?.layout_template ?? "title-content",
         animation_transition: ns.animation ?? slides[i]?.animation_transition ?? "fade",
         speaker_notes: ns.speaker_notes ?? slides[i]?.speaker_notes ?? null,
-        content: {
-          ...slides[i]?.content,
-          headline: ns.headline, subtitle: ns.subtitle, body_text: ns.body_text,
-          bullets: ns.bullets, stat_value: ns.stat_value, stat_label: ns.stat_label,
-          quote_text: ns.quote_text, quote_author: ns.quote_author,
-          image_query: ns.image_query, image_strategy: ns.image_strategy,
-          image_url: ns.image_url ?? slides[i]?.content?.image_url,
-          ai_image_prompt: ns.ai_image_prompt, chart: ns.chart, animation: ns.animation,
-          // Bloco 11.3: preserva campos "DNA" se a IA não devolveu
-          visual_accents: (ns as any).visual_accents ?? (slides[i]?.content as any)?.visual_accents,
-          narrative_act: (ns as any).narrative_act ?? (slides[i]?.content as any)?.narrative_act,
-          animation_intent: (ns as any).animation_intent ?? (slides[i]?.content as any)?.animation_intent,
-          cover_variant: (ns as any).cover_variant ?? (slides[i]?.content as any)?.cover_variant,
-          transition: (ns as any).transition ?? (slides[i]?.content as any)?.transition,
-        },
+        // Bloco 11.3: campos "DNA" (acentos, ato narrativo, variante de capa)
+        // preservados quando a IA não os devolve — ver aiSlideToContent.
+        content: aiSlideToContent(ns, slides[i]?.content),
       }));
       skipNextSnapshot.current = true;
       setSlides(updated as any);
@@ -555,8 +593,8 @@ const Editor = () => {
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))}><ZoomIn className="h-4 w-4" /></Button>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground hidden md:inline">
-              {saving ? "Salvando..." : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Não salvo"}
+            <span className={`text-[11px] hidden md:inline ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
+              {saving ? "Salvando..." : dirty ? "Não salvo" : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Salvo"}
             </span>
             <Button variant={inlineEdit ? "hero" : "ghost"} size="sm" onClick={() => setInlineEdit((v) => !v)} title="Editar texto direto no canvas">
               <Pencil className="h-4 w-4" /> <span className="hidden md:inline">Inline</span>
@@ -844,17 +882,19 @@ const Editor = () => {
                   )}
                   <Button variant="outline" size="sm" className="w-full" disabled={!c.image_query}
                     onClick={async () => {
-                      try {
-                        toast.loading("Buscando imagem...", { id: "img" });
-                        const { data } = await supabase.functions.invoke("fetch-image", {
-                          // `style` é parte da chave de cache do Asset
-                          // Intelligence — sem ele, trocar a imagem no Editor
-                          // sempre paga uma geração nova.
-                          body: { query: c.image_query, ai_prompt: c.ai_image_prompt, strategy: c.image_strategy || "pexels", style: c.image_style, orientation: "landscape" },
-                        });
-                        if (data?.url) updateContent(activeIdx, { image_url: data.url });
+                      toast.loading("Buscando imagem...", { id: "img" });
+                      const url = await fetchSlideImage({
+                        query: c.image_query!,
+                        ai_image_prompt: c.ai_image_prompt,
+                        image_strategy: c.image_strategy,
+                        image_style: c.image_style,
+                      });
+                      if (url) {
+                        updateContent(activeIdx, { image_url: url });
                         toast.success("Imagem atualizada!", { id: "img" });
-                      } catch (e: any) { toast.error(e.message || "Erro", { id: "img" }); }
+                      } else {
+                        toast.error("Não foi possível buscar a imagem.", { id: "img" });
+                      }
                     }}>
                     <ImageIcon className="h-4 w-4" /> Buscar / gerar imagem
                   </Button>

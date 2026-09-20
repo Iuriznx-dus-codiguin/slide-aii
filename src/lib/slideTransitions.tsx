@@ -21,34 +21,22 @@ import type { CSSProperties, ReactNode } from "react";
 // definições" no código antigo; não vamos criar um terceiro/quarto caso.
 import type { NarrativeAct } from "@/components/CinematicHUD";
 import type { AnimationIntent as MotionAnimationIntent } from "@/lib/slideChoreography";
+import {
+  CINEMATIC_TRANSITIONS,
+  type SlideTransitionName,
+} from "../../supabase/functions/_shared/transitionNames.ts";
 
-export type SlideTransition =
-  | "dynamic"     // NOVO PADRÃO: container fica neutro; título/imagem-hero em
-                  // âncora fazem magic move real (mesmo objeto reposicionando),
-                  // o resto sai/entra coordenado como uma onda única (ver
-                  // dynamicMode em SlideRenderer + useChoreo)
-  | "mosaic"      // grade de tiles que viram e revelam
-  | "iris"        // máscara circular abre/fecha do centro
-  | "shatter"     // clip-path triangular: estilhaça e reagrupa
-  | "ribbon"      // 5 faixas horizontais varrem em sequência
-  | "blinds"      // 8 venezianas verticais giram em 3D
-  | "fold"        // dobra editorial 3D (perspective rotateY)
-  | "portal"      // zoom+rotate+blur, "entra em portal"
-  | "wipe"        // diagonal wipe com clip-path polygon
-  | "split"       // metades superior/inferior se afastam
-  | "morph"       // crossfade com scale e color-shift líquido
-  | "stack"       // empilha e dispara em camadas
-  | "letterbox";  // barras pretas fecham/abrem como cinema
+// Os NOMES vêm do módulo compartilhado com as edge functions (Deno) — antes
+// esta união e a lista do Creative Director eram duas cópias mantidas à mão.
+// A implementação de cada efeito continua aqui; lá ficam só os nomes.
+export type SlideTransition = SlideTransitionName;
 
 // "dynamic" fica de fora deste array de propósito: ALL_TRANSITIONS alimenta o
 // round-robin de pickTransition() para slides sem tipo reconhecido, e dynamic
 // já é tratado como o padrão universal ali (não precisa entrar no rodízio).
 // Ainda assim, um content.transition="dynamic" explícito é sempre respeitado
 // (ver pickTransition), e continua 100% válido como Overlay/config abaixo.
-export const ALL_TRANSITIONS: SlideTransition[] = [
-  "mosaic", "iris", "shatter", "ribbon", "blinds",
-  "fold", "portal", "wipe", "split", "morph", "stack", "letterbox",
-];
+export const ALL_TRANSITIONS: SlideTransition[] = [...CINEMATIC_TRANSITIONS];
 
 const EASE_EDITORIAL = [0.16, 1, 0.3, 1] as const;
 const EASE_SMOOTH = [0.22, 1, 0.36, 1] as const;

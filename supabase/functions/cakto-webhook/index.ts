@@ -223,23 +223,27 @@ Deno.serve(async (req) => {
         });
         if (monthlyErr) log.error("set_monthly_credits_failed", { message: monthlyErr.message });
 
-        // Bônus permanente APENAS na primeira ativação — nunca em renovação.
+        // Bônus permanente: UMA VEZ POR CONTA, nunca em renovação.
+        //
+        // Antes, "primeira ativação" era deduzida comparando o
+        // cakto_subscription_id anterior com o do evento. Como cancelar e
+        // reembolsar limpam esse campo — e uma reassinatura sempre traz um id
+        // novo —, bastava cancelar e assinar de novo para ganhar o bônus
+        // outra vez. Quem decide agora é o histórico do usuário em
+        // credit_transactions, checado atomicamente no banco
+        // (grant_bonus_credits_once); o webhook só informa a intenção.
         const isRenewal = event_type.includes("renew")
           || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
-        const isFirstActivation = !isRenewal && (
-          !before?.cakto_subscription_id
-          || (!!subscriptionId && before.cakto_subscription_id !== subscriptionId)
-          || event_type.includes("purchase_approved")
-          || event_type.includes("created")
-        );
         const signupBonus = PLAN_SIGNUP_BONUS[plan] ?? 0;
-        if (isFirstActivation && signupBonus > 0) {
-          const { error: bonusErr } = await admin.rpc("grant_bonus_credits", {
+        let bonusGranted = false;
+        if (!isRenewal && signupBonus > 0) {
+          const { data: bonusResult, error: bonusErr } = await admin.rpc("grant_bonus_credits_once", {
             _uid: userId, _amount: signupBonus, _type: "subscription_signup_bonus",
           });
           if (bonusErr) log.error("grant_signup_bonus_failed", { message: bonusErr.message });
+          else bonusGranted = (bonusResult as { granted?: boolean } | null)?.granted === true;
         }
-        log.info("subscription_credits", { plan, monthly, isRenewal, isFirstActivation });
+        log.info("subscription_credits", { plan, monthly, isRenewal, signupBonus, bonusGranted });
       }
     } else if (action === "refund") {
       // Reembolso/chargeback: além de limpar o plano, os créditos concedidos por
