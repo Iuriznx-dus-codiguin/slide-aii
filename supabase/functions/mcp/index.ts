@@ -1,7 +1,6 @@
 // OWNED MANUALLY — o banner de auto-geração foi removido de propósito.
 // O plugin @lovable.dev/mcp-js esvaziava este arquivo a cada build; sem o banner
 // ele deixa o arquivo intacto. Ao alterar src/lib/mcp/*, reflita aqui à mão.
-// To take ownership, delete this banner line; the plugin then leaves the file alone.
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
 // src/lib/mcp/index.ts
