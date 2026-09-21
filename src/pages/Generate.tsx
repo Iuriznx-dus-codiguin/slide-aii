@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { generateSlug, THEMES, FONTS, autoFontForContext, resolveFontPairing, type ThemeColors } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
+import { PRESENTATION_TYPES, toUiPresentationType } from "@/lib/presentationTypes";
 import { defaultsForRole } from "@/lib/personaDefaults";
 import { aiSlideToContent, type AiSlide } from "@/lib/aiSlide";
 import { fetchSlideImage } from "@/lib/slideImage";
@@ -207,7 +208,7 @@ const Generate = () => {
     setTitle(tpl.seed.title);
     setDescription(tpl.seed.description);
     setSlidesCount(Math.max(5, Math.min(20, tpl.seed.slidesCount)));
-    setType(tpl.seed.type);
+    setType(toUiPresentationType(tpl.seed.type));
     setTheme(tpl.seed.theme);
     // fontStyle é derivado do contexto — templates não sobrescrevem mais.
     setIncludeCharts(tpl.seed.includeCharts);
@@ -921,7 +922,7 @@ const Generate = () => {
                 <Select value={type} onValueChange={setType}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["Acadêmico", "Escolar", "Corporativo", "Marketing", "Criativo", "Científico", "Pitch de negócios"].map((t) => (
+                    {PRESENTATION_TYPES.map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>

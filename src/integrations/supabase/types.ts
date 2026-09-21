@@ -932,6 +932,10 @@ export type Database = {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
       }
+      grant_bonus_credits_once: {
+        Args: { _amount: number; _type: string; _uid: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -942,6 +946,15 @@ export type Database = {
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
+      refund_generation_credits: {
+        Args: {
+          _credits: number
+          _reason?: string
+          _reference: string
+          _uid: string
+        }
+        Returns: Json
+      }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
       set_monthly_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
