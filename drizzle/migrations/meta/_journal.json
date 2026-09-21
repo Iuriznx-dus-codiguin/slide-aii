@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789948849367,
+      "tag": "0000_signup_bonus_once_and_generation_refund",
+      "breakpoints": true
+    }
+  ]
+}
