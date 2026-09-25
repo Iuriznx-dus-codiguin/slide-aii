@@ -8,6 +8,13 @@
       "when": 1789948849367,
       "tag": "0000_signup_bonus_once_and_generation_refund",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790302295968,
+      "tag": "0001_scene_engine_v2",
+      "breakpoints": true
     }
   ]
 }
