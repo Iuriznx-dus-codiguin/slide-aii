@@ -387,6 +387,50 @@ export type Database = {
         }
         Relationships: []
       }
+      presentation_asset_quotas: {
+        Row: {
+          ai_consumed: number
+          ai_cost_usd: number
+          ai_planned: number
+          created_at: string
+          expires_at: string
+          photo_consumed: number
+          photo_planned: number
+          presentation_id: string
+          user_id: string
+        }
+        Insert: {
+          ai_consumed?: number
+          ai_cost_usd?: number
+          ai_planned?: number
+          created_at?: string
+          expires_at?: string
+          photo_consumed?: number
+          photo_planned?: number
+          presentation_id: string
+          user_id: string
+        }
+        Update: {
+          ai_consumed?: number
+          ai_cost_usd?: number
+          ai_planned?: number
+          created_at?: string
+          expires_at?: string
+          photo_consumed?: number
+          photo_planned?: number
+          presentation_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_asset_quotas_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: true
+            referencedRelation: "presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       presentations: {
         Row: {
           brand_identity: Json | null
@@ -396,6 +440,7 @@ export type Database = {
           depth_level: string | null
           description: string | null
           dynamic_theme: Json | null
+          engine_version: number
           font_style: string | null
           id: string
           include_speeches: boolean
@@ -423,6 +468,7 @@ export type Database = {
           depth_level?: string | null
           description?: string | null
           dynamic_theme?: Json | null
+          engine_version?: number
           font_style?: string | null
           id?: string
           include_speeches?: boolean
@@ -450,6 +496,7 @@ export type Database = {
           depth_level?: string | null
           description?: string | null
           dynamic_theme?: Json | null
+          engine_version?: number
           font_style?: string | null
           id?: string
           include_speeches?: boolean
@@ -861,6 +908,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_presentation_asset_cost: {
+        Args: { _cost_usd: number; _presentation_id: string; _uid: string }
+        Returns: undefined
+      }
       can_user_generate: {
         Args: { _credits_cost?: number; _uid: string }
         Returns: Json
@@ -879,6 +930,10 @@ export type Database = {
       }
       consume_credits: {
         Args: { _credits_cost: number; _uid: string }
+        Returns: Json
+      }
+      consume_presentation_asset: {
+        Args: { _kind: string; _presentation_id: string; _uid: string }
         Returns: Json
       }
       ensure_monthly_credits: { Args: { _uid: string }; Returns: undefined }
