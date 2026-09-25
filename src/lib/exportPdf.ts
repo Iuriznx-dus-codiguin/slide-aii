@@ -3,11 +3,12 @@
 // captures it via html2canvas and assembles a 16:9 landscape PDF using jsPDF.
 // Produces a true-to-layout PDF (matches the on-screen design), independent of
 // browser print dialogs.
-import html2canvas from "html2canvas";
+//
+// Motor v2: a renderização offscreen vive em ./exportRaster e liga os
+// fallbacks estáticos dos efeitos de cena (html2canvas não desenha filter,
+// backdrop-filter nem mix-blend-mode), para o arquivo bater com a tela.
 import { jsPDF } from "jspdf";
-import { createRoot, type Root } from "react-dom/client";
-import { createElement } from "react";
-import { SlideRenderer } from "@/components/SlideRenderer";
+import { rasterizeSlide } from "@/lib/exportRaster";
 import type { ThemeColors } from "@/lib/slugify";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 
@@ -35,85 +36,6 @@ interface ExportPdfOpts {
   onProgress?: (current: number, total: number) => void;
 }
 
-const SLIDE_W = 1920;
-const SLIDE_H = 1080;
-
-/** Render one slide off-screen and rasterize it. Returns a PNG data URL. */
-async function rasterizeSlide(
-  slide: SlideRow,
-  themeId: string,
-  fontId: string,
-  dynamicTheme: Partial<ThemeColors> | null | undefined,
-  index: number,
-  creativeBrief: CreativeBrief | null | undefined,
-): Promise<string> {
-  // Off-screen container — keep visible to the layout engine but out of viewport.
-  const host = document.createElement("div");
-  host.style.cssText = `
-    position: fixed;
-    top: 0; left: -100000px;
-    width: ${SLIDE_W}px;
-    height: ${SLIDE_H}px;
-    pointer-events: none;
-    z-index: -1;
-    background: transparent;
-  `;
-  document.body.appendChild(host);
-
-  let root: Root | null = null;
-  try {
-    root = createRoot(host);
-    root.render(
-      createElement(SlideRenderer as any, {
-        slide: {
-          slide_type: slide.slide_type,
-          layout_template: slide.layout_template,
-          content: slide.content,
-        },
-        themeId,
-        fontId,
-        dynamicTheme,
-        index,
-        creativeBrief,
-        noAnimate: true,
-      }),
-    );
-
-    // Wait for layout / images. We poll a couple of frames then for image readiness.
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const imgs = Array.from(host.querySelectorAll("img"));
-    await Promise.all(
-      imgs.map((img) =>
-        img.complete && img.naturalWidth > 0
-          ? Promise.resolve()
-          : new Promise<void>((res) => {
-              const done = () => res();
-              img.addEventListener("load", done, { once: true });
-              img.addEventListener("error", done, { once: true });
-              // Safety timeout — never block more than 4s on a single image.
-              setTimeout(done, 4000);
-            }),
-      ),
-    );
-
-    const canvas = await html2canvas(host, {
-      width: SLIDE_W,
-      height: SLIDE_H,
-      windowWidth: SLIDE_W,
-      windowHeight: SLIDE_H,
-      backgroundColor: null,
-      scale: 1, // already at native slide resolution
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-    });
-    return canvas.toDataURL("image/png");
-  } finally {
-    try { root?.unmount(); } catch {}
-    host.remove();
-  }
-}
-
 export async function exportPresentationToPdf({
   title,
   themeId,
@@ -133,17 +55,16 @@ export async function exportPresentationToPdf({
 
   for (let i = 0; i < slides.length; i++) {
     onProgress?.(i, slides.length);
-    const dataUrl = await rasterizeSlide(
-      slides[i],
+    const dataUrl = await rasterizeSlide(slides[i], {
       themeId,
       fontId,
       // Fonte de verdade do tema: a coluna presentations.dynamic_theme
       // (passada por quem chama). O legado content.dynamic_theme do primeiro
       // slide fica só como fallback para decks antigos.
-      dynamicTheme ?? slides[0]?.content?.dynamic_theme ?? null,
-      i,
+      dynamicTheme: dynamicTheme ?? slides[0]?.content?.dynamic_theme ?? null,
       creativeBrief,
-    );
+      index: i,
+    });
     if (i > 0) pdf.addPage([PDF_W, PDF_H], "landscape");
     pdf.addImage(dataUrl, "PNG", 0, 0, PDF_W, PDF_H, undefined, "FAST");
   }

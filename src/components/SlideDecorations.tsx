@@ -532,3 +532,66 @@ export const CardStack = ({ theme, noAnimate, intensity = 1, position = "right" 
     </div>
   );
 };
+
+/**
+ * Motor v2: "data-pattern" com identidade própria (antes era apelido de
+ * DotGrid). Barras verticais finas de alturas variadas, como uma leitura de
+ * série de dados ao fundo — alinhadas à base, sem competir com o gráfico.
+ */
+export const DataPattern = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  // Alturas determinísticas (sem Math.random: miniatura, tela e export iguais).
+  const heights = Array.from({ length: 36 }, (_, i) => 18 + ((i * 37) % 61) + (i % 5) * 4);
+  return (
+    <div className="absolute inset-x-0 bottom-0 h-[38%] pointer-events-none z-[1] overflow-hidden" style={{ opacity: 0.22 * intensity }} aria-hidden>
+      <svg viewBox="0 0 360 100" className="w-full h-full" preserveAspectRatio="none">
+        {heights.map((h, i) => (
+          <motion.rect
+            key={i}
+            x={i * 10 + 3}
+            width={3}
+            y={100 - h}
+            height={h}
+            rx={1.5}
+            fill={theme.accent}
+            initial={skip ? false : { scaleY: 0, opacity: 0 }}
+            animate={{ scaleY: 1, opacity: 0.35 + (h / 100) * 0.6 }}
+            style={{ transformOrigin: `${i * 10 + 4.5}px 100px` }}
+            transition={{ duration: 0.8, delay: 0.2 + i * 0.02, ease: [0.16, 1, 0.3, 1] }}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+};
+
+/**
+ * Motor v2: "wave-form" com identidade própria (antes era apelido de
+ * DiagonalLines). Três ondas senoidais desenhadas por pathLength.
+ */
+export const WaveForm = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
+  const reduce = useReducedMotion();
+  const skip = noAnimate || reduce;
+  const wave = (amp: number, phase: number, y: number) => {
+    let d = `M0,${y}`;
+    for (let x = 0; x <= 200; x += 5) d += ` L${x},${(y + Math.sin((x / 200) * Math.PI * 4 + phase) * amp).toFixed(2)}`;
+    return d;
+  };
+  return (
+    <svg className="absolute inset-x-0 bottom-[6%] h-[30%] w-full pointer-events-none z-[1]" viewBox="0 0 200 60" preserveAspectRatio="none" style={{ opacity: 0.2 * intensity }} aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <motion.path
+          key={i}
+          d={wave(8 - i * 2, i * 0.9, 30 + i * 6)}
+          fill="none"
+          stroke={theme.accent}
+          strokeWidth={0.6}
+          initial={skip ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 - i * 0.25 }}
+          transition={{ duration: 2, delay: 0.2 + i * 0.2, ease: [0.16, 1, 0.3, 1] }}
+        />
+      ))}
+    </svg>
+  );
+};

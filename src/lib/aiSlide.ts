@@ -12,6 +12,8 @@
 // valor anterior nenhum. Isso vira o parâmetro opcional `previous`.
 
 import type { ImageStyle, SlideContent, VisualAccent } from "@/components/SlideRenderer";
+import { aiSlideToContentCore } from "../../supabase/functions/_shared/slideContent.ts";
+import type { SceneContentFields } from "../../supabase/functions/_shared/sceneMedia.ts";
 
 /** Slide como a IA devolve (generate-presentation / chat-editor). */
 export interface AiSlide {
@@ -40,6 +42,13 @@ export interface AiSlide {
   animation_intent?: SlideContent["animation_intent"];
   transition?: SlideContent["transition"];
   presenters_data?: unknown[];
+  // Motor v2 (opcionais — decks antigos não têm).
+  engine_version?: SceneContentFields["engine_version"];
+  visual?: SceneContentFields["visual"];
+  background?: SceneContentFields["background"];
+  motion?: SceneContentFields["motion"];
+  anchor_key?: string;
+  asset?: SceneContentFields["asset"];
 }
 
 /**
@@ -51,33 +60,9 @@ export interface AiSlide {
  * visual (acentos, ato narrativo, variante de capa) do slide.
  */
 export function aiSlideToContent(ai: AiSlide, previous?: SlideContent): SlideContent {
-  const keep = <T,>(next: T | undefined, before: T | undefined): T | undefined =>
-    next ?? before;
-
-  return {
-    ...previous,
-    headline: ai.headline,
-    subtitle: ai.subtitle,
-    body_text: ai.body_text,
-    bullets: ai.bullets,
-    stat_value: ai.stat_value,
-    stat_label: ai.stat_label,
-    quote_text: ai.quote_text,
-    quote_author: ai.quote_author,
-    image_query: ai.image_query,
-    image_strategy: ai.image_strategy,
-    image_url: keep(ai.image_url, previous?.image_url) ?? null,
-    ai_image_prompt: ai.ai_image_prompt,
-    // Persistido porque o Editor precisa reenviá-lo ao trocar a imagem: sem
-    // ele, a busca erra a chave de cache do Asset Intelligence (pagando uma
-    // geração nova) e pode reaproveitar um asset de outro estilo visual.
-    image_style: keep(ai.image_style, previous?.image_style),
-    chart: ai.chart,
-    animation: ai.animation,
-    cover_variant: keep(ai.cover_variant, previous?.cover_variant),
-    visual_accents: keep(ai.visual_accents, previous?.visual_accents),
-    narrative_act: keep(ai.narrative_act, previous?.narrative_act),
-    animation_intent: keep(ai.animation_intent, previous?.animation_intent),
-    transition: keep(ai.transition, previous?.transition),
-  };
+  // Núcleo compartilhado com a edge function (persistência no servidor).
+  return aiSlideToContentCore(
+    ai as unknown as Record<string, unknown>,
+    previous as unknown as Record<string, unknown> | undefined,
+  ) as unknown as SlideContent;
 }

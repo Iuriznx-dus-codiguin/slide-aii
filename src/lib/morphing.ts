@@ -194,3 +194,15 @@ export function anchorLayoutId(role: AnchorRole, active: boolean): string | unde
  *   transition={{ ...ctrl.motionProps("title").transition, layout: ANCHOR_LAYOUT_TRANSITION }}
  */
 export const ANCHOR_LAYOUT_TRANSITION = { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const };
+
+/**
+ * Motor v2: âncora SEMÂNTICA do magic move. Quando dois slides vizinhos
+ * mostram o mesmo objeto (mesmo `anchor_key`, decidido no servidor pelo
+ * resolvedor a partir dos objetos-chave do roteiro), o recorte/nó persiste e
+ * dá zoom de um slide para o outro. Só no modo dinâmico — no clássico, cada
+ * slide entra e sai com a sua transição, sem projeção de layout.
+ */
+export function semanticAnchorId(key: string | undefined | null, active: boolean): string | undefined {
+  if (!active || !key) return undefined;
+  return `slideai-anchor-obj-${key}`;
+}

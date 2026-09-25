@@ -16,16 +16,9 @@ import { useEffect, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 
 /* ---------- Easings ---------- */
-export const EASE = {
-  /** Apple-like, smooth deceleration. Default for entradas. */
-  smooth: [0.22, 1, 0.36, 1] as const,
-  /** Snappy, mais firme — para CTAs e dados. */
-  snap: [0.34, 1.56, 0.64, 1] as const,
-  /** Editorial, lento e elegante — para headlines de capa. */
-  editorial: [0.16, 1, 0.3, 1] as const,
-  /** Inertia tipo física — desacelera de forma natural. */
-  inertia: [0.05, 0.7, 0.1, 1] as const,
-};
+// Definidos em ./easing (módulo puro, usado também pelo motor de cenas).
+import { EASE } from "./easing";
+export { EASE };
 
 /* ---------- Presets cinematográficos ----------
    Cada preset retorna { container, item } variants para
