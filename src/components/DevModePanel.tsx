@@ -38,7 +38,7 @@ export const DevModePanel = () => {
   if (!isDeveloper) return null;
 
   const mode = modeFromBudget(s.maxBudgetUsd);
-  const sample = estimateGenerationCost(10, true, mode);
+  const sample = estimateGenerationCost(10, true, s.maxBudgetUsd, s.engineV2 ? 2 : 1);
 
   return (
     <>
@@ -114,6 +114,16 @@ export const DevModePanel = () => {
                   <div className="flex justify-between font-semibold pt-1 border-t border-border"><span>Total</span><span>${sample.totalUsd.toFixed(3)}</span></div>
                   <div className="flex justify-between text-muted-foreground"><span>Tempo</span><span>~{Math.round(sample.seconds)}s</span></div>
                 </div>
+              </section>
+
+              <section className="space-y-2 p-3 rounded-lg border border-primary/40 bg-primary/5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Motor de cenas (v2)</Label>
+                  <Switch checked={s.engineV2} onCheckedChange={(v) => update({ engineV2: v })} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Gera com o motor novo (Plano Visual + blocos visuais nativos). Desligado, usa o motor atual — compare custo e qualidade no painel de métricas.
+                </p>
               </section>
 
               <section className="space-y-2">

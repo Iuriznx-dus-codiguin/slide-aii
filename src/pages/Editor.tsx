@@ -14,7 +14,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowLeft, Save, Undo2, Redo2, Plus, Trash2, ZoomIn, ZoomOut, Play,
   Type, Image as ImageIcon, Wand2, Layout as LayoutIcon, FileText, Loader2,
-  GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users,
+  GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users, Shapes,
 } from "lucide-react";
 import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
 import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
@@ -29,16 +29,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
 import { ExportMenu } from "@/components/ExportMenu";
-import { THEMES, FONTS, ANIMATION_PRESETS, type ThemeColors } from "@/lib/slugify";
+import { THEMES, FONTS, resolveTheme, type ThemeColors } from "@/lib/slugify";
 import { toast } from "sonner";
 import React from "react";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { aiSlideToContent } from "@/lib/aiSlide";
 import { fetchSlideImage } from "@/lib/slideImage";
-import { SLIDE_LAYOUTS } from "../../supabase/functions/_shared/slideComposition.ts";
+import { LEGACY_SLIDE_LAYOUTS, SLIDE_LAYOUTS } from "../../supabase/functions/_shared/slideComposition.ts";
+import { MOTION_PRESETS, MOTION_PRESET_LABELS } from "../../supabase/functions/_shared/motionPresets.ts";
+import { getCommand } from "../../supabase/functions/_shared/visualCommands.ts";
+import { aiAssetFor, photoAssetFor } from "../../supabase/functions/_shared/sceneResolver.ts";
+import { isSceneContent, type SlideAsset } from "../../supabase/functions/_shared/sceneMedia.ts";
+import { isDomain } from "../../supabase/functions/_shared/sceneCatalog.ts";
+import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAssets";
+import { VisualPanel } from "@/components/editor/VisualPanel";
 
 // Fonte única compartilhada com o backend — ver _shared/slideComposition.ts.
+// Slides clássicos (v1) só oferecem os layouts que o renderer clássico
+// conhece; visual-hero e diagram-full existem apenas em cenas do motor v2.
 const LAYOUTS = SLIDE_LAYOUTS;
+const layoutsFor = (content: unknown): readonly string[] =>
+  isSceneContent(content as Record<string, unknown>) ? LAYOUTS : LEGACY_SLIDE_LAYOUTS;
 
 const TRANSITIONS = [
   "dynamic",
@@ -152,6 +163,9 @@ const Editor = () => {
   // chamam setSlides direto — escape da detecção.
   const [dirty, setDirty] = useState(false);
   const savedSnapshotRef = useRef<string | null>(null);
+  // Cópia do que está gravado no banco — base do merge dos ativos que chegam
+  // em segundo plano (resolução progressiva), sem marcar o deck como sujo.
+  const savedRowsRef = useRef<SlideRow[]>([]);
   const [savedMark, setSavedMark] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -197,6 +211,7 @@ const Editor = () => {
       })) as SlideRow[];
       setSlides(normalized);
       savedSnapshotRef.current = deckSignature(normalized);
+      savedRowsRef.current = JSON.parse(JSON.stringify(normalized));
       if (presLoaded.include_speeches) setNotesOpen(true);
       setLoading(false);
     })();
@@ -207,6 +222,45 @@ const Editor = () => {
     () => (pres as any)?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null,
     [pres, slides]
   );
+
+  // ── Ativos em segundo plano (motor v2 / persistência no servidor) ──
+  // A geração grava o deck com imagens pendentes; aqui elas são resolvidas
+  // aos poucos e cada URL é gravada assim que chega. O merge vai no estado
+  // local, nas pilhas de desfazer/refazer e na cópia gravada — então um ativo
+  // que chega não marca o deck como "não salvo" nem se perde num undo.
+  const applyAsset = useCallback(async (slideId: string, patch: AssetPatch) => {
+    const merge = (row: SlideRow) => (row.id === slideId ? { ...row, content: { ...row.content, ...patch } } : row);
+    setSlides((prev) => prev.map(merge));
+    undoStack.current = undoStack.current.map((snap) => snap.map(merge));
+    redoStack.current = redoStack.current.map((snap) => snap.map(merge));
+    const saved = savedRowsRef.current.find((r) => r.id === slideId);
+    if (!saved) return;
+    saved.content = { ...saved.content, ...patch };
+    savedSnapshotRef.current = deckSignature(savedRowsRef.current);
+    setSavedMark((m) => m + 1);
+    const update: Record<string, unknown> = { content: saved.content };
+    // Capa com imagem alimenta a miniatura do portfólio público.
+    if (saved.position === 0 && patch.image_url) update.background_image_url = patch.image_url;
+    const { error } = await supabase.from("slides").update(update as any).eq("id", slideId);
+    if (error) console.warn("ativo: gravação falhou (fica para o próximo save)", error.message);
+  }, []);
+
+  const assets = useProgressiveAssets({
+    presentationId: pres?.id,
+    slides,
+    enabled: !loading && !!pres,
+    onResolved: applyAsset,
+  });
+
+  // Tema resolvido (receitas de imagem do painel Visual usam os hex reais).
+  const resolvedTheme = useMemo(() => resolveTheme(pres?.theme ?? "auto", dynamicTheme), [pres?.theme, dynamicTheme]);
+
+  // Pede (de novo) a mídia do slide ativo: o próprio hook enfileira o ativo
+  // pendente na próxima renderização.
+  const requestMediaFor = (idx: number) => {
+    const row = slides[idx];
+    if (row) assets.requeue(row.id);
+  };
 
   // Carrega/persiste a cota de edição por IA desta apresentação.
   useEffect(() => {
@@ -407,6 +461,7 @@ const Editor = () => {
       } as any).eq("id", pres.id);
 
       savedSnapshotRef.current = attemptedSignature;
+      savedRowsRef.current = JSON.parse(JSON.stringify(slides));
       setSavedMark((m) => m + 1);
       setLastSaved(new Date());
       if (!silent) toast.success("Salvo!");
@@ -512,6 +567,11 @@ const Editor = () => {
       }));
       skipNextSnapshot.current = true;
       setSlides(updated as any);
+      // Bloco visual que passou a pedir mídia (ex.: "mostre a vista explodida"):
+      // o ativo pendente entra na fila de resolução em segundo plano.
+      for (const row of updated) {
+        if (row.content?.asset?.status === "pending") assets.requeue(row.id);
+      }
       if (data.usage) {
         setAiUsage({
           messages: Number(data.usage.messages) || aiUsage.messages + 1,
@@ -800,8 +860,9 @@ const Editor = () => {
         <aside className="w-72 md:w-80 border-l border-border bg-card/30 flex flex-col flex-shrink-0">
           {current && (
             <Tabs defaultValue="text" className="flex-1 flex flex-col">
-              <TabsList className="grid grid-cols-5 m-2">
+              <TabsList className="grid grid-cols-6 m-2">
                 <TabsTrigger value="text" title="Texto"><Type className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="visual" title="Visual"><Shapes className="h-3.5 w-3.5" /></TabsTrigger>
                 <TabsTrigger value="image" title="Imagem"><ImageIcon className="h-3.5 w-3.5" /></TabsTrigger>
                 <TabsTrigger value="anim" title="Animação"><Wand2 className="h-3.5 w-3.5" /></TabsTrigger>
                 <TabsTrigger value="layout" title="Layout"><LayoutIcon className="h-3.5 w-3.5" /></TabsTrigger>
@@ -853,6 +914,22 @@ const Editor = () => {
                   )}
                 </TabsContent>
 
+                <TabsContent value="visual" className="mt-0">
+                  <VisualPanel
+                    slide={current}
+                    theme={resolvedTheme}
+                    brief={pres.creative_brief ?? null}
+                    onContentChange={(patch) => updateContent(activeIdx, patch)}
+                    onLayoutChange={(layout) => updateSlide(activeIdx, { layout_template: layout })}
+                    onRequestMedia={() => requestMediaFor(activeIdx)}
+                  />
+                  {assets.pending > 0 && (
+                    <p className="mt-3 text-[11px] text-muted-foreground">
+                      {assets.pending} {assets.pending === 1 ? "imagem sendo preparada" : "imagens sendo preparadas"} em segundo plano.
+                    </p>
+                  )}
+                </TabsContent>
+
                 <TabsContent value="image" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
                     <Label className="text-xs">URL da imagem</Label>
@@ -880,8 +957,28 @@ const Editor = () => {
                       <Textarea value={c.ai_image_prompt || ""} onChange={(e) => updateContent(activeIdx, { ai_image_prompt: e.target.value })} rows={3} />
                     </div>
                   )}
-                  <Button variant="outline" size="sm" className="w-full" disabled={!c.image_query}
+                  <Button variant="outline" size="sm" className="w-full" disabled={!c.image_query && !(isSceneContent(c) && c.visual)}
                     onClick={async () => {
+                      // Motor v2: a imagem do bloco visual vem da receita do
+                      // Image Director e entra na fila de ativos do deck.
+                      const spec = isSceneContent(c) && c.visual ? getCommand(c.visual.command) : undefined;
+                      if (spec && spec.renderMode !== "native") {
+                        const briefDomain = pres.creative_brief?.domain;
+                        const ctx = {
+                          palette: { bg: resolvedTheme.bg, text: resolvedTheme.text, accent: resolvedTheme.accent, accent2: resolvedTheme.accent2 },
+                          style: pres.creative_brief?.visual_style,
+                          domain: isDomain(briefDomain) ? briefDomain : undefined,
+                          budgetMode: "balanced" as const,
+                          fallbackSubject: c.headline ?? "",
+                        };
+                        const asset: SlideAsset = spec.photoEligible
+                          ? photoAssetFor(spec, c.visual, ctx, c.image_query || c.visual.subject || c.headline || "", true)
+                          : aiAssetFor(spec, c.visual, ctx, current.layout_template);
+                        updateContent(activeIdx, { asset, image_url: null, visual: { ...c.visual, render_mode: undefined } });
+                        requestMediaFor(activeIdx);
+                        toast.success("Imagem na fila — ela aparece no slide assim que ficar pronta.");
+                        return;
+                      }
                       toast.loading("Buscando imagem...", { id: "img" });
                       const url = await fetchSlideImage({
                         query: c.image_query!,
@@ -903,11 +1000,15 @@ const Editor = () => {
                 <TabsContent value="anim" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Animação de entrada (per-elemento)</Label>
-                    <Select value={c.animation || current.animation_transition || "fade"}
-                      onValueChange={(v) => { updateSlide(activeIdx, { animation_transition: v } as any); updateContent(activeIdx, { animation: v }); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    {/* Antes gravava o campo legado `animation`, que sempre perdia
+                        para animation_intent — o seletor não tinha efeito visível.
+                        Agora grava `motion` (preset em JSON), lido pelo motor de
+                        cenas e traduzido para os slides de texto. */}
+                    <Select value={c.motion?.preset ?? ""}
+                      onValueChange={(v) => updateContent(activeIdx, { motion: { ...(c.motion ?? {}), preset: v } })}>
+                      <SelectTrigger><SelectValue placeholder="automática (pelo papel do slide)" /></SelectTrigger>
                       <SelectContent>
-                        {ANIMATION_PRESETS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                        {MOTION_PRESETS.map((m) => <SelectItem key={m} value={m}>{MOTION_PRESET_LABELS[m]}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -968,7 +1069,7 @@ const Editor = () => {
                     <Select value={current.layout_template} onValueChange={(v) => updateSlide(activeIdx, { layout_template: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {LAYOUTS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                        {layoutsFor(current.content).map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
