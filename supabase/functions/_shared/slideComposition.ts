@@ -32,10 +32,23 @@
  * exigia lembrar de todos, e esquecer um deixava o Editor sem a opção ou a
  * IA emitindo algo que a tela não sabe montar.
  */
-export const SLIDE_LAYOUTS = [
+export const LEGACY_SLIDE_LAYOUTS = [
   "title-only", "title-content", "two-columns", "image-right", "image-left",
   "full-image", "quote", "data-chart", "centered", "split-hero", "stat-highlight",
 ] as const;
+
+/**
+ * Modelos de página do motor v2 (no máximo dois novos, de propósito):
+ *   • visual-hero  — o bloco visual domina, texto de apoio ao lado;
+ *   • diagram-full — faixa de título e o diagrama ocupando a largura toda.
+ * Ficam FORA do enum e do rodízio do motor v1 (assignLayouts valida contra
+ * LEGACY_SLIDE_LAYOUTS), então o v1 continua exatamente como antes. O Editor
+ * oferece todos; um slide sem bloco visual num desses modelos cai no layout
+ * de texto padrão, nunca em tela vazia.
+ */
+export const SCENE_ONLY_LAYOUTS = ["visual-hero", "diagram-full"] as const;
+
+export const SLIDE_LAYOUTS = [...LEGACY_SLIDE_LAYOUTS, ...SCENE_ONLY_LAYOUTS] as const;
 
 export type SlideLayout = (typeof SLIDE_LAYOUTS)[number];
 
@@ -84,7 +97,7 @@ export function assignLayouts(slides: LayoutInput[]): string[] {
     // Nome fora do repertório é tratado como ausente: o renderer degrada para
     // o slide de conteúdo padrão, e o Editor não teria a opção no seletor.
     const raw = slides[i].layout?.trim();
-    const proposed = raw && (SLIDE_LAYOUTS as readonly string[]).includes(raw) ? raw : undefined;
+    const proposed = raw && (LEGACY_SLIDE_LAYOUTS as readonly string[]).includes(raw) ? raw : undefined;
 
     if (i === 0) {
       result.push(proposed || "split-hero");

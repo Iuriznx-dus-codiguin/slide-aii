@@ -24,8 +24,10 @@ import {
   classifyEditIntent,
   EDIT_SYSTEM_PROMPT,
   EDIT_TOOL,
+  normalizeSceneEdits,
   summarizeDeck,
 } from "../_shared/editDirector.ts";
+import { textFallbackRoute, textRoute } from "../_shared/modelRegistry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -239,11 +241,12 @@ ${safeInstruction}
 
 Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: ${targets.join(", ")}).`;
 
-    const endpoint = useOpenAI
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://ai.gateway.lovable.dev/v1/chat/completions";
-    const authKey = useOpenAI ? OPENAI_API_KEY! : LOVABLE_API_KEY!;
-    const model = useOpenAI ? "gpt-4.1-mini" : "google/gemini-2.5-flash";
+    // Modelos por etapa vêm do registro único (_shared/modelRegistry.ts).
+    const route = textRoute("editApply", { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY })!;
+    const endpoint = route.endpoint;
+    const authKey = route.authKey;
+    const model = route.model;
+    const fallbackRoute = textFallbackRoute("editApply", { openaiKey: OPENAI_API_KEY, lovableKey: LOVABLE_API_KEY });
 
     const requestPayload = {
       model,
@@ -263,12 +266,12 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       body: JSON.stringify(requestPayload),
     });
 
-    if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
-      console.warn("chat-editor: OpenAI falhou status", aiResponse.status, "— fallback Gemini");
-      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    if (!aiResponse.ok && fallbackRoute && ![429, 402].includes(aiResponse.status)) {
+      console.warn("chat-editor: OpenAI falhou status", aiResponse.status, "— fallback", fallbackRoute.model);
+      aiResponse = await fetch(fallbackRoute.endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...requestPayload, model: "google/gemini-2.5-flash" }),
+        headers: { Authorization: `Bearer ${fallbackRoute.authKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...requestPayload, model: fallbackRoute.model }),
       });
     }
 
@@ -309,10 +312,18 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
     }
 
     // ── Fase 3: patch aplicado no servidor sobre o deck original ──
-    const { slides: updatedSlides, changed } = applyEdits(slides, parsed.edits ?? [], targets);
+    const applied = applyEdits(slides, parsed.edits ?? [], targets);
+    const changed = applied.changed;
     const nextTheme = parsed.dynamic_theme && typeof parsed.dynamic_theme === "object"
       ? { ...(theme ?? {}), ...parsed.dynamic_theme }
       : theme ?? undefined;
+    // Motor v2: blocos visuais editados passam pela mesma cadeia de fallback
+    // do resolvedor; comando que pede mídia ganha um ativo pendente.
+    const updatedSlides = normalizeSceneEdits(applied.slides, changed, {
+      themeId: presentation?.theme ?? null,
+      dynamicTheme: nextTheme,
+      brief: creativeBrief,
+    });
 
     const nextUsage = {
       messages: usedMessages + 1,

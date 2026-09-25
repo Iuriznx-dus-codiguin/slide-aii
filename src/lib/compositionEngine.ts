@@ -32,36 +32,17 @@ export interface CompositionSpec {
   density: number;
 }
 
-export interface ContentDensityInput {
-  headline?: string;
-  subtitle?: string;
-  bodyText?: string;
-  bullets?: string[];
-  hasChart?: boolean;
-}
+// A régua de densidade vive em supabase/functions/_shared/textMetrics.ts desde
+// o motor v2: o Quality Gate do servidor precisa medir o texto do mesmo jeito
+// que esta tela para decidir, antes de gravar, se ele cabe na caixa. Mesma
+// fórmula, uma fonte só — este módulo reexporta para não mudar nenhum import.
+import { densityScore, type ContentDensityInput } from "../../supabase/functions/_shared/textMetrics.ts";
+export { densityScore };
+export type { ContentDensityInput };
 
 /** Only os campos do CreativeBrief relevantes aqui — evita acoplar a um import pesado. */
 export interface SpacingBrief {
   spacing?: "tight" | "balanced" | "generous";
-}
-
-function wordCount(s?: string): number {
-  return s ? s.trim().split(/\s+/).filter(Boolean).length : 0;
-}
-
-/**
- * 0 (muito esparso) .. 1 (muito denso). Calibrado contra a faixa de
- * densidade que o próprio prompt de geração pede em PASSO C/D
- * (generate-presentation/index.ts): body_text de 40-90 palavras OU 3-5
- * bullets de 8-16 palavras cada — ou seja, o "centro" esperado da faixa já
- * fica perto de densidade ~0.5-0.6 por construção.
- */
-export function densityScore(input: ContentDensityInput): number {
-  const bulletWords = (input.bullets ?? []).reduce((sum, b) => sum + wordCount(b), 0);
-  const totalWords = wordCount(input.headline) + wordCount(input.subtitle) + wordCount(input.bodyText) + bulletWords;
-  const elementCount = (input.bodyText ? 1 : 0) + (input.bullets?.length ?? 0) + (input.hasChart ? 1.5 : 0);
-  const raw = totalWords / 160 + elementCount / 8;
-  return Math.max(0, Math.min(1, raw));
 }
 
 // Faixas em % de padding permitidas por preferência de espaçamento do tema.

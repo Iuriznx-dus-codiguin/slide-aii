@@ -6,6 +6,7 @@
 // apresentação (presentations.speech_regen_count).
 // ============================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { AI_ENDPOINTS, TEXT_STAGES } from "../_shared/modelRegistry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -142,11 +143,12 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
     },
   };
 
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // Modelo da etapa vem do registro único (_shared/modelRegistry.ts).
+  const resp = await fetch(AI_ENDPOINTS.gateway, {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: TEXT_STAGES.speeches.gateway,
       messages: [{ role: "user", content: prompt }],
       tools: [tool],
       tool_choice: { type: "function", function: { name: "set_speeches" } },

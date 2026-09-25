@@ -9,8 +9,12 @@
 // ============================================================
 import { motion, AnimatePresence } from "framer-motion";
 import { useMemo } from "react";
+import type { NarrativeActName } from "../../supabase/functions/_shared/sceneCatalog.ts";
 
-export type NarrativeAct = "hook" | "tension" | "journey" | "proof" | "climax" | "neutral";
+// Os atos vêm do catálogo compartilhado com o Story Engine (Deno) — antes esta
+// união era uma cópia mantida em "sincronia manual". "neutral" é só um estado
+// de interface (slide sem ato), nunca uma decisão de conteúdo.
+export type NarrativeAct = NarrativeActName | "neutral";
 
 const ACT_LABEL: Record<NarrativeAct, string> = {
   hook: "Gancho",

@@ -1,6 +1,6 @@
 // Resolve image for a slide. Strategy = "pexels" -> search Pexels.
-// Strategy = "ai" -> generate via Lovable AI (Gemini Image / Nano Banana).
-// Returns { url } or { error }.
+// Strategy = "ai" -> generate image (registro de modelos: gpt-image-2.5-flare,
+// gpt-image-1-mini, Gemini do gateway). Returns { url } or { error }.
 //
 // Segurança: esta função é usada em dois contextos bem diferentes — (1) o
 // editor/gerador autenticado pedindo imagens Pexels ou geração por IA, e (2)
@@ -8,18 +8,44 @@
 // ambiente de uma apresentação já publicada. Por isso o controle de acesso é
 // calibrado por estratégia em vez de um auth obrigatório genérico:
 //   • strategy "ai"            → é a ÚNICA com custo real em dólar por
-//     chamada (Lovable AI Gateway). Exige usuário autenticado + rate limit
-//     de 15/hora por usuário.
+//     chamada. Exige usuário autenticado + rate limit de 15/hora por usuário.
 //   • strategy "pexels"/"video" → sem custo monetário direto, mas ainda
 //     assim sujeitas a um rate limit por IP (60/hora) para não permitir que
 //     alguém esgote a cota da API da Pexels do projeto inteiro.
-// Antes desta correção, TODAS as estratégias — incluindo "ai" — podiam ser
-// chamadas por qualquer pessoa de posse da chave pública do projeto, sem
-// nenhum vínculo com conta e sem limite algum.
+//
+// Motor v2 (cota de ativos): quando o pedido vem com `presentation_id` de uma
+// apresentação do próprio usuário, fetch-image consome a COTA DE ATIVOS que
+// a geração emitiu para ela (tabela presentation_asset_quotas, atrelada ao
+// número de imagens planejadas) no lugar do limite genérico — que continua
+// valendo para chamadas avulsas do Editor. Sem a migração aplicada, cai no
+// limite genérico (comportamento anterior).
+//
+// Fallback Pexels→IA: antes gerava imagem PAGA sem exigir login, sob o limite
+// público de 60/h por IP. Agora exige usuário autenticado, que o pedido
+// permita (`allow_ai_fallback`, falso no modo economia) e cota (da
+// apresentação ou o limite de IA de 15/h).
+//
+// Receitas (Image Director): com `recipe`, o prompt é montado por código
+// (_shared/imageDirector.ts) — sem texto na imagem, paleta do tema, escala
+// realista — e recortes saem com fundo TRANSPARENTE em webp (antes o estilo
+// "no-background" pedia fundo branco e virava um retângulo em tema escuro).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findMatchingAsset, recordAsset, touchAsset } from "../_shared/assetIntelligence.ts";
 import { persistGeneratedImage } from "../_shared/assetStorage.ts";
 import { createLogger } from "../_shared/observability.ts";
+import { buildImagePrompt, sanitizeRecipe, type ImageRecipe } from "../_shared/imageDirector.ts";
+import {
+  IMAGE_ENDPOINTS,
+  IMAGE_MODELS,
+  imageCostUsd,
+  imageModelChain,
+  imageQualityFor,
+  imageSizeFor,
+  type BudgetMode,
+  type ImageAspect,
+  type ImageModelId,
+  type ImageQuality,
+} from "../_shared/modelRegistry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,17 +57,28 @@ interface FetchImageBody {
   ai_prompt?: string;
   strategy: "pexels" | "ai" | "none" | "video";
   orientation?: "landscape" | "portrait" | "square";
-  /** Estilo visual quando strategy="ai" — molda o prompt final. */
+  /** Estilo visual quando strategy="ai" (caminho legado, sem receita). */
   style?: "photo" | "illustration" | "no-background" | "3d-render" | "isometric" | "watercolor" | "line-art" | "collage" | "minimal";
   /** URLs já em uso na apresentação — Pexels evitará reutilizá-las. */
   avoid_urls?: string[];
+  /** Motor v2: receita do Image Director (prompt montado no servidor). */
+  recipe?: ImageRecipe;
+  /** Motor v2: apresentação dona do ativo (consome a cota de ativos). */
+  presentation_id?: string;
+  /** Pexels sem resultado pode cair em IA? Padrão: sim (compatibilidade). */
+  allow_ai_fallback?: boolean;
+  /** Modo de orçamento da geração (modelo e qualidade da imagem de IA). */
+  budget_mode?: BudgetMode;
 }
 
-/** Mapeia estilo → sufixo de prompt cinematográfico para Nano Banana 2. */
+/**
+ * Sufixo de estilo do caminho legado (motor v1, sem receita). "no-background"
+ * agora significa recorte TRANSPARENTE de verdade (ver `background` abaixo).
+ */
 const STYLE_SUFFIX: Record<NonNullable<FetchImageBody["style"]>, string> = {
   "photo": "Cinematic photograph, dramatic lighting, shallow depth of field, editorial quality, 4k.",
   "illustration": "Flat vector illustration, editorial style, bold color palette, clean composition.",
-  "no-background": "Isolated subject on pure white background, product-photography lighting, no shadow, crisp edges — perfect for compositing.",
+  "no-background": "Isolated subject on a fully transparent background, product-photography lighting, no floor, no cast shadow, crisp edges — perfect for compositing.",
   "3d-render": "Modern 3D render, soft studio lighting, matte materials, clean isometric or three-quarter view.",
   "isometric": "Isometric 3D illustration, pastel palette, clean geometric composition, subtle depth.",
   "watercolor": "Watercolor illustration, soft washes, organic textures, muted palette, hand-painted feel.",
@@ -50,81 +87,109 @@ const STYLE_SUFFIX: Record<NonNullable<FetchImageBody["style"]>, string> = {
   "minimal": "Ultra-minimal composition, one focal object, monochrome palette, generous negative space, gallery aesthetic.",
 };
 
-/**
- * Geração de imagem por IA — OpenAI Images API como motor principal
- * (gpt-image-1-mini, quality "low", 1536x1024 → melhor custo por hero image),
- * com fallback para o gateway Lovable (Gemini Image) apenas se a OpenAI
- * falhar por erro não-tarifário. Pexels continua sempre em primeiro lugar
- * nas rotas acima, então a IA só entra quando realmente necessário.
- */
-async function generateAiImage(
-  prompt: string,
-): Promise<{ url: string | null; source: string; rateLimited?: boolean }> {
-  const finalPrompt = prompt.slice(0, 3000);
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const LEGACY_NO_TEXT = " No text, letters or watermarks in the image.";
 
-  if (OPENAI_API_KEY) {
-    try {
-      const r = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-image-1-mini",
-          prompt: finalPrompt,
+interface GenerationRequest {
+  prompt: string;
+  chain: ImageModelId[];
+  quality: ImageQuality;
+  aspect: ImageAspect;
+  transparent: boolean;
+}
+
+interface GenerationResult {
+  url: string | null;
+  source: string;
+  model?: ImageModelId;
+  rateLimited?: boolean;
+  costUsd?: number;
+  estimated?: boolean;
+}
+
+/**
+ * Geração de imagem pela cadeia de modelos do registro: o primeiro que
+ * responder vence. Erro de modelo/tamanho (4xx) ou de provedor passa para o
+ * próximo; o Gemini do gateway é a última rede de segurança.
+ */
+async function generateAiImage(req: GenerationRequest): Promise<GenerationResult> {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const prompt = req.prompt.slice(0, 3000);
+  let rateLimited = false;
+
+  for (const model of req.chain) {
+    const spec = IMAGE_MODELS[model];
+    if (spec.provider === "openai") {
+      if (!OPENAI_API_KEY) continue;
+      try {
+        const payload: Record<string, unknown> = {
+          model,
+          prompt,
           n: 1,
-          size: "1536x1024",
-          quality: "low",
+          size: imageSizeFor(model, req.aspect),
           output_format: "webp",
+        };
+        if (spec.capabilities.qualityScale) payload.quality = req.quality;
+        if (req.transparent && spec.capabilities.transparent) payload.background = "transparent";
+        const r = await fetch(IMAGE_ENDPOINTS.openai, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          const b64 = d.data?.[0]?.b64_json;
+          const url = b64 ? `data:image/webp;base64,${b64}` : d.data?.[0]?.url ?? null;
+          if (url) {
+            const cost = imageCostUsd(model, req.quality, req.aspect, d.usage ?? null);
+            return { url, source: "openai", model, costUsd: cost.usd, estimated: cost.estimated };
+          }
+        } else if (r.status === 429 || r.status === 402) {
+          console.warn("image rate/credit limit:", model, r.status);
+          rateLimited = true;
+        } else {
+          const t = await r.text().catch(() => "");
+          console.error("image error:", model, r.status, t.slice(0, 300));
+        }
+      } catch (e) {
+        console.warn("image request failed:", model, e instanceof Error ? e.message : e);
+      }
+      continue;
+    }
+    // Gateway Lovable (Gemini): sem transparência nem escala de qualidade.
+    if (!LOVABLE_API_KEY) continue;
+    try {
+      const r = await fetch(IMAGE_ENDPOINTS.gateway, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          modalities: ["image", "text"],
         }),
       });
-      if (r.ok) {
-        const d = await r.json();
-        const b64 = d.data?.[0]?.b64_json;
-        if (b64) return { url: `data:image/webp;base64,${b64}`, source: "openai" };
-        if (d.data?.[0]?.url) return { url: d.data[0].url, source: "openai" };
-      } else if (r.status === 429 || r.status === 402) {
-        console.warn("OpenAI image rate/credit limit:", r.status);
-        return { url: null, source: "openai", rateLimited: true };
-      } else {
-        const t = await r.text().catch(() => "");
-        console.error("OpenAI image error:", r.status, t.slice(0, 400));
+      if (!r.ok) {
+        if (r.status === 429 || r.status === 402) rateLimited = true;
+        else console.error("gateway image error:", r.status);
+        continue;
+      }
+      const d = await r.json();
+      const url = d.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
+      if (url) {
+        const cost = imageCostUsd(model, req.quality, req.aspect, null);
+        return { url, source: "lovable", model, costUsd: cost.usd, estimated: true };
       }
     } catch (e) {
-      console.warn("OpenAI image request failed:", e instanceof Error ? e.message : e);
+      console.warn("gateway image failed:", e instanceof Error ? e.message : e);
     }
   }
-
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) return { url: null, source: "none" };
-  try {
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: finalPrompt }],
-        modalities: ["image", "text"],
-      }),
-    });
-    if (!r.ok) {
-      if (r.status === 429 || r.status === 402) return { url: null, source: "lovable", rateLimited: true };
-      console.error("Lovable image fallback error:", r.status);
-      return { url: null, source: "lovable" };
-    }
-    const d = await r.json();
-    const url = d.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
-    return { url, source: "lovable" };
-  } catch (e) {
-    console.warn("Lovable image fallback failed:", e instanceof Error ? e.message : e);
-    return { url: null, source: "none" };
-  }
+  return { url: null, source: "none", rateLimited };
 }
 
 /**
  * Busca uma foto na Pexels evitando URLs já usadas na apresentação.
- * Centralizado aqui porque agora existem TRÊS caminhos que precisam disso
- * (strategy "pexels", fallback da strategy "ai" e a capa) — antes o mesmo
- * bloco estava copiado duas vezes com pequenas divergências de comportamento.
+ * Centralizado aqui porque existem TRÊS caminhos que precisam disso
+ * (strategy "pexels", fallback da strategy "ai" e a capa).
  */
 async function searchPexels(
   query: string,
@@ -144,7 +209,9 @@ async function searchPexels(
     }
     const data = await r.json();
     const avoid = new Set(avoidUrls);
+    // deno-lint-ignore no-explicit-any
     const photos = (data.photos ?? []) as any[];
+    // deno-lint-ignore no-explicit-any
     const pick = (p: any) => p?.src?.large2x ?? p?.src?.large ?? p?.src?.original ?? null;
     const photo = photos.find((p) => { const c = pick(p); return c && !avoid.has(c); }) ?? photos[0];
     return {
@@ -157,6 +224,11 @@ async function searchPexels(
     return { url: null };
   }
 }
+
+const json = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -180,9 +252,6 @@ Deno.serve(async (req) => {
   }
 
   // Chave de rate limit: por usuário quando autenticado, por IP quando não.
-  // x-forwarded-for é preenchido pelo edge runtime/CDN; é a melhor aproximação
-  // disponível para um chamador anônimo (spoofável, mas já eleva bastante o
-  // custo de abuso em relação ao endpoint totalmente aberto de antes).
   const clientIp = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown")
     .split(",")[0].trim();
   const rlKey = userId ? `user:${userId}` : `ip:${clientIp}`;
@@ -202,188 +271,207 @@ Deno.serve(async (req) => {
       .filter((u) => typeof u === "string" && u.length <= 2048).slice(0, 30);
     const ALLOWED_STRATEGIES = ["pexels", "ai", "none", "video"];
     if (!ALLOWED_STRATEGIES.includes(strategy)) {
-      return new Response(JSON.stringify({ url: null, error: "Estratégia inválida." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ url: null, error: "Estratégia inválida." }, 400);
     }
     // Estilo fora do catálogo viraria "undefined" dentro do prompt final.
     if (body.style && !(body.style in STYLE_SUFFIX)) body.style = undefined;
+    const recipe = body.recipe ? sanitizeRecipe(body.recipe) : null;
+    const budgetMode: BudgetMode = body.budget_mode === "premium" || body.budget_mode === "economy" ? body.budget_mode : "balanced";
+    const presentationId = typeof body.presentation_id === "string" && UUID_RE.test(body.presentation_id) ? body.presentation_id : null;
 
-
+    // ───────────── Cota de ativos da apresentação (motor v2) ─────────────
+    // Devolve true se esta chamada foi coberta pela cota; false (sem cota,
+    // esgotada, apresentação de outro usuário ou migração pendente) faz o
+    // pedido cair no limite genérico de antes.
+    const consumeQuota = async (kind: "ai" | "photo"): Promise<boolean> => {
+      if (!userId || !presentationId) return false;
+      try {
+        const { data, error } = await admin.rpc("consume_presentation_asset", {
+          _presentation_id: presentationId, _uid: userId, _kind: kind,
+        });
+        if (error) return false;
+        return (data as { ok?: boolean } | null)?.ok === true;
+      } catch {
+        return false;
+      }
+    };
+    const recordCost = async (usd: number | undefined) => {
+      if (!userId || !presentationId || !usd) return;
+      try {
+        await admin.rpc("add_presentation_asset_cost", { _presentation_id: presentationId, _uid: userId, _cost_usd: usd });
+      } catch { /* métrica, nunca bloqueia */ }
+    };
+    const withinGenericAiLimit = async (): Promise<boolean> => {
+      const { data } = await admin.rpc("check_rate_limit", { _key: rlKey, _fn: "fetch-image-ai", _max_per_hour: 15 });
+      if (data === false) {
+        await log.security("rate_limited", { status: 429, detail: { strategy: "ai", max_per_hour: 15 } });
+        return false;
+      }
+      return true;
+    };
 
     if (strategy === "ai") {
       // Único caminho com custo real em dólar por chamada — exige conta.
       if (!userId) {
         await log.security("unauthorized", { status: 401, detail: { strategy: "ai" } });
-        return new Response(JSON.stringify({ url: null, error: "Autenticação necessária para geração de imagem por IA." }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ url: null, error: "Autenticação necessária para geração de imagem por IA." }, 401);
       }
-      const { data: withinAiLimit } = await admin.rpc("check_rate_limit", {
-        _key: rlKey, _fn: "fetch-image-ai", _max_per_hour: 15,
-      });
-      if (withinAiLimit === false) {
-        await log.security("rate_limited", { status: 429, detail: { strategy: "ai", max_per_hour: 15 } });
-        return new Response(JSON.stringify({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) {
+        return json({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }, 429);
       }
-    } else {
-      // pexels/video/none: sem custo monetário direto, mas ainda limitado
-      // por IP/usuário para proteger a cota da Pexels do projeto inteiro.
-      const { data: withinLimit } = await admin.rpc("check_rate_limit", {
-        _key: rlKey, _fn: "fetch-image-public", _max_per_hour: 60,
-      });
-      if (withinLimit === false) {
-        await log.security("rate_limited", { status: 429, detail: { strategy, max_per_hour: 60 } });
-        return new Response(JSON.stringify({ url: null, error: "Limite de requisições de imagem atingido. Aguarde um pouco." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    } else if (strategy !== "none") {
+      // pexels/video: sem custo monetário direto, mas ainda limitado por
+      // IP/usuário para proteger a cota da Pexels do projeto inteiro.
+      const covered = strategy === "pexels" && (await consumeQuota("photo"));
+      if (!covered) {
+        const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+          _key: rlKey, _fn: "fetch-image-public", _max_per_hour: 60,
         });
+        if (withinLimit === false) {
+          await log.security("rate_limited", { status: 429, detail: { strategy, max_per_hour: 60 } });
+          return json({ url: null, error: "Limite de requisições de imagem atingido. Aguarde um pouco." }, 429);
+        }
       }
     }
 
-    if (strategy === "none") {
-      return new Response(JSON.stringify({ url: null }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (strategy === "none") return json({ url: null });
 
     if (strategy === "video") {
       const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
-      if (!PEXELS_API_KEY) {
-        return new Response(JSON.stringify({ url: null, error: "PEXELS_API_KEY not configured" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!PEXELS_API_KEY) return json({ url: null, error: "PEXELS_API_KEY not configured" });
       const q = encodeURIComponent(body.query || "abstract motion");
       const r = await fetch(`https://api.pexels.com/videos/search?query=${q}&per_page=8&orientation=landscape&size=medium`, {
         headers: { Authorization: PEXELS_API_KEY },
       });
       if (!r.ok) {
         console.error("Pexels videos error:", r.status, await r.text());
-        return new Response(JSON.stringify({ url: null, error: "Pexels videos error" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ url: null, error: "Pexels videos error" });
       }
       const data = await r.json();
       // Pega o vídeo curto (<= 20s) com melhor resolução em mp4
+      // deno-lint-ignore no-explicit-any
       const video = (data.videos ?? []).find((v: any) => v.duration && v.duration <= 25) ?? data.videos?.[0];
+      // deno-lint-ignore no-explicit-any
       const file = video?.video_files?.find((f: any) => f.file_type === "video/mp4" && f.width && f.width <= 1920 && f.width >= 960)
+        // deno-lint-ignore no-explicit-any
         ?? video?.video_files?.find((f: any) => f.file_type === "video/mp4")
         ?? video?.video_files?.[0];
-      const url = file?.link ?? null;
-      const poster = video?.image ?? null;
-      return new Response(JSON.stringify({
-        url, poster,
+      return json({
+        url: file?.link ?? null,
+        poster: video?.image ?? null,
         photographer: video?.user?.name ?? null,
         photographer_url: video?.user?.url ?? null,
         duration: video?.duration ?? null,
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      });
     }
 
     const orientation = body.orientation || "landscape";
     const avoidUrls = body.avoid_urls ?? [];
 
-    if (strategy === "pexels") {
-      const found = await searchPexels(body.query || "abstract", orientation, avoidUrls);
-      if (found.url) {
-        // Consistência da biblioteca (auditoria): ativos Pexels também são
-        // registrados agora. Antes só imagens de IA entravam em public.assets,
-        // então a "biblioteca de ativos" do usuário mostrava, na melhor das
-        // hipóteses, ~40% do que a apresentação realmente usava.
-        await recordAsset(admin, userId, found.url, body.style, body.query || "", "pexels");
-        return new Response(JSON.stringify({
-          url: found.url, source: "pexels",
-          photographer: found.photographer, photographer_url: found.photographer_url,
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Pedido de geração: receita (v2) ou prompt livre + estilo (v1).
+    const buildGeneration = (fallbackText: string): GenerationRequest => {
+      if (recipe) {
+        const spec = buildImagePrompt(recipe);
+        return {
+          prompt: spec.prompt,
+          chain: imageModelChain(recipe.kind, budgetMode === "economy" ? "balanced" : budgetMode, {
+            primary: Deno.env.get("IMAGE_MODEL_PRIMARY"),
+            economy: Deno.env.get("IMAGE_MODEL_ECONOMY"),
+          }),
+          quality: imageQualityFor(budgetMode === "economy" ? "balanced" : budgetMode),
+          aspect: spec.aspect,
+          transparent: spec.background === "transparent",
+        };
       }
-      // Pexels não achou nada útil → gera por IA como último recurso.
-      // BUG histórico corrigido: aqui se usava uma variável `prompt` nunca
-      // declarada, que resolvia para o global `prompt` do runtime Deno.
-      const fallbackPrompt = body.ai_prompt || body.query || "abstract professional background";
-      const cachedFallback = await findMatchingAsset(admin, userId, body.style, fallbackPrompt);
+      // Caminho legado (motor v1): mesmo modelo e qualidade de antes, para
+      // que a comparação de custo entre motores seja justa.
+      const styleSuffix = body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, high quality, presentation hero image.";
+      return {
+        prompt: `${fallbackText}. ${styleSuffix}${LEGACY_NO_TEXT}`,
+        chain: ["gpt-image-1-mini", "google/gemini-2.5-flash-image"],
+        quality: "low",
+        aspect: "16:9",
+        transparent: body.style === "no-background",
+      };
+    };
+    // Chave de cache do Asset Intelligence: receitas diferenciam comando,
+    // tipo e transparência (um recorte nunca substitui uma cena).
+    const cacheStyle = recipe ? `recipe:${recipe.command}:${recipe.kind}${recipe.transparent ? ":t" : ""}` : body.style;
+    const cacheQuery = recipe ? [recipe.subject, ...(recipe.items ?? [])].join(" ") : "";
+
+    if (strategy === "pexels") {
+      const found = await searchPexels(body.query || recipe?.subject || "abstract", orientation, avoidUrls);
+      if (found.url) {
+        // Ativos Pexels também são registrados na biblioteca do usuário.
+        await recordAsset(admin, userId, found.url, body.style, body.query || "", "pexels");
+        return json({ url: found.url, source: "pexels", photographer: found.photographer, photographer_url: found.photographer_url });
+      }
+      // Pexels não achou nada útil → IA como último recurso, mas só com conta,
+      // permissão do pedido e cota (apresentação ou limite de IA).
+      if (!userId || body.allow_ai_fallback === false) return json({ url: null });
+      const fallbackText = body.ai_prompt || body.query || "abstract professional background";
+      const matchText = cacheQuery || fallbackText;
+      const cachedFallback = await findMatchingAsset(admin, userId, cacheStyle, matchText);
       if (cachedFallback) {
         await touchAsset(admin, cachedFallback.id, cachedFallback.usage_count);
-        return new Response(JSON.stringify({ url: cachedFallback.url, source: "asset-library" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ url: cachedFallback.url, source: "asset-library" });
       }
-      const genFb = await generateAiImage(`${fallbackPrompt}. ${body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, presentation hero image."}`);
+      if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) return json({ url: null });
+      const genFb = await generateAiImage(buildGeneration(fallbackText));
       if (genFb.url) {
         const persisted = await persistGeneratedImage(admin, userId, genFb.url);
-        await recordAsset(admin, userId, persisted, body.style, fallbackPrompt, "ai");
-        return new Response(JSON.stringify({ url: persisted, source: `${genFb.source}-fallback` }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        await recordAsset(admin, userId, persisted, cacheStyle, matchText, "ai");
+        await recordCost(genFb.costUsd);
+        return json({ url: persisted, source: `${genFb.source}-fallback`, model: genFb.model, cost_usd: genFb.costUsd });
       }
-      return new Response(JSON.stringify({ url: null }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ url: null });
     }
 
     if (strategy === "ai") {
-      // ───────────── Fase 5: Asset Intelligence Engine ─────────────
+      // ───────────── Asset Intelligence ─────────────
       // Antes de gastar dinheiro numa nova geração, verifica se o mesmo
-      // usuário já pagou por uma imagem equivalente (mesmo style + prompt
-      // semanticamente parecido). Falha aqui nunca bloqueia: cai na geração.
-      const queryForMatch = body.ai_prompt || body.query || "";
-      const cached = await findMatchingAsset(admin, userId, body.style, queryForMatch);
+      // usuário já pagou por uma imagem equivalente (mesma chave de estilo +
+      // prompt semanticamente parecido). Falha aqui nunca bloqueia.
+      const queryForMatch = cacheQuery || body.ai_prompt || body.query || "";
+      const cached = await findMatchingAsset(admin, userId, cacheStyle, queryForMatch);
       if (cached) {
         await touchAsset(admin, cached.id, cached.usage_count);
-        return new Response(JSON.stringify({ url: cached.url, source: "asset-library" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ url: cached.url, source: "asset-library" });
       }
 
-      // INCONSISTÊNCIA CORRIGIDA (auditoria desta rodada): este caminho fazia
-      // "Pexels-first" — ou seja, quando o Diretor Criativo pedia
-      // explicitamente strategy="ai" (ilustração, 3D, aquarela, recorte sem
-      // fundo…), a função devolvia silenciosamente uma FOTO da Pexels sempre
-      // que a busca retornasse qualquer coisa. Na prática a estratégia "ai"
-      // quase nunca rodava: o estilo pedido era ignorado e a tabela
-      // public.assets nunca crescia. Agora "ai" significa IA de verdade, e a
-      // Pexels só entra se a geração falhar. Quem quer economizar continua
-      // protegido: no modo economia, generate-presentation converte todo
-      // "ai" em "pexels" ANTES de chegar aqui.
+      // "ai" significa IA de verdade; a Pexels só entra se a geração falhar.
       const basePrompt = body.ai_prompt || body.query || "abstract beautiful illustration";
-      const styleSuffix = body.style ? STYLE_SUFFIX[body.style] : "Cinematic, professional, high quality, presentation hero image.";
-      const gen = await generateAiImage(`${basePrompt}. ${styleSuffix}`);
-
+      const gen = await generateAiImage(buildGeneration(basePrompt));
       if (gen.url) {
-        // Fase 5: sobe o binário para o Storage (data-URLs base64 de centenas
-        // de KB não são cacheáveis nem devem viver dentro de slides.content)
-        // e registra a URL persistente na biblioteca do usuário.
+        // Sobe o binário para o Storage (data-URLs base64 não são cacheáveis
+        // nem devem viver dentro de slides.content) e registra na biblioteca.
         const persistedUrl = await persistGeneratedImage(admin, userId, gen.url);
-        await recordAsset(admin, userId, persistedUrl, body.style, queryForMatch, "ai");
-        return new Response(JSON.stringify({ url: persistedUrl, source: gen.source }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        await recordAsset(admin, userId, persistedUrl, cacheStyle, queryForMatch, "ai");
+        await recordCost(gen.costUsd);
+        return json({
+          url: persistedUrl, source: gen.source, model: gen.model, cost_usd: gen.costUsd,
+          transparent: !!recipe?.transparent || body.style === "no-background",
         });
       }
 
       // IA indisponível (rate limit, crédito, erro) → Pexels como rede de
-      // segurança para o slide não ficar sem imagem nenhuma.
-      const rescue = await searchPexels(body.query || basePrompt, orientation, avoidUrls);
-      if (rescue.url) {
-        await recordAsset(admin, userId, rescue.url, body.style, body.query || "", "pexels");
-        return new Response(JSON.stringify({
-          url: rescue.url, source: "pexels-rescue",
-          photographer: rescue.photographer, photographer_url: rescue.photographer_url,
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // segurança para o slide não ficar sem imagem nenhuma. Um recorte ou
+      // vista técnica NÃO tem equivalente fotográfico: aí o slide cai no
+      // fallback nativo do comando (o cliente recebe url null).
+      const technical = recipe && (recipe.kind === "technical" || recipe.transparent);
+      if (!technical) {
+        const rescue = await searchPexels(body.query || recipe?.subject || basePrompt, orientation, avoidUrls);
+        if (rescue.url) {
+          await recordAsset(admin, userId, rescue.url, body.style, body.query || "", "pexels");
+          return json({ url: rescue.url, source: "pexels-rescue", photographer: rescue.photographer, photographer_url: rescue.photographer_url });
+        }
       }
-      return new Response(JSON.stringify({
-        url: null,
-        error: gen.rateLimited ? "AI image rate-limited" : "AI image failed",
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return json({ url: null, error: gen.rateLimited ? "AI image rate-limited" : "AI image failed" });
     }
 
-
-    return new Response(JSON.stringify({ url: null }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ url: null });
   } catch (e) {
     console.error("fetch-image error:", e);
-    return new Response(JSON.stringify({ url: null, error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ url: null, error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });

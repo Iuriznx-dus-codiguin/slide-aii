@@ -38,6 +38,10 @@ import {
 import { useImageInsight } from "@/lib/imageAnalysis";
 import { useChoreo } from "@/lib/slideChoreography";
 import { computeCompositionSpec, type SpacingBrief } from "@/lib/compositionEngine";
+import { SceneSlide } from "@/components/scene/SceneSlide";
+import { SceneBackground } from "@/components/scene/SceneBackground";
+import { isSceneContent, type SceneContentFields } from "../../supabase/functions/_shared/sceneMedia.ts";
+import { INTENT_FOR_MOTION, LEGACY_PRESET_FOR_MOTION, type MotionSpec } from "../../supabase/functions/_shared/motionPresets.ts";
 
 /** Espelha o enum image_style da tool create_presentation (generate-presentation). */
 export type ImageStyle =
@@ -77,6 +81,14 @@ export interface SlideContent {
   transition?: import("@/lib/slideTransitions").SlideTransition;
   /** Dica de coreografia per-element. Consumida pelo SlideStage. */
   choreography?: import("@/lib/slideChoreography").ChoreographyName;
+  // ── Motor v2 (cenas) — opcionais; decks antigos não têm nenhum ──
+  engine_version?: SceneContentFields["engine_version"];
+  visual?: SceneContentFields["visual"];
+  background?: SceneContentFields["background"];
+  /** Movimento em JSON ({ preset, params }). Também vale para slides v1 editados. */
+  motion?: MotionSpec;
+  anchor_key?: string;
+  asset?: SceneContentFields["asset"];
 }
 
 /** Renderiza acentos visuais sugeridos pela IA, com fallback para defaults por tipo. */
@@ -171,14 +183,14 @@ const AnimatedStat = ({ value, color, enabled }: { value: string; color: string;
 
 /* ---------- Subcomponentes com timeline (Rules of Hooks safe) ---------- */
 
-interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; enableVideo?: boolean; }
-const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, enableVideo }: QuoteSlideProps) => {
+interface QuoteSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; enableVideo?: boolean; noBackdrop?: boolean; }
+const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, enableVideo, noBackdrop }: QuoteSlideProps) => {
   const tl = useMemo(() => applyIntent(buildQuoteScenario(), c.animation_intent ?? "quote-spotlight"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
   return (
     <div className="w-full h-full flex items-center justify-center p-[6%] relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.6} orbCount={3} />
+      {!noBackdrop && <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.6} orbCount={3} />}
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["orbital-rings", "corner-brackets", "particle-field"]} />
       <div className="text-center max-w-5xl relative z-10">
         <motion.div {...ctrl.motionProps("mark")} exit={choreo.exitFor("mark")} className="text-[10vw] leading-none mb-4 font-serif" style={{ color: theme.accent, fontFamily: displayFont }}>"</motion.div>
@@ -195,15 +207,15 @@ const QuoteSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQue
   );
 };
 
-interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; dynamicMode?: boolean; enableVideo?: boolean; }
-const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, dynamicMode, enableVideo }: StatSlideProps) => {
+interface StatSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; dynamicMode?: boolean; enableVideo?: boolean; noBackdrop?: boolean; }
+const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, dynamicMode, enableVideo, noBackdrop }: StatSlideProps) => {
   const tl = useMemo(() => applyIntent(buildStatScenario(), c.animation_intent ?? "emphasis-stat"), [c.animation_intent]);
   const ctrl = useTimeline(tl, { skip: noAnimate });
   const choreo = useChoreo();
   const statActive = !!dynamicMode && !noAnimate;
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-[5%] relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.55} orbCount={4} />
+      {!noBackdrop && <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.55} orbCount={4} />}
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["pulse-grid", "animated-blob"]} />
       <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
         {c.subtitle && (
@@ -285,8 +297,8 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
   );
 };
 
-interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; dynamicMode?: boolean; enableVideo?: boolean; }
-const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, dynamicMode, enableVideo }: DefaultSlideProps) => {
+interface DefaultSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; dynamicMode?: boolean; enableVideo?: boolean; noBackdrop?: boolean; }
+const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, dynamicMode, enableVideo, noBackdrop }: DefaultSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildEditorialScenario(c.bullets?.length ?? 0), c.animation_intent ?? "narrative-build"),
     [c.bullets?.length, c.animation_intent]
@@ -300,7 +312,7 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
     <div className="w-full h-full flex flex-col p-[5%] relative overflow-hidden" style={containerStyle}>
       {!hasImage && (
         <>
-          <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.3} orbCount={3} />
+          {!noBackdrop && <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.3} orbCount={3} />}
           {!noAnimate && (
             <svg className="absolute -right-10 top-0 h-full w-1/3 opacity-[0.15] pointer-events-none" viewBox="0 0 200 600" preserveAspectRatio="none">
               <defs>
@@ -390,8 +402,8 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
 };
 
 /* ---------- Two Columns Slide (Bloco 2) ---------- */
-interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; dynamicMode?: boolean; enableVideo?: boolean; }
-const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart, dynamicMode, enableVideo }: TwoColProps) => {
+interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; dynamicMode?: boolean; enableVideo?: boolean; noBackdrop?: boolean; }
+const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart, dynamicMode, enableVideo, noBackdrop }: TwoColProps) => {
   const bullets = c.bullets ?? [];
   const leftBullets = bullets.slice(0, 3);
   const rightBullets = bullets.slice(3);
@@ -406,7 +418,7 @@ const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, vid
   const hasChart = !!c.chart;
   return (
     <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[5%] relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.35} orbCount={2} />
+      {!noBackdrop && <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.35} orbCount={2} />}
       <CornerBrackets theme={theme} noAnimate={noAnimate} intensity={0.5} />
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["dot-grid", "diagonal-lines"]} />
 
@@ -596,11 +608,17 @@ const FullImageSlide = ({ c, theme, containerStyle, variants, motionMode, noAnim
   );
 };
 
-export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate = false, dynamicMode = false, enableVideo = false, creativeBrief }: Props) => {
+export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, index = 0, noAnimate = false, dynamicMode = false, enableVideo = false, creativeBrief }: Props) => {
   const theme = resolveTheme(themeId, dynamicTheme);
   const font = FONTS[fontId] ?? FONTS["modern-sans"];
   const displayFont = font.display ?? font.family;
-  const c = slide.content || {};
+  const rawContent = slide.content || {};
+  // Movimento escolhido no Editor (content.motion): nos slides de texto a
+  // coreografia é guiada por animation_intent, então o preset é traduzido
+  // para o intent equivalente. Slides sem `motion` (todo deck antigo) ficam
+  // exatamente como antes.
+  const motionIntent = rawContent.motion?.preset ? INTENT_FOR_MOTION[rawContent.motion.preset] : undefined;
+  const c: SlideContent = motionIntent ? { ...rawContent, animation_intent: motionIntent as AnimationIntent } : rawContent;
   const videoQuery = videoQueryForSlide(c);
   const choreo = useChoreo();
 
@@ -610,8 +628,9 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   // 1) animation_intent (papel narrativo, bem guiado no prompt) decide primeiro
   // 2) animation (legado, sem guidance no schema) como fallback
   // 3) senão, deduz pelo tipo de slide
+  const motionPreset = rawContent.motion?.preset ? (LEGACY_PRESET_FOR_MOTION[rawContent.motion.preset] as CinematicPreset | undefined) : undefined;
   const preset: CinematicPreset =
-    presetFromIntent(c.animation_intent) ?? presetFromLegacy(c.animation) ?? presetForSlide(slide.slide_type, slide.layout_template);
+    motionPreset ?? presetFromIntent(c.animation_intent) ?? presetFromLegacy(c.animation) ?? presetForSlide(slide.slide_type, slide.layout_template);
   const variants = PRESETS[preset];
 
   // Quando noAnimate (thumbnails / print), pulamos diretamente ao "show"
@@ -706,6 +725,34 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
   containerStyle.padding = compositionSpec.padding;
   containerStyle.gap = compositionSpec.gap;
 
+  /* ---------- MOTOR v2: cena em camadas ---------- */
+  // Só para conteúdo com engine_version 2. A capa continua nas 6 variantes de
+  // sempre; slides com bloco visual vão para o compositor de camadas; slides
+  // v2 só de texto usam os componentes atuais sobre o sistema de fundo novo.
+  const scene = isSceneContent(c) && !isTitle;
+  if (scene && c.visual) {
+    return (
+      <SceneSlide
+        slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: c as Record<string, any> }}
+        theme={theme}
+        fontId={fontId}
+        bodyFont={font.family}
+        displayFont={displayFont}
+        index={index}
+        noAnimate={noAnimate}
+        dynamicMode={dynamicMode}
+        creativeBrief={creativeBrief}
+      />
+    );
+  }
+  if (scene) containerStyle.background = "transparent";
+  const withSceneBg = (node: React.ReactNode) => scene ? (
+    <div className="relative w-full h-full overflow-hidden" style={{ background: theme.bg, color: theme.text }}>
+      <SceneBackground spec={c.background} theme={theme} imageUrl={c.image_url} noAnimate={noAnimate} />
+      <div className="absolute inset-0" style={{ zIndex: 2 }}>{node}</div>
+    </div>
+  ) : node;
+
   /* ---------- TITLE SLIDE → escolhe entre 6 covers ---------- */
   if (isTitle) {
     return (
@@ -727,25 +774,25 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
 
   /* ---------- FULL IMAGE (slide normal com fundo de imagem) ---------- */
   if (layout === "full-image" && c.image_url) {
-    return <FullImageSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} noAnimate={noAnimate} dynamicMode={dynamicMode} />;
+    return withSceneBg(<FullImageSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} noAnimate={noAnimate} dynamicMode={dynamicMode} />);
   }
 
   /* ---------- QUOTE ---------- */
   if (isQuote && c.quote_text) {
-    return <QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} enableVideo={enableVideo} />;
+    return withSceneBg(<QuoteSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} enableVideo={enableVideo} noBackdrop={scene} />);
   }
 
   /* ---------- STAT HIGHLIGHT (morph número→barra) ---------- */
   if (isStat) {
-    return <StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} dynamicMode={dynamicMode} enableVideo={enableVideo} />;
+    return withSceneBg(<StatSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} dynamicMode={dynamicMode} enableVideo={enableVideo} noBackdrop={scene} />);
   }
 
   /* ---------- CENTERED / SECTION DIVIDER ---------- */
   if (isCentered) {
     const titleActive = dynamicMode && !noAnimate;
-    return (
+    return withSceneBg(
       <div className="w-full h-full flex items-center justify-center p-[6%] text-center relative overflow-hidden" style={containerStyle}>
-      <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.5} orbCount={3} />
+      {!scene && <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.5} orbCount={3} />}
       <AccentLayer accents={c.visual_accents} theme={theme} noAnimate={noAnimate} defaults={["diagonal-lines", "orbital-rings", "corner-brackets"]} />
         <motion.div {...motionMode} variants={variants.container} className="relative z-10">
           {c.subtitle && <motion.p variants={variants.item} exit={choreo.exitFor("kicker")} className="text-[1.3vw] uppercase tracking-[0.3em] opacity-60 mb-6">{c.subtitle}</motion.p>}
@@ -762,25 +809,25 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, noAnimate 
           {c.body_text && <motion.p variants={variants.item} exit={choreo.exitFor("body")} className="mt-6 text-[1.6vw] opacity-80 max-w-3xl mx-auto">{c.body_text}</motion.p>}
           <motion.div variants={variants.item} exit={choreo.exitFor("accent-line")} className="mt-10 mx-auto h-1 w-24" style={{ background: theme.accent }} />
         </motion.div>
-      </div>
+      </div>,
     );
   }
 
   /* ---------- IMAGE-LEFT / IMAGE-RIGHT (Smart Layout: anti-overlap) ---------- */
   if (hasImage && (layout === "image-right" || layout === "image-left")) {
-    return <ImageSplitSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} requestedSide={layout === "image-right" ? "right" : "left"} noAnimate={noAnimate} dynamicMode={dynamicMode} />;
+    return withSceneBg(<ImageSplitSlide c={c} theme={theme} containerStyle={containerStyle} variants={variants} motionMode={motionMode} requestedSide={layout === "image-right" ? "right" : "left"} noAnimate={noAnimate} dynamicMode={dynamicMode} />);
   }
 
   /* ---------- DATA CHART ---------- */
   if (isChart && c.chart) {
-    return <ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} dynamicMode={dynamicMode} />;
+    return withSceneBg(<ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} dynamicMode={dynamicMode} />);
   }
 
   /* ---------- TWO COLUMNS (Bloco 2) ---------- */
   if (layout === "two-columns") {
-    return <TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} dynamicMode={dynamicMode} enableVideo={enableVideo} />;
+    return withSceneBg(<TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} dynamicMode={dynamicMode} enableVideo={enableVideo} noBackdrop={scene} />);
   }
 
   /* ---------- DEFAULT ---------- */
-  return <DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} dynamicMode={dynamicMode} enableVideo={enableVideo} />;
+  return withSceneBg(<DefaultSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} dynamicMode={dynamicMode} enableVideo={enableVideo} noBackdrop={scene} />);
 };

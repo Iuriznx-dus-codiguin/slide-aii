@@ -9,6 +9,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { AiSlide } from "@/lib/aiSlide";
+import type { SlideAsset } from "../../supabase/functions/_shared/sceneMedia.ts";
 
 export interface SlideImageRequest extends Pick<AiSlide, "ai_image_prompt" | "image_strategy" | "image_style"> {
   /** Query já resolvida — pode diferir de slide.image_query (desduplicação). */
@@ -39,6 +40,48 @@ export async function fetchSlideImage(req: SlideImageRequest): Promise<string | 
     return data?.url ?? null;
   } catch (e) {
     console.warn("fetch-image falhou", e);
+    return null;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────
+// Motor v2 / persistência no servidor: ativos pendentes do slide
+// ────────────────────────────────────────────────────────────────
+
+export interface AssetFetchContext {
+  /** Apresentação dona do ativo — o fetch-image consome a cota dela. */
+  presentationId?: string;
+  /** URLs já usadas no deck (Pexels não repete a mesma foto). */
+  avoidUrls?: string[];
+  /** Query já desduplicada no deck (sobrepõe asset.query). */
+  query?: string;
+  /** Campos legados do slide (motor v1: prompt livre + estilo). */
+  legacy?: { ai_image_prompt?: string; image_style?: string; image_query?: string };
+}
+
+/**
+ * Resolve UM ativo pendente. Nunca lança: devolve a URL ou null (o slide cai
+ * no fallback nativo do comando).
+ */
+export async function fetchSlideAsset(asset: SlideAsset, ctx: AssetFetchContext = {}): Promise<string | null> {
+  try {
+    const { data } = await supabase.functions.invoke("fetch-image", {
+      body: {
+        strategy: asset.source === "ai" ? "ai" : "pexels",
+        query: ctx.query ?? asset.query ?? ctx.legacy?.image_query,
+        ai_prompt: ctx.legacy?.ai_image_prompt,
+        style: ctx.legacy?.image_style,
+        recipe: asset.recipe,
+        allow_ai_fallback: asset.allow_ai_fallback !== false,
+        budget_mode: asset.budget_mode,
+        orientation: asset.aspect === "1:1" ? "square" : "landscape",
+        ...(ctx.presentationId ? { presentation_id: ctx.presentationId } : {}),
+        ...(ctx.avoidUrls?.length ? { avoid_urls: ctx.avoidUrls.slice(0, 30) } : {}),
+      },
+    });
+    return data?.url ?? null;
+  } catch (e) {
+    console.warn("fetch-image (ativo) falhou", e);
     return null;
   }
 }

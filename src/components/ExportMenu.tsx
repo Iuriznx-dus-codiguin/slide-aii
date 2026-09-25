@@ -57,7 +57,17 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     try {
       const rows = await fetchSlides();
       if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
-      await exportPresentationToPptx({ title, themeId, slides: rows as any });
+      // Tema e brief da APRESENTAÇÃO — antes o PPTX lia o tema de
+      // slides[0].content, que as gerações novas não gravam.
+      const art = await fetchArtDirection();
+      await exportPresentationToPptx({
+        title,
+        themeId,
+        fontId,
+        slides: rows as any,
+        dynamicTheme: art.dynamicTheme,
+        creativeBrief: art.creativeBrief,
+      });
       toast.success("PPTX gerado!", { id: t });
     } catch (e: any) {
       console.error(e);

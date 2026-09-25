@@ -22,8 +22,8 @@
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useReducedMotion, type Transition } from "framer-motion";
-import { EASE } from "./animations";
+import { cubicBezier, useReducedMotion, type Transition } from "framer-motion";
+import { EASE } from "./easing";
 
 /* ---------- Tipos ---------- */
 
@@ -40,6 +40,16 @@ export type TimelineProps = {
   d?: string;
   /** clipPath inset (0..50) — usado em reveals. */
   clipInset?: number;
+  /** Motor v2: desenho progressivo de traço SVG (0..1) — conectores e contornos. */
+  pathLength?: number;
+  /** Motor v2: reveal da esquerda para a direita (0 = visível, 100 = oculto). */
+  clipX?: number;
+  /** Motor v2: reveal de cima para baixo (0 = visível, 100 = oculto). */
+  clipY?: number;
+  /** Motor v2: reveal circular a partir do centro (raio em %, 0..75). */
+  clipCircle?: number;
+  /** Motor v2: progresso de contagem numérica (0..1), lido com sampleFor(). */
+  count?: number;
 };
 
 export interface Keyframe {
@@ -54,12 +64,32 @@ export interface Track {
   id: string;
   /** Lista de keyframes ordenados por t. */
   keyframes: Keyframe[];
+  /**
+   * Motor v2: anima do primeiro ao último keyframe com mola física em vez de
+   * curva (começa no t do primeiro keyframe).
+   */
+  spring?: { stiffness: number; damping: number; mass?: number };
+}
+
+/**
+ * Motor v2: camada ambiente SUTIL em loop, separada da entrada — a entrada é
+ * um único momento orquestrado; o ambiente só respira (vai e volta).
+ */
+export interface AmbientTrack {
+  id: string;
+  from: TimelineProps;
+  to: TimelineProps;
+  /** Duração de um sentido, em segundos. */
+  duration: number;
+  ease?: readonly number[];
 }
 
 export interface TimelineScenario {
   /** Duração total em segundos. */
   duration: number;
   tracks: Track[];
+  /** Motor v2: trilhas ambiente em loop (ignoradas em reduced motion/noAnimate). */
+  ambient?: AmbientTrack[];
 }
 
 /* ---------- Helpers ---------- */
@@ -68,17 +98,20 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
-/** Avalia easing cubic-bezier (Bezier 4 pontos com P0=(0,0), P3=(1,1)). */
-function bezierY(p1x: number, p1y: number, p2x: number, p2y: number, t: number): number {
-  // Aproximação rápida: assume t≈x (suficiente para curvas suaves usadas aqui).
-  // Para produção poderíamos usar Newton-Raphson; o erro é < 1% para presets editorial/smooth.
-  const omt = 1 - t;
-  return 3 * omt * omt * t * p1y + 3 * omt * t * t * p2y + t * t * t;
-}
+// Curvas cubic-bezier resolvidas pelo framer-motion (Newton-Raphson +
+// subdivisão). A aproximação anterior assumia t≈x e distorcia justamente as
+// curvas com overshoot (EASE.snap) e as muito assimétricas (EASE.inertia).
+const bezierCache = new Map<string, (t: number) => number>();
 
 function easeWith(curve: readonly number[] | undefined, t: number): number {
   if (!curve || curve.length < 4) return t;
-  return bezierY(curve[0], curve[1], curve[2], curve[3], t);
+  const key = curve.join(",");
+  let fn = bezierCache.get(key);
+  if (!fn) {
+    fn = cubicBezier(curve[0], curve[1], curve[2], curve[3]);
+    bezierCache.set(key, fn);
+  }
+  return fn(Math.max(0, Math.min(1, t)));
 }
 
 function interpProps(a: TimelineProps, b: TimelineProps, t: number): TimelineProps {
@@ -123,6 +156,15 @@ export function sampleTrack(track: Track, time: number): TimelineProps {
   return { ...kfs[kfs.length - 1].props };
 }
 
+const clipFor = (key: "clipInset" | "clipX" | "clipY" | "clipCircle", v: number): string => {
+  switch (key) {
+    case "clipX": return `inset(0 ${v}% 0 0)`;
+    case "clipY": return `inset(0 0 ${v}% 0)`;
+    case "clipCircle": return `circle(${v}% at 50% 50%)`;
+    default: return `inset(0 ${v}% 0 ${v}%)`;
+  }
+};
+
 /** Converte TimelineProps em estilos Framer Motion. */
 export function propsToMotionStyle(p: TimelineProps): Record<string, any> {
   const style: Record<string, any> = {};
@@ -134,8 +176,10 @@ export function propsToMotionStyle(p: TimelineProps): Record<string, any> {
   if (p.rotateX !== undefined) style.rotateX = p.rotateX;
   if (p.rotateY !== undefined) style.rotateY = p.rotateY;
   if (p.blur !== undefined) style.filter = `blur(${p.blur}px)`;
-  if (p.clipInset !== undefined)
-    style.clipPath = `inset(0 ${p.clipInset}% 0 ${p.clipInset}%)`;
+  if (p.pathLength !== undefined) style.pathLength = p.pathLength;
+  for (const k of ["clipInset", "clipX", "clipY", "clipCircle"] as const) {
+    if (p[k] !== undefined) style.clipPath = clipFor(k, p[k]!);
+  }
   return style;
 }
 
@@ -169,6 +213,10 @@ export interface TimelineController {
     animate: Record<string, any>;
     transition: Transition;
   };
+  /** Motor v2: estado amostrado de uma trilha no instante atual (ex.: `count`). */
+  sampleFor: (trackId: string) => TimelineProps;
+  /** Motor v2: props de uma trilha ambiente em loop ({} quando parado). */
+  ambientProps: (trackId: string) => { animate?: Record<string, any>; transition?: Transition };
   play: () => void;
   pause: () => void;
   scrubTo: (progress: number) => void;
@@ -288,6 +336,22 @@ export function useTimeline(
         };
       }
 
+      // Mola: do primeiro ao último keyframe, começando no t do primeiro.
+      if (track.spring) {
+        const lastProps = track.keyframes[track.keyframes.length - 1].props;
+        return {
+          initial,
+          animate: propsToMotionStyle(lastProps),
+          transition: {
+            type: "spring",
+            stiffness: track.spring.stiffness,
+            damping: track.spring.damping,
+            mass: track.spring.mass ?? 1,
+            delay: track.keyframes[0].t / speed,
+          } as Transition,
+        };
+      }
+
       // Se o primeiro keyframe não está em t=0, prepend um "hold"
       // virtual que mantém o elemento no estado inicial até esse momento.
       const needsHold = track.keyframes[0].t > 0.0001;
@@ -304,6 +368,7 @@ export function useTimeline(
       // Constrói arrays de keyframes para cada propriedade conhecida
       const propKeys: Array<keyof TimelineProps> = [
         "opacity", "x", "y", "scale", "rotate", "rotateX", "rotateY", "blur", "clipInset",
+        "pathLength", "clipX", "clipY", "clipCircle",
       ];
       const animValues: Record<string, any> = {};
       const times: number[] = fullKfs.map((k) => Math.min(1, Math.max(0, k.t / scenario.duration)));
@@ -324,8 +389,8 @@ export function useTimeline(
         });
         if (key === "blur") {
           animValues.filter = filled.map((v) => `blur(${v}px)`);
-        } else if (key === "clipInset") {
-          animValues.clipPath = filled.map((v) => `inset(0 ${v}% 0 ${v}%)`);
+        } else if (key === "clipInset" || key === "clipX" || key === "clipY" || key === "clipCircle") {
+          animValues.clipPath = filled.map((v) => clipFor(key, v));
         } else {
           animValues[key as string] = filled;
         }
@@ -346,6 +411,44 @@ export function useTimeline(
     [trackMap, scenario.duration, skipAll, speed]
   );
 
+  const sampleFor = useCallback(
+    (trackId: string): TimelineProps => {
+      const track = trackMap.get(trackId);
+      if (!track) return {};
+      return sampleTrack(track, skipAll ? scenario.duration : time);
+    },
+    [trackMap, time, skipAll, scenario.duration]
+  );
+
+  const ambientMap = useMemo(() => {
+    const m = new Map<string, AmbientTrack>();
+    for (const a of scenario.ambient ?? []) m.set(a.id, a);
+    return m;
+  }, [scenario]);
+
+  const ambientProps = useCallback(
+    (trackId: string) => {
+      const a = ambientMap.get(trackId);
+      if (!a || skipAll) return {};
+      const from = propsToMotionStyle(a.from);
+      const to = propsToMotionStyle(a.to);
+      const animate: Record<string, any> = {};
+      for (const k of Object.keys(to)) animate[k] = [from[k] ?? to[k], to[k]];
+      return {
+        animate,
+        transition: {
+          duration: a.duration / speed,
+          repeat: Infinity,
+          repeatType: "mirror",
+          ease: (a.ease ?? EASE.smooth) as any,
+          // A respiração só começa depois da entrada terminar.
+          delay: scenario.duration / speed,
+        } as Transition,
+      };
+    },
+    [ambientMap, skipAll, speed, scenario.duration]
+  );
+
   return {
     time,
     progress: time / scenario.duration,
@@ -353,6 +456,8 @@ export function useTimeline(
     initialFor,
     finalFor,
     motionProps,
+    sampleFor,
+    ambientProps,
     play: () => setIsPlaying(true),
     pause: () => setIsPlaying(false),
     scrubTo: (p) => {

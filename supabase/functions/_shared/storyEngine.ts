@@ -26,8 +26,18 @@
 // confiabilidade: nunca lança exceção, sempre cai num fallback determinístico.
 
 import { normalizePresentationType } from "./presentationType.ts";
+import {
+  NARRATIVE_ACTS,
+  defaultIntentForAct,
+  isVisualIntent,
+  normalizeKeyObjects,
+  VISUAL_INTENTS,
+  type NarrativeActName,
+  type VisualIntent,
+} from "./sceneCatalog.ts";
+import { textFallbackRoute, textRoute, readUsage, type TokenUsage } from "./modelRegistry.ts";
 
-export type NarrativeActName = "hook" | "tension" | "journey" | "proof" | "climax";
+export type { NarrativeActName };
 
 export interface StoryBeat {
   index: number;
@@ -38,6 +48,14 @@ export interface StoryBeat {
   key_message: string;
   /** Conexão lógica com o slide anterior (causa→efeito, problema→solução, dado→interpretação...). Vazio no primeiro slide. */
   connects_to_previous: string;
+  /**
+   * Motor v2: o que o slide precisa MOSTRAR (catálogo VISUAL_INTENTS). Quem
+   * planeja a função do slide já sabe isso — custa poucos tokens num modelo
+   * mini e alimenta o Plano Visual determinístico.
+   */
+  visual_intent?: VisualIntent;
+  /** Motor v2: 2-5 substantivos concretos que o visual precisa conter. */
+  key_objects?: string[];
 }
 
 export interface StoryOutline {
@@ -51,12 +69,22 @@ interface OutlineInput {
   description?: string;
   type: string;
   slidesCount: number;
+  /** Motor v2: pede visual_intent + key_objects por beat. O v1 fica idêntico. */
+  withVisualPlan?: boolean;
 }
 
-// Espelha NarrativeAct em src/components/CinematicHUD.tsx (sem o valor
-// "neutral", que é um estado de UI, não uma decisão de conteúdo). Deno e
-// Vite são runtimes separados sem import compartilhado — sincronia manual.
-const ACTS: NarrativeActName[] = ["hook", "tension", "journey", "proof", "climax"];
+/** Telemetria da etapa (generation_logs.metadata.stages.story). */
+export interface StageMeta {
+  source: "ai" | "fallback";
+  latency_ms: number;
+  model?: string;
+  usage?: TokenUsage | null;
+  error?: string;
+}
+
+// Atos do catálogo compartilhado (sceneCatalog.ts) — o front (CinematicHUD)
+// deriva o seu tipo do mesmo módulo; acabou a sincronia manual.
+const ACTS: readonly NarrativeActName[] = NARRATIVE_ACTS;
 
 // ────────────────────────────────────────────────────────────────
 // Fallback determinístico
@@ -156,12 +184,21 @@ export function buildDefaultOutline(input: OutlineInput): StoryOutline {
     else acts.push(middle[(i - 1) % middle.length]);
   }
 
-  const beats: StoryBeat[] = acts.map((act, i) => ({
-    index: i,
-    narrative_act: act,
-    ...beatCopy(act, title),
-    connects_to_previous: i === 0 ? "" : connectionFor(acts[i - 1], act),
-  }));
+  const beats: StoryBeat[] = acts.map((act, i) => {
+    const beat: StoryBeat = {
+      index: i,
+      narrative_act: act,
+      ...beatCopy(act, title),
+      connects_to_previous: i === 0 ? "" : connectionFor(acts[i - 1], act),
+    };
+    if (input.withVisualPlan) {
+      beat.visual_intent = defaultIntentForAct(act, i);
+      // Offline não dá para saber os objetos do slide 4; a capa e o
+      // fechamento podem ao menos ancorar no próprio assunto.
+      beat.key_objects = i === 0 || i === n - 1 ? normalizeKeyObjects([input.title]) : [];
+    }
+    return beat;
+  });
 
   const shape = ARC_SHAPES[typeKey] ?? "arco clássico com desenvolvimento alternando avanço e evidência";
   return {
@@ -170,36 +207,51 @@ export function buildDefaultOutline(input: OutlineInput): StoryOutline {
   };
 }
 
-const OUTLINE_TOOL = [{
-  type: "function",
-  function: {
-    name: "set_story_outline",
-    description: "Define o esboço narrativo completo de uma apresentação, slide a slide, antes de qualquer conteúdo detalhado ser escrito.",
-    parameters: {
-      type: "object",
-      properties: {
-        arc_shape: { type: "string", description: "1 frase sobre a forma do arco escolhido (ex: 'hook único, múltiplos picos de prova, sem clímax explícito')." },
-        beats: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              index: { type: "integer" },
-              narrative_act: { type: "string", enum: ACTS },
-              function: { type: "string", description: "Função narrativa curta deste slide (5-12 palavras)." },
-              key_message: { type: "string", description: "A mensagem central deste slide em 1 frase." },
-              connects_to_previous: { type: "string", description: "Conexão lógica com o slide anterior. Vazio apenas no primeiro slide." },
-            },
-            required: ["index", "narrative_act", "function", "key_message", "connects_to_previous"],
-            additionalProperties: false,
+const BEAT_PROPS = {
+  index: { type: "integer" },
+  narrative_act: { type: "string", enum: ACTS },
+  function: { type: "string", description: "Função narrativa curta deste slide (5-12 palavras)." },
+  key_message: { type: "string", description: "A mensagem central deste slide em 1 frase." },
+  connects_to_previous: { type: "string", description: "Conexão lógica com o slide anterior. Vazio apenas no primeiro slide." },
+};
+
+const VISUAL_BEAT_PROPS = {
+  visual_intent: {
+    type: "string",
+    enum: VISUAL_INTENTS,
+    description: "O que o slide precisa MOSTRAR: processo, comparação, decomposição, dado, escala, metáfora…",
+  },
+  key_objects: {
+    type: "array",
+    items: { type: "string" },
+    description: "2-5 substantivos CONCRETOS que o visual deste slide precisa conter (ex: 'turbina', 'rotor', 'gerador').",
+  },
+};
+
+function outlineTool(withVisualPlan: boolean) {
+  const props = withVisualPlan ? { ...BEAT_PROPS, ...VISUAL_BEAT_PROPS } : BEAT_PROPS;
+  const required = ["index", "narrative_act", "function", "key_message", "connects_to_previous"];
+  if (withVisualPlan) required.push("visual_intent", "key_objects");
+  return [{
+    type: "function",
+    function: {
+      name: "set_story_outline",
+      description: "Define o esboço narrativo completo de uma apresentação, slide a slide, antes de qualquer conteúdo detalhado ser escrito.",
+      parameters: {
+        type: "object",
+        properties: {
+          arc_shape: { type: "string", description: "1 frase sobre a forma do arco escolhido (ex: 'hook único, múltiplos picos de prova, sem clímax explícito')." },
+          beats: {
+            type: "array",
+            items: { type: "object", properties: props, required, additionalProperties: false },
           },
         },
+        required: ["arc_shape", "beats"],
+        additionalProperties: false,
       },
-      required: ["arc_shape", "beats"],
-      additionalProperties: false,
     },
-  },
-}];
+  }];
+}
 
 function outlinePrompt(input: OutlineInput): string {
   return `Você é um roteirista/story editor sênior (nível TED Talks, Pitch.com, Apple keynote).
@@ -217,7 +269,11 @@ e como ele se conecta LOGICAMENTE ao slide anterior (causa→efeito, problema→
 O arco clássico (hook → tension → journey → proof → climax) é uma REFERÊNCIA, não uma prisão: você pode abrir
 direto em "journey" se o tema pede contexto imediato, ter múltiplos picos de "proof", alternar tension↔journey
 várias vezes, ou não ter um "climax" explícito. VARIE a sequência — evite o padrão rígido "hook, tension,
-journey×N, proof, climax". Seja específico sobre O QUE cada slide comunica, não genérico.`;
+journey×N, proof, climax". Seja específico sobre O QUE cada slide comunica, não genérico.${input.withVisualPlan ? `
+
+Para cada slide defina também visual_intent (o que o público precisa VER: processo, comparação, decomposição,
+dado, escala, metáfora…) e key_objects: 2-5 substantivos concretos e literais do assunto que o visual deve conter.
+Varie as intenções ao longo do arco — não repita a mesma intenção em slides vizinhos sem motivo.` : ""}`;
 }
 
 /**
@@ -231,52 +287,76 @@ export async function buildStoryOutline(
   input: OutlineInput,
   keys: { openaiKey?: string; lovableKey?: string; useOpenAI: boolean },
 ): Promise<StoryOutline> {
+  return (await buildStoryOutlineWithMeta(input, keys)).outline;
+}
+
+/** Igual a buildStoryOutline, devolvendo também latência, tokens e origem. */
+export async function buildStoryOutlineWithMeta(
+  input: OutlineInput,
+  keys: { openaiKey?: string; lovableKey?: string; useOpenAI: boolean },
+): Promise<{ outline: StoryOutline; meta: StageMeta }> {
+  const t0 = Date.now();
+  const providerKeys = { openaiKey: keys.useOpenAI ? keys.openaiKey : null, lovableKey: keys.lovableKey };
+  const route = textRoute("story", providerKeys);
+  const fallback = (error: string) => ({
+    outline: buildDefaultOutline(input),
+    meta: { source: "fallback" as const, latency_ms: Date.now() - t0, model: route?.model, error },
+  });
+  if (!route) return fallback("sem provedor");
   try {
-    const endpoint = keys.useOpenAI
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://ai.gateway.lovable.dev/v1/chat/completions";
-    const authKey = keys.useOpenAI ? keys.openaiKey! : keys.lovableKey!;
-    const model = keys.useOpenAI ? "gpt-4.1-mini" : "google/gemini-2.5-flash";
+    const call = async (r: NonNullable<ReturnType<typeof textRoute>>) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        return await fetch(r.endpoint, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${r.authKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: r.model,
+            messages: [{ role: "user", content: outlinePrompt(input) }],
+            tools: outlineTool(!!input.withVisualPlan),
+            tool_choice: { type: "function", function: { name: "set_story_outline" } },
+            // Orçamento POR SLIDE, não um piso que domina os decks pequenos.
+            // Antes era max(1600, slides*107): um deck de 5 slides recebia 320
+            // tokens/slide e um de 20 recebia 107 — ou seja, o orçamento por
+            // beat encolhia justamente quando o arco fica mais difícil de
+            // planejar, e os últimos beats saíam truncados (caindo no
+            // fallback). Cada beat custa ~70-85 tokens entre conteúdo e
+            // estrutura JSON; 135 dá folga real sem inflar o deck pequeno.
+            // O motor v2 soma visual_intent + key_objects (~25 tokens/beat).
+            max_completion_tokens: Math.max(1400, Math.round(input.slidesCount * (input.withVisualPlan ? 165 : 135))),
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    let res: Response;
-    try {
-      res = await fetch(endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: outlinePrompt(input) }],
-          tools: OUTLINE_TOOL,
-          tool_choice: { type: "function", function: { name: "set_story_outline" } },
-          // Orçamento POR SLIDE, não um piso que domina os decks pequenos.
-          // Antes era max(1600, slides*107): um deck de 5 slides recebia 320
-          // tokens/slide e um de 20 recebia 107 — ou seja, o orçamento por
-          // beat encolhia justamente quando o arco fica mais difícil de
-          // planejar, e os últimos beats saíam truncados (caindo no
-          // fallback). Cada beat custa ~70-85 tokens entre conteúdo e
-          // estrutura JSON; 135 dá folga real sem inflar o deck pequeno.
-          max_completion_tokens: Math.max(1400, Math.round(input.slidesCount * 135)),
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
+    let used = route;
+    let res = await call(route);
+    // Mesma política do conteúdo: OpenAI falhando por erro não tarifário cai
+    // no gateway antes do fallback determinístico.
+    const alt = textFallbackRoute("story", providerKeys);
+    if (!res.ok && alt && ![429, 402].includes(res.status)) {
+      used = alt;
+      res = await call(alt);
     }
-
     if (!res.ok) {
       console.warn("storyEngine: chamada falhou com status", res.status, "— usando fallback determinístico");
-      return buildDefaultOutline(input);
+      return fallback(`status ${res.status}`);
     }
     const data = await res.json();
-    const call = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call) return buildDefaultOutline(input);
-    const parsed = JSON.parse(call.function.arguments) as Partial<StoryOutline>;
-    return normalizeOutline(parsed, input);
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return fallback("sem tool_call");
+    const parsed = JSON.parse(toolCall.function.arguments) as Partial<StoryOutline>;
+    return {
+      outline: normalizeOutline(parsed, input),
+      meta: { source: "ai", latency_ms: Date.now() - t0, model: used.model, usage: readUsage(data) },
+    };
   } catch (e) {
     console.warn("storyEngine: exceção, usando fallback determinístico —", (e as Error).message);
-    return buildDefaultOutline(input);
+    return fallback((e as Error).message?.slice(0, 120) ?? "exceção");
   }
 }
 
@@ -294,13 +374,21 @@ export function normalizeOutline(parsed: Partial<StoryOutline>, input: OutlineIn
   const beats: StoryBeat[] = fallback.beats.map((def, i) => {
     const b = aiBeats[i];
     if (!b || !ACTS.includes(b.narrative_act)) return def;
-    return {
+    const beat: StoryBeat = {
       index: i,
       narrative_act: b.narrative_act,
       function: b.function || def.function,
       key_message: b.key_message || def.key_message,
       connects_to_previous: i === 0 ? "" : (b.connects_to_previous || def.connects_to_previous),
     };
+    if (input.withVisualPlan) {
+      // Intenção fora do catálogo cai na padrão do ato — nunca chega inválida
+      // ao Plano Visual.
+      beat.visual_intent = isVisualIntent(b.visual_intent) ? b.visual_intent : defaultIntentForAct(b.narrative_act, i);
+      const objects = normalizeKeyObjects(b.key_objects);
+      beat.key_objects = objects.length ? objects : def.key_objects ?? [];
+    }
+    return beat;
   });
   return { beats, arc_shape: parsed.arc_shape || fallback.arc_shape };
 }
