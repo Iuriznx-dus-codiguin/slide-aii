@@ -42,6 +42,12 @@ export interface CreativeBrief {
   /** Nomes de transições/efeitos a evitar (ex: tema sério evita "shatter"). */
   forbidden_effects: string[];
   rationale: string;
+  /**
+   * Motor v2: domínio do assunto (packs da biblioteca visual). Opcional no
+   * tipo porque briefs gravados antes não têm; todo brief novo sai com ele
+   * (da IA ou derivado do tipo/título no fallback).
+   */
+  domain?: Domain;
 }
 
 // Campos removidos desta interface por não terem NENHUM leitor no produto —
@@ -68,6 +74,9 @@ export interface BriefInput {
 // transitionNames.ts) — antes esta lista era uma cópia mantida à mão.
 import { ALL_TRANSITION_NAMES } from "./transitionNames.ts";
 import { normalizePresentationType } from "./presentationType.ts";
+import { DOMAINS, domainFromContext, isDomain, type Domain } from "./sceneCatalog.ts";
+import { readUsage, textFallbackRoute, textRoute } from "./modelRegistry.ts";
+import type { StageMeta } from "./storyEngine.ts";
 export { ALL_TRANSITION_NAMES };
 
 // ────────────────────────────────────────────────────────────────
@@ -253,12 +262,16 @@ export function buildDefaultBrief(input: BriefInput): CreativeBrief {
     allowed_transitions: allowed,
     forbidden_effects: merged.forbidden,
     rationale: `Direção derivada do contexto (${input.type || "tipo não informado"}, persona ${input.persona ?? "equilibrada"}, ${input.slidesCount} slides) — Creative Director de IA indisponível nesta geração.`,
+    domain: domainFromContext({ type: input.type, title: input.title, description: input.description }),
   };
 }
 
 function withDefaults(partial: Partial<CreativeBrief>, input: BriefInput): CreativeBrief {
   const base = buildDefaultBrief(input);
-  return { ...base, ...partial };
+  const merged = { ...base, ...partial };
+  // Domínio fora do catálogo nunca chega ao Plano Visual.
+  if (!isDomain(merged.domain)) merged.domain = base.domain;
+  return merged;
 }
 
 const BRIEF_TOOL = [{
@@ -297,11 +310,16 @@ const BRIEF_TOOL = [{
           description: "Nomes de transições ou efeitos visuais a EVITAR neste tema (ex: um tema institucional sério pode proibir 'shatter').",
         },
         rationale: { type: "string", description: "1-2 frases justificando a direção escolhida." },
+        domain: {
+          type: "string",
+          enum: DOMAINS,
+          description: "Domínio do ASSUNTO (não do público): science, tech, business, marketing, history, geography, education, engineering, medical, finance, architecture, product ou general.",
+        },
       },
       required: [
         "objective", "audience", "technical_level", "visual_style", "formality",
         "emotional_identity", "pacing", "visual_density", "minimalism_degree",
-        "narrative_type", "allowed_transitions",
+        "narrative_type", "allowed_transitions", "domain",
       ],
       additionalProperties: false,
     },
@@ -328,57 +346,77 @@ lançamento de produto/tech pode usá-los livremente. Seja específico e decisiv
 }
 
 /**
- * Chama o Creative Director. Usa um modelo rápido/barato (Gemini 2.5 Flash
- * via gateway Lovable, ou gpt-4.1-mini via OpenAI quando useOpenAI=true) —
- * esta etapa é uma DECISÃO curta, não geração de conteúdo rico, então não
- * precisa do mesmo modelo "caro" usado depois para escrever os slides.
- * NUNCA lança exceção: qualquer falha cai no fallback determinístico.
+ * Chama o Creative Director. Usa um modelo rápido/barato (registro de
+ * modelos, etapa "director") — esta etapa é uma DECISÃO curta, não geração de
+ * conteúdo rico, então não precisa do mesmo modelo usado para escrever os
+ * slides. NUNCA lança exceção: qualquer falha cai no fallback determinístico.
  */
 export async function buildCreativeBrief(
   input: BriefInput,
   keys: { openaiKey?: string; lovableKey?: string; useOpenAI: boolean },
 ): Promise<CreativeBrief> {
+  return (await buildCreativeBriefWithMeta(input, keys)).brief;
+}
+
+/** Igual a buildCreativeBrief, devolvendo também latência, tokens e origem. */
+export async function buildCreativeBriefWithMeta(
+  input: BriefInput,
+  keys: { openaiKey?: string; lovableKey?: string; useOpenAI: boolean },
+): Promise<{ brief: CreativeBrief; meta: StageMeta }> {
+  const t0 = Date.now();
+  const providerKeys = { openaiKey: keys.useOpenAI ? keys.openaiKey : null, lovableKey: keys.lovableKey };
+  const route = textRoute("director", providerKeys);
+  const fallback = (error: string) => ({
+    brief: buildDefaultBrief(input),
+    meta: { source: "fallback" as const, latency_ms: Date.now() - t0, model: route?.model, error },
+  });
+  if (!route) return fallback("sem provedor");
   try {
-    const endpoint = keys.useOpenAI
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://ai.gateway.lovable.dev/v1/chat/completions";
-    const authKey = keys.useOpenAI ? keys.openaiKey! : keys.lovableKey!;
-    const model = keys.useOpenAI ? "gpt-4.1-mini" : "google/gemini-2.5-flash";
+    const call = async (r: NonNullable<ReturnType<typeof textRoute>>) => {
+      const controller = new AbortController();
+      // Teto curto de propósito: se o Creative Director demorar, seguimos com
+      // o fallback determinístico em vez de atrasar a geração principal.
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        return await fetch(r.endpoint, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${r.authKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: r.model,
+            messages: [{ role: "user", content: briefPrompt(input) }],
+            tools: BRIEF_TOOL,
+            tool_choice: { type: "function", function: { name: "set_creative_brief" } },
+            max_completion_tokens: 900,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
-    const controller = new AbortController();
-    // Teto curto de propósito: se o Creative Director demorar, seguimos com
-    // o fallback determinístico em vez de atrasar a geração principal.
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    let res: Response;
-    try {
-      res = await fetch(endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: briefPrompt(input) }],
-          tools: BRIEF_TOOL,
-          tool_choice: { type: "function", function: { name: "set_creative_brief" } },
-          max_completion_tokens: 900,
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
+    let used = route;
+    let res = await call(route);
+    const alt = textFallbackRoute("director", providerKeys);
+    if (!res.ok && alt && ![429, 402].includes(res.status)) {
+      used = alt;
+      res = await call(alt);
     }
-
     if (!res.ok) {
       console.warn("creativeDirector: chamada falhou com status", res.status, "— usando fallback determinístico");
-      return buildDefaultBrief(input);
+      return fallback(`status ${res.status}`);
     }
     const data = await res.json();
-    const call = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call) return buildDefaultBrief(input);
-    const parsed = JSON.parse(call.function.arguments);
-    return withDefaults(parsed, input);
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return fallback("sem tool_call");
+    const parsed = JSON.parse(toolCall.function.arguments);
+    return {
+      brief: withDefaults(parsed, input),
+      meta: { source: "ai", latency_ms: Date.now() - t0, model: used.model, usage: readUsage(data) },
+    };
   } catch (e) {
     console.warn("creativeDirector: exceção, usando fallback determinístico —", (e as Error).message);
-    return buildDefaultBrief(input);
+    return fallback((e as Error).message?.slice(0, 120) ?? "exceção");
   }
 }
 
