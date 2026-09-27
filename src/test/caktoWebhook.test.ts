@@ -5,8 +5,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  classifyEvent,
   escapeLike,
   extractCaktoId,
+  isActiveSubscriber,
   extractEventType,
   PLAN_SIGNUP_BONUS,
   refundScopeFor,
@@ -18,6 +20,7 @@ import {
   SINGLE_PURCHASE_CREDITS as CLIENT_SINGLE,
 } from "../lib/cakto";
 import { PLAN_MONTHLY_CREDITS } from "../../supabase/functions/cakto-webhook/lib.ts";
+import { isMonthlyCycleDue } from "../lib/cakto";
 
 describe("refundScopeFor — reembolso desfaz só o que o pedido concedeu", () => {
   it("compra avulsa: retira até os créditos daquela compra e mantém o plano", () => {
@@ -84,5 +87,63 @@ describe("paridade de créditos: webhook × tela de planos", () => {
       expect(CLIENT_MONTHLY[plan], plan).toBe(PLAN_MONTHLY_CREDITS[plan]);
       expect(CLIENT_BONUS[plan], plan).toBe(PLAN_SIGNUP_BONUS[plan]);
     }
+  });
+});
+
+describe("classifyEvent — recusas e cobranças apenas geradas nunca contam como pagamento", () => {
+  // A Cakto manda o pedido inteiro em `data`; nos próprios testes dela o
+  // status vem "paid" até em eventos de recusa.
+  it.each([
+    ["subscription_renewal_refused", "paid"],
+    ["purchase_refused", "paid"],
+    ["pix_gerado", "paid"],
+    ["boleto_gerado", "waiting_payment"],
+    ["picpay_gerado", "paid"],
+    ["checkout_abandonment", "paid"],
+  ])("%s → ignorado", (event, status) => {
+    expect(classifyEvent(event, status)).toBe("ignored");
+  });
+
+  it("pagamentos reais continuam como pagos; reembolso e cancelamento mantêm a precedência", () => {
+    expect(classifyEvent("purchase_approved", "paid")).toBe("paid");
+    expect(classifyEvent("subscription_renewed", "paid")).toBe("paid");
+    expect(classifyEvent("subscription_created", "active")).toBe("paid");
+    expect(classifyEvent("refund", "paid")).toBe("refund");
+    expect(classifyEvent("chargeback", "paid")).toBe("refund");
+    expect(classifyEvent("subscription_canceled", "paid")).toBe("canceled");
+  });
+});
+
+describe("isActiveSubscriber — assinatura que ainda dá acesso", () => {
+  const now = new Date("2026-09-27T12:00:00Z");
+  it("ativa e dentro do período", () => {
+    expect(isActiveSubscriber({ plan: "mensal", subscription_status: "active", subscription_renews_at: "2026-10-10T00:00:00Z" }, now)).toBe(true);
+  });
+  it("vencida (renovação passou) não conta — o avulso comprado depois precisa valer", () => {
+    expect(isActiveSubscriber({ plan: "mensal", subscription_status: "active", subscription_renews_at: "2026-09-01T00:00:00Z" }, now)).toBe(false);
+  });
+  it("cancelada, avulso ou sem plano não contam", () => {
+    expect(isActiveSubscriber({ plan: "anual", subscription_status: "canceled", subscription_renews_at: "2027-01-01T00:00:00Z" }, now)).toBe(false);
+    expect(isActiveSubscriber({ plan: "single" }, now)).toBe(false);
+    expect(isActiveSubscriber(null, now)).toBe(false);
+  });
+});
+
+describe("isMonthlyCycleDue — cota renova 1 mês após o início do ciclo (igual ao banco)", () => {
+  it("renova exatamente um mês depois da âncora, não no dia 1º", () => {
+    expect(isMonthlyCycleDue("2026-09-25", new Date("2026-10-01T00:00:00Z"))).toBe(false);
+    expect(isMonthlyCycleDue("2026-09-25", new Date("2026-10-24T23:59:59Z"))).toBe(false);
+    expect(isMonthlyCycleDue("2026-09-25", new Date("2026-10-25T00:00:00Z"))).toBe(true);
+  });
+  it("âncoras antigas no dia 1º continuam renovando no dia 1º", () => {
+    expect(isMonthlyCycleDue("2026-09-01", new Date("2026-09-30T23:00:00Z"))).toBe(false);
+    expect(isMonthlyCycleDue("2026-09-01", new Date("2026-10-01T00:00:00Z"))).toBe(true);
+  });
+  it("fim de mês com o mesmo corte do Postgres (31/01 + 1 mês = 28/02)", () => {
+    expect(isMonthlyCycleDue("2027-01-31", new Date("2027-02-27T23:00:00Z"))).toBe(false);
+    expect(isMonthlyCycleDue("2027-01-31", new Date("2027-02-28T00:00:00Z"))).toBe(true);
+  });
+  it("sem âncora, a cota está disponível", () => {
+    expect(isMonthlyCycleDue(null)).toBe(true);
   });
 });

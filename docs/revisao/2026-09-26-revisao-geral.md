@@ -9,6 +9,10 @@ Base usada:
 - o código da `main` em `bfbc142`;
 - **consultas somente-leitura ao banco de produção**, com números agregados e sem dados pessoais.
 
+> **Atualização (27/09):** as notas do orador são completadas só quando o
+> usuário escolhe as falas (opção paga). A revisão do sistema de créditos está em
+> `docs/revisao/2026-09-27-sistema-de-creditos.md`.
+>
 > **Status (27/09):** os itens 2 a 6, o Editor restrito ao dono, o teto de
 > apresentadores, o interruptor do Dev Mode, o contador de tentativas, o
 > Dashboard (tema + N+1), o `ilike` do e-mail e o aviso de pagamento foram

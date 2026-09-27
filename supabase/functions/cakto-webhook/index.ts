@@ -15,9 +15,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   addMonths, classifyEvent, collectProvidedSecrets, cyclePeriodMonths, dig,
   escapeLike, extractCaktoId, extractEmail, extractEventType, extractStatus,
-  extractSubscriptionId, hasValidSecret, normalizeSecret, parseExpectedSecrets,
+  extractSubscriptionId, hasValidSecret, isActiveSubscriber, normalizeSecret, parseExpectedSecrets,
   PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
-  SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS,
+  SINGLE_PURCHASE_CREDITS,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 
@@ -169,13 +169,11 @@ Deno.serve(async (req) => {
 
       const { data: before } = await admin
         .from("profiles")
-        .select("plan, subscription_status, cakto_subscription_id, cakto_customer_id")
+        .select("plan, subscription_status, subscription_renews_at, credits_monthly, cakto_subscription_id, cakto_customer_id")
         .eq("id", userId)
         .maybeSingle();
 
-      const prevPlan = (before?.plan ?? "free") as string;
-      const prevIsSubscriber = (SUBSCRIPTION_PLANS as readonly string[]).includes(prevPlan)
-        && (before?.subscription_status ?? "active") !== "canceled";
+      const prevIsSubscriber = isActiveSubscriber(before, now);
 
       if (plan === "single") {
         // Compra avulsa NÃO rebaixa o plano de quem já é assinante ativo:
@@ -188,6 +186,15 @@ Deno.serve(async (req) => {
           patch.subscription_status = null;
         }
         await admin.from("profiles").update(patch).eq("id", userId);
+        // Sem assinatura ativa, a sobra da cota mensal de uma assinatura
+        // cancelada/vencida não pode voltar a valer junto com o avulso
+        // (can_user_generate e consume_credits somam bônus + mensal).
+        if (!prevIsSubscriber && (before?.credits_monthly ?? 0) > 0) {
+          const { error: zeroErr } = await admin.rpc("set_monthly_credits", {
+            _uid: userId, _amount: 0, _type: "subscription_ended",
+          });
+          if (zeroErr) log.error("zero_monthly_failed", { message: zeroErr.message });
+        }
 
         const { error: creditErr } = await admin.rpc("grant_bonus_credits", {
           _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",

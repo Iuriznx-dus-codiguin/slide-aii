@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
-import { PLAN_MONTHLY_CREDITS, isProPlan, isMaxPlan } from "@/lib/cakto";
+import { PLAN_MONTHLY_CREDITS, isProPlan, isMaxPlan, isMonthlyCycleDue } from "@/lib/cakto";
 
 export interface Entitlement {
   allowed: boolean;
@@ -37,7 +37,7 @@ export const needsRenewal = (reason: Entitlement["reason"]): boolean =>
 export const reasonMessage = (reason: Entitlement["reason"]): string => {
   switch (reason) {
     case "insufficient_credits":
-      return "Seus créditos acabaram. A cota mensal renova no início do próximo mês — ou adquira uma geração avulsa.";
+      return "Seus créditos acabaram. A cota mensal renova um mês depois da última renovação — ou adquira uma geração avulsa.";
     case "system_error":
       return "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.";
     case "subscription_canceled":
@@ -74,12 +74,10 @@ export const useEntitlement = (): Entitlement => {
     const bonus = (profile as any)?.credits_bonus ?? 0;
     const allowance = PLAN_MONTHLY_CREDITS[plan] ?? 0;
     // Reset preguiçoso: o banco só persiste a redefinição no próximo débito,
-    // então a UI calcula o saldo mensal efetivo do mês corrente (UTC), igual
-    // ao que can_user_generate devolve.
+    // então a UI calcula o saldo mensal efetivo do ciclo atual (1 mês a partir
+    // da ativação/renovação), igual ao que can_user_generate devolve.
     const anchor = (profile as any)?.credits_cycle_anchor as string | null;
-    const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1))
-      .toISOString().slice(0, 10);
-    const monthly = allowance > 0 && (!anchor || anchor < monthStart)
+    const monthly = allowance > 0 && isMonthlyCycleDue(anchor)
       ? allowance
       : ((profile as any)?.credits_monthly ?? 0);
     const available = bonus + monthly;

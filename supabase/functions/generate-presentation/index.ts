@@ -739,7 +739,10 @@ Deno.serve(async (req) => {
       rows = resolved.slides.map((s, i) => ({
         slide_type: s.slide_type,
         layout_template: s.layout_template,
-        speaker_notes: fillSpeakerNotes(s.speaker_notes, s.content as Parameters<typeof fillSpeakerNotes>[1]),
+        // Falas pagas (+50 créditos): nota nunca vazia. Sem elas, fica o que a IA mandou.
+        speaker_notes: body.includeSpeeches
+          ? fillSpeakerNotes(s.speaker_notes, s.content as Parameters<typeof fillSpeakerNotes>[1])
+          : s.speaker_notes,
         animation_transition: "fade",
         presenters_data: speeches?.[i] ?? [],
         content: s.content,
@@ -1076,8 +1079,10 @@ Deno.serve(async (req) => {
         };
       });
 
-      // Notas do orador nunca vazias (a IA às vezes devolve o campo em branco).
-      parsed.slides = parsed.slides.map((s: any) => ({ ...s, speaker_notes: fillSpeakerNotes(s.speaker_notes, s) }));
+      // Com as falas pagas (+50 créditos), nota do orador nunca vazia.
+      if (body.includeSpeeches) {
+        parsed.slides = parsed.slides.map((s: any) => ({ ...s, speaker_notes: fillSpeakerNotes(s.speaker_notes, s) }));
+      }
 
       // Falas normalizadas (um objeto por apresentador; fala sintetizada
       // quando a IA não devolve nenhuma) — mesma regra de antes, extraída.

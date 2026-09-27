@@ -64,12 +64,13 @@ export function normalizeSpeeches(slides: SlideLike[], presenterNames: string[])
 }
 
 /**
- * Notas do orador nunca vazias (motores v1 e v2).
+ * Nota do orador nunca vazia — SÓ quando o usuário escolheu (e pagou) as
+ * falas dos apresentadores na geração (+50 créditos). Sem essa opção, a nota
+ * fica como a IA devolveu: completar de graça concorreria com o recurso pago.
  *
- * Depois do motor v2, a IA passou a devolver `speaker_notes` vazio na maioria
- * dos slides (medido em produção: 1 de 20 e 1 de 6 slides com notas, contra
- * 100% antes). Quando a nota vem vazia, ela é montada a partir do conteúdo
- * real do slide — o orador sempre tem um roteiro mínimo.
+ * Quando a IA devolve a nota vazia, ela é montada a partir do conteúdo real do
+ * slide (medido em produção: a IA passou a deixar a maioria das notas em
+ * branco depois do motor v2).
  */
 export function fillSpeakerNotes(notes: unknown, s: SlideLike & { visual?: { items?: { label?: unknown; from?: unknown; to?: unknown }[] } }): string {
   const existing = typeof notes === "string" ? notes.trim() : "";

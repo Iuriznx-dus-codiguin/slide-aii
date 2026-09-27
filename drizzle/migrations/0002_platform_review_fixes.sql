@@ -74,7 +74,7 @@ GRANT EXECUTE ON FUNCTION public.revoke_order_credits(uuid, text, integer, boole
 --    get_profile_for_viewer (que devolve o id a partir do username público),
 --    qualquer pessoa logada lia plano, saldo e vencimento de outra. Agora,
 --    fora do service_role (edge functions), _uid é sempre o próprio usuário.
---    Corpo idêntico ao anterior além do bloco de guarda.
+--    Corpo idêntico ao anterior além do bloco de guarda e do ciclo mensal (4).
 CREATE OR REPLACE FUNCTION public.can_user_generate(_uid uuid, _credits_cost integer DEFAULT 0)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -85,7 +85,6 @@ DECLARE
   _profile public.profiles%ROWTYPE;
   _is_dev boolean;
   _is_sub boolean;
-  _month date := date_trunc('month', now())::date;
   _monthly integer;
   _available integer;
 BEGIN
@@ -119,8 +118,9 @@ BEGIN
     RETURN jsonb_build_object('allowed', false, 'reason', 'subscription_expired', 'plan', _profile.plan);
   END IF;
 
-  -- Saldo mensal efetivo (reset preguiçoso calculado, não persistido)
-  IF _is_sub AND (_profile.credits_cycle_anchor IS NULL OR _profile.credits_cycle_anchor < _month) THEN
+  -- Saldo mensal efetivo (reset preguiçoso calculado, não persistido).
+  -- Ciclo de 1 mês a partir da ativação (ver ensure_monthly_credits).
+  IF _is_sub AND (_profile.credits_cycle_anchor IS NULL OR _profile.credits_cycle_anchor + interval '1 month' <= now()) THEN
     _monthly := public.plan_monthly_credits(_profile.plan);
   ELSE
     _monthly := COALESCE(_profile.credits_monthly, 0);
@@ -157,3 +157,110 @@ BEGIN
   RETURN jsonb_build_object('allowed', false, 'reason', 'no_plan', 'plan', COALESCE(_profile.plan, 'free'),
     'credits', _available);
 END; $function$;
+
+
+-- 4) Cota mensal por CICLO DA ASSINATURA, não por mês-calendário.
+--    O reset preguiçoso usava o dia 1º de cada mês e o webhook redefinia a
+--    cota também na data de renovação: um plano mensal recarregava DUAS vezes
+--    por mês (dia 1º e dia da renovação). Agora credits_cycle_anchor é o
+--    início do ciclo atual; a cota renova 1 mês depois dele (a ativação e a
+--    renovação reancoram no dia do pagamento). Âncoras antigas (dia 1º)
+--    continuam válidas: viram ciclos que começam no dia 1º.
+CREATE OR REPLACE FUNCTION public.ensure_monthly_credits(_uid uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _p public.profiles%ROWTYPE;
+  _alloc integer;
+  _anchor date;
+BEGIN
+  SELECT * INTO _p FROM public.profiles WHERE id = _uid FOR UPDATE;
+  IF NOT FOUND THEN RETURN; END IF;
+  _alloc := public.plan_monthly_credits(_p.plan);
+  IF _alloc <= 0 THEN RETURN; END IF;
+  IF _p.credits_cycle_anchor IS NOT NULL AND _p.credits_cycle_anchor + interval '1 month' > now() THEN
+    RETURN;
+  END IF;
+  _anchor := COALESCE(_p.credits_cycle_anchor, current_date);
+  WHILE _anchor + interval '1 month' <= now() LOOP
+    _anchor := (_anchor + interval '1 month')::date;
+  END LOOP;
+  UPDATE public.profiles
+     SET credits_monthly = _alloc, credits_cycle_anchor = _anchor
+   WHERE id = _uid;
+  INSERT INTO public.credit_transactions(user_id, type, amount, balance_bonus_after, balance_monthly_after, metadata)
+  VALUES (_uid, 'monthly_reset', _alloc, COALESCE(_p.credits_bonus, 0), _alloc,
+          jsonb_build_object('cycle_start', _anchor));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_monthly_credits(_uid uuid, _amount integer, _type text DEFAULT 'monthly_grant')
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE _b integer; _m integer;
+BEGIN
+  -- Ativação/renovação reancora o ciclo no dia do pagamento.
+  UPDATE public.profiles
+     SET credits_monthly = _amount, credits_cycle_anchor = current_date
+   WHERE id = _uid
+   RETURNING credits_bonus, credits_monthly INTO _b, _m;
+  IF _m IS NULL THEN RETURN NULL; END IF;
+  INSERT INTO public.credit_transactions(user_id, type, amount, balance_bonus_after, balance_monthly_after)
+  VALUES (_uid, _type, _amount, COALESCE(_b, 0), _m);
+  RETURN _m;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ensure_monthly_credits(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ensure_monthly_credits(uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.set_monthly_credits(uuid, integer, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_monthly_credits(uuid, integer, text) TO service_role;
+
+-- 5) Cota do chat de edição guardada no SERVIDOR.
+--    Os contadores (10 mensagens / 3 edições complexas por apresentação)
+--    vinham do navegador: enviar 0 dava edições ilimitadas por IA.
+ALTER TABLE public.presentations
+  ADD COLUMN IF NOT EXISTS ai_edit_messages integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS ai_edit_complex integer NOT NULL DEFAULT 0;
+
+-- O dono pode ler, mas só o servidor altera os contadores.
+CREATE OR REPLACE FUNCTION public.protect_ai_edit_usage()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND (NEW.ai_edit_messages IS DISTINCT FROM OLD.ai_edit_messages
+          OR NEW.ai_edit_complex IS DISTINCT FROM OLD.ai_edit_complex
+          OR NEW.speech_regen_count IS DISTINCT FROM OLD.speech_regen_count) THEN
+    RAISE EXCEPTION 'Contadores de uso de IA não podem ser alterados pelo cliente.' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_protect_ai_edit_usage ON public.presentations;
+CREATE TRIGGER trg_protect_ai_edit_usage BEFORE UPDATE ON public.presentations
+  FOR EACH ROW EXECUTE FUNCTION public.protect_ai_edit_usage();
+
+CREATE OR REPLACE FUNCTION public.add_ai_edit_usage(_presentation_id uuid, _uid uuid, _complex boolean)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.presentations
+     SET ai_edit_messages = ai_edit_messages + 1,
+         ai_edit_complex = ai_edit_complex + CASE WHEN _complex THEN 1 ELSE 0 END
+   WHERE id = _presentation_id AND user_id = _uid
+  RETURNING jsonb_build_object('messages', ai_edit_messages, 'complex_edits', ai_edit_complex);
+$$;
+REVOKE ALL ON FUNCTION public.add_ai_edit_usage(uuid, uuid, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.add_ai_edit_usage(uuid, uuid, boolean) TO service_role;

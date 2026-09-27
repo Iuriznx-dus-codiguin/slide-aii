@@ -164,6 +164,13 @@ export const resolvePlan = (payload: any): Plan | undefined => {
     || undefined;
 };
 
+/**
+ * Eventos que NUNCA são pagamento, mesmo que o pedido anexado venha com
+ * `status: "paid"` (a Cakto manda o objeto do pedido inteiro em `data`):
+ * recusas, abandono de checkout e boleto/pix/picpay apenas gerados.
+ */
+const NEVER_PAID_HINTS = ["refused", "recusad", "abandon", "_gerado", "generated", "waiting", "pending"];
+
 const PAID_HINTS = [
   "purchase_approved", "subscription_created", "subscription_renewed",
   "approved", "paid", "completed", "success", "active", "renewed",
@@ -176,6 +183,7 @@ export const classifyEvent = (eventType: string, status?: string): EventAction =
   const haystack = `${eventType ?? ""} ${status ?? ""}`.toLowerCase();
   if (REFUND_HINTS.some((h) => haystack.includes(h))) return "refund";
   if (CANCEL_HINTS.some((h) => haystack.includes(h))) return "canceled";
+  if (NEVER_PAID_HINTS.some((h) => (eventType ?? "").toLowerCase().includes(h))) return "ignored";
   if (PAID_HINTS.some((h) => haystack.includes(h))) return "paid";
   return "ignored";
 };
@@ -273,4 +281,22 @@ export const refundScopeFor = (input: {
     };
   }
   return { kind: "review", revokeBonus: 0, zeroMonthly: false, cancelSubscription: false, reason: "refund_unknown_plan" };
+};
+
+/**
+ * Assinatura que ainda dá acesso: plano de assinatura, não cancelada e com a
+ * data de renovação no futuro. Uma assinatura VENCIDA (renovação passou sem
+ * pagamento) não conta — antes contava, e quem comprava créditos avulsos com
+ * a assinatura vencida ficava com o plano antigo e era bloqueado pelo
+ * entitlement ("subscription_expired"), sem conseguir usar o que pagou.
+ */
+export const isActiveSubscriber = (
+  profile: { plan?: string | null; subscription_status?: string | null; subscription_renews_at?: string | null } | null | undefined,
+  now: Date = new Date(),
+): boolean => {
+  if (!profile?.plan || !(SUBSCRIPTION_PLANS as readonly string[]).includes(profile.plan)) return false;
+  const status = profile.subscription_status ?? "active";
+  if (!["active", "trialing"].includes(status)) return false;
+  if (profile.subscription_renews_at && new Date(profile.subscription_renews_at).getTime() <= now.getTime()) return false;
+  return true;
 };

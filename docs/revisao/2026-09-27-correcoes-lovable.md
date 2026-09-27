@@ -7,7 +7,7 @@ aplicam por commit:
 1. **O segredo do webhook da Cakto.** É configuração, sem código. Este é o
    passo mais importante, porque sem ele nenhuma compra real libera créditos.
 2. **A migração do banco.**
-3. **O deploy das três edge functions alteradas.**
+3. **O deploy das cinco edge functions alteradas.**
 
 ## 1. Segredo do webhook da Cakto (você mesmo, antes do prompt)
 
@@ -118,7 +118,7 @@ GRANT EXECUTE ON FUNCTION public.revoke_order_credits(uuid, text, integer, boole
 --    get_profile_for_viewer (que devolve o id a partir do username público),
 --    qualquer pessoa logada lia plano, saldo e vencimento de outra. Agora,
 --    fora do service_role (edge functions), _uid é sempre o próprio usuário.
---    Corpo idêntico ao anterior além do bloco de guarda.
+--    Corpo idêntico ao anterior além do bloco de guarda e do ciclo mensal (4).
 CREATE OR REPLACE FUNCTION public.can_user_generate(_uid uuid, _credits_cost integer DEFAULT 0)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -129,7 +129,6 @@ DECLARE
   _profile public.profiles%ROWTYPE;
   _is_dev boolean;
   _is_sub boolean;
-  _month date := date_trunc('month', now())::date;
   _monthly integer;
   _available integer;
 BEGIN
@@ -163,8 +162,9 @@ BEGIN
     RETURN jsonb_build_object('allowed', false, 'reason', 'subscription_expired', 'plan', _profile.plan);
   END IF;
 
-  -- Saldo mensal efetivo (reset preguiçoso calculado, não persistido)
-  IF _is_sub AND (_profile.credits_cycle_anchor IS NULL OR _profile.credits_cycle_anchor < _month) THEN
+  -- Saldo mensal efetivo (reset preguiçoso calculado, não persistido).
+  -- Ciclo de 1 mês a partir da ativação (ver ensure_monthly_credits).
+  IF _is_sub AND (_profile.credits_cycle_anchor IS NULL OR _profile.credits_cycle_anchor + interval '1 month' <= now()) THEN
     _monthly := public.plan_monthly_credits(_profile.plan);
   ELSE
     _monthly := COALESCE(_profile.credits_monthly, 0);
@@ -201,6 +201,113 @@ BEGIN
   RETURN jsonb_build_object('allowed', false, 'reason', 'no_plan', 'plan', COALESCE(_profile.plan, 'free'),
     'credits', _available);
 END; $function$;
+
+
+-- 4) Cota mensal por CICLO DA ASSINATURA, não por mês-calendário.
+--    O reset preguiçoso usava o dia 1º de cada mês e o webhook redefinia a
+--    cota também na data de renovação: um plano mensal recarregava DUAS vezes
+--    por mês (dia 1º e dia da renovação). Agora credits_cycle_anchor é o
+--    início do ciclo atual; a cota renova 1 mês depois dele (a ativação e a
+--    renovação reancoram no dia do pagamento). Âncoras antigas (dia 1º)
+--    continuam válidas: viram ciclos que começam no dia 1º.
+CREATE OR REPLACE FUNCTION public.ensure_monthly_credits(_uid uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _p public.profiles%ROWTYPE;
+  _alloc integer;
+  _anchor date;
+BEGIN
+  SELECT * INTO _p FROM public.profiles WHERE id = _uid FOR UPDATE;
+  IF NOT FOUND THEN RETURN; END IF;
+  _alloc := public.plan_monthly_credits(_p.plan);
+  IF _alloc <= 0 THEN RETURN; END IF;
+  IF _p.credits_cycle_anchor IS NOT NULL AND _p.credits_cycle_anchor + interval '1 month' > now() THEN
+    RETURN;
+  END IF;
+  _anchor := COALESCE(_p.credits_cycle_anchor, current_date);
+  WHILE _anchor + interval '1 month' <= now() LOOP
+    _anchor := (_anchor + interval '1 month')::date;
+  END LOOP;
+  UPDATE public.profiles
+     SET credits_monthly = _alloc, credits_cycle_anchor = _anchor
+   WHERE id = _uid;
+  INSERT INTO public.credit_transactions(user_id, type, amount, balance_bonus_after, balance_monthly_after, metadata)
+  VALUES (_uid, 'monthly_reset', _alloc, COALESCE(_p.credits_bonus, 0), _alloc,
+          jsonb_build_object('cycle_start', _anchor));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_monthly_credits(_uid uuid, _amount integer, _type text DEFAULT 'monthly_grant')
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE _b integer; _m integer;
+BEGIN
+  -- Ativação/renovação reancora o ciclo no dia do pagamento.
+  UPDATE public.profiles
+     SET credits_monthly = _amount, credits_cycle_anchor = current_date
+   WHERE id = _uid
+   RETURNING credits_bonus, credits_monthly INTO _b, _m;
+  IF _m IS NULL THEN RETURN NULL; END IF;
+  INSERT INTO public.credit_transactions(user_id, type, amount, balance_bonus_after, balance_monthly_after)
+  VALUES (_uid, _type, _amount, COALESCE(_b, 0), _m);
+  RETURN _m;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ensure_monthly_credits(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ensure_monthly_credits(uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.set_monthly_credits(uuid, integer, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_monthly_credits(uuid, integer, text) TO service_role;
+
+-- 5) Cota do chat de edição guardada no SERVIDOR.
+--    Os contadores (10 mensagens / 3 edições complexas por apresentação)
+--    vinham do navegador: enviar 0 dava edições ilimitadas por IA.
+ALTER TABLE public.presentations
+  ADD COLUMN IF NOT EXISTS ai_edit_messages integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS ai_edit_complex integer NOT NULL DEFAULT 0;
+
+-- O dono pode ler, mas só o servidor altera os contadores.
+CREATE OR REPLACE FUNCTION public.protect_ai_edit_usage()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND (NEW.ai_edit_messages IS DISTINCT FROM OLD.ai_edit_messages
+          OR NEW.ai_edit_complex IS DISTINCT FROM OLD.ai_edit_complex
+          OR NEW.speech_regen_count IS DISTINCT FROM OLD.speech_regen_count) THEN
+    RAISE EXCEPTION 'Contadores de uso de IA não podem ser alterados pelo cliente.' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_protect_ai_edit_usage ON public.presentations;
+CREATE TRIGGER trg_protect_ai_edit_usage BEFORE UPDATE ON public.presentations
+  FOR EACH ROW EXECUTE FUNCTION public.protect_ai_edit_usage();
+
+CREATE OR REPLACE FUNCTION public.add_ai_edit_usage(_presentation_id uuid, _uid uuid, _complex boolean)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.presentations
+     SET ai_edit_messages = ai_edit_messages + 1,
+         ai_edit_complex = ai_edit_complex + CASE WHEN _complex THEN 1 ELSE 0 END
+   WHERE id = _presentation_id AND user_id = _uid
+  RETURNING jsonb_build_object('messages', ai_edit_messages, 'complex_edits', ai_edit_complex);
+$$;
+REVOKE ALL ON FUNCTION public.add_ai_edit_usage(uuid, uuid, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.add_ai_edit_usage(uuid, uuid, boolean) TO service_role;
 -- fim do SQL
 
 Depois confirme com estas consultas e me mostre o resultado:
@@ -210,17 +317,25 @@ Depois confirme com estas consultas e me mostre o resultado:
      -- deve ser false
   SELECT prosrc LIKE '%auth.role() IS DISTINCT FROM%' FROM pg_proc WHERE proname = 'can_user_generate';
      -- deve ser true
+  SELECT column_name FROM information_schema.columns
+   WHERE table_name = 'presentations' AND column_name IN ('ai_edit_messages','ai_edit_complex');
+     -- deve listar as duas colunas
+  SELECT prosrc LIKE '%interval ''1 month''%' FROM pg_proc WHERE proname = 'ensure_monthly_credits';
+     -- deve ser true (cota mensal por ciclo da assinatura)
 
 ETAPA 2 — Tipos
-src/integrations/supabase/types.ts já inclui revoke_order_credits. Se
+src/integrations/supabase/types.ts já inclui revoke_order_credits, add_ai_edit_usage
+e as colunas ai_edit_messages/ai_edit_complex. Se
 regenerar, a única diferença esperada é ordem/formatação.
 
 ETAPA 3 — Deploy das edge functions
-Faça o deploy destas três funções (elas usam módulos de supabase/functions/_shared,
+Faça o deploy destas cinco funções (elas usam módulos de supabase/functions/_shared,
 que vão junto no bundle):
   - cakto-webhook
   - generate-presentation
   - fetch-image
+  - chat-editor
+  - regenerate-speeches
 As demais não mudaram (_shared/observability.ts só ganhou um tipo novo).
 Não altere verify_jwt nem o config.toml.
 
@@ -228,6 +343,7 @@ ETAPA 4 — Build, testes e verificação
   1. npm run build → sem erro.
   2. npm test (vitest) → as suítes novas src/test/caktoWebhook.test.ts e
      src/test/speakerNotes.test.ts devem passar junto com as existentes.
+     (Os dois testes *.e2e.test.ts dependem de variáveis de ambiente, como antes.)
   3. Rode e me mostre:
      SELECT created_at, event_type, processed, left(coalesce(error_message,''),60) AS erro
        FROM public.payment_events ORDER BY created_at DESC LIMIT 5;
@@ -250,7 +366,15 @@ esperado, descreva o que viu e pare.
   ativo.
 - **Motor da geração:** só desenvolvedores escolhem (Dev Mode). Para os demais
   vale `ENGINE_V2_ROLLOUT_PERCENT`.
-- **Notas do orador** nunca saem vazias.
+- **Notas do orador:** completadas só quando o usuário escolheu (e pagou) as falas.
+- **Cota mensal** renova 1 mês depois da ativação/renovação (antes: dia 1º + dia
+  da renovação, duas recargas por mês).
+- **Avulso com assinatura vencida** passa a valer; com assinatura cancelada, a
+  sobra da cota mensal antiga não volta.
+- **Eventos de recusa ou cobrança só gerada** nunca contam como pagamento.
+- **Regenerar falas** volta a funcionar (estava quebrado) e só para decks que
+  pagaram as falas.
+- **Chat de edição:** a cota por apresentação passa a ser contada no servidor.
 - **Imagens pendentes** também são resolvidas quando o dono abre a apresentação
   no modo apresentação, não só no Editor.
 - **Editor:** abrir o de uma apresentação de outra pessoa redireciona para o
