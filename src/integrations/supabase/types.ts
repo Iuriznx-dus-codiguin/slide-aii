@@ -433,6 +433,8 @@ export type Database = {
       }
       presentations: {
         Row: {
+          ai_edit_complex: number
+          ai_edit_messages: number
           brand_identity: Json | null
           created_at: string
           creative_brief: Json | null
@@ -461,6 +463,8 @@ export type Database = {
           view_count: number
         }
         Insert: {
+          ai_edit_complex?: number
+          ai_edit_messages?: number
           brand_identity?: Json | null
           created_at?: string
           creative_brief?: Json | null
@@ -489,6 +493,8 @@ export type Database = {
           view_count?: number
         }
         Update: {
+          ai_edit_complex?: number
+          ai_edit_messages?: number
           brand_identity?: Json | null
           created_at?: string
           creative_brief?: Json | null
@@ -908,6 +914,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_ai_edit_usage: {
+        Args: { _complex: boolean; _presentation_id: string; _uid: string }
+        Returns: Json
+      }
       add_presentation_asset_cost: {
         Args: { _cost_usd: number; _presentation_id: string; _uid: string }
         Returns: undefined
@@ -1011,6 +1021,16 @@ export type Database = {
         Returns: Json
       }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
+      revoke_order_credits: {
+        Args: {
+          _order_id: string
+          _revoke_bonus: number
+          _type?: string
+          _uid: string
+          _zero_monthly: boolean
+        }
+        Returns: Json
+      }
       set_monthly_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
