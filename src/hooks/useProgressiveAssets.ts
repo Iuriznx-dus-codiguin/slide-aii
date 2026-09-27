@@ -69,8 +69,9 @@ export function useProgressiveAssets(opts: {
       }
       (async () => {
         let url: string | null = null;
-        const attempts = (asset.attempts ?? 0);
+        let tries = 0;
         for (let k = 0; k < MAX_ATTEMPTS && !url; k++) {
+          tries++;
           url = await fetchSlideAsset(asset, {
             presentationId,
             avoidUrls: Array.from(usedUrls.current),
@@ -80,7 +81,9 @@ export function useProgressiveAssets(opts: {
           if (url && usedUrls.current.has(url) && asset.source === "pexels") url = null;
         }
         if (url) usedUrls.current.add(url);
-        const next: SlideAsset = { ...asset, status: url ? "ready" : "failed", attempts: attempts + MAX_ATTEMPTS };
+        // Conta as tentativas de fato feitas (antes somava 2 mesmo quando a
+        // primeira dava certo — a métrica enganava).
+        const next: SlideAsset = { ...asset, status: url ? "ready" : "failed", attempts: (asset.attempts ?? 0) + tries };
         try {
           await onResolvedRef.current(id, { image_url: url, asset: next });
         } finally {

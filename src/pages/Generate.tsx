@@ -241,9 +241,10 @@ const Generate = () => {
           // O servidor grava o deck e devolve o slug (sem perda de deck pago
           // ao fechar a aba, com o creative_brief certo).
           persist: "server",
-          // Motor de cenas (v2) sob demanda no Dev Mode; sem pedido, vale o
-          // rollout configurado no servidor.
-          ...(devSettings.engineV2 ? { engineVersion: 2 } : {}),
+          // Desenvolvedores escolhem o motor pelo Dev Mode (ligado = v2,
+          // desligado = v1 para comparação, mesmo com o rollout em 100%).
+          // Os demais seguem o rollout configurado no servidor.
+          ...(isDeveloper ? { engineVersion: devSettings.engineV2 ? 2 : 1 } : {}),
         },
       });
 

@@ -1011,6 +1011,16 @@ export type Database = {
         Returns: Json
       }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
+      revoke_order_credits: {
+        Args: {
+          _order_id: string
+          _revoke_bonus: number
+          _type?: string
+          _uid: string
+          _zero_monthly: boolean
+        }
+        Returns: Json
+      }
       set_monthly_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number

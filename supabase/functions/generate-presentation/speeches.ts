@@ -62,3 +62,40 @@ export function normalizeSpeeches(slides: SlideLike[], presenterNames: string[])
     return normalized;
   });
 }
+
+/**
+ * Notas do orador nunca vazias (motores v1 e v2).
+ *
+ * Depois do motor v2, a IA passou a devolver `speaker_notes` vazio na maioria
+ * dos slides (medido em produção: 1 de 20 e 1 de 6 slides com notas, contra
+ * 100% antes). Quando a nota vem vazia, ela é montada a partir do conteúdo
+ * real do slide — o orador sempre tem um roteiro mínimo.
+ */
+export function fillSpeakerNotes(notes: unknown, s: SlideLike & { visual?: { items?: { label?: unknown; from?: unknown; to?: unknown }[] } }): string {
+  const existing = typeof notes === "string" ? notes.trim() : "";
+  if (existing) return existing;
+  const parts: string[] = [];
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const headline = text(s.headline);
+  if (headline) parts.push(`Neste slide, fale sobre ${headline}.`);
+  const subtitle = text(s.subtitle);
+  if (subtitle) parts.push(subtitle.endsWith(".") ? subtitle : `${subtitle}.`);
+  const items = (s.visual?.items ?? [])
+    .filter((it) => !(it?.from && it?.to))
+    .map((it) => text(it?.label))
+    .filter(Boolean)
+    .slice(0, 6);
+  if (items.length) parts.push(`Percorra o visual: ${items.join(" → ")}.`);
+  const bullets = Array.isArray(s.bullets) ? s.bullets.map(text).filter(Boolean).slice(0, 4) : [];
+  if (bullets.length) parts.push(`Pontos a comentar: ${bullets.join("; ")}.`);
+  const stat = text(s.stat_value);
+  if (stat) parts.push(`Destaque o número ${stat}${text(s.stat_label) ? ` — ${text(s.stat_label)}` : ""}.`);
+  const quote = text(s.quote_text);
+  if (quote) parts.push(`Leia a citação${text(s.quote_author) ? ` de ${text(s.quote_author)}` : ""} e explique por que ela importa aqui.`);
+  const body = text(s.body_text);
+  if (body && parts.length < 3) {
+    const first = body.split(/(?<=[.!?])\s+/)[0] ?? body;
+    parts.push(first.length > 220 ? `${first.slice(0, 217).trimEnd()}…` : first);
+  }
+  return parts.join(" ").slice(0, 700);
+}

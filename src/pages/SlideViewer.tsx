@@ -13,9 +13,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { CreativeBrief } from "@/lib/creativeBrief";
 import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
+import { useAuth } from "@/hooks/useAuth";
+import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAssets";
+import { saveResolvedAsset } from "@/lib/assetWrite";
 
 interface Pres {
-  id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
+  id: string; user_id?: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
   include_speeches?: boolean; presenters_names?: string[];
   dynamic_theme?: any;
   // Fase 1: brief do Creative Director Engine, consumido pelo Motion Director
@@ -44,7 +47,7 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
+      const { data: p } = await supabase.from("presentations").select("id,user_id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
       setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as unknown as Pres);
       document.title = `${p.title} — SlideAI`;
@@ -54,6 +57,21 @@ const SlideViewer = () => {
       supabase.from("slide_views").insert({ presentation_id: p.id, user_agent: navigator.userAgent }).then(() => {});
     })();
   }, [slug]);
+
+  // Imagens pendentes (geração salva no servidor): o DONO que abre a
+  // apresentação também as resolve — antes só o Editor fazia isso, e um deck
+  // compartilhado sem passar pelo Editor ficava sem fotos. Visitantes não
+  // disparam buscas (custo e cota são do dono).
+  const { user } = useAuth();
+  const isOwner = !!user && !!pres?.user_id && pres.user_id === user.id;
+  const slidesRef = useRef(slides);
+  useEffect(() => { slidesRef.current = slides; }, [slides]);
+  const onAssetResolved = useCallback(async (slideId: string, patch: AssetPatch) => {
+    setSlides((prev) => prev.map((r) => (r.id === slideId ? { ...r, content: { ...r.content, ...patch } } : r)));
+    const row = slidesRef.current.find((r) => r.id === slideId);
+    if (row) await saveResolvedAsset(row, patch);
+  }, []);
+  useProgressiveAssets({ presentationId: pres?.id, slides, enabled: isOwner && !loading, onResolved: onAssetResolved });
 
   const next = useCallback(() => setIdx((i) => Math.min(i + 1, slides.length - 1)), [slides.length]);
   const prev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), []);

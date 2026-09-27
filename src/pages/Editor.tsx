@@ -42,6 +42,8 @@ import { aiAssetFor, photoAssetFor } from "../../supabase/functions/_shared/scen
 import { isSceneContent, type SlideAsset } from "../../supabase/functions/_shared/sceneMedia.ts";
 import { isDomain } from "../../supabase/functions/_shared/sceneCatalog.ts";
 import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAssets";
+import { saveResolvedAsset } from "@/lib/assetWrite";
+import { useAuth } from "@/hooks/useAuth";
 import { VisualPanel } from "@/components/editor/VisualPanel";
 
 // Fonte única compartilhada com o backend — ver _shared/slideComposition.ts.
@@ -144,6 +146,10 @@ const Editor = () => {
 
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  // Id (string estável): o objeto `user` muda a cada renovação de token e
+  // recarregaria o deck, perdendo edições não salvas.
+  const userId = user?.id ?? null;
 
   const [pres, setPres] = useState<(Pres & { dynamic_theme?: any; creative_brief?: CreativeBrief | null }) | null>(null);
   const [slides, setSlides] = useState<SlideRow[]>([]);
@@ -192,11 +198,19 @@ const Editor = () => {
 
   // Load presentation
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || authLoading) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
+        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
       if (!p) { setLoading(false); return; }
+      // Só o dono edita. Uma apresentação pública de outra pessoa abria o
+      // Editor (salvar falhava no RLS, mas as imagens pendentes eram buscadas
+      // por conta da plataforma) — agora vai para o modo apresentação.
+      if (userId && p.user_id !== userId) {
+        toast.message("Esta apresentação é de outra pessoa — abrindo no modo apresentação.");
+        navigate(`/slides/${slug}`, { replace: true });
+        return;
+      }
       const presLoaded = {
         ...p,
         presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [],
@@ -215,7 +229,7 @@ const Editor = () => {
       if (presLoaded.include_speeches) setNotesOpen(true);
       setLoading(false);
     })();
-  }, [slug]);
+  }, [slug, userId, authLoading, navigate]);
 
   // Bloco 12.2: dynamic_theme prioriza presentations.dynamic_theme; fallback p/ slides legados.
   const dynamicTheme: Partial<ThemeColors> | null = useMemo(
@@ -238,11 +252,7 @@ const Editor = () => {
     saved.content = { ...saved.content, ...patch };
     savedSnapshotRef.current = deckSignature(savedRowsRef.current);
     setSavedMark((m) => m + 1);
-    const update: Record<string, unknown> = { content: saved.content };
-    // Capa com imagem alimenta a miniatura do portfólio público.
-    if (saved.position === 0 && patch.image_url) update.background_image_url = patch.image_url;
-    const { error } = await supabase.from("slides").update(update as any).eq("id", slideId);
-    if (error) console.warn("ativo: gravação falhou (fica para o próximo save)", error.message);
+    await saveResolvedAsset(saved, patch);
   }, []);
 
   const assets = useProgressiveAssets({

@@ -122,7 +122,7 @@ export const DevModePanel = () => {
                   <Switch checked={s.engineV2} onCheckedChange={(v) => update({ engineV2: v })} />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Gera com o motor novo (Plano Visual + blocos visuais nativos). Desligado, usa o motor atual — compare custo e qualidade no painel de métricas.
+                  Ligado, gera com o motor de cenas (v2); desligado, com o motor anterior (v1) — mesmo com o rollout em 100%. Compare custo e qualidade no painel de métricas.
                 </p>
               </section>
 

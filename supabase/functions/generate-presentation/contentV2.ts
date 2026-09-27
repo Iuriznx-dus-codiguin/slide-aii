@@ -172,7 +172,7 @@ export function buildToolV2(req: ContentV2Request, withTheme: boolean) {
     stat_label: { type: "string" },
     quote_text: { type: "string" },
     quote_author: { type: "string" },
-    speaker_notes: { type: "string", description: "1-2 frases para o orador." },
+    speaker_notes: { type: "string", description: "2-3 frases do que o orador deve dizer neste slide. Nunca vazio." },
     image_query: { type: "string", description: "Só quando o plano marca image_query: sim." },
     visual: {
       type: "object",

@@ -14,27 +14,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   addMonths, classifyEvent, collectProvidedSecrets, cyclePeriodMonths, dig,
-  extractCaktoId, extractEmail, extractEventType, extractStatus, hasValidSecret,
-  normalizeSecret, parseExpectedSecrets, resolvePlan,
+  escapeLike, extractCaktoId, extractEmail, extractEventType, extractStatus,
+  extractSubscriptionId, hasValidSecret, normalizeSecret, parseExpectedSecrets,
+  PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
+  SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 
-// ── Tabela de créditos por plano ──
-// Avulso (R$14,90) credita 500 créditos permanentes (400 + 100 de vitrine).
-const SINGLE_PURCHASE_CREDITS = 500;
-const SUBSCRIPTION_PLANS = [
-  "mensal", "trimestral", "anual", "max_mensal", "max_trimestral", "max_anual",
-];
-/** Cota mensal renovável (redefinida a cada ciclo). */
-const PLAN_MONTHLY_CREDITS: Record<string, number> = {
-  mensal: 3200, trimestral: 3200, anual: 3200,
-  max_mensal: 16000, max_trimestral: 16000, max_anual: 16000,
-};
-/** Bônus permanente concedido só na PRIMEIRA ativação da assinatura. */
-const PLAN_SIGNUP_BONUS: Record<string, number> = {
-  mensal: 800, trimestral: 1200, anual: 2000,
-  max_mensal: 0, max_trimestral: 0, max_anual: 0,
-};
+// Tabelas de créditos por plano: ./lib.ts (usadas também pela regra de
+// estorno, que precisa saber quanto cada pedido concedeu).
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,7 +103,7 @@ Deno.serve(async (req) => {
   const action = classifyEvent(event_type, status);
 
   const customerId = dig(payload, ["data.customer.id", "customer.id"]) as string | undefined;
-  const subscriptionId = dig(payload, ["data.subscription.id", "subscription.id"]) as string | undefined;
+  const subscriptionId = extractSubscriptionId(payload);
 
   // Resolve o user_id pelo e-mail.
   //
@@ -126,7 +114,7 @@ Deno.serve(async (req) => {
   let userId: string | null = null;
   if (email) {
     const { data: profile } = await admin
-      .from("profiles").select("id").ilike("email", email).maybeSingle();
+      .from("profiles").select("id").ilike("email", escapeLike(email)).maybeSingle();
     if (profile?.id) {
       userId = profile.id;
     } else {
@@ -181,12 +169,12 @@ Deno.serve(async (req) => {
 
       const { data: before } = await admin
         .from("profiles")
-        .select("plan, subscription_status, cakto_subscription_id")
+        .select("plan, subscription_status, cakto_subscription_id, cakto_customer_id")
         .eq("id", userId)
         .maybeSingle();
 
       const prevPlan = (before?.plan ?? "free") as string;
-      const prevIsSubscriber = SUBSCRIPTION_PLANS.includes(prevPlan)
+      const prevIsSubscriber = (SUBSCRIPTION_PLANS as readonly string[]).includes(prevPlan)
         && (before?.subscription_status ?? "active") !== "canceled";
 
       if (plan === "single") {
@@ -246,19 +234,52 @@ Deno.serve(async (req) => {
         log.info("subscription_credits", { plan, monthly, isRenewal, signupBonus, bonusGranted });
       }
     } else if (action === "refund") {
-      // Reembolso/chargeback: além de limpar o plano, os créditos concedidos por
-      // aquele pagamento são estornados (mensal + bônus zerados) e o movimento
-      // fica registrado no ledger `credit_transactions`.
-      await admin.from("profiles").update({
-        subscription_status: "canceled",
-        plan: "free",
-        cakto_subscription_id: null,
-      }).eq("id", userId);
-      const { data: revoked, error: revokeErr } = await admin.rpc("revoke_credits", {
-        _uid: userId, _type: "refund_revoke",
+      // Reembolso/chargeback desfaz SÓ o que aquele pedido concedeu (ver
+      // refundScopeFor). Antes, qualquer reembolso zerava todos os créditos e
+      // rebaixava o plano — inclusive o reembolso de uma compra avulsa feita
+      // por um assinante ativo. O estorno é idempotente por pedido no banco
+      // (revoke_order_credits): refund + chargeback do mesmo pedido estornam
+      // uma vez só.
+      const { data: current } = await admin
+        .from("profiles")
+        .select("cakto_subscription_id")
+        .eq("id", userId)
+        .maybeSingle();
+      const scope = refundScopeFor({
+        plan,
+        payloadSubscriptionId: subscriptionId ?? null,
+        profileSubscriptionId: current?.cakto_subscription_id ?? null,
       });
-      if (revokeErr) log.error("revoke_credits_failed", { message: revokeErr.message });
-      else log.info("credits_revoked", { revoked });
+
+      if (scope.kind === "review") {
+        // Sem certeza do que estornar: nada é retirado automaticamente.
+        await log.security("webhook_refund_review", {
+          severity: "warning",
+          status: 200,
+          detail: { reason: scope.reason, event_type, plan: plan ?? null, cakto_id: cakto_id ?? null },
+        });
+        await admin.from("payment_events")
+          .update({ processed: true, error_message: `refund_needs_review:${scope.reason}` })
+          .eq("id", eventRowId);
+        return json({ ok: true, action, note: "refund needs manual review" });
+      }
+
+      if (scope.cancelSubscription) {
+        await admin.from("profiles").update({
+          subscription_status: "canceled",
+          plan: "free",
+          cakto_subscription_id: null,
+        }).eq("id", userId);
+      }
+      const { data: revoked, error: revokeErr } = await admin.rpc("revoke_order_credits", {
+        _uid: userId,
+        _order_id: cakto_id ?? `${event_type}:${subscriptionId ?? "sem-id"}`,
+        _revoke_bonus: scope.revokeBonus,
+        _zero_monthly: scope.zeroMonthly,
+        _type: "refund_revoke",
+      });
+      if (revokeErr) log.error("revoke_order_credits_failed", { message: revokeErr.message });
+      else log.info("credits_revoked", { revoked, scope: scope.kind });
 
     } else if (action === "canceled") {
       // Não apaga o plano: apenas marca canceled. O entitlement bloqueia a geração

@@ -22,6 +22,8 @@ export type SecurityEventType =
   | "forbidden"
   | "webhook_invalid_secret"
   | "webhook_error"
+  /** Reembolso cujo escopo não foi identificado — nada estornado; revisar à mão. */
+  | "webhook_refund_review"
   | "upload_rejected"
   | "invalid_input";
 

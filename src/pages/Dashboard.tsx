@@ -16,6 +16,7 @@ interface Pres {
   id: string; title: string; slug: string; slides_count: number; view_count: number;
   created_at: string; theme: string; font_style: string;
   is_published: boolean;
+  dynamic_theme?: any;
   cover?: { slide_type: string; layout_template: string; content: any } | null;
 }
 
@@ -32,17 +33,23 @@ const Dashboard = () => {
   const load = async () => {
     if (!user) return;
     const { data } = await supabase.from("presentations")
-      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style,is_published")
+      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style,is_published,dynamic_theme")
       .eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false });
     const items = (data as any[]) ?? [];
 
-    // Buscar a capa (primeiro slide) de cada apresentação em paralelo
-    const withCovers = await Promise.all(items.map(async (p) => {
-      const { data: cov } = await supabase.from("slides")
-        .select("slide_type,layout_template,content")
-        .eq("presentation_id", p.id).order("position").limit(1).maybeSingle();
-      return { ...p, cover: cov ?? null };
-    }));
+    // Capas (slide da posição 0) de todas as apresentações numa consulta só —
+    // antes era uma consulta por apresentação (N+1).
+    const covers = new Map<string, Pres["cover"]>();
+    if (items.length) {
+      const { data: rows } = await supabase.from("slides")
+        .select("presentation_id,slide_type,layout_template,content")
+        .in("presentation_id", items.map((p) => p.id))
+        .eq("position", 0);
+      for (const r of (rows as any[]) ?? []) {
+        covers.set(r.presentation_id, { slide_type: r.slide_type, layout_template: r.layout_template, content: r.content });
+      }
+    }
+    const withCovers = items.map((p) => ({ ...p, cover: covers.get(p.id) ?? null }));
 
     setList(withCovers as Pres[]);
     setStats({ total: withCovers.length, views: withCovers.reduce((s, p) => s + (p.view_count || 0), 0) });
@@ -120,7 +127,9 @@ const Dashboard = () => {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((p, i) => {
-              const dyn = p.cover?.content?.dynamic_theme ?? null;
+              // Tema dinâmico vive em presentations.dynamic_theme; o do slide é
+              // só fallback de decks antigos (antes as capas saíam com o tema padrão).
+              const dyn = p.dynamic_theme ?? p.cover?.content?.dynamic_theme ?? null;
               return (
                 <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
                   className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-elegant transition-all">

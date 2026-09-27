@@ -53,8 +53,10 @@ export const PaymentNotifications = () => {
 
   const celebratePayment = () => {
     setConfetti(createConfetti());
+    // Aviso não bloqueante (antes era um window.confirm com OK/Cancelar para
+    // uma simples confirmação de sucesso).
     window.setTimeout(() => {
-      window.confirm(PAYMENT_SUCCESS_MESSAGE);
+      toast.success(PAYMENT_SUCCESS_MESSAGE, { duration: 8000 });
     }, 260);
     window.setTimeout(() => setConfetti([]), 3800);
   };

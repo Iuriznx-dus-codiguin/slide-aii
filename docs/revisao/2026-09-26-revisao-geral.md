@@ -9,6 +9,13 @@ Base usada:
 - o código da `main` em `bfbc142`;
 - **consultas somente-leitura ao banco de produção**, com números agregados e sem dados pessoais.
 
+> **Status (27/09):** os itens 2 a 6, o Editor restrito ao dono, o teto de
+> apresentadores, o interruptor do Dev Mode, o contador de tentativas, o
+> Dashboard (tema + N+1), o `ilike` do e-mail e o aviso de pagamento foram
+> corrigidos no PR "fix: correções da revisão geral". O item 1 é configuração:
+> ver `docs/revisao/2026-09-27-correcoes-lovable.md`. Os aprimoramentos da
+> seção 7 e a limpeza da seção 5 ficaram para depois.
+
 ## Resumo em 30 segundos
 
 | # | O que | Gravidade | Tipo de correção |

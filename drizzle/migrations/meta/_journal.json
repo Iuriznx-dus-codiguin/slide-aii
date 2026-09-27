@@ -15,6 +15,13 @@
       "when": 1790302295968,
       "tag": "0001_scene_engine_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790467492209,
+      "tag": "0002_platform_review_fixes",
+      "breakpoints": true
     }
   ]
 }
