@@ -914,6 +914,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_ai_edit_usage: {
+        Args: { _complex: boolean; _presentation_id: string; _uid: string }
+        Returns: Json
+      }
       add_presentation_asset_cost: {
         Args: { _cost_usd: number; _presentation_id: string; _uid: string }
         Returns: undefined
@@ -1017,10 +1021,6 @@ export type Database = {
         Returns: Json
       }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
-      add_ai_edit_usage: {
-        Args: { _complex: boolean; _presentation_id: string; _uid: string }
-        Returns: Json
-      }
       revoke_order_credits: {
         Args: {
           _order_id: string
