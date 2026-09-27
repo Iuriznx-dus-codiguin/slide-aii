@@ -419,9 +419,25 @@ Deno.serve(async (req) => {
         status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (ent.reason === "system_error") {
-      return new Response(JSON.stringify({ error: "Erro interno do sistema (E_GEN_503). Tente novamente em alguns minutos.", reason: "system_error" }), {
-        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Uso justo do MAX (Termos, seção 9): o motivo real, com a data da
+    // renovação — antes virava um "erro interno" falso (E_GEN_503).
+    if (ent.reason === "fair_use_limit") {
+      const resetsAt = (ent as { resets_at?: string | null }).resets_at;
+      const when = resetsAt ? ` em ${new Date(resetsAt).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : "";
+      return new Response(JSON.stringify({
+        error: `Você atingiu o limite da Política de Uso Justo do plano MAX neste ciclo. A cota renova${when}; até lá, você pode usar créditos avulsos.`,
+        reason: "fair_use_limit",
+        resets_at: resetsAt ?? null,
+      }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (ent.reason === "subscription_canceled" || ent.reason === "subscription_expired") {
+      return new Response(JSON.stringify({
+        error: "Sua assinatura terminou e as gerações estão pausadas. Renove o plano ou use créditos avulsos.",
+        reason: ent.reason,
+      }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (ent.reason === "no_plan") {

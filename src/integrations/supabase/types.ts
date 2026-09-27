@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_logs: {
+        Row: {
+          created_at: string
+          event: string
+          id: number
+          ip: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event?: string
+          id?: never
+          ip?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          id?: never
+          ip?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           created_at: string
@@ -345,6 +372,57 @@ export type Database = {
           slug?: string
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          id: string
+          ip: string | null
+          privacy_version: string
+          source: string
+          terms_version: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          id?: string
+          ip?: string | null
+          privacy_version: string
+          source?: string
+          terms_version: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          id?: string
+          ip?: string | null
+          privacy_version?: string
+          source?: string
+          terms_version?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      maintenance_runs: {
+        Row: {
+          last_result: Json | null
+          last_run_at: string
+          task: string
+        }
+        Insert: {
+          last_result?: Json | null
+          last_run_at: string
+          task: string
+        }
+        Update: {
+          last_result?: Json | null
+          last_run_at?: string
+          task?: string
         }
         Relationships: []
       }
@@ -914,6 +992,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_legal_terms: {
+        Args: { _privacy_version: string; _source?: string; _terms_version: string }
+        Returns: Json
+      }
       add_ai_edit_usage: {
         Args: { _complex: boolean; _presentation_id: string; _uid: string }
         Returns: Json
@@ -1011,6 +1093,8 @@ export type Database = {
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
+      purge_expired_data: { Args: never; Returns: Json }
+      record_access: { Args: { _event?: string }; Returns: undefined }
       refund_generation_credits: {
         Args: {
           _credits: number
@@ -1020,6 +1104,7 @@ export type Database = {
         }
         Returns: Json
       }
+      request_client_info: { Args: never; Returns: Json }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
       revoke_order_credits: {
         Args: {
@@ -1031,9 +1116,14 @@ export type Database = {
         }
         Returns: Json
       }
+      run_data_retention_if_due: { Args: never; Returns: undefined }
       set_monthly_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
+      }
+      subscription_is_current: {
+        Args: { _plan: string; _renews_at: string; _status: string }
+        Returns: boolean
       }
     }
     Enums: {

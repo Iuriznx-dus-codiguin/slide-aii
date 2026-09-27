@@ -2,7 +2,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
+import { FAIR_USE_HOURLY_GENERATIONS, FAIR_USE_MAX_MONTHLY_CREDITS } from "@/lib/fairUse";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
@@ -35,7 +37,8 @@ const pro = {
   anual:      { price: "397,90", period: "por ano",       cta: "Assinar PRO anual",      monthlyEquivalent: "33,16" },
 };
 
-// MAX — ilimitado (16.000 créditos/mês internos).
+// MAX — uso ilimitado dentro da Política de Uso Justo (16.000 créditos por
+// ciclo mensal), divulgada no card e nos Termos (/termos#uso-justo).
 const max = {
   mensal:     { price: "147,90",   period: "por mês",       cta: "Assinar MAX mensal" },
   trimestral: { price: "377,90",   period: "por trimestre", cta: "Assinar MAX trimestral", monthlyEquivalent: "125,97" },
@@ -200,12 +203,12 @@ export const Pricing = () => {
           >
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <div className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-primary px-3 py-1 text-xs font-bold text-white shadow-glow whitespace-nowrap">
-                <Crown className="h-3 w-3" /> Ilimitado
+                <Crown className="h-3 w-3" /> Uso ilimitado*
               </div>
             </div>
             <h3 className="font-display text-2xl font-bold mt-2">Plano MAX</h3>
             <p className="mt-2 text-sm text-muted-foreground min-h-[40px]">
-              Para agências e criadores de alto volume. Crie apresentações sem se preocupar com limites.
+              Para agências e criadores de alto volume. Gere sem contar créditos, dentro do uso justo.
             </p>
             <div className="mt-6 flex items-baseline gap-2">
               <span className="text-sm text-muted-foreground">R$</span>
@@ -218,7 +221,7 @@ export const Pricing = () => {
               </p>
             )}
             <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-3 py-1 text-xs font-bold text-white shadow-glow">
-               <Crown className="h-3 w-3" /> Créditos ilimitados
+               <Crown className="h-3 w-3" /> Gerações ilimitadas*
             </div>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-amber-500/50 hover:bg-amber-500/10">
               <a href="/gerar">{maxPrice.cta}</a>
@@ -234,6 +237,19 @@ export const Pricing = () => {
               ))}
             </ul>
           </motion.div>
+        </div>
+
+        <div className="max-w-4xl mx-auto mt-10 space-y-2 text-center text-xs text-muted-foreground leading-relaxed">
+          <p>
+            * Plano MAX: uso ilimitado para uma pessoa, dentro da{" "}
+            <Link to="/termos#uso-justo" className="text-primary hover:underline">Política de Uso Justo</Link> — até{" "}
+            {FAIR_USE_MAX_MONTHLY_CREDITS.toLocaleString("pt-BR")} créditos por ciclo mensal e {FAIR_USE_HOURLY_GENERATIONS} gerações por hora.
+          </p>
+          <p>
+            Assinaturas renovam automaticamente ao fim de cada período. Cancele quando quiser: o acesso continua até o fim do
+            período pago. Arrependeu-se? Você tem 7 dias após a compra para pedir o reembolso integral.{" "}
+            <Link to="/termos#planos" className="text-primary hover:underline">Condições completas</Link>.
+          </p>
         </div>
       </div>
     </section>

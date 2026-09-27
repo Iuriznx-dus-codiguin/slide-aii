@@ -3,23 +3,39 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 const faqs = [
   {
     q: "Como a IA gera as apresentações?",
-    a: "Você descreve o tema e algumas preferências (número de slides, estilo, idioma). A IA estrutura o conteúdo, escreve cada slide com narrativa coerente, sugere imagens e até cria gráficos quando detecta dados.",
+    a: "Você descreve o tema e algumas preferências (número de slides, tipo, idioma, profundidade do texto). A IA estrutura a narrativa, escreve cada slide, escolhe imagens e cria gráficos quando o conteúdo tem dados. Revise sempre o resultado: textos gerados por IA podem conter imprecisões.",
   },
   {
     q: "Posso editar as apresentações depois?",
-    a: "Sim. Após a geração, você tem acesso a um editor visual completo onde pode mudar textos, imagens, cores, animações, layouts e adicionar ou remover slides livremente.",
+    a: "Sim. O editor permite mudar textos, imagens, layout, elementos visuais, animações e a ordem dos slides, além de adicionar ou remover slides. Você também pode pedir ajustes em linguagem natural ao assistente de edição.",
   },
   {
     q: "Em quais formatos posso exportar?",
-    a: "PDF, PPTX (PowerPoint), PNG por slide, e link público compartilhável que funciona em qualquer dispositivo, com modo full-screen.",
+    a: "PowerPoint (.pptx), PDF, imagem PNG do slide exibido e link público para apresentar em qualquer dispositivo. Com as falas dos apresentadores ativadas, o roteiro também sai em PDF, Word (.docx) ou texto.",
   },
   {
-    q: "Os slides são realmente únicos ou usam templates prontos?",
-    a: "Cada apresentação é gerada do zero pela IA com base no seu tema, com layouts adaptados ao conteúdo. Não são templates engessados — o resultado é único.",
+    q: "Como funcionam os créditos?",
+    a: "Cada apresentação custa 10 créditos por slide, mais a profundidade do texto (curto 10, equilibrado 20, longo 30) e 50 se você ativar as falas dos apresentadores. O custo aparece antes de gerar, e se a geração falhar por um problema nosso os créditos voltam automaticamente.",
   },
   {
     q: "Posso cancelar a assinatura quando quiser?",
-    a: "Sim, sem multa. Os planos PRO e MAX podem ser cancelados a qualquer momento e você mantém acesso até o fim do período pago.",
+    a: "Sim, sem multa. Os planos PRO e MAX podem ser cancelados a qualquer momento: a renovação para e você mantém o acesso até o fim do período já pago.",
+  },
+  {
+    q: "E se eu me arrepender da compra?",
+    a: "Você tem 7 dias corridos, contados da compra, para desistir e receber o reembolso integral, como prevê o Código de Defesa do Consumidor. Basta falar com o suporte; os créditos daquela compra são cancelados.",
+  },
+  {
+    q: "O plano MAX é mesmo ilimitado?",
+    a: "É de uso ilimitado para uma pessoa, dentro da Política de Uso Justo: até 16.000 créditos por ciclo mensal (cerca de 130 apresentações de 10 slides) e 12 gerações por hora. Os detalhes estão nos Termos de Uso.",
+  },
+  {
+    q: "De quem é o conteúdo das apresentações?",
+    a: "O conteúdo que você envia continua seu, e você pode usar livremente o que gerar, inclusive comercialmente, respeitando os Termos de Uso e os direitos de terceiros. Suas apresentações são privadas até você decidir publicá-las.",
+  },
+  {
+    q: "Meus dados estão protegidos?",
+    a: "Sim. Tratamos os dados conforme a LGPD, não vendemos dados pessoais e não usamos suas apresentações para treinar modelos de IA. Você pode pedir acesso, correção ou exclusão dos seus dados a qualquer momento. Veja a Política de Privacidade.",
   },
 ];
 

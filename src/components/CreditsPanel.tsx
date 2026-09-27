@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEntitlement } from "@/hooks/useEntitlement";
-import { isMaxPlan, PLAN_LABELS } from "@/lib/cakto";
+import { PLAN_LABELS } from "@/lib/cakto";
 
 interface Tx {
   id: string;
@@ -18,11 +18,16 @@ interface Tx {
 
 const TYPE_LABELS: Record<string, string> = {
   consume: "Geração de apresentação",
+  generation_refund: "Devolução de geração com falha",
   monthly_reset: "Renovação mensal do plano",
   monthly_grant: "Créditos mensais do plano",
+  subscription_monthly: "Cota do plano (ativação ou renovação)",
+  subscription_ended: "Fim da assinatura — cota mensal encerrada",
   bonus_grant: "Créditos bônus",
   single_purchase: "Compra avulsa",
   signup_bonus: "Bônus de ativação",
+  subscription_signup_bonus: "Bônus de ativação da assinatura",
+  refund_revoke: "Estorno de compra reembolsada",
 };
 
 const fmt = (n: number) => n.toLocaleString("pt-BR");
@@ -56,7 +61,8 @@ export const CreditsPanel = () => {
     .filter((t) => t.amount < 0 && Date.now() - new Date(t.created_at).getTime() < 30 * 864e5)
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-  const unlimited = isMaxPlan(ent.plan);
+  // MAX vigente: uso ilimitado dentro da Política de Uso Justo.
+  const unlimited = ent.unlimited;
   const usedPct = ent.monthly_allowance > 0
     ? Math.min(100, Math.round(((ent.monthly_allowance - ent.credits_monthly) / ent.monthly_allowance) * 100))
     : 0;
@@ -80,7 +86,9 @@ export const CreditsPanel = () => {
               <div className="text-2xl font-bold text-primary">
                 {unlimited ? "Ilimitado" : fmt(ent.credits_available)}
               </div>
-              {!unlimited && <div className="text-[11px] text-muted-foreground">créditos</div>}
+              {unlimited
+                ? <a href="/termos#uso-justo" className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">sujeito à Política de Uso Justo</a>
+                : <div className="text-[11px] text-muted-foreground">créditos</div>}
             </div>
             <div className="rounded-xl border border-border p-4">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -106,10 +114,13 @@ export const CreditsPanel = () => {
                 <div className="h-full bg-gradient-primary transition-all" style={{ width: `${usedPct}%` }} />
               </div>
               <p className="text-[11px] text-muted-foreground">
-                {usedPct}% da cota deste mês utilizada. A cota renova automaticamente todo mês
-                {ent.subscription_renews_at && (
-                  <> — assinatura ativa até {new Date(ent.subscription_renews_at).toLocaleDateString("pt-BR")}</>
-                )}.
+                {usedPct}% da cota deste mês utilizada. A cota não acumula: renova um mês depois da última renovação
+                {ent.next_monthly_reset && <> (próxima: {ent.next_monthly_reset})</>}
+                {ent.access_until
+                  ? <> — assinatura cancelada, válida até {new Date(ent.access_until).toLocaleDateString("pt-BR")}</>
+                  : ent.subscription_renews_at && (
+                    <> — período pago até {new Date(ent.subscription_renews_at).toLocaleDateString("pt-BR")}</>
+                  )}.
               </p>
             </div>
           )}

@@ -122,10 +122,17 @@ describe("isActiveSubscriber — assinatura que ainda dá acesso", () => {
   it("vencida (renovação passou) não conta — o avulso comprado depois precisa valer", () => {
     expect(isActiveSubscriber({ plan: "mensal", subscription_status: "active", subscription_renews_at: "2026-09-01T00:00:00Z" }, now)).toBe(false);
   });
-  it("cancelada, avulso ou sem plano não contam", () => {
-    expect(isActiveSubscriber({ plan: "anual", subscription_status: "canceled", subscription_renews_at: "2027-01-01T00:00:00Z" }, now)).toBe(false);
+  it("cancelada dentro do período pago continua assinante (Termos, seção 7)", () => {
+    expect(isActiveSubscriber({ plan: "anual", subscription_status: "canceled", subscription_renews_at: "2027-01-01T00:00:00Z" }, now)).toBe(true);
+  });
+  it("cancelada com o período encerrado ou sem data de fim não conta", () => {
+    expect(isActiveSubscriber({ plan: "anual", subscription_status: "canceled", subscription_renews_at: "2026-09-01T00:00:00Z" }, now)).toBe(false);
+    expect(isActiveSubscriber({ plan: "anual", subscription_status: "canceled", subscription_renews_at: null }, now)).toBe(false);
+  });
+  it("avulso, sem plano ou status inadimplente não contam", () => {
     expect(isActiveSubscriber({ plan: "single" }, now)).toBe(false);
     expect(isActiveSubscriber(null, now)).toBe(false);
+    expect(isActiveSubscriber({ plan: "mensal", subscription_status: "past_due", subscription_renews_at: "2026-10-10T00:00:00Z" }, now)).toBe(false);
   });
 });
 

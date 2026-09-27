@@ -104,7 +104,7 @@ export const Hero = () => {
               </div>
               <div className="flex-1 text-center">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-background/60 text-xs text-muted-foreground">
-                  slideai.app/editor
+                  slideai.com.br/editor
                 </div>
               </div>
             </div>

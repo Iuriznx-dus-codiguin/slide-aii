@@ -1,5 +1,7 @@
 # Sistema de créditos — revisão de ponta a ponta (27/09/2026)
 
+> **Atualização (27/09/2026, conformidade legal):** as decisões **B2** (acesso até o fim do período pago após cancelar) e **B3** (bônus utilizável depois que a assinatura termina) foram implementadas, porque o site e o painel já prometiam esse comportamento ("mantém acesso até o fim do período pago", "bônus permanente"). O plano MAX, ao atingir o teto, passou a informar o limite de uso justo em vez de um erro técnico. Regras vigentes em [../creditos-e-pagamentos.md](../creditos-e-pagamentos.md).
+
 Revisão de todos os eventos que mexem em saldo: compra, assinatura, renovação, adição de créditos com plano ativo, cancelamento, reembolso, geração e recursos extras. A base foi o código, as funções SQL de produção (lidas direto do banco) e testes num PostgreSQL local. As correções estão no mesmo PR das correções da revisão geral.
 
 ## Como o saldo funciona
