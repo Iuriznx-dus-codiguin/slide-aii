@@ -164,6 +164,13 @@ export const resolvePlan = (payload: any): Plan | undefined => {
     || undefined;
 };
 
+/**
+ * Eventos que NUNCA são pagamento, mesmo que o pedido anexado venha com
+ * `status: "paid"` (a Cakto manda o objeto do pedido inteiro em `data`):
+ * recusas, abandono de checkout e boleto/pix/picpay apenas gerados.
+ */
+const NEVER_PAID_HINTS = ["refused", "recusad", "abandon", "_gerado", "generated", "waiting", "pending"];
+
 const PAID_HINTS = [
   "purchase_approved", "subscription_created", "subscription_renewed",
   "approved", "paid", "completed", "success", "active", "renewed",
@@ -176,6 +183,7 @@ export const classifyEvent = (eventType: string, status?: string): EventAction =
   const haystack = `${eventType ?? ""} ${status ?? ""}`.toLowerCase();
   if (REFUND_HINTS.some((h) => haystack.includes(h))) return "refund";
   if (CANCEL_HINTS.some((h) => haystack.includes(h))) return "canceled";
+  if (NEVER_PAID_HINTS.some((h) => (eventType ?? "").toLowerCase().includes(h))) return "ignored";
   if (PAID_HINTS.some((h) => haystack.includes(h))) return "paid";
   return "ignored";
 };
@@ -194,4 +202,101 @@ export const cyclePeriodMonths = (plan: Plan): number | null => {
   if (plan === "trimestral" || plan === "max_trimestral") return 3;
   if (plan === "anual" || plan === "max_anual") return 12;
   return null;
+};
+
+// ── Créditos concedidos por plano (fonte usada pelo webhook) ──
+/** Avulso (R$14,90) credita 500 créditos permanentes (400 + 100 de vitrine). */
+export const SINGLE_PURCHASE_CREDITS = 500;
+export const SUBSCRIPTION_PLANS: readonly Plan[] = [
+  "mensal", "trimestral", "anual", "max_mensal", "max_trimestral", "max_anual",
+];
+/** Cota mensal renovável (redefinida a cada ciclo). */
+export const PLAN_MONTHLY_CREDITS: Record<string, number> = {
+  mensal: 3200, trimestral: 3200, anual: 3200,
+  max_mensal: 16000, max_trimestral: 16000, max_anual: 16000,
+};
+/** Bônus permanente concedido só na PRIMEIRA ativação da assinatura. */
+export const PLAN_SIGNUP_BONUS: Record<string, number> = {
+  mensal: 800, trimestral: 1200, anual: 2000,
+  max_mensal: 0, max_trimestral: 0, max_anual: 0,
+};
+
+/**
+ * Escapa os curingas do LIKE/ILIKE (`%`, `_` e a própria barra). Sem isso,
+ * `joao_silva@x.com` também casava com `joaoXsilva@x.com` e o pagamento
+ * podia ser creditado na conta errada.
+ */
+export const escapeLike = (value: string): string => value.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/** Id da assinatura no payload da Cakto. */
+export const extractSubscriptionId = (payload: any): string | undefined =>
+  dig(payload, ["data.subscription.id", "subscription.id"]) as string | undefined;
+
+export interface RefundScope {
+  /** "single" e "subscription" estornam automaticamente; "review" só registra. */
+  kind: "single" | "subscription" | "review";
+  /** Máximo de créditos bônus a retirar (limitado ao saldo no banco). */
+  revokeBonus: number;
+  /** Zera a cota mensal da assinatura reembolsada. */
+  zeroMonthly: boolean;
+  /** Cancela a assinatura e volta o plano para "free". */
+  cancelSubscription: boolean;
+  reason: string;
+}
+
+/**
+ * Decide o que um reembolso/chargeback desfaz — SÓ o que aquele pedido deu.
+ *
+ * Antes, qualquer reembolso zerava bônus + cota mensal e rebaixava o plano:
+ * reembolsar uma compra avulsa derrubava a assinatura ativa e apagava
+ * créditos de outras compras. Agora:
+ *   • avulso → retira até os 500 créditos daquela compra; plano intacto;
+ *   • assinatura vigente (mesmo id, ou perfil sem id registrado) → cancela,
+ *     zera a cota mensal e retira até o bônus de ativação daquele plano;
+ *   • assinatura diferente da vigente ou plano não identificado → nada é
+ *     estornado automaticamente; o evento fica marcado para revisão.
+ */
+export const refundScopeFor = (input: {
+  plan: Plan | undefined;
+  payloadSubscriptionId?: string | null;
+  profileSubscriptionId?: string | null;
+}): RefundScope => {
+  const { plan } = input;
+  if (plan === "single") {
+    return { kind: "single", revokeBonus: SINGLE_PURCHASE_CREDITS, zeroMonthly: false, cancelSubscription: false, reason: "single_purchase_refund" };
+  }
+  if (plan && SUBSCRIPTION_PLANS.includes(plan)) {
+    const current = input.profileSubscriptionId ?? null;
+    const refunded = input.payloadSubscriptionId ?? null;
+    const isCurrent = !current || !refunded || current === refunded;
+    if (!isCurrent) {
+      return { kind: "review", revokeBonus: 0, zeroMonthly: false, cancelSubscription: false, reason: "refund_of_other_subscription" };
+    }
+    return {
+      kind: "subscription",
+      revokeBonus: PLAN_SIGNUP_BONUS[plan] ?? 0,
+      zeroMonthly: true,
+      cancelSubscription: true,
+      reason: "subscription_refund",
+    };
+  }
+  return { kind: "review", revokeBonus: 0, zeroMonthly: false, cancelSubscription: false, reason: "refund_unknown_plan" };
+};
+
+/**
+ * Assinatura que ainda dá acesso: plano de assinatura, não cancelada e com a
+ * data de renovação no futuro. Uma assinatura VENCIDA (renovação passou sem
+ * pagamento) não conta — antes contava, e quem comprava créditos avulsos com
+ * a assinatura vencida ficava com o plano antigo e era bloqueado pelo
+ * entitlement ("subscription_expired"), sem conseguir usar o que pagou.
+ */
+export const isActiveSubscriber = (
+  profile: { plan?: string | null; subscription_status?: string | null; subscription_renews_at?: string | null } | null | undefined,
+  now: Date = new Date(),
+): boolean => {
+  if (!profile?.plan || !(SUBSCRIPTION_PLANS as readonly string[]).includes(profile.plan)) return false;
+  const status = profile.subscription_status ?? "active";
+  if (!["active", "trialing"].includes(status)) return false;
+  if (profile.subscription_renews_at && new Date(profile.subscription_renews_at).getTime() <= now.getTime()) return false;
+  return true;
 };

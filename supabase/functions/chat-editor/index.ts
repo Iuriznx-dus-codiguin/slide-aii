@@ -152,13 +152,54 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Contadores informados pelo cliente: só servem para ser MAIS restritivo
+    // (o valor que vale é o do banco — ver cota abaixo).
+    const clientMessages = Math.max(0, Math.trunc(Number(usage?.messages ?? 0)) || 0);
+    const clientComplex = Math.max(0, Math.trunc(Number(usage?.complex_edits ?? 0)) || 0);
+
+    // ── Contexto persistido da apresentação (com checagem de posse) ──
+    let presentation: any = null;
+    let creativeBrief: any = null;
+    let theme = dynamic_theme ?? null;
+    // A cota é por apresentação e guardada no banco: sem apresentação, sem edição.
+    if (!presentation_id || typeof presentation_id !== "string") {
+      return new Response(JSON.stringify({ error: "Apresentação não informada." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    {
+      const baseCols = "id, user_id, title, type, language, theme, font_style, creative_brief, dynamic_theme";
+      const first = await admin
+        .from("presentations")
+        .select(`${baseCols}, ai_edit_messages, ai_edit_complex`)
+        .eq("id", presentation_id)
+        .maybeSingle();
+      let pres = first.data;
+      // Migração dos contadores ainda não aplicada: segue com a cota do cliente.
+      if (first.error && (first.error.code === "42703" || first.error.code === "PGRST204")) {
+        pres = (await admin.from("presentations").select(baseCols).eq("id", presentation_id).maybeSingle()).data;
+      }
+      if (!pres) {
+        return new Response(JSON.stringify({ error: "Apresentação não encontrada." }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (pres && pres.user_id !== userId) {
+        await log.security("forbidden", { status: 403, detail: { reason: "presentation_not_owned" } });
+        return new Response(JSON.stringify({ error: "Apresentação não encontrada." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      presentation = pres;
+      creativeBrief = pres.creative_brief ?? null;
+      theme = dynamic_theme ?? pres.dynamic_theme ?? null;
+    }
+
     // ── Cota de edição por apresentação (10 mensagens ou 3 edições complexas) ──
-    // Os contadores são mantidos pelo cliente (persistidos por apresentação) e
-    // reenviados a cada chamada; o servidor é quem decide, incrementa e devolve
-    // o novo valor — o cliente nunca "ganha" enviando números menores porque o
-    // teto é reaplicado aqui e o rate limit por hora continua valendo.
-    const usedMessages = Math.max(0, Math.trunc(Number(usage?.messages ?? 0)) || 0);
-    const usedComplex = Math.max(0, Math.trunc(Number(usage?.complex_edits ?? 0)) || 0);
+    // Vale o maior valor entre o banco e o cliente: enviar 0 não zera mais a
+    // cota (antes o servidor usava só o número que o navegador mandava).
+    const usedMessages = Math.max(clientMessages, Number(presentation?.ai_edit_messages ?? 0) || 0);
+    const usedComplex = Math.max(clientComplex, Number(presentation?.ai_edit_complex ?? 0) || 0);
     if (usedMessages >= MAX_CHAT_MESSAGES || usedComplex >= MAX_COMPLEX_EDITS) {
       return new Response(JSON.stringify({
         error: LIMIT_MESSAGE,
@@ -167,29 +208,6 @@ Deno.serve(async (req) => {
       }), {
         status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-
-    // ── Contexto persistido da apresentação (com checagem de posse) ──
-    let presentation: any = null;
-    let creativeBrief: any = null;
-    let theme = dynamic_theme ?? null;
-    if (presentation_id && typeof presentation_id === "string") {
-      const { data: pres } = await admin
-        .from("presentations")
-        .select("id, user_id, title, type, language, theme, font_style, creative_brief, dynamic_theme")
-        .eq("id", presentation_id)
-        .maybeSingle();
-      if (pres && pres.user_id !== userId) {
-        await log.security("forbidden", { status: 403, detail: { reason: "presentation_not_owned" } });
-        return new Response(JSON.stringify({ error: "Apresentação não encontrada." }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (pres) {
-        presentation = pres;
-        creativeBrief = pres.creative_brief ?? null;
-        theme = dynamic_theme ?? pres.dynamic_theme ?? null;
-      }
     }
 
     const safeHistory: { role: string; content: string }[] = Array.isArray(history)
@@ -331,6 +349,18 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       max_messages: MAX_CHAT_MESSAGES,
       max_complex_edits: MAX_COMPLEX_EDITS,
     };
+    // Registra o uso no banco (só depois de a edição dar certo).
+    {
+      const { data: saved, error: usageErr } = await admin.rpc("add_ai_edit_usage", {
+        _presentation_id: presentation.id, _uid: userId, _complex: !!plan.complex,
+      });
+      if (usageErr) console.warn("chat-editor: add_ai_edit_usage falhou", usageErr.message);
+      const s = saved as { messages?: number; complex_edits?: number } | null;
+      if (s && typeof s.messages === "number") {
+        nextUsage.messages = Math.max(nextUsage.messages, s.messages);
+        nextUsage.complex_edits = Math.max(nextUsage.complex_edits, s.complex_edits ?? 0);
+      }
+    }
 
     return new Response(JSON.stringify({
       slides: updatedSlides,

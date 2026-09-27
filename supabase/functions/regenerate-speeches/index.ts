@@ -55,11 +55,21 @@ Deno.serve(async (req) => {
 
   const { data: pres, error: presErr } = await admin
     .from("presentations")
-    .select("id,user_id,title,topic,tone,presenters_names,presenters_count,speech_regen_count")
+    // Só colunas que existem: `topic` e `tone` (inexistentes) faziam esta
+    // consulta falhar sempre e a regeneração responder 404 em produção.
+    .select("id,user_id,title,include_speeches,presenters_names,presenters_count,speech_regen_count")
     .eq("id", presentationId)
     .maybeSingle();
   if (presErr || !pres) return json({ error: "Apresentação não encontrada." }, 404);
   if (pres.user_id !== userId) return json({ error: "Acesso negado." }, 403);
+  // As falas são um recurso pago na geração (+50 créditos). Regenerar só vale
+  // para apresentações que incluíram as falas — senão viravam falas grátis.
+  if (!(pres as any).include_speeches) {
+    return json({
+      error: "Esta apresentação foi gerada sem as falas dos apresentadores (opção paga na geração).",
+      reason: "speeches_not_included",
+    }, 402);
+  }
 
   const used = Number((pres as any).speech_regen_count ?? 0);
   if (used >= MAX_SPEECH_REGENS) return json({ error: LIMIT_MESSAGE, limitReached: true }, 429);

@@ -276,7 +276,18 @@ Deno.serve(async (req) => {
     // Estilo fora do catálogo viraria "undefined" dentro do prompt final.
     if (body.style && !(body.style in STYLE_SUFFIX)) body.style = undefined;
     const recipe = body.recipe ? sanitizeRecipe(body.recipe) : null;
-    const budgetMode: BudgetMode = body.budget_mode === "premium" || body.budget_mode === "economy" ? body.budget_mode : "balanced";
+    // Acesso do usuário (plano/créditos/dev), consultado no máximo uma vez.
+    let entitlementCache: { allowed?: boolean; reason?: string } | null | undefined;
+    const entitlement = async () => {
+      if (entitlementCache !== undefined) return entitlementCache;
+      if (!userId) return (entitlementCache = null);
+      const { data } = await admin.rpc("can_user_generate", { _uid: userId, _credits_cost: 0 });
+      return (entitlementCache = (data as { allowed?: boolean; reason?: string } | null) ?? null);
+    };
+    // Qualidade vem do pedido, mas "premium" (qualidade alta, a mais cara) só
+    // vale para desenvolvedores — antes, qualquer cliente podia pedir.
+    let budgetMode: BudgetMode = body.budget_mode === "premium" || body.budget_mode === "economy" ? body.budget_mode : "balanced";
+    if (budgetMode === "premium" && (await entitlement())?.reason !== "dev") budgetMode = "balanced";
     const presentationId = typeof body.presentation_id === "string" && UUID_RE.test(body.presentation_id) ? body.presentation_id : null;
 
     // ───────────── Cota de ativos da apresentação (motor v2) ─────────────
@@ -301,7 +312,14 @@ Deno.serve(async (req) => {
         await admin.rpc("add_presentation_asset_cost", { _presentation_id: presentationId, _uid: userId, _cost_usd: usd });
       } catch { /* métrica, nunca bloqueia */ }
     };
+    // Fora da cota da apresentação, imagem por IA exige conta com acesso
+    // (plano ativo, créditos ou dev). Antes bastava estar logado: uma conta
+    // gratuita gerava até 15 imagens de IA por hora por conta da plataforma.
     const withinGenericAiLimit = async (): Promise<boolean> => {
+      if (!(await entitlement())?.allowed) {
+        await log.security("forbidden", { status: 402, detail: { strategy: "ai", reason: "no_plan_for_ai_image" } });
+        return false;
+      }
       const { data } = await admin.rpc("check_rate_limit", { _key: rlKey, _fn: "fetch-image-ai", _max_per_hour: 15 });
       if (data === false) {
         await log.security("rate_limited", { status: 429, detail: { strategy: "ai", max_per_hour: 15 } });
@@ -317,6 +335,9 @@ Deno.serve(async (req) => {
         return json({ url: null, error: "Autenticação necessária para geração de imagem por IA." }, 401);
       }
       if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) {
+        if (!(await entitlement())?.allowed) {
+          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo." }, 402);
+        }
         return json({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }, 429);
       }
     } else if (strategy !== "none") {

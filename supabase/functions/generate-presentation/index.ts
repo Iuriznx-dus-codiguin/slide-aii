@@ -61,12 +61,22 @@ import {
   type TokenUsage,
 } from "../_shared/modelRegistry.ts";
 import { generateContentV2 } from "./contentV2.ts";
-import { normalizeSpeeches } from "./speeches.ts";
+import { fillSpeakerNotes, normalizeSpeeches } from "./speeches.ts";
 import { persistPresentation, type PersistResult, type PersistSlide } from "./persist.ts";
 
 // ───────────── Faixa de slides e custo em créditos ─────────────
 export const MIN_SLIDES = 5;
 export const MAX_SLIDES = 20;
+/** Mesmo teto do slider da tela de geração. */
+export const MAX_PRESENTERS = 8;
+/**
+ * Teto de custo de imagem por geração para quem NÃO é desenvolvedor — o
+ * mesmo padrão que a tela sempre enviou (modo equilibrado). O valor vindo do
+ * navegador só vale para desenvolvedores: antes, qualquer usuário podia
+ * editar o localStorage e ganhar modo premium com mais imagens de IA.
+ */
+const DEFAULT_IMAGE_BUDGET_USD = 0.3;
+const MAX_DEV_IMAGE_BUDGET_USD = 2;
 const CREDITS_PER_SLIDE = 10;
 const DEPTH_CREDITS: Record<string, number> = { short: 10, balanced: 20, long: 30 };
 const SPEECHES_CREDITS = 50;
@@ -591,17 +601,28 @@ Deno.serve(async (req) => {
 
     const slidesCount = requestedSlides;
     const isAutoTheme = body.theme === "auto";
-    const presenters = Math.max(1, body.presentersCount ?? 1);
+    const presenters = Math.max(1, Math.min(MAX_PRESENTERS, Math.round(Number(body.presentersCount) || 1)));
+    // O prompt do v1 lê body.presentersCount/presentersNames direto: grava de
+    // volta os valores já limitados (nomes vão para o prompt — curtos e limpos).
+    body.presentersCount = presenters;
+    body.presentersNames = (Array.isArray(body.presentersNames) ? body.presentersNames : [])
+      .slice(0, presenters)
+      .map((n) => sanitize(n, 60))
+      .filter(Boolean);
     const providerKeys = { openaiKey: useOpenAI ? OPENAI_API_KEY : null, lovableKey: LOVABLE_API_KEY };
 
     // ───────────── Motor e persistência ─────────────
     const persistOnServer = rawBody?.persist === "server";
-    const engine = pickEngine(rawBody?.engineVersion, userId, persistOnServer);
+    // Escolha manual do motor só para desenvolvedores (comparação no Dev Mode);
+    // para os demais vale o rollout.
+    const engine = pickEngine(isDev ? rawBody?.engineVersion : undefined, userId, persistOnServer);
 
-    // Modo derivado do teto único quando fornecido; fallback para o enviado.
-    const budgetMode = typeof body.max_budget_usd === "number"
-      ? budgetModeFromUsd(body.max_budget_usd)
-      : (body.image_budget_mode ?? "balanced");
+    // Orçamento de imagem decidido no SERVIDOR. O teto enviado pelo cliente
+    // (Dev Mode) só vale para desenvolvedores, limitado a MAX_DEV_IMAGE_BUDGET_USD.
+    const imageBudgetUsd = isDev && typeof body.max_budget_usd === "number" && Number.isFinite(body.max_budget_usd)
+      ? Math.max(0, Math.min(MAX_DEV_IMAGE_BUDGET_USD, body.max_budget_usd))
+      : DEFAULT_IMAGE_BUDGET_USD;
+    const budgetMode = budgetModeFromUsd(imageBudgetUsd);
     const pexelsOnly = budgetMode === "economy";
     const preferDynamic = body.preferDynamic !== false;
 
@@ -654,7 +675,7 @@ Deno.serve(async (req) => {
         includeImages: !!body.includeImages,
         includeCharts: !!body.includeCharts,
         budgetMode,
-        maxAiVisuals: maxAiVisualsFor(body.max_budget_usd, slidesCount, 2),
+        maxAiVisuals: maxAiVisualsFor(imageBudgetUsd, slidesCount, 2),
         seed: body.title,
       });
       planMs = Date.now() - tPlan;
@@ -718,7 +739,10 @@ Deno.serve(async (req) => {
       rows = resolved.slides.map((s, i) => ({
         slide_type: s.slide_type,
         layout_template: s.layout_template,
-        speaker_notes: s.speaker_notes,
+        // Falas pagas (+50 créditos): nota nunca vazia. Sem elas, fica o que a IA mandou.
+        speaker_notes: body.includeSpeeches
+          ? fillSpeakerNotes(s.speaker_notes, s.content as Parameters<typeof fillSpeakerNotes>[1])
+          : s.speaker_notes,
         animation_transition: "fade",
         presenters_data: speeches?.[i] ?? [],
         content: s.content,
@@ -1055,6 +1079,11 @@ Deno.serve(async (req) => {
         };
       });
 
+      // Com as falas pagas (+50 créditos), nota do orador nunca vazia.
+      if (body.includeSpeeches) {
+        parsed.slides = parsed.slides.map((s: any) => ({ ...s, speaker_notes: fillSpeakerNotes(s.speaker_notes, s) }));
+      }
+
       // Falas normalizadas (um objeto por apresentador; fala sintetizada
       // quando a IA não devolve nenhuma) — mesma regra de antes, extraída.
       if (body.includeSpeeches) {
@@ -1133,7 +1162,7 @@ Deno.serve(async (req) => {
     }
     const imageUsd = imagesAi * estimateAiImageUsd(budgetMode === "economy" ? "balanced" : budgetMode);
     const actualCost = +(textUsd + imageUsd).toFixed(4);
-    const estimatedCost = typeof body.max_budget_usd === "number" ? +body.max_budget_usd.toFixed(4) : actualCost;
+    const estimatedCost = +imageBudgetUsd.toFixed(4);
 
     // ───────────── Persistência ─────────────
     let persisted: PersistResult | null = null;

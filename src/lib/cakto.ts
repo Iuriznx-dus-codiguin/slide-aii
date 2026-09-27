@@ -98,3 +98,21 @@ export const proPlanFor  = (cycle: BillingCycle): PaidPlan =>
   cycle === "anual" ? "anual" : cycle === "trimestral" ? "trimestral" : "mensal";
 export const maxPlanFor  = (cycle: BillingCycle): PaidPlan =>
   cycle === "anual" ? "max_anual" : cycle === "trimestral" ? "max_trimestral" : "max_mensal";
+
+/**
+ * A cota mensal renova 1 mês depois do início do ciclo (credits_cycle_anchor,
+ * dia da ativação/renovação), igual a ensure_monthly_credits no banco.
+ * Antes era por mês-calendário (dia 1º) — somado ao reset na renovação, um
+ * plano mensal recarregava duas vezes por mês.
+ *
+ * `anchor` é uma data "AAAA-MM-DD" (UTC). Soma de mês com o mesmo corte do
+ * Postgres: 31/01 + 1 mês = 28/02 (ou 29 em ano bissexto).
+ */
+export const isMonthlyCycleDue = (anchor: string | null | undefined, now: Date = new Date()): boolean => {
+  if (!anchor) return true;
+  const [y, m, d] = anchor.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return true;
+  const lastDayNext = new Date(Date.UTC(y, m + 1, 0)).getUTCDate(); // último dia do mês seguinte
+  const due = Date.UTC(y, m, Math.min(d, lastDayNext));
+  return now.getTime() >= due;
+};
