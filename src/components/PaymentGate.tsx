@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CHECKOUT_URLS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, SINGLE_PURCHASE_CREDITS, type PaidPlan, type BillingCycle } from "@/lib/cakto";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { toast } from "sonner";
+import { ContractSummary } from "@/components/legal/ContractSummary";
 
 interface Props {
   open: boolean;
@@ -148,12 +149,12 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
           {/* MAX */}
           <div className="rounded-2xl border-2 border-amber-500/40 p-4 bg-gradient-to-br from-amber-500/5 to-primary/5 relative flex flex-col">
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-glow whitespace-nowrap">
-              <Crown className="h-2.5 w-2.5" /> Ilimitado
+              <Crown className="h-2.5 w-2.5" /> Uso ilimitado*
             </div>
             <div className="font-display font-bold mt-1">Plano MAX</div>
             <div className="text-lg font-semibold mt-1">{PLAN_PRICES[maxId]}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-glow">
-              <Crown className="h-2.5 w-2.5" /> Créditos ilimitados
+              <Crown className="h-2.5 w-2.5" /> Gerações ilimitadas*
             </div>
             <Button size="sm" variant="outline" className="w-full mt-4 gap-1.5 border-amber-500/50 hover:bg-amber-500/10" onClick={() => startCheckout(maxId)}>
               Pagar agora <ExternalLink className="h-3 w-3" />
@@ -167,6 +168,8 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
             Todos os planos incluem geração em segundos, exportação PDF/PPTX/PNG, link público compartilhável e suporte prioritário.
           </p>
         </div>
+
+        <ContractSummary className="mt-4" />
 
         <p className="text-center text-[11px] text-muted-foreground mt-3">
           Após o pagamento, retorne a esta janela. A geração inicia em segundos.

@@ -15,7 +15,7 @@ import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
 import { useDevSettings } from "@/hooks/useDevSettings";
-import { CREDITS_PER_SLIDE, DEPTH_CREDITS, SPEECHES_CREDITS, isMaxPlan } from "@/lib/cakto";
+import { CREDITS_PER_SLIDE, DEPTH_CREDITS, SPEECHES_CREDITS } from "@/lib/cakto";
 import { toast } from "sonner";
 import { THEMES, autoFontForContext, resolveFontPairing } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
@@ -129,7 +129,8 @@ const Generate = () => {
   const depthCost = DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced;
   const speechCost = includeSpeeches ? SPEECHES_CREDITS : 0;
   const totalCost = slidesCost + depthCost + speechCost;
-  const unlimitedCredits = isMaxPlan(ent.plan) || isDeveloper;
+  // MAX vigente: uso ilimitado dentro da Política de Uso Justo (sem custo na tela).
+  const unlimitedCredits = ent.unlimited || isDeveloper;
   const balanceAfter = ent.credits_available - totalCost;
   /** Usuário tem algum saldo — só ele vê avisos de limite; quem não tem nada
    *  compra após configurar (botão vira "Continuar para pagamento"). */
@@ -200,6 +201,12 @@ const Generate = () => {
       if (ent.reason === "insufficient_credits") {
         // Saldo existe mas não cobre: abre o pagamento para completar/recarregar.
         setShowPayment(true);
+        return;
+      }
+      if (ent.reason === "fair_use_limit") {
+        toast.error(reasonMessage("fair_use_limit", ent.next_monthly_reset), {
+          action: { label: "Comprar créditos", onClick: () => setShowPayment(true) },
+        });
         return;
       }
       if (ent.reason === "system_error") {
@@ -474,7 +481,30 @@ const Generate = () => {
             </div>
           )}
 
-          {!canGenerate && !ent.loading && !needsRenewal(ent.reason) && (
+          {!canGenerate && !ent.loading && ent.reason === "fair_use_limit" && (
+            <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4 md:p-5 flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="text-sm flex-1">
+                <p className="font-semibold">Limite de uso justo atingido neste ciclo</p>
+                <p className="text-muted-foreground mt-1">{reasonMessage("fair_use_limit", ent.next_monthly_reset)}</p>
+                <a href="/termos#uso-justo" className="text-xs text-primary hover:underline mt-2 inline-block">Entenda a Política de Uso Justo</a>
+              </div>
+            </div>
+          )}
+
+          {canGenerate && !ent.loading && ent.access_until && (
+            <div className="mb-6 rounded-2xl border border-border bg-muted/30 p-4 text-sm flex items-start gap-3">
+              <CreditCard className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-muted-foreground">
+                Sua assinatura foi cancelada e não será renovada. O acesso e a cota do plano continuam valendo até{" "}
+                <strong className="text-foreground">{new Date(ent.access_until).toLocaleDateString("pt-BR")}</strong>, fim do período já pago.
+              </p>
+            </div>
+          )}
+
+          {!canGenerate && !ent.loading && !needsRenewal(ent.reason) && ent.reason !== "fair_use_limit" && (
             <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-4 md:p-5 flex items-start gap-3">
               <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
                 <CreditCard className="h-4 w-4 text-primary" />

@@ -3,10 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { CHECKOUT_URLS, PLAN_LABELS, isSubscriptionPlan, isMaxPlan } from "@/lib/cakto";
+import { LEGAL } from "@/lib/legal";
+import { useAuth } from "@/hooks/useAuth";
 
 /** Seção "Minha conta" no Dashboard. */
 export const AccountPanel = () => {
   const ent = useEntitlement();
+  const { user } = useAuth();
 
   if (ent.loading) {
     return (
@@ -31,6 +34,11 @@ export const AccountPanel = () => {
     return Math.ceil((targetDay.getTime() - start.getTime()) / 86_400_000);
   })();
   const showRenewalNotice = isSubscription && ent.subscription_status === "active" && renewalDays !== null && renewalDays >= 0 && renewalDays <= 5;
+  const accessUntil = ent.access_until ? new Date(ent.access_until).toLocaleDateString("pt-BR") : null;
+  // Cancelamento por e-mail: o pedido já sai com o que o atendimento precisa.
+  const cancelHref = `mailto:${LEGAL.supportEmail}?subject=${encodeURIComponent("Cancelar assinatura")}&body=${encodeURIComponent(
+    `Quero cancelar a renovação da minha assinatura do ${LEGAL.brand}.\n\nE-mail da conta: ${user?.email ?? ""}\nPlano: ${PLAN_LABELS[ent.plan] ?? ent.plan}\n\nEntendo que o acesso continua até o fim do período já pago.`,
+  )}`;
 
   return (
     <Card className="border-border/60 bg-gradient-to-br from-primary/5 to-transparent">
@@ -44,15 +52,23 @@ export const AccountPanel = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-display font-bold">Plano atual: {PLAN_LABELS[ent.plan] ?? "Gratuito"}</h3>
                 {ent.subscription_status === "active" && <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-semibold">Ativa</span>}
-                {ent.subscription_status === "canceled" && <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold">Cancelada</span>}
+                {ent.subscription_status === "canceled" && <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold">{accessUntil ? "Cancelada · não renova" : "Encerrada"}</span>}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {isDev && "Acesso desenvolvedor — gerações ilimitadas e bypass de paywall ativo."}
                 {ent.plan === "single" && `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis.`}
-                {isSubscription && (
-                  isMaxPlan(ent.plan)
-                    ? `Gerações ilimitadas${renews ? ` — renova em ${renews}.` : "."}`
-                    : `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis (${ent.credits_monthly.toLocaleString("pt-BR")} mensais + ${ent.credits_bonus.toLocaleString("pt-BR")} bônus)${renews ? ` — renova em ${renews}.` : "."}`
+                {isSubscription && ent.subscription_current && (
+                  <>
+                    {isMaxPlan(ent.plan)
+                      ? "Uso ilimitado dentro da Política de Uso Justo"
+                      : `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis (${ent.credits_monthly.toLocaleString("pt-BR")} mensais + ${ent.credits_bonus.toLocaleString("pt-BR")} bônus)`}
+                    {accessUntil ? ` — acesso até ${accessUntil}, fim do período pago.` : renews ? ` — renova em ${renews}.` : "."}
+                  </>
+                )}
+                {isSubscription && !ent.subscription_current && (
+                  ent.credits_bonus > 0
+                    ? `Assinatura encerrada. Seus ${ent.credits_bonus.toLocaleString("pt-BR")} créditos bônus continuam disponíveis.`
+                    : "Assinatura encerrada. Renove um plano ou compre créditos avulsos para voltar a gerar."
                 )}
                 {ent.plan === "free" && "Você ainda não possui um plano. Adquira para gerar apresentações."}
               </p>
@@ -80,17 +96,24 @@ export const AccountPanel = () => {
                 </a>
               </Button>
             )}
-            {isSubscription && (
+            {isSubscription && ent.subscription_current && (
               <>
                 <Button asChild variant="outline" size="sm">
                   <a href="https://app.cakto.com.br/" target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" /> Gerenciar
                   </a>
                 </Button>
-                <Button asChild variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                  <a href="mailto:suporte@slideai.app?subject=Cancelar%20assinatura">Cancelar</a>
-                </Button>
+                {!accessUntil && (
+                  <Button asChild variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                    <a href={cancelHref} title="O acesso continua até o fim do período já pago">Cancelar</a>
+                  </Button>
+                )}
               </>
+            )}
+            {isSubscription && !ent.subscription_current && (
+              <Button asChild variant="hero" size="sm">
+                <a href="/gerar"><Zap className="h-4 w-4" /> Renovar plano</a>
+              </Button>
             )}
           </div>
         </div>

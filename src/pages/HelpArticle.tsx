@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Seo } from "@/components/Seo";
+import { helpCategoryLabel } from "@/lib/helpCategories";
 
 interface Article {
   id: string;
@@ -98,7 +99,7 @@ const HelpArticle = () => {
             "@type": "Article",
             headline: article.title,
             description: summary,
-            articleSection: article.category ?? undefined,
+            articleSection: article.category ? helpCategoryLabel(article.category) : undefined,
             dateModified: article.updated_at,
             inLanguage: "pt-BR",
             mainEntityOfPage: `https://slideai.com.br/ajuda/${article.slug}`,
@@ -140,7 +141,7 @@ const HelpArticle = () => {
               <ChevronRight className="h-3 w-3" />
               {article.category && (
                 <>
-                  <span>{article.category}</span>
+                  <span>{helpCategoryLabel(article.category)}</span>
                   <ChevronRight className="h-3 w-3" />
                 </>
               )}
@@ -149,7 +150,7 @@ const HelpArticle = () => {
 
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
-                {article.category && <Badge variant="secondary" className="mb-3">{article.category}</Badge>}
+                {article.category && <Badge variant="secondary" className="mb-3">{helpCategoryLabel(article.category)}</Badge>}
                 <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight">{article.title}</h1>
                 <p className="text-xs text-muted-foreground mt-2">
                   Atualizado em {new Date(article.updated_at).toLocaleDateString("pt-BR")}
@@ -163,7 +164,16 @@ const HelpArticle = () => {
 
             {/* Corpo do artigo */}
             <article className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-headings:font-display prose-headings:font-bold prose-a:text-primary prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.content_md}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  // Links internos (/ajuda/…, /termos#…) navegam sem recarregar a página.
+                  a: ({ href, children }) =>
+                    href && href.startsWith("/")
+                      ? <Link to={href}>{children}</Link>
+                      : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+                }}
+              >{article.content_md}</ReactMarkdown>
             </article>
 
             {/* Erros relacionados */}

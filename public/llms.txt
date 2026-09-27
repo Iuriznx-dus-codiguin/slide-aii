@@ -8,3 +8,7 @@
 - [Gerar apresentação](/gerar): Fluxo principal para descrever um tema e gerar slides com IA.
 - [Templates](/templates): Modelos pré-estruturados como ponto de partida.
 - [Entrar](/auth): Login e cadastro de usuários.
+- [Central de Ajuda](/ajuda): Guias sobre créditos, planos, geração, edição, exportação, conta e privacidade.
+- [Termos de Uso](/termos): Créditos, planos, renovação, cancelamento, arrependimento (7 dias), uso justo, conteúdo gerado por IA e responsabilidades.
+- [Política de Privacidade](/privacidade): Dados tratados, bases legais da LGPD, fornecedores, retenção, cookies e direitos do titular.
+- [Contato](/contato): Canais de atendimento.

@@ -4,7 +4,7 @@
 //   • purchase_approved       → libera geração única (single) ou ativa assinatura no primeiro ciclo
 //   • subscription_created    → ativa assinatura
 //   • subscription_renewed    → estende o período (renewsAt = agora + ciclo)
-//   • subscription_canceled   → marca status=canceled (o entitlement bloqueia geração)
+//   • subscription_canceled   → marca status=canceled (acesso até o fim do período pago)
 //   • refunded / chargeback   → cancela e limpa o plano
 //
 // Segurança: o segredo pode chegar em header (`x-cakto-token`, `x-cakto-secret`,
@@ -289,8 +289,9 @@ Deno.serve(async (req) => {
       else log.info("credits_revoked", { revoked, scope: scope.kind });
 
     } else if (action === "canceled") {
-      // Não apaga o plano: apenas marca canceled. O entitlement bloqueia a geração
-      // e a UI mostra "como renovar".
+      // Não apaga o plano: apenas marca canceled. Pelos Termos (seção 7), o
+      // acesso e a cota continuam até subscription_renews_at — fim do período
+      // pago — e só então o entitlement pausa as gerações (o bônus segue valendo).
       await admin.from("profiles").update({
         subscription_status: "canceled",
       }).eq("id", userId);

@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Seo } from "@/components/Seo";
+import { FEATURED_HELP_SLUGS, HELP_CATEGORY_META, HELP_CATEGORY_ORDER, helpCategoryLabel } from "@/lib/helpCategories";
+import { FileText, ShieldCheck, Scale } from "lucide-react";
 
 interface Article {
   id: string;
@@ -43,7 +45,8 @@ const HelpCenter = () => {
   const categories = useMemo(() => {
     const set = new Set<string>();
     articles.forEach((a) => a.category && set.add(a.category));
-    return Array.from(set).sort();
+    const rank = (c: string) => { const i = HELP_CATEGORY_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+    return Array.from(set).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
   }, [articles]);
 
   const filtered = useMemo(() => {
@@ -62,10 +65,16 @@ const HelpCenter = () => {
       const key = a.category ?? "Outros";
       map.set(key, [...(map.get(key) ?? []), a]);
     });
-    return Array.from(map.entries());
+    const rank = (c: string) => { const i = HELP_CATEGORY_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+    return Array.from(map.entries()).sort(([a], [b]) => rank(a) - rank(b));
   }, [filtered]);
 
-  const featured = articles.slice(0, 6);
+  // Destaques escolhidos; se algum não estiver publicado, completa com os primeiros.
+  const featured = useMemo(() => {
+    const picked = FEATURED_HELP_SLUGS.map((s) => articles.find((a) => a.slug === s)).filter(Boolean) as Article[];
+    const rest = articles.filter((a) => !picked.includes(a));
+    return [...picked, ...rest].slice(0, 6);
+  }, [articles]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -131,7 +140,7 @@ const HelpCenter = () => {
                   className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                     category === c ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:border-primary/50"
                   }`}
-                >{c} ({count})</button>
+                >{helpCategoryLabel(c)} ({count})</button>
               );
             })}
           </div>
@@ -148,7 +157,7 @@ const HelpCenter = () => {
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between mb-2">
                         <HelpCircle className="h-5 w-5 text-primary" />
-                        {a.category && <Badge variant="secondary" className="text-[10px]">{a.category}</Badge>}
+                        {a.category && <Badge variant="secondary" className="text-[10px]">{helpCategoryLabel(a.category)}</Badge>}
                       </div>
                       <h3 className="font-semibold group-hover:text-primary transition-colors">{a.title}</h3>
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
@@ -182,9 +191,10 @@ const HelpCenter = () => {
 
         {!loading && grouped.map(([cat, items]) => (
           <section key={cat} className="mb-10">
-            <h2 className="font-display text-lg font-bold mb-3 text-muted-foreground uppercase tracking-wider text-xs">
-              {cat}
+            <h2 className="font-display font-bold mb-3 text-muted-foreground uppercase tracking-wider text-xs">
+              {helpCategoryLabel(cat)}
             </h2>
+            {HELP_CATEGORY_META[cat] && <p className="-mt-2 mb-3 text-xs text-muted-foreground">{HELP_CATEGORY_META[cat].description}</p>}
             <div className="border border-border rounded-xl overflow-hidden bg-card divide-y divide-border">
               {items.map((a) => (
                 <Link key={a.id} to={`/ajuda/${a.slug}`} className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50 transition-colors group">
@@ -201,6 +211,28 @@ const HelpCenter = () => {
             </div>
           </section>
         ))}
+
+        {/* Documentos legais */}
+        <section className="mt-12">
+          <h2 className="font-display text-xl font-bold mb-4">Documentos e políticas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { to: "/termos", icon: Scale, title: "Termos de Uso", desc: "Créditos, planos, cancelamento, uso justo e responsabilidades." },
+              { to: "/privacidade", icon: ShieldCheck, title: "Política de Privacidade", desc: "Dados tratados, bases legais, retenção e seus direitos (LGPD)." },
+              { to: "/termos#arrependimento", icon: FileText, title: "Reembolso e arrependimento", desc: "7 dias para desistir, com reembolso integral." },
+            ].map((d) => (
+              <Link key={d.to} to={d.to}>
+                <Card className="h-full hover:border-primary/50 hover:shadow-md transition-all group">
+                  <CardContent className="p-5">
+                    <d.icon className="h-5 w-5 text-primary mb-2" />
+                    <h3 className="font-semibold group-hover:text-primary transition-colors">{d.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-2">{d.desc}</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         {/* CTA de suporte */}
         <section className="mt-12 rounded-2xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-8 text-center">

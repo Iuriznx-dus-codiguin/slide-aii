@@ -284,11 +284,15 @@ export const refundScopeFor = (input: {
 };
 
 /**
- * Assinatura que ainda dá acesso: plano de assinatura, não cancelada e com a
- * data de renovação no futuro. Uma assinatura VENCIDA (renovação passou sem
- * pagamento) não conta — antes contava, e quem comprava créditos avulsos com
- * a assinatura vencida ficava com o plano antigo e era bloqueado pelo
- * entitlement ("subscription_expired"), sem conseguir usar o que pagou.
+ * Assinatura que ainda dá acesso — mesma regra de `subscription_is_current`
+ * no banco (migração 0003) e de isSubscriptionCurrent no front:
+ * • ativa (ou sem status, legado) com a renovação no futuro;
+ * • CANCELADA, mas dentro do período já pago (os Termos garantem o acesso até
+ *   o fim do período — cancelar só interrompe a renovação).
+ * Uma assinatura VENCIDA (renovação passou sem pagamento) não conta: quem
+ * compra créditos avulsos nessa situação passa ao plano avulso e usa o que
+ * pagou. Já quem cancelou e ainda está no período pago continua assinante: a
+ * compra avulsa só soma bônus, sem apagar a cota do período.
  */
 export const isActiveSubscriber = (
   profile: { plan?: string | null; subscription_status?: string | null; subscription_renews_at?: string | null } | null | undefined,
@@ -296,7 +300,9 @@ export const isActiveSubscriber = (
 ): boolean => {
   if (!profile?.plan || !(SUBSCRIPTION_PLANS as readonly string[]).includes(profile.plan)) return false;
   const status = profile.subscription_status ?? "active";
+  const renews = profile.subscription_renews_at ? new Date(profile.subscription_renews_at).getTime() : null;
+  if (status === "canceled") return renews !== null && renews > now.getTime();
   if (!["active", "trialing"].includes(status)) return false;
-  if (profile.subscription_renews_at && new Date(profile.subscription_renews_at).getTime() <= now.getTime()) return false;
+  if (renews !== null && renews <= now.getTime()) return false;
   return true;
 };

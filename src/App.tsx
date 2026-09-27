@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -26,12 +26,14 @@ import PublicProfile from "./pages/PublicProfile.tsx";
 import About from "./pages/About.tsx";
 import Contact from "./pages/Contact.tsx";
 import Privacy from "./pages/Privacy.tsx";
+import Terms from "./pages/Terms.tsx";
 import OAuthConsent from "./pages/OAuthConsent.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { DevModePanel } from "./components/DevModePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SupportWidget } from "./components/SupportWidget";
 import { PaymentNotifications } from "./components/PaymentNotifications";
+import { LegalConsentGate } from "./components/legal/LegalConsentGate";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +65,9 @@ const App = () => (
               <Route path="/sobre" element={<About />} />
               <Route path="/contato" element={<Contact />} />
               <Route path="/privacidade" element={<Privacy />} />
+              <Route path="/termos" element={<Terms />} />
+              <Route path="/termos-de-uso" element={<Navigate to="/termos" replace />} />
+              <Route path="/cookies" element={<Navigate to={{ pathname: "/privacidade", hash: "#cookies" }} replace />} />
               <Route path="/__dev" element={<ProtectedRoute><DevDashboard /></ProtectedRoute>} />
               <Route path="/admin/suporte" element={<ProtectedRoute><AdminSupport /></ProtectedRoute>} />
               <Route path="/slides/:slug" element={<SlideViewer />} />
@@ -72,6 +77,7 @@ const App = () => (
             </Routes>
             <DevModePanel />
             <PaymentNotifications />
+            <LegalConsentGate />
             <SupportWidget />
           </ErrorBoundary>
         </AuthProvider>
