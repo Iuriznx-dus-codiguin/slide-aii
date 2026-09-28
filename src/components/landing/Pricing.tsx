@@ -2,9 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
-import { FAIR_USE_HOURLY_GENERATIONS, FAIR_USE_MAX_MONTHLY_CREDITS } from "@/lib/fairUse";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
@@ -239,13 +237,6 @@ export const Pricing = () => {
           </motion.div>
         </div>
 
-        <div className="max-w-4xl mx-auto mt-10 space-y-2 text-center text-xs text-muted-foreground leading-relaxed">
-          <p>
-            * Plano MAX: uso ilimitado para uma pessoa, dentro da{" "}
-            <Link to="/termos#uso-justo" className="text-primary hover:underline">Política de Uso Justo</Link> — até{" "}
-            {FAIR_USE_MAX_MONTHLY_CREDITS.toLocaleString("pt-BR")} créditos por ciclo mensal e {FAIR_USE_HOURLY_GENERATIONS} gerações por hora.
-          </p>
-        </div>
       </div>
     </section>
   );
