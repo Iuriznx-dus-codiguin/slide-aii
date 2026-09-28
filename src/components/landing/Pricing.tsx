@@ -2,9 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
-import { FAIR_USE_HOURLY_GENERATIONS, FAIR_USE_MAX_MONTHLY_CREDITS } from "@/lib/fairUse";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
