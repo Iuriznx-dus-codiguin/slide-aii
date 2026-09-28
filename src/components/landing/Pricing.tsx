@@ -245,11 +245,6 @@ export const Pricing = () => {
             <Link to="/termos#uso-justo" className="text-primary hover:underline">Política de Uso Justo</Link> — até{" "}
             {FAIR_USE_MAX_MONTHLY_CREDITS.toLocaleString("pt-BR")} créditos por ciclo mensal e {FAIR_USE_HOURLY_GENERATIONS} gerações por hora.
           </p>
-          <p>
-            Assinaturas renovam automaticamente ao fim de cada período. Cancele quando quiser: o acesso continua até o fim do
-            período pago. Arrependeu-se? Você tem 7 dias após a compra para pedir o reembolso integral.{" "}
-            <Link to="/termos#planos" className="text-primary hover:underline">Condições completas</Link>.
-          </p>
         </div>
       </div>
     </section>
