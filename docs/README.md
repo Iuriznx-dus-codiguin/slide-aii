@@ -31,3 +31,4 @@
 | [revisao/2026-09-26-revisao-geral.md](revisao/2026-09-26-revisao-geral.md) | Revisão geral da plataforma e do motor v2 |
 | [revisao/2026-09-27-sistema-de-creditos.md](revisao/2026-09-27-sistema-de-creditos.md) | Revisão de ponta a ponta do sistema de créditos |
 | [revisao/2026-09-27-correcoes-lovable.md](revisao/2026-09-27-correcoes-lovable.md) | Aplicação das correções na Lovable Cloud |
+| [revisao/2026-09-29-analise-de-lancamento.md](revisao/2026-09-29-analise-de-lancamento.md) | Prontidão para lançamento: bloqueadores, produto, segurança, escalabilidade e custos |
