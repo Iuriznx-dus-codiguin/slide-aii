@@ -6,7 +6,7 @@ export type Plan =
   | "mensal" | "trimestral" | "anual"
   | "max_mensal" | "max_trimestral" | "max_anual";
 
-export type EventAction = "paid" | "canceled" | "refund" | "ignored";
+export type EventAction = "paid" | "canceled" | "refund" | "paused" | "resumed" | "ignored";
 
 /** Mapeamento por short_id do checkout Cakto → plano interno. */
 export const PLAN_BY_CHECKOUT_ID: Record<string, Plan> = {
@@ -145,6 +145,11 @@ export const extractEmail = (payload: any): string | undefined =>
 export const extractCaktoId = (payload: any): string | undefined =>
   dig(payload, ["data.id", "id", "data.transaction.id", "transaction_id"]) as string | undefined;
 
+/** Id da oferta Cakto (prefixo do slug do link, ex.: "qw6rzxx" de "qw6rzxx_856330"). */
+const PLAN_BY_OFFER_ID: Record<string, Plan> = Object.fromEntries(
+  Object.entries(PLAN_BY_CHECKOUT_ID).map(([slug, plan]) => [slug.split("_")[0], plan]),
+);
+
 export const resolvePlan = (payload: any): Plan | undefined => {
   const checkoutSlug = dig(payload, [
     "data.product.short_id", "data.product.slug", "data.checkout.slug",
@@ -153,13 +158,18 @@ export const resolvePlan = (payload: any): Plan | undefined => {
   const productId = String(dig(payload, [
     "data.product.id", "product.id", "data.offer.id", "offer.id", "data.refId", "refId",
   ]) ?? "");
+  const offerIds = [
+    dig(payload, ["data.offer.id", "offer.id"]),
+    dig(payload, ["data.subscription.offer", "subscription.offer"]),
+  ].filter((v): v is string => typeof v === "string");
   const checkoutUrl = dig(payload, [
     "data.checkoutUrl", "checkoutUrl", "data.checkout_url", "checkout_url",
   ]) as string | undefined;
   const slugFromUrl = checkoutUrl?.match(/pay\.cakto\.com\.br\/([^/?#]+)/i)?.[1];
 
   return (checkoutSlug && PLAN_BY_CHECKOUT_ID[checkoutSlug])
-    || (slugFromUrl && PLAN_BY_CHECKOUT_ID[slugFromUrl])
+    || (slugFromUrl && (PLAN_BY_CHECKOUT_ID[slugFromUrl] || PLAN_BY_OFFER_ID[slugFromUrl.split("_")[0]]))
+    || offerIds.map((o) => PLAN_BY_OFFER_ID[o]).find(Boolean)
     || PLAN_BY_PRODUCT_ID[productId]
     || undefined;
 };
@@ -178,8 +188,39 @@ const PAID_HINTS = [
 const CANCEL_HINTS = ["subscription_canceled", "subscription_cancelled", "canceled", "cancelled"];
 const REFUND_HINTS = ["refunded", "refund", "chargeback", "chargedback"];
 
+/**
+ * Mapa explícito dos eventos oficiais da Cakto. Tem precedência sobre as
+ * heurísticas: o pedido vem SEMPRE com `status: "paid"` no payload de teste
+ * da Cakto, e sem este mapa eventos como `subscription_late`,
+ * `subscription_paused` ou `webhook_test` eram tratados como pagamento
+ * (recreditando a cota), e `refund_requested` estornava antes do reembolso.
+ */
+export const CAKTO_EVENT_ACTIONS: Record<string, EventAction> = {
+  webhook_test: "ignored",
+  purchase_approved: "paid",
+  purchase_refused: "ignored",
+  pix_gerado: "ignored",
+  boleto_gerado: "ignored",
+  picpay_gerado: "ignored",
+  openfinance_nubank_gerado: "ignored",
+  checkout_abandonment: "ignored",
+  refund_requested: "ignored",    // só pedido; o estorno vem no evento `refund`
+  refund: "refund",
+  chargeback: "refund",
+  subscription_created: "paid",
+  subscription_renewed: "paid",
+  subscription_late_recovered: "paid", // cobrança atrasada paga = renovação
+  subscription_canceled: "canceled",
+  subscription_renewal_refused: "ignored", // Cakto ainda tenta de novo; acesso segue até o fim do período
+  subscription_late: "ignored",
+  subscription_paused: "paused",
+  subscription_resumed: "resumed",
+};
+
 /** Reembolso/chargeback tem precedência sobre cancelamento, e cancelamento sobre pagamento. */
 export const classifyEvent = (eventType: string, status?: string): EventAction => {
+  const known = CAKTO_EVENT_ACTIONS[(eventType ?? "").toLowerCase().trim()];
+  if (known) return known;
   const haystack = `${eventType ?? ""} ${status ?? ""}`.toLowerCase();
   if (REFUND_HINTS.some((h) => haystack.includes(h))) return "refund";
   if (CANCEL_HINTS.some((h) => haystack.includes(h))) return "canceled";
@@ -187,6 +228,11 @@ export const classifyEvent = (eventType: string, status?: string): EventAction =
   if (PAID_HINTS.some((h) => haystack.includes(h))) return "paid";
   return "ignored";
 };
+
+/** Renovação (não concede bônus de ativação e anima como "renovada"). */
+export const isRenewalEvent = (eventType: string): boolean =>
+  /renew|recovered/.test((eventType ?? "").toLowerCase());
+
 
 /** Adiciona `months` meses preservando o dia (com clamp no fim do mês). */
 export const addMonths = (d: Date, months: number): Date => {
