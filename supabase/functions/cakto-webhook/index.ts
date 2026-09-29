@@ -17,7 +17,7 @@ import {
   escapeLike, extractCaktoId, extractEmail, extractEventType, extractStatus,
   extractSubscriptionId, hasValidSecret, isActiveSubscriber, normalizeSecret, parseExpectedSecrets,
   PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
-  SINGLE_PURCHASE_CREDITS,
+  SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
   const status = extractStatus(payload);
   const cakto_id = extractCaktoId(payload);
   const email = extractEmail(payload);
-  const plan = resolvePlan(payload);
+  let plan: Plan | undefined = resolvePlan(payload);
   const action = classifyEvent(event_type, status);
 
   const customerId = dig(payload, ["data.customer.id", "customer.id"]) as string | undefined;
@@ -161,6 +161,25 @@ Deno.serve(async (req) => {
     return json({ ok: true, note: "user not found" });
   }
 
+  // Eventos de assinatura (renovação, atraso recuperado, reembolso) às vezes
+  // chegam com produto/oferta que não mapeia para um plano: usa o plano do
+  // perfil quando a assinatura do evento é a mesma registrada.
+  if (!plan && subscriptionId) {
+    const { data: owner } = await admin.from("profiles")
+      .select("plan, cakto_subscription_id").eq("id", userId).maybeSingle();
+    if (owner?.cakto_subscription_id === subscriptionId
+      && (SUBSCRIPTION_PLANS as readonly string[]).includes(owner.plan ?? "")) {
+      plan = owner.plan as Plan;
+    }
+  }
+  if (action === "paid" && !plan) {
+    log.warn("plan_not_resolved", { event_type });
+    await admin.from("payment_events")
+      .update({ processed: true, error_message: "plan not resolved" })
+      .eq("id", eventRowId);
+    return json({ ok: true, note: "plan not resolved" });
+  }
+
   try {
     if (action === "paid" && plan) {
       const now = new Date();
@@ -211,10 +230,13 @@ Deno.serve(async (req) => {
         if (renewsAt) patch.subscription_renews_at = renewsAt.toISOString();
         await admin.from("profiles").update(patch).eq("id", userId);
 
-        // Cota mensal SEMPRE redefinida (ativação ou renovação).
+        // Cota mensal SEMPRE redefinida (ativação ou renovação). O tipo da
+        // transação diferencia as duas para a animação no app.
+        const isRenewal = isRenewalEvent(event_type)
+          || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
         const monthly = PLAN_MONTHLY_CREDITS[plan] ?? 0;
         const { error: monthlyErr } = await admin.rpc("set_monthly_credits", {
-          _uid: userId, _amount: monthly, _type: "subscription_monthly",
+          _uid: userId, _amount: monthly, _type: isRenewal ? "subscription_renewal" : "subscription_monthly",
         });
         if (monthlyErr) log.error("set_monthly_credits_failed", { message: monthlyErr.message });
 
@@ -227,8 +249,6 @@ Deno.serve(async (req) => {
         // outra vez. Quem decide agora é o histórico do usuário em
         // credit_transactions, checado atomicamente no banco
         // (grant_bonus_credits_once); o webhook só informa a intenção.
-        const isRenewal = event_type.includes("renew")
-          || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
         const signupBonus = PLAN_SIGNUP_BONUS[plan] ?? 0;
         let bonusGranted = false;
         if (!isRenewal && signupBonus > 0) {
@@ -295,6 +315,19 @@ Deno.serve(async (req) => {
       await admin.from("profiles").update({
         subscription_status: "canceled",
       }).eq("id", userId);
+    } else if (action === "paused" || action === "resumed") {
+      // Pausa suspende a cota mensal (o bônus permanente segue valendo);
+      // retomar reativa sem recreditar — a cota volta na próxima renovação.
+      const { data: cur } = await admin.from("profiles")
+        .select("plan, cakto_subscription_id").eq("id", userId).maybeSingle();
+      const sameSub = !subscriptionId || !cur?.cakto_subscription_id || cur.cakto_subscription_id === subscriptionId;
+      if (cur?.plan && (SUBSCRIPTION_PLANS as readonly string[]).includes(cur.plan) && sameSub) {
+        await admin.from("profiles").update({
+          subscription_status: action === "paused" ? "paused" : "active",
+        }).eq("id", userId);
+      } else {
+        log.info("pause_resume_skipped", { event_type, sameSub });
+      }
     } else {
       log.info("event_ignored", { event_type, status });
     }
