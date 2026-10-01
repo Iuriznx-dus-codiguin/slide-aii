@@ -142,6 +142,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_log: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          error: string | null
+          event: string
+          id: string
+          provider_id: string | null
+          recipient: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          error?: string | null
+          event: string
+          id?: string
+          provider_id?: string | null
+          recipient: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          error?: string | null
+          event?: string
+          id?: string
+          provider_id?: string | null
+          recipient?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       error_catalog: {
         Row: {
           ai_can_resolve: boolean
