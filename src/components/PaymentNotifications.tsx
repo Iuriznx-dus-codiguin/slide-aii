@@ -44,19 +44,14 @@ const daysUntil = (date: string | null): number | null => {
 export const PaymentNotifications = () => {
   const { user } = useAuth();
   const ent = useEntitlement();
-  const lastPlanRef = useRef<string | null>(null);
-  const lastStatusRef = useRef<string | null>(null);
-  const initializedRef = useRef(false);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
 
   const renewalDays = useMemo(() => daysUntil(ent.subscription_renews_at), [ent.subscription_renews_at]);
 
-  const celebratePayment = () => {
+  const celebratePayment = (message: string = PAYMENT_SUCCESS_MESSAGE) => {
     setConfetti(createConfetti());
-    // Aviso não bloqueante (antes era um window.confirm com OK/Cancelar para
-    // uma simples confirmação de sucesso).
     window.setTimeout(() => {
-      toast.success(PAYMENT_SUCCESS_MESSAGE, { duration: 8000 });
+      toast.success(message, { duration: 8000 });
     }, 260);
     window.setTimeout(() => setConfetti([]), 3800);
   };
@@ -66,21 +61,6 @@ export const PaymentNotifications = () => {
     window.addEventListener("slideai:payment-success", handler);
     return () => window.removeEventListener("slideai:payment-success", handler);
   }, []);
-
-  useEffect(() => {
-    if (!user || ent.loading) return;
-
-    const isPaidNow = ent.subscription_status === "active" && (isSubscriptionPlan(ent.plan) || ent.plan === "single");
-    const becamePaid = initializedRef.current
-      && isPaidNow
-      && (lastStatusRef.current !== ent.subscription_status || lastPlanRef.current !== ent.plan);
-
-    if (becamePaid) celebratePayment();
-
-    initializedRef.current = true;
-    lastPlanRef.current = ent.plan;
-    lastStatusRef.current = ent.subscription_status;
-  }, [user, ent.loading, ent.plan, ent.subscription_status]);
 
   useEffect(() => {
     if (!user || ent.loading || !isSubscriptionPlan(ent.plan) || ent.subscription_status !== "active") return;
@@ -95,22 +75,54 @@ export const PaymentNotifications = () => {
     window.localStorage.setItem(key, "shown");
   }, [user, ent.loading, ent.plan, ent.subscription_status, ent.subscription_renews_at, renewalDays]);
 
+  // Cada evento da Cakto vira uma transação de créditos (ou mudança de status);
+  // a animação reage ao que de fato aconteceu, sem depender de refresh.
   useEffect(() => {
     if (!user) return;
+    const seen = new Set<string>();
+    const fmt = (n: number) => n.toLocaleString("pt-BR");
 
-    const channel = supabase.channel(`payment-profile-${user.id}`)
+    const channel = supabase.channel(`payment-events-${user.id}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "credit_transactions", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const tx = payload.new as { id: string; type: string; amount: number };
+          if (seen.has(tx.id)) return;
+          seen.add(tx.id);
+          switch (tx.type) {
+            case "single_purchase":
+              celebratePayment(`🎉 Compra aprovada! +${fmt(tx.amount)} créditos na sua conta.`);
+              break;
+            case "subscription_monthly":
+              celebratePayment(`🎉 Assinatura ativada! ${fmt(tx.amount)} créditos do mês liberados.`);
+              break;
+            case "subscription_renewal":
+              celebratePayment(`🔄 Assinatura renovada! Seus ${fmt(tx.amount)} créditos do mês foram recarregados.`);
+              break;
+            case "subscription_signup_bonus":
+              window.setTimeout(() => toast.success(`🎁 Bônus de boas-vindas: +${fmt(tx.amount)} créditos permanentes.`), 900);
+              break;
+            case "refund_revoke":
+              toast.info("Reembolso processado. Os créditos daquela compra foram retirados.");
+              break;
+          }
+        },
+      )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
         (payload) => {
-          const next = payload.new as { plan?: string | null; subscription_status?: string | null };
-          const prev = payload.old as { plan?: string | null; subscription_status?: string | null };
-          const nextPlan = next.plan ?? "free";
-          const wasPaid = prev.subscription_status === "active" && (isSubscriptionPlan(prev.plan) || prev.plan === "single");
-          const isPaid = next.subscription_status === "active" && (isSubscriptionPlan(nextPlan) || nextPlan === "single");
-
-          if (isPaid && (!wasPaid || prev.plan !== nextPlan)) {
-            celebratePayment();
+          const next = payload.new as { subscription_status?: string | null; subscription_renews_at?: string | null };
+          const prev = payload.old as { subscription_status?: string | null };
+          if (prev.subscription_status === next.subscription_status) return;
+          if (next.subscription_status === "canceled") {
+            const until = next.subscription_renews_at ? new Date(next.subscription_renews_at).toLocaleDateString("pt-BR") : null;
+            toast.info(until ? `Assinatura cancelada. Seu acesso continua até ${until}.` : "Assinatura cancelada.");
+          } else if (next.subscription_status === "paused") {
+            toast.info("Assinatura pausada. Seus créditos bônus continuam disponíveis.");
+          } else if (next.subscription_status === "active" && prev.subscription_status === "paused") {
+            celebratePayment("▶️ Assinatura retomada! Bem-vindo de volta.");
           }
         },
       )

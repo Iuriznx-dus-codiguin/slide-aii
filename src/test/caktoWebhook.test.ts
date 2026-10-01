@@ -154,3 +154,15 @@ describe("isMonthlyCycleDue — cota renova 1 mês após o início do ciclo (igu
     expect(isMonthlyCycleDue(null)).toBe(true);
   });
 });
+
+describe("classifyEvent — eventos oficiais da Cakto (payload de teste traz status paid)", () => {
+  it.each([
+    ["webhook_test", "ignored"], ["refund_requested", "ignored"], ["subscription_late", "ignored"],
+    ["subscription_renewal_refused", "ignored"], ["purchase_refused", "ignored"], ["pix_gerado", "ignored"],
+    ["boleto_gerado", "ignored"], ["picpay_gerado", "ignored"], ["checkout_abandonment", "ignored"],
+    ["subscription_paused", "paused"], ["subscription_resumed", "resumed"],
+    ["subscription_late_recovered", "paid"], ["refund", "refund"], ["chargeback", "refund"],
+  ])("%s → %s", (event, expected) => {
+    expect(classifyEvent(event, "paid")).toBe(expected);
+  });
+});
