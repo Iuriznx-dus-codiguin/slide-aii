@@ -44,9 +44,6 @@ const daysUntil = (date: string | null): number | null => {
 export const PaymentNotifications = () => {
   const { user } = useAuth();
   const ent = useEntitlement();
-  const lastPlanRef = useRef<string | null>(null);
-  const lastStatusRef = useRef<string | null>(null);
-  const initializedRef = useRef(false);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
 
   const renewalDays = useMemo(() => daysUntil(ent.subscription_renews_at), [ent.subscription_renews_at]);
