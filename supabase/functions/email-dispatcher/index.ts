@@ -50,6 +50,14 @@ Deno.serve(async (req) => {
 
     try {
       if (relationshipNames.includes(row.template)) {
+        // Descadastrou? Descarta já, sem esperar horário ou frequência.
+        const { data: pref } = await admin.from("email_preferences")
+          .select("relationship_emails").eq("user_id", row.user_id).maybeSingle();
+        if (pref?.relationship_emails === false) {
+          await finish("skipped", "unsubscribed");
+          counts.skipped++;
+          continue;
+        }
         const later = nextAllowedTime();
         if (later) {
           await admin.from("email_schedule").update({ status: "pending", send_at: later.toISOString() }).eq("id", row.id);

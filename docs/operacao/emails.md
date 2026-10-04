@@ -45,6 +45,8 @@ Só os e-mails de **relacionamento** (`nurture`, `checkout_abandoned`, `winback`
 
 ### Implantação
 
+Prompt pronto para a Lovable: [deploy-avisos-por-email.md](deploy-avisos-por-email.md).
+
 1. Migrações `0008_lifecycle_emails.sql` e `0009_help_center_emails.sql` (cópias em `supabase/migrations/20261004000300_*` e `20261004000400_*`).
 2. Funções: `email-dispatcher` e `email-unsubscribe` (novas, `verify_jwt = false` em `supabase/config.toml`), `cakto-webhook`, `send-email`, `support-chat`, `generate-presentation`.
 3. Criar na Cakto os cupons `COMECE10` (10%) e `VOLTA20` (20%).

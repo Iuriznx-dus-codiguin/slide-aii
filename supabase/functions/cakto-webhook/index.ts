@@ -419,6 +419,7 @@ async function notifyLifecycle(o: {
 
   // 1) Forma de pagamento e próxima cobrança da assinatura.
   const { data: prevBilling } = await admin.from("billing_profiles").select("billing_alert").eq("user_id", userId).maybeSingle();
+  const prevAlert: string | null = prevBilling?.billing_alert ?? null;
   const snap = billingSnapshotFrom(payload);
   const alert = billingAlertFor(ev, o.action as any);
   const patch: Record<string, unknown> = {};
@@ -456,7 +457,7 @@ async function notifyLifecycle(o: {
     if (o.plan === "single") {
       await send("purchase_single", `purchase_single:${ref}`);
     } else if (isRenewalEvent(ev)) {
-      const wasLate = !!prevBilling?.billing_alert;
+      const wasLate = !!prevAlert;
       await send(wasLate ? "subscription_reactivated" : "renewal_success", `renewal:${userId}:${spDate()}`);
     } else {
       // purchase_approved e subscription_created chegam juntos: a chave por
