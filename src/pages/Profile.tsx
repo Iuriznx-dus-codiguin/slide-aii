@@ -23,6 +23,7 @@ import { CreditsPanel } from "@/components/CreditsPanel";
 import { uploadAvatar } from "@/lib/avatarUpload";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
+import { EmailPreferencesCard } from "@/components/EmailPreferencesCard";
 
 interface Profile {
   id: string;
@@ -304,6 +305,7 @@ const ProfilePage = () => {
 
           <TabsContent value="conta" className="space-y-4">
             <AccountPanel />
+            <EmailPreferencesCard />
             <Card>
               <CardContent className="p-5 space-y-2">
                 <h3 className="font-display font-bold flex items-center gap-2"><User className="h-4 w-4 text-primary" /> Ações rápidas</h3>

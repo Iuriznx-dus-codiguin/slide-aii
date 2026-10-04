@@ -68,6 +68,18 @@ select created_at, recipient, status, error from email_log where event = 'ops_al
 
 Sem nenhum admin com e-mail no perfil e sem `OPS_ALERT_EMAILS`, os alertas ficam pendentes (aparece `ops_alert_no_recipients` nos logs).
 
+## Avisos por e-mail não saem
+
+1. O agendador está ativo? `select jobname, schedule, active from cron.job where jobname = 'slideai-email-dispatch';`
+2. O despachante responde? `select status_code, content, created from net._http_response order by created desc limit 5;` (401 = segredo do Vault diferente; 404 = função não implantada).
+3. A fila anda? `select template, status, reason, send_at from email_schedule order by created_at desc limit 20;`
+   - `skipped` com motivo é normal: a situação mudou (`purchased`, `due_changed`, `unsubscribed`, `internal_account`…).
+   - `pending` com `send_at` no futuro: relacionamento adiado pelo horário (9 h–20 h) ou pela frequência (1/dia, 3/semana).
+4. O envio falhou? `select event, recipient, status, error from email_log where status = 'failed' order by created_at desc limit 20;`
+5. Forçar uma rodada: `select public.plan_lifecycle_emails();` e chamar o `email-dispatcher` com o cabeçalho `x-dispatch-secret` (valor em `vault.decrypted_secrets`, nome `email_dispatch_secret`).
+
+Uma pessoa pediu para não receber mais? `select set_email_preferences_by_token(token, false) from email_preferences where user_id = '<USER_ID>';` (avisos de conta continuam).
+
 ## Segredo do webhook
 
 Sintoma: `security_events` com `webhook_invalid_secret` e nenhum `payment_events` novo.

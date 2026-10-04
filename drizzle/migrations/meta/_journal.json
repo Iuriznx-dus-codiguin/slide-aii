@@ -57,6 +57,20 @@
       "when": 1791072420000,
       "tag": "0007_help_center_refresh",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791100480000,
+      "tag": "0008_lifecycle_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791100540000,
+      "tag": "0009_help_center_emails",
+      "breakpoints": true
     }
   ]
 }

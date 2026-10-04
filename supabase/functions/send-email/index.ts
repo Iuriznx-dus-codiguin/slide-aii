@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { sendPlatformEmail } from "../_shared/email.ts";
+import { sendLifecycle } from "../_shared/lifecycle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,11 +42,10 @@ Deno.serve(async (req) => {
 
   switch (body.event) {
     case "welcome": {
-      const prof = await profileOf(user.id);
-      const result = await sendPlatformEmail(admin, {
-        to: user.email ?? prof?.email ?? "", userId: user.id, dedupeKey: `welcome:${user.id}`,
-        event: { type: "welcome", name: prof?.full_name?.split(" ")[0] ?? null },
-      });
+      // Boas-vindas pela situação da conta: sem compra, chama para escolher um
+      // plano; com compra, para criar. A sequência de nutrição é agendada pelo
+      // planejador (plan_lifecycle_emails).
+      const result = await sendLifecycle(admin, { userId: user.id, template: "welcome", dedupeKey: `welcome:${user.id}` });
       return json({ ok: true, result });
     }
     case "support_reply": {

@@ -168,6 +168,13 @@ const Generate = () => {
     })();
   }, [user, searchParams]);
 
+  // Links dos e-mails: ?tema=… preenche o título; ?planos=1 abre os planos.
+  useEffect(() => {
+    const tema = searchParams.get("tema");
+    if (tema) setTitle((cur) => cur || tema.slice(0, 200));
+    if (searchParams.get("planos") === "1") setShowPayment(true);
+  }, [searchParams]);
+
   // Pré-preencher a partir de ?template=ID
   useEffect(() => {
     const tplId = searchParams.get("template");

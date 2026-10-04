@@ -28,7 +28,8 @@ Estes compromissos precisam ser cumpridos na operação:
 - Aviso de 15 dias para mudanças relevantes nos Termos, com novo aceite quando necessário.
 - Aviso de 30 dias e reembolso proporcional se o serviço for encerrado.
 - Resposta ao atendimento em até 1 dia útil (limite legal: 5 dias).
-- Devolução de créditos de gerações que travaram, quando pedida ([runbook](../operacao/runbooks.md#créditos-de-geração-que-travou)).
+- Comunicações de relacionamento com descadastro em um clique e no máximo uma por dia (Termos 20.2–20.3; versão 2026-10-04).
+- Devolução automática de créditos de gerações que travaram, em até 15 minutos ([runbook](../operacao/runbooks.md#créditos-de-geração-que-travou)).
 
 ## Como publicar uma nova versão
 

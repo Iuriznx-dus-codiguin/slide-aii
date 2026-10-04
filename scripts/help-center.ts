@@ -109,8 +109,8 @@ export const ARTICLES_DIR = join(ROOT, "docs/central-de-ajuda/artigos");
 // publicado, crie um par novo aqui (a migração antiga já rodou e fica como
 // histórico): o upsert por slug reaplica todos os artigos.
 export const MIGRATION_FILES = [
-  join(ROOT, "supabase/migrations/20261004000200_help_center_refresh.sql"),
-  join(ROOT, "drizzle/migrations/0007_help_center_refresh.sql"),
+  join(ROOT, "supabase/migrations/20261004000400_help_center_emails.sql"),
+  join(ROOT, "drizzle/migrations/0009_help_center_emails.sql"),
 ];
 
 const walk = (dir: string): string[] =>

@@ -352,3 +352,89 @@ export const isActiveSubscriber = (
   if (renews !== null && renews <= now.getTime()) return false;
   return true;
 };
+
+// ───────────── Dados para os avisos por e-mail ─────────────
+
+/** Formas de pagamento que renovam sozinhas ("pix_automatico" definido pelo dono). */
+export const AUTO_RENEW_METHODS = ["credit_card", "pix_automatico", "pix_auto", "automatic_pix"];
+
+export interface BillingSnapshot {
+  payment_method: string | null;
+  auto_renew: boolean;
+  card_brand: string | null;
+  card_last4: string | null;
+  next_payment_date: string | null;
+}
+
+const isoOrNull = (v: unknown): string | null => {
+  if (typeof v !== "string" || !v) return null;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+};
+
+/**
+ * Forma de pagamento e próxima cobrança da ASSINATURA, a partir do payload.
+ * Retorna null quando o evento não traz assinatura (ex.: compra avulsa), para
+ * não sobrescrever a forma de pagamento do plano.
+ */
+export const billingSnapshotFrom = (payload: any): BillingSnapshot | null => {
+  const sub = dig(payload, ["data.subscription", "subscription"]);
+  if (!sub || typeof sub !== "object") return null;
+  const method = String(sub.paymentMethod ?? dig(payload, ["data.paymentMethod", "paymentMethod"]) ?? "").toLowerCase() || null;
+  const card = dig(payload, ["data.card", "card"]);
+  const last4 = typeof card?.lastDigits === "string" && /^\d{4}$/.test(card.lastDigits) ? card.lastDigits : null;
+  return {
+    payment_method: method,
+    auto_renew: !!method && AUTO_RENEW_METHODS.includes(method),
+    card_brand: method === "credit_card" && typeof card?.brand === "string" ? card.brand.toLowerCase() : null,
+    card_last4: method === "credit_card" ? last4 : null,
+    next_payment_date: isoOrNull(sub.next_payment_date),
+  };
+};
+
+export interface PendingChargeData {
+  kind: "pix" | "boleto";
+  pay_url: string | null;
+  pix_code: string | null;
+  expires_at: string | null;
+  amount: number | null;
+}
+
+/** Pix ou boleto gerado e ainda não pago (eventos pix_gerado / boleto_gerado). */
+export const pendingChargeFrom = (eventType: string, payload: any): PendingChargeData | null => {
+  const ev = (eventType ?? "").toLowerCase();
+  const checkoutUrl = dig(payload, ["data.checkoutUrl", "checkoutUrl"]);
+  const amount = Number(dig(payload, ["data.amount", "amount"]));
+  if (ev === "pix_gerado") {
+    const pix = dig(payload, ["data.pix", "pix"]) ?? {};
+    return {
+      kind: "pix",
+      pay_url: typeof checkoutUrl === "string" ? checkoutUrl : null,
+      pix_code: typeof pix.qrCode === "string" ? pix.qrCode : null,
+      expires_at: isoOrNull(pix.expirationDate),
+      amount: Number.isFinite(amount) ? amount : null,
+    };
+  }
+  if (ev === "boleto_gerado") {
+    const boleto = dig(payload, ["data.boleto", "boleto"]) ?? {};
+    const exp = typeof boleto.expirationDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(boleto.expirationDate)
+      ? `${boleto.expirationDate}T23:59:00-03:00` : boleto.expirationDate;
+    return {
+      kind: "boleto",
+      pay_url: typeof boleto.boletoUrl === "string" ? boleto.boletoUrl : (typeof checkoutUrl === "string" ? checkoutUrl : null),
+      pix_code: null,
+      expires_at: isoOrNull(exp),
+      amount: Number.isFinite(amount) ? amount : null,
+    };
+  }
+  return null;
+};
+
+/** Alerta de cobrança que o evento liga ou desliga (só para mensagens; não muda o acesso). */
+export const billingAlertFor = (eventType: string, action: EventAction): "renewal_refused" | "late" | null | undefined => {
+  const ev = (eventType ?? "").toLowerCase();
+  if (ev === "subscription_renewal_refused") return "renewal_refused";
+  if (ev === "subscription_late") return "late";
+  if (action === "paid" || action === "resumed") return null;
+  return undefined; // não mexe
+};
