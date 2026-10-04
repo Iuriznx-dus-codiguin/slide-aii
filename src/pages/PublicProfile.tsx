@@ -73,13 +73,14 @@ export default function PublicProfile() {
   const requestAccess = async () => {
     if (!profile || !user) return;
     setRequesting(true);
-    const { error } = await supabase.from("profile_access_requests").insert({
+    const { data: created, error } = await supabase.from("profile_access_requests").insert({
       owner_id: profile.id,
       requester_id: user.id,
       message: requestMessage.trim().slice(0, 400) || null,
-    });
+    }).select("id").single();
     setRequesting(false);
     if (error) { toast.error(error.code === "23505" ? "Você já solicitou acesso a este portfólio." : error.message); return; }
+    if (created?.id) void sendPlatformEmail({ event: "access_requested", request_id: created.id });
     toast.success("Solicitação enviada. Você será liberado assim que o dono aprovar.");
     setRequestMessage("");
     load();
