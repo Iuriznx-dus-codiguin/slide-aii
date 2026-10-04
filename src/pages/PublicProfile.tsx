@@ -1,3 +1,4 @@
+import { sendPlatformEmail } from "@/lib/platformEmail";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ExternalLink, Eye, Globe, Lock, MapPin, Presentation, Send, ShieldCheck, Clock3 } from "lucide-react";

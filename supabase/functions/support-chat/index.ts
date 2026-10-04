@@ -4,6 +4,7 @@
 // Escala para humano quando ai_can_resolve=false, severity=critical, pagamento/segurança, ou reopen_count>=2.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { sendPlatformEmail } from "../_shared/email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,6 +147,7 @@ Deno.serve(async (req) => {
         .select("id, ticket_id").single();
       if (convErr) throw convErr;
       conversationId = conv.id;
+      void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_opened:${conv.id}`, event: { type: "ticket_opened", ticketId: conv.ticket_id ?? "", subject: message.slice(0, 200) } });
     } else {
       const { data: existingConversation, error: ownershipError } = await admin
         .from("support_conversations")
@@ -296,6 +298,10 @@ ${recentText}`;
         request_id: requestId,
         context: { conversation_id: conversationId, sample_message: message.slice(0, 200) },
       });
+    }
+    if (newState === "escalated" && conversationId) {
+      const { data: t } = await admin.from("support_conversations").select("ticket_id").eq("id", conversationId).maybeSingle();
+      void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_escalated:${conversationId}`, event: { type: "ticket_escalated", ticketId: t?.ticket_id ?? "" } });
     }
 
     const codeMatch = reply.match(/\b([A-Z]{2,4}-\d{3})\b/);
