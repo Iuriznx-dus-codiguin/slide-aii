@@ -318,6 +318,33 @@ export type Database = {
           },
         ]
       }
+      generation_attempts: {
+        Row: {
+          created_at: string
+          credits: number
+          finished_at: string | null
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits: number
+          finished_at?: string | null
+          id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits?: number
+          finished_at?: string | null
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       generation_logs: {
         Row: {
           actual_cost_usd: number
@@ -459,6 +486,39 @@ export type Database = {
           last_result?: Json | null
           last_run_at?: string
           task?: string
+        }
+        Relationships: []
+      }
+      ops_alerts: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          details: Json
+          id: string
+          kind: string
+          notified_at: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          details?: Json
+          id?: string
+          kind: string
+          notified_at?: string | null
+          severity?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          details?: Json
+          id?: string
+          kind?: string
+          notified_at?: string | null
+          severity?: string
+          title?: string
         }
         Relationships: []
       }
@@ -1052,6 +1112,10 @@ export type Database = {
         Args: { _owner: string; _viewer: string }
         Returns: boolean
       }
+      charge_generation: {
+        Args: { _attempt: string; _credits: number; _uid: string }
+        Returns: Json
+      }
       check_rate_limit: {
         Args: { _fn: string; _key: string; _max_per_hour: number }
         Returns: boolean
@@ -1062,6 +1126,10 @@ export type Database = {
       }
       consume_credits: {
         Args: { _credits_cost: number; _uid: string }
+        Returns: Json
+      }
+      consume_credits_with_metadata: {
+        Args: { _credits_cost: number; _extra: Json; _uid: string }
         Returns: Json
       }
       consume_presentation_asset: {
@@ -1134,6 +1202,7 @@ export type Database = {
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
       purge_expired_data: { Args: never; Returns: Json }
+      purge_ops_data: { Args: never; Returns: Json }
       record_access: { Args: { _event?: string }; Returns: undefined }
       refund_generation_credits: {
         Args: {
@@ -1144,6 +1213,11 @@ export type Database = {
         }
         Returns: Json
       }
+      refund_stale_generations: {
+        Args: { _older_than?: string }
+        Returns: Json
+      }
+      refund_stale_generations_if_due: { Args: never; Returns: undefined }
       request_client_info: { Args: never; Returns: Json }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
       revoke_order_credits: {
