@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       const result = await sendPlatformEmail(admin, {
         to: owner?.email ?? "", userId: conv.user_id,
         dedupeKey: `support_reply:${conv.id}:${crypto.randomUUID()}`,
-        event: { type: "support_reply", ticketId: conv.ticket_id ?? "", reply: body.message, resolved: body.resolved },
+        event: { type: "support_reply", ticketId: conv.ticket_id ?? "", reply: body.message, resolved: body.resolved, conversationId: conv.id },
       });
       return json({ ok: true, result });
     }

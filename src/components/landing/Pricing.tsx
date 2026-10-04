@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
+import { FAIR_USE_HOURLY_GENERATIONS, FAIR_USE_MAX_MONTHLY_CREDITS } from "@/lib/fairUse";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
@@ -73,7 +75,7 @@ export const Pricing = () => {
           <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card border border-border">
             <button
               onClick={() => setCycle("mensal")}
-              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+              className={`px-3 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all ${
                 cycle === "mensal" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -81,7 +83,7 @@ export const Pricing = () => {
             </button>
             <button
               onClick={() => setCycle("trimestral")}
-              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+              className={`px-3 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
                 cycle === "trimestral" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -92,7 +94,7 @@ export const Pricing = () => {
             </button>
             <button
               onClick={() => setCycle("anual")}
-              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+              className={`px-3 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
                 cycle === "anual" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -221,6 +223,12 @@ export const Pricing = () => {
             <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-3 py-1 text-xs font-bold text-white shadow-glow">
                <Crown className="h-3 w-3" /> Gerações ilimitadas*
             </div>
+            {/* A ressalva do asterisco precisa estar na própria oferta (CDC, art. 31). */}
+            <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+              *Dentro do{" "}
+              <Link to="/termos#uso-justo" className="underline underline-offset-2 hover:text-foreground">uso justo</Link>: até{" "}
+              {FAIR_USE_MAX_MONTHLY_CREDITS.toLocaleString("pt-BR")} créditos por mês e {FAIR_USE_HOURLY_GENERATIONS} gerações por hora.
+            </p>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-amber-500/50 hover:bg-amber-500/10">
               <a href="/gerar">{maxPrice.cta}</a>
             </Button>
@@ -237,6 +245,12 @@ export const Pricing = () => {
           </motion.div>
         </div>
 
+        {/* Decreto 7.962/2013, art. 5º: o arrependimento é informado na oferta. */}
+        <p className="max-w-3xl mx-auto mt-8 text-center text-xs text-muted-foreground leading-relaxed">
+          Assinaturas renovam automaticamente; cancele quando quiser e use até o fim do período pago. 7 dias para desistir
+          com reembolso integral.{" "}
+          <Link to="/termos#planos" className="underline underline-offset-2 hover:text-foreground">Condições</Link>
+        </p>
       </div>
     </section>
   );

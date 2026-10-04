@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
         .select("id, ticket_id").single();
       if (convErr) throw convErr;
       conversationId = conv.id;
-      void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_opened:${conv.id}`, event: { type: "ticket_opened", ticketId: conv.ticket_id ?? "", subject: message.slice(0, 200) } });
+      void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_opened:${conv.id}`, event: { type: "ticket_opened", ticketId: conv.ticket_id ?? "", subject: message.slice(0, 200), conversationId: conv.id } });
     } else {
       const { data: existingConversation, error: ownershipError } = await admin
         .from("support_conversations")
@@ -301,7 +301,7 @@ ${recentText}`;
     }
     if (newState === "escalated" && conversationId) {
       const { data: t } = await admin.from("support_conversations").select("ticket_id").eq("id", conversationId).maybeSingle();
-      void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_escalated:${conversationId}`, event: { type: "ticket_escalated", ticketId: t?.ticket_id ?? "" } });
+      void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_escalated:${conversationId}`, event: { type: "ticket_escalated", ticketId: t?.ticket_id ?? "", conversationId } });
     }
 
     const codeMatch = reply.match(/\b([A-Z]{2,4}-\d{3})\b/);

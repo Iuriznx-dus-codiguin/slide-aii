@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PLAN_PRICES } from "@/lib/cakto";
 
 export const CTA = () => {
   return (
@@ -27,7 +28,7 @@ export const CTA = () => {
               Sua próxima apresentação está a um prompt de distância.
             </h2>
             <p className="mt-5 text-lg text-white/85 max-w-xl mx-auto">
-              Crie hoje sua primeira apresentação com IA. Pré-visualize gratuitamente.
+              Crie hoje sua primeira apresentação com IA, a partir de {PLAN_PRICES.single}.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
               <Link to="/gerar">

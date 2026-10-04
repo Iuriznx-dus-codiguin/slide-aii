@@ -15,7 +15,7 @@ O normal é a apresentação ficar pronta **entre 20 segundos e 1 minuto**. Apre
 ## Se a geração falhar
 
 - Quando a falha é nossa, os créditos daquela tentativa **voltam automaticamente** para o seu saldo, e a mensagem de erro informa quanto foi devolvido. Confira em **Perfil → Créditos**, no extrato ("Devolução de geração com falha").
-- Em casos raros, como uma queda no meio do processo, a devolução pode não acontecer sozinha. Abra um atendimento com o horário aproximado da tentativa e faremos o acerto. Veja [Créditos devolvidos](/ajuda/creditos-devolvidos).
+- Se a geração for interrompida sem mensagem nenhuma (uma queda no meio do processo, por exemplo), os créditos voltam sozinhos em até 15 minutos. Veja [Créditos devolvidos](/ajuda/creditos-devolvidos).
 
 ## Outras mensagens
 
