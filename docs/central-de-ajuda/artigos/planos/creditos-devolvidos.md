@@ -10,15 +10,17 @@ Os créditos são debitados quando a geração começa — assim, fechar a aba n
 
 Em **Perfil → Créditos**, o extrato mostra a linha "Devolução de geração com falha", com o mesmo valor do débito. A mensagem de erro também informa quanto foi devolvido.
 
-## Quando a devolução não é automática
+## Geração interrompida
 
-Em casos raros — uma queda no meio do processo, por exemplo — a tentativa pode ficar sem registro de sucesso nem de falha, e a devolução não acontece sozinha. Abra um atendimento informando:
+Em casos raros — uma queda no meio do processo, por exemplo — a geração termina sem resposta nenhuma na tela. Os créditos também voltam sozinhos: **em até 15 minutos**, o sistema identifica a tentativa sem conclusão e faz a devolução. No extrato, ela aparece como "Devolução de geração com falha".
+
+Passou desse prazo e o valor não voltou? Abra um atendimento informando:
 
 - o horário aproximado da tentativa;
 - o título usado;
 - o código de erro, se apareceu.
 
-Conferimos o extrato e devolvemos os créditos.
+Conferimos o extrato e acertamos o saldo.
 
 ## Tema recusado
 

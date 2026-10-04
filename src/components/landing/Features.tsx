@@ -3,9 +3,9 @@ import { Brain, Edit3, Sparkles, Image as ImageIcon, FileDown, Link2, BarChart3,
 
 const features = [
   { icon: Brain, title: "Geração com IA", desc: "Conteúdo, estrutura e narrativa criados em segundos a partir do seu tema." },
-  { icon: Edit3, title: "Editor inteligente", desc: "Edite textos, imagens e layouts em uma interface visual fluida estilo Canva." },
+  { icon: Edit3, title: "Editor inteligente", desc: "Edite textos, imagens e layouts em uma interface visual simples e fluida." },
   { icon: Sparkles, title: "Animações cinematográficas", desc: "Transições e entradas profissionais aplicadas automaticamente." },
-  { icon: ImageIcon, title: "Banco de imagens", desc: "Acesso a milhões de fotos via Unsplash diretamente no editor." },
+  { icon: ImageIcon, title: "Banco de imagens", desc: "Milhões de fotos gratuitas do Pexels, escolhidas para cada slide e trocáveis no editor." },
   { icon: BarChart3, title: "Gráficos automáticos", desc: "Detectamos dados no seu tema e geramos visualizações lindas." },
   { icon: Palette, title: "Ajustes conversando com IA", desc: "Peça em português e a IA aplica: sem configurações manuais." },
   { icon: FileDown, title: "Exportar PDF / PPTX", desc: "Baixe em formatos universais ou compartilhe por link público." },

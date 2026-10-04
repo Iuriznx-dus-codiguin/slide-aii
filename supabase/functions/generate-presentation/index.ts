@@ -63,6 +63,7 @@ import {
 import { generateContentV2 } from "./contentV2.ts";
 import { fillSpeakerNotes, normalizeSpeeches } from "./speeches.ts";
 import { persistPresentation, type PersistResult, type PersistSlide } from "./persist.ts";
+import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
 
 // ───────────── Faixa de slides e custo em créditos ─────────────
 export const MIN_SLIDES = 5;
@@ -484,6 +485,10 @@ Deno.serve(async (req) => {
   }
 
 
+  // Entrega alertas pendentes gravados por rotinas SQL (ex.: estorno de
+  // gerações interrompidas). Roda em paralelo à geração.
+  void flushOpsAlerts(admin);
+
   // ───────────── Débito imediato (antes de gastar IA) ─────────────
   // O crédito é cobrado assim que a geração começa, para que fechar a aba no
   // meio não saia de graça. A partir daqui, porém, QUALQUER falha é do
@@ -491,10 +496,13 @@ Deno.serve(async (req) => {
   // estorna a cobrança desta tentativa.
   let creditsCharged = 0;
   // Identificador desta tentativa: torna o estorno idempotente no banco.
+  // charge_generation debita e registra a tentativa (generation_attempts) na
+  // mesma transação. Se esta função cair antes de marcar o desfecho, a
+  // varredura refund_stale_generations devolve os créditos depois de 10 min.
   const attemptRef = crypto.randomUUID();
   if (!isDev && creditsCost > 0) {
-    const { data: charge, error: chargeErr } = await admin.rpc("consume_credits", {
-      _uid: userId, _credits_cost: creditsCost,
+    const { data: charge, error: chargeErr } = await admin.rpc("charge_generation", {
+      _uid: userId, _credits: creditsCost, _attempt: attemptRef,
     });
     const result = charge as { ok?: boolean; reason?: string; available?: number } | null;
     if (chargeErr || !result?.ok) {
@@ -540,6 +548,9 @@ Deno.serve(async (req) => {
       if (refundErr) console.error("refund_generation_credits falhou:", refundErr);
       else if ((refund as { refunded?: boolean } | null)?.refunded) refunded = creditsCharged;
       refundFailed = refunded === 0;
+      // Estorno feito: o próprio refund_generation_credits marca a tentativa
+      // como "refunded". Se falhou, ela continua "running" de propósito, e a
+      // varredura tenta de novo sozinha.
     }
 
     const refundNote = refunded > 0
@@ -569,6 +580,31 @@ Deno.serve(async (req) => {
         ...opts.detail,
       },
     });
+
+    // Alertas: estorno que falhou (crédito retido) e pico de falhas na hora.
+    if (refundFailed) {
+      await raiseOpsAlert(admin, {
+        kind: "generation_refund_failed", severity: "critical", dedupeKey: `generation_refund_failed:${attemptRef}`,
+        title: "Geração falhou e o estorno automático não aconteceu",
+        details: { usuario: userId, creditos: creditsCharged, causa: opts.code, tentativa: attemptRef,
+          observacao: "A varredura de gerações interrompidas tenta de novo em até 15 minutos." },
+      });
+    }
+    const since = new Date(Date.now() - 3600_000).toISOString();
+    const [{ count: errors }, { count: successes }] = await Promise.all([
+      admin.from("generation_logs").select("id", { count: "exact", head: true }).eq("status", "error").gte("created_at", since),
+      admin.from("generation_logs").select("id", { count: "exact", head: true }).eq("status", "success").gte("created_at", since),
+    ]);
+    const errs = errors ?? 0;
+    const total = errs + (successes ?? 0);
+    if (errs >= 3 && errs / total >= 0.25) {
+      await raiseOpsAlert(admin, {
+        kind: "generation_errors", severity: errs / total >= 0.5 ? "critical" : "warning",
+        dedupeKey: `generation_errors:${hourBucket()}`,
+        title: `${errs} de ${total} gerações falharam na última hora`,
+        details: { falhas: errs, total, taxa: `${Math.round((errs / total) * 100)}%`, ultima_causa: opts.code },
+      });
+    }
 
     return new Response(JSON.stringify({
       error: userMessage,
@@ -1211,6 +1247,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Desfecho da tentativa cobrada: sucesso (a varredura de estorno ignora).
+    if (creditsCharged > 0) {
+      const { error: attemptErr } = await admin.from("generation_attempts")
+        .update({ status: "succeeded", finished_at: new Date().toISOString() }).eq("id", attemptRef);
+      if (attemptErr) console.error("generation_attempts_update_failed", attemptErr.message);
+    }
+
     // Contador de perfil incrementado no servidor (antes era autodeclarado
     // pelo cliente, o que podia divergir de generation_logs).
     await admin.rpc("increment_profile_generations", { _uid: userId });
@@ -1233,6 +1276,7 @@ Deno.serve(async (req) => {
       duration_ms: Date.now() - t0,
       presentation_id: persisted?.ok ? persisted.id : null,
       metadata: {
+        attempt_ref: attemptRef,
         title: body.title,
         type: body.type,
         plan: ent.plan,

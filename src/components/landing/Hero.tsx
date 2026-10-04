@@ -31,14 +31,14 @@ export const Hero = () => {
             className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-6"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Powered by Chatgpt 5.6 Pro
+            Roteiro, design e imagens criados por IA
           </motion.div>
 
           <motion.h1
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className="font-display text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05]"
+            className="font-display text-[2.6rem] sm:text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05]"
           >
             Crie apresentações{" "}
             <span className="text-gradient">incríveis</span>
@@ -53,7 +53,7 @@ export const Hero = () => {
             className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
           >
             Descreva seu tema e deixe a inteligência artificial gerar slides profissionais,
-            com design impecável, gráficos e imagens. Pronto em menos de um minuto.
+            com design impecável, gráficos e imagens. Pronto em cerca de um minuto.
           </motion.p>
 
           <motion.div
@@ -83,7 +83,7 @@ export const Hero = () => {
             transition={{ duration: 0.7, delay: 0.4 }}
             className="mt-4 text-xs text-muted-foreground"
           >
-            Sem cartão de crédito · Pré-visualize gratuitamente
+            Pagamento seguro · Cancele quando quiser · 7 dias para desistir
           </motion.p>
         </div>
 

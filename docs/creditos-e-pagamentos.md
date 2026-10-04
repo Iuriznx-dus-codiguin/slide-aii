@@ -47,5 +47,5 @@ A cota renova um mês depois de `credits_cycle_anchor` (data da ativação ou da
 
 ## Pontos de atenção
 
-- Estorno de geração que trava (queda da função) não é automático: [runbook](operacao/runbooks.md#créditos-de-geração-que-travou).
+- Geração que trava (queda da função ou tempo esgotado) é estornada automaticamente em até 15 minutos (`generation_attempts` + `refund_stale_generations`): [runbook](operacao/runbooks.md#créditos-de-geração-que-travou).
 - Imagens de IA não consomem créditos: é a principal alavanca de custo (ver revisão de 27/09/2026, decisão B1).

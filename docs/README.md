@@ -22,7 +22,8 @@
 
 | Documento | Conteúdo |
 | --- | --- |
-| [operacao/runbooks.md](operacao/runbooks.md) | Procedimentos: pagamento não liberado, reembolso, créditos presos, segredo do webhook, retenção, pós-deploy |
+| [operacao/runbooks.md](operacao/runbooks.md) | Procedimentos: pagamento não liberado, reembolso, créditos presos, alertas, segredo do webhook, retenção, pós-deploy |
+| [operacao/emails.md](operacao/emails.md) | E-mails da plataforma: provedores, modelos, identidade visual, pré-visualização e configuração |
 
 ## Histórico de revisões
 

@@ -1,5 +1,13 @@
 # Análise de prontidão para lançamento (29/09/2026)
 
+> **Atualização (04/10/2026):**
+> - P0-1: o webhook da Cakto foi corrigido pelo dono e testado.
+> - P0-2, P0-3 e P0-4: textos da página inicial corrigidos, depoimentos removidos e nota da oferta de volta (uso justo no card do MAX; renovação, cancelamento e arrependimento abaixo dos planos).
+> - P0-6: e-mails pela Resend com modelos próprios; os de login seguem a mesma identidade ([operacao/emails.md](../operacao/emails.md)).
+> - P0-7: estorno automático de gerações interrompidas.
+> - P0-8: alertas por e-mail aos administradores (pagamento, falhas de geração, estornos). Monitor de disponibilidade, Sentry e teto de gasto na OpenAI continuam pendentes.
+> - P0-5 (dados da empresa e caixa de suporte) e P0-9 (advogado e nota fiscal) continuam com o dono.
+
 Esta análise avalia se o SlideAI está pronto para ir ao mercado. Cobre produto e MVP, coerência entre promessa e entrega, profissionalismo, segurança, escalabilidade, previsibilidade de custos e operação.
 
 **Base usada:**

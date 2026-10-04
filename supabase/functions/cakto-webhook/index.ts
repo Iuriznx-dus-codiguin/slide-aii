@@ -20,6 +20,7 @@ import {
   SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
+import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
 
 // Tabelas de créditos por plano: ./lib.ts (usadas também pela regra de
 // estorno, que precisa saber quanto cada pedido concedeu).
@@ -47,6 +48,10 @@ Deno.serve(async (req) => {
 
   if (!WEBHOOK_SECRET) {
     await log.security("webhook_error", { severity: "critical", status: 500, detail: { reason: "secret_not_configured" } });
+    await raiseOpsAlert(admin, {
+      kind: "webhook_not_configured", severity: "critical", dedupeKey: `webhook_not_configured:${hourBucket()}`,
+      title: "Webhook da Cakto sem CAKTO_WEBHOOK_SECRET: pagamentos não estão sendo processados",
+    });
     return json({ error: "Webhook not configured." }, 500);
   }
 
@@ -89,6 +94,16 @@ Deno.serve(async (req) => {
           body_secret: typeof payload?.secret === "string",
         },
         event_type: extractEventType(payload) || null,
+      },
+    });
+    // Um por hora: o segredo do painel da Cakto e o da Lovable Cloud divergem.
+    await raiseOpsAlert(admin, {
+      kind: "webhook_invalid_secret", severity: "critical", dedupeKey: `webhook_invalid_secret:${hourBucket()}`,
+      title: "Webhook da Cakto recusado: segredo diferente do configurado",
+      details: {
+        evento: extractEventType(payload) || null,
+        impressao_recebida: providedFps.filter(Boolean).join(", ") || "nenhuma",
+        impressao_esperada: expectedFps.join(", "),
       },
     });
     return json({ error: "unauthorized" }, 401);
@@ -155,6 +170,16 @@ Deno.serve(async (req) => {
 
   if (!userId) {
     log.warn("user_not_found", { event_type });
+    // Pagamento, estorno ou cancelamento sem conta correspondente precisa de
+    // acerto manual (o cliente pode ter pago com outro e-mail).
+    if (action !== "ignored") {
+      await raiseOpsAlert(admin, {
+        kind: "payment_user_not_found", severity: action === "paid" ? "critical" : "warning",
+        dedupeKey: `payment_user_not_found:${eventRowId}`,
+        title: "Evento de pagamento sem conta com o mesmo e-mail",
+        details: { evento: event_type, acao: action, email_do_pedido: email ?? null, pedido: cakto_id ?? null, payment_event: eventRowId },
+      });
+    }
     await admin.from("payment_events")
       .update({ processed: true, error_message: "user not found by email" })
       .eq("id", eventRowId);
@@ -174,6 +199,11 @@ Deno.serve(async (req) => {
   }
   if (action === "paid" && !plan) {
     log.warn("plan_not_resolved", { event_type });
+    await raiseOpsAlert(admin, {
+      kind: "payment_plan_not_resolved", severity: "critical", dedupeKey: `payment_plan_not_resolved:${eventRowId}`,
+      title: "Pagamento recebido sem plano reconhecido (produto ou oferta fora do mapa)",
+      details: { evento: event_type, usuario: userId, pedido: cakto_id ?? null, payment_event: eventRowId },
+    });
     await admin.from("payment_events")
       .update({ processed: true, error_message: "plan not resolved" })
       .eq("id", eventRowId);
@@ -335,11 +365,17 @@ Deno.serve(async (req) => {
     await admin.from("payment_events").update({ processed: true }).eq("id", eventRowId);
   } catch (e) {
     log.error("process_error", { message: e instanceof Error ? e.message : String(e) });
+    await raiseOpsAlert(admin, {
+      kind: "payment_process_error", severity: "critical", dedupeKey: `payment_process_error:${eventRowId}`,
+      title: "Erro ao processar evento de pagamento",
+      details: { evento: event_type, usuario: userId, payment_event: eventRowId, erro: e instanceof Error ? e.message : String(e) },
+    });
     await admin.from("payment_events").update({
       error_message: e instanceof Error ? e.message : String(e),
     }).eq("id", eventRowId);
   }
 
   log.info("processed", { event_type, action, plan });
+  await flushOpsAlerts(admin);
   return json({ ok: true, event: event_type, action, plan, userId });
 });

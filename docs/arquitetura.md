@@ -27,9 +27,9 @@ Navegador (React + Vite)
 ### Geração de apresentação
 
 1. O formulário (`src/pages/Generate.tsx`) calcula o custo com `estimateCreditsCost` e consulta o acesso com `useEntitlement` (espelho de `can_user_generate`).
-2. `generate-presentation` valida a entrada, chama `can_user_generate(_uid, custo)`, aplica o limite de frequência (12/h) e **debita** com `consume_credits` antes de chamar a IA.
+2. `generate-presentation` valida a entrada, chama `can_user_generate(_uid, custo)`, aplica o limite de frequência (12/h) e **debita** com `charge_generation` antes de chamar a IA. O débito e a tentativa (`generation_attempts`) são gravados na mesma transação.
 3. O motor v2 planeja a narrativa e as cenas, gera o conteúdo, grava a apresentação e os slides no servidor e devolve o `slug`.
-4. Qualquer falha depois do débito passa por `failGeneration`, que estorna com `refund_generation_credits` (idempotente por tentativa) e registra em `generation_logs`.
+4. Qualquer falha depois do débito passa por `failGeneration`, que estorna com `refund_generation_credits` (idempotente por tentativa) e registra em `generation_logs`. Se a função cair sem responder, `refund_stale_generations` estorna a tentativa depois de 10 minutos.
 5. As imagens são resolvidas aos poucos no editor (`useProgressiveAssets` + `fetch-image`).
 
 ### Pagamento
@@ -64,6 +64,9 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `legal_acceptances` | Aceites dos Termos/Política | Dono lê os próprios; escrita só por `accept_legal_terms` |
 | `access_logs` | Registros de acesso (IP, data, hora) | Somente servidor |
 | `security_events`, `error_occurrences`, `edge_rate_limits` | Segurança, erros e limites | Servidor e equipe |
+| `generation_attempts` | Tentativas de geração cobradas e seu desfecho | Somente servidor |
+| `ops_alerts` | Alertas operacionais enviados à equipe | Servidor; leitura da equipe |
+| `email_log` | E-mails enviados (um por evento, pela chave única) | Somente servidor |
 
 ### Funções SQL de negócio
 
@@ -72,7 +75,9 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `can_user_generate(_uid, _credits_cost)` | Decide o acesso (dev, assinatura vigente, avulso, bônus, uso justo). Clientes só consultam a própria conta |
 | `subscription_is_current(plan, status, renews_at)` | Assinatura ativa ou cancelada dentro do período pago |
 | `consume_credits`, `ensure_monthly_credits` | Débito (cota mensal primeiro) e renovação da cota por ciclo |
-| `refund_generation_credits` | Estorno idempotente por tentativa de geração |
+| `charge_generation` | Débito de uma geração + registro da tentativa, na mesma transação |
+| `refund_generation_credits` | Estorno idempotente por tentativa de geração (usa o débito da própria tentativa) |
+| `refund_stale_generations(_if_due)` | Estorno das tentativas sem desfecho há mais de 10 minutos (pg_cron e `record_access`) |
 | `set_monthly_credits`, `grant_bonus_credits(_once)`, `revoke_order_credits` | Operações do webhook de pagamento |
 | `add_ai_edit_usage` | Contador do assistente de edição (servidor) |
 | `accept_legal_terms`, `record_access`, `purge_expired_data` | Conformidade legal |
@@ -92,4 +97,9 @@ Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `servi
 - `generation_logs`: latência, modelo, custo estimado/real, créditos cobrados e estornos.
 - `security_events`: limites atingidos, acessos negados, segredo inválido do webhook, reembolsos para revisão.
 - `error_occurrences` + `error_catalog`: erros com código, ligados aos artigos de ajuda e ao assistente de suporte.
+- `ops_alerts`: alertas por e-mail aos administradores (pagamento, falhas de geração, estornos). Tipos e respostas em [operacao/runbooks.md](operacao/runbooks.md#alertas).
 - Painéis: `/__dev` (equipe) e `/admin/suporte`.
+
+## E-mails
+
+E-mails de cadastro, confirmação e senha saem pelo sistema de login da Lovable Cloud; os demais (boas-vindas, suporte, portfólio e alertas) pela Resend, a partir de `supabase/functions/_shared/email.ts`. Detalhes em [operacao/emails.md](operacao/emails.md).

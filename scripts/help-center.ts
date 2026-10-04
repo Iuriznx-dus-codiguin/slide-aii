@@ -105,9 +105,12 @@ export const ERROR_TEXT_FIXES: Record<string, string> = {
 // jsdom, no vitest, não é aceito por fileURLToPath — por isso a string).
 const ROOT = import.meta.url.startsWith("file:") ? resolve(dirname(fileURLToPath(import.meta.url)), "..") : process.cwd();
 export const ARTICLES_DIR = join(ROOT, "docs/central-de-ajuda/artigos");
+// Migração da versão atual da Central. Quando um artigo muda depois de
+// publicado, crie um par novo aqui (a migração antiga já rodou e fica como
+// histórico): o upsert por slug reaplica todos os artigos.
 export const MIGRATION_FILES = [
-  join(ROOT, "supabase/migrations/20260927000300_help_center_content.sql"),
-  join(ROOT, "drizzle/migrations/0004_help_center_content.sql"),
+  join(ROOT, "supabase/migrations/20261004000200_help_center_refresh.sql"),
+  join(ROOT, "drizzle/migrations/0007_help_center_refresh.sql"),
 ];
 
 const walk = (dir: string): string[] =>
@@ -182,7 +185,10 @@ export function buildSql(articles: HelpArticleSource[]): string {
       `INSERT INTO public.help_articles (slug, title, category, content_md, keywords, is_published)`,
       `VALUES (${dq(a.slug)}, ${dq(a.title)}, ${dq(a.category)}, ${dq(a.content)}, ${sqlArray(a.keywords)}, true)`,
       `ON CONFLICT (slug) DO UPDATE SET title = EXCLUDED.title, category = EXCLUDED.category, content_md = EXCLUDED.content_md,`,
-      `  keywords = EXCLUDED.keywords, is_published = true, updated_at = now();`,
+      `  keywords = EXCLUDED.keywords, is_published = true, updated_at = now()`,
+      // Só toca o que mudou: artigos iguais mantêm a data de atualização.
+      `  WHERE (help_articles.title, help_articles.category, help_articles.content_md, help_articles.keywords, help_articles.is_published)`,
+      `    IS DISTINCT FROM (EXCLUDED.title, EXCLUDED.category, EXCLUDED.content_md, EXCLUDED.keywords, true);`,
       "",
     );
   }

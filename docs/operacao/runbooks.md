@@ -33,17 +33,40 @@ Idempotente por pedido. Se for reembolso de assinatura, também: `update profile
 
 ## Créditos de geração que travou
 
-Débitos (`consume`) sem sucesso nem estorno em até 15 minutos:
+**É automático.** Cada geração cobrada vira uma linha em `generation_attempts` (criada junto com o débito por `charge_generation`). Tentativas que ficam `running` por mais de 10 minutos são estornadas por `refund_stale_generations()`. A varredura roda a cada 5 minutos pelo pg_cron (job `slideai-stale-generations`, quando disponível) e também a cada acesso ao app (`record_access` → `refund_stale_generations_if_due`). Cada estorno gera uma linha `stale_timeout` em `generation_logs` e um alerta `generation_stale`.
+
+Conferir:
 
 ```sql
-select t.user_id, t.created_at, t.amount
-from credit_transactions t
-where t.type = 'consume' and t.created_at < now() - interval '15 minutes' and t.created_at > now() - interval '30 days'
-  and not exists (select 1 from generation_logs g where g.user_id = t.user_id and g.created_at between t.created_at and t.created_at + interval '10 minutes')
-order by t.created_at desc;
+select status, count(*) from generation_attempts where created_at > now() - interval '7 days' group by 1;
+select * from generation_attempts where status = 'running' order by created_at;
+select * from maintenance_runs where task = 'stale_generations';
+select * from cron.job where jobname = 'slideai-stale-generations';  -- se houver pg_cron
 ```
 
-Para devolver: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');`. É idempotente pela referência.
+Forçar agora: `select refund_stale_generations();` (service role). Débitos antigos, sem tentativa registrada, seguem pelo caminho manual: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');` (idempotente pela referência).
+
+## Alertas
+
+Os alertas chegam por e-mail às contas com papel `admin` (e aos endereços do secret opcional `OPS_ALERT_EMAILS`, separados por vírgula). Ficam em `ops_alerts`; `notified_at` vazio significa ainda não enviado. O mesmo alerta não se repete na mesma hora.
+
+```sql
+select created_at, severity, kind, title, details, notified_at from ops_alerts order by created_at desc limit 20;
+select created_at, recipient, status, error from email_log where event = 'ops_alert' order by created_at desc limit 20;
+```
+
+| Tipo (`kind`) | O que significa | O que fazer |
+| --- | --- | --- |
+| `webhook_invalid_secret` | A Cakto mandou um evento com segredo diferente do configurado. Pagamentos não estão sendo processados. | [Segredo do webhook](#segredo-do-webhook). Depois, peça à Cakto o reenvio dos eventos recusados. |
+| `webhook_not_configured` | `CAKTO_WEBHOOK_SECRET` não existe. | Crie o secret. |
+| `payment_user_not_found` | Pagamento, estorno ou cancelamento com e-mail que não tem conta. | [Pagamento aprovado, mas não liberado](#pagamento-aprovado-mas-não-liberado). Eventos de teste da Cakto também disparam: confira o e-mail. |
+| `payment_plan_not_resolved` | Pagamento de produto ou oferta fora do mapa de planos. | Inclua o id em `PLAN_BY_CHECKOUT_ID`/`PLAN_BY_PRODUCT_ID` (`cakto-webhook/lib.ts`) e peça o reenvio. |
+| `payment_process_error` | Erro ao aplicar um evento. | Veja `payment_events.error_message` e os logs da função. |
+| `generation_errors` | 25% ou mais das gerações falharam na última hora (mínimo de 3). | Veja `generation_logs` (campo `reason`) e o status dos provedores de IA. |
+| `generation_refund_failed` | Uma geração falhou e o estorno não rodou. | A varredura tenta de novo em até 15 minutos. Se o alerta se repetir, veja os logs de `generate-presentation`. |
+| `generation_stale` | Gerações interrompidas foram estornadas pela varredura. | Esporádico é normal. Frequente indica tempo limite: veja a duração em `generation_logs`. |
+
+Sem nenhum admin com e-mail no perfil e sem `OPS_ALERT_EMAILS`, os alertas ficam pendentes (aparece `ops_alert_no_recipients` nos logs).
 
 ## Segredo do webhook
 
@@ -62,7 +85,7 @@ select * from maintenance_runs;
 select purge_expired_data();   -- forçar agora
 ```
 
-Sem acessos por vários dias, a rotina fica parada (e também não há dados novos). Se houver agendador (pg_cron), agende `select run_data_retention_if_due();` diariamente.
+Sem acessos por vários dias, a rotina fica parada (e também não há dados novos). Se houver agendador (pg_cron), agende `select run_data_retention_if_due();` diariamente. A mesma rotina apaga `ops_alerts` e `generation_attempts` com mais de 12 meses.
 
 ## Pedido do titular (LGPD)
 
@@ -76,3 +99,5 @@ Veja [atendimento-ao-titular.md](../lgpd/atendimento-ao-titular.md).
 - [ ] `/termos`, `/privacidade` e `/ajuda` abrem.
 - [ ] Com uma conta comum, o diálogo de aceite aparece uma vez e registra em `legal_acceptances`.
 - [ ] `access_logs` recebe registros com IP.
+- [ ] `select refund_stale_generations();` responde sem erro, e `generation_attempts` recebe linhas nas gerações cobradas.
+- [ ] `npm run email:preview` e conferência visual dos e-mails, se `_shared/email.ts` mudou.

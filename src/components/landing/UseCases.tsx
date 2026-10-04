@@ -8,8 +8,8 @@ const cases = [
     icon: GraduationCap,
     label: "Acadêmico",
     title: "Defesas e seminários impecáveis",
-    desc: "TCC, dissertações e artigos viram apresentações estruturadas com referências, gráficos de dados e narrativa clara.",
-    bullets: ["Estrutura científica automática", "Citações e referências", "Gráficos a partir de dados"],
+    desc: "TCC, dissertações e artigos viram apresentações estruturadas, com gráficos de dados e narrativa clara.",
+    bullets: ["Estrutura científica automática", "Falas do apresentador", "Gráficos a partir de dados"],
   },
   {
     id: "school",
@@ -24,7 +24,7 @@ const cases = [
     icon: Briefcase,
     label: "Trabalho",
     title: "Reuniões corporativas afiadas",
-    desc: "Relatórios, kickoffs e revisões trimestrais com dados, KPIs e visual profissional alinhado à sua marca.",
+    desc: "Relatórios, kickoffs e revisões trimestrais com dados, KPIs e visual profissional e consistente.",
     bullets: ["Tom executivo", "Dashboards integrados", "Paleta corporativa"],
   },
   {
