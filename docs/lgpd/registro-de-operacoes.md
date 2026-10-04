@@ -18,6 +18,7 @@ Mantenha este registro alinhado com a [Política de Privacidade](../../src/pages
 | 10 | Visitas a apresentações publicadas | Espectadores | Data/hora e navegador (sem IP) | Contador de visualizações | Legítimo interesse | `slide_views` | Nenhum | 12 meses (o total fica em `view_count`) |
 | 11 | Aplicativos conectados | Usuários que autorizam | Apresentações e saldo | Integração pedida pelo usuário | Contrato (7º, V) | OAuth + função `mcp` | Aplicativo autorizado | Até a revogação |
 | 12 | Fontes tipográficas | Visitantes | IP e navegador (requisição) | Exibir o site | Legítimo interesse | — | Google Fonts | Conforme o Google |
+| 13 | E-mails de aviso e de relacionamento | Usuários | Nome, e-mail, perfil de uso, plano, situação da assinatura, forma de pagamento (tipo, bandeira, 4 últimos dígitos), próxima cobrança, saldo, Pix/boleto em aberto, registro de envios, preferência | Avisos da conta e de pagamento; dicas, ideias e ofertas | Avisos: contrato (7º, V). Relacionamento: legítimo interesse (7º, IX; 10), com descadastro em um clique | `billing_profiles`, `pending_charges`, `email_schedule`, `email_log`, `email_preferences` | Resend | Envios: 12 meses; agendamentos: 6 meses; pendências: 6 meses; preferência: enquanto a conta existir |
 
 ## Transferência internacional
 
@@ -30,3 +31,17 @@ Veja [arquitetura.md](../arquitetura.md#segurança) e a seção 10 da Política 
 ## Legítimo interesse
 
 Avaliação resumida das operações 7 a 10 e 12: a finalidade é legítima (segurança, correção de falhas, estatística ao autor), os dados são mínimos (hash de IP, sem IP nas visitas, remoção de dados sensíveis dos logs), o titular espera esse uso numa plataforma on-line e tem direito de oposição pelo canal do titular. Os prazos são curtos e a eliminação é automática.
+
+### Comunicações de relacionamento (operação 13)
+
+- **Finalidade legítima:** manter o relacionamento com quem criou conta, ajudar a usar o produto e apresentar ofertas dos próprios planos (art. 10, I e II).
+- **Necessidade:** só dados que a plataforma já tem para prestar o serviço; nenhum dado comprado ou de terceiros.
+- **Expectativa do titular:** a pessoa criou uma conta num serviço pago. A tela de cadastro avisa sobre os e-mails e o descadastro, e os Termos (20.2–20.3) e a Política (seção 3) descrevem o uso.
+- **Salvaguardas:**
+  - descadastro em um clique em todo e-mail (link e cabeçalho `List-Unsubscribe`);
+  - preferência em Perfil → Conta;
+  - no máximo 1 e-mail por dia e 3 por semana, só entre 9 h e 20 h;
+  - contas internas fora;
+  - nada é enviado a quem descadastrou;
+  - a oposição é atendida na hora, sem justificativa.
+

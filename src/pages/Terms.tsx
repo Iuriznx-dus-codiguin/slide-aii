@@ -594,7 +594,17 @@ const Terms = () => {
           Os avisos sobre a Conta, cobranças e mudanças nestes Termos são enviados para o e-mail cadastrado e exibidos na
           plataforma, e valem como comunicação formal. Mantenha seu e-mail atualizado.
         </Clause>
-        <Clause n="20.2">Não enviamos comunicações de marketing sem o seu consentimento.</Clause>
+        <Clause n="20.2">
+          Também enviamos <Strong>comunicações de relacionamento</Strong> sobre o SlideAI — dicas de uso, ideias de
+          apresentação, novidades, lembretes para concluir uma compra e ofertas dos nossos planos, inclusive cupons de
+          desconto —, no máximo uma por dia, com base no nosso legítimo interesse em manter o relacionamento com quem tem
+          Conta (LGPD, art. 7º, IX). Elas levam em conta o perfil de uso que você escolheu e a situação da sua Conta.
+        </Clause>
+        <Clause n="20.3">
+          Toda comunicação de relacionamento traz um link para <Strong>descadastrar em um clique</Strong>, e você pode
+          desligá-las a qualquer momento em Perfil → Conta. O descadastro não afeta os avisos da cláusula 20.1, que fazem
+          parte do serviço.
+        </Clause>
       </LegalSection>
 
       <LegalSection id="alteracoes" title="21. Alterações destes Termos">

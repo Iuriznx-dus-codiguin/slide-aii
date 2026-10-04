@@ -24,14 +24,39 @@ Os e-mails de pagamento (compra, renovação, reembolso) são enviados pela **Ca
 | `support_reply` | `AdminSupport` → `send-email` (só admin/dev) | Dono do chamado |
 | `access_requested`, `access_decided` | `PublicProfile` / `Profile` → `send-email` | Dono do portfólio / quem pediu |
 | `ops_alert` | `_shared/opsAlerts.ts` | Contas `admin` e `OPS_ALERT_EMAILS` |
+| Avisos de ciclo de vida (compra, assinatura, renovação, cobrança, reembolso, nutrição, reconquista…) | `cakto-webhook` (na hora) e `email-dispatcher` (agendados) | A própria pessoa |
+
+## Avisos de ciclo de vida
+
+Plano completo, catálogo e tom: [../produto/plano-de-avisos-por-email.md](../produto/plano-de-avisos-por-email.md).
+
+| Peça | Papel |
+| --- | --- |
+| `_shared/lifecycleTemplates.ts` | Modelos por situação, saudação pelo perfil, remetentes, cupons, formas de pagamento que renovam sozinhas |
+| `_shared/lifecycleRules.ts` | Reavaliação no envio (`shouldSend`), horário (9 h–20 h) e frequência (1/dia, 3/semana) do relacionamento |
+| `_shared/lifecycle.ts` | Monta a situação da conta, envia (`sendLifecycle`) e agenda (`scheduleLifecycle`) |
+| `cakto-webhook` | Grava forma de pagamento e próxima cobrança (`billing_profiles`), Pix/boleto pendentes (`pending_charges`), envia os avisos do evento e agenda Pix/boleto pendente e carrinho abandonado |
+| `plan_lifecycle_emails()` | Planejador SQL: nutrição (dias 1, 3, 5, 10, 15 e 30), lembretes de renovação (5/3/1), atraso (D+3), reconquista (D+7, D+30), primeira apresentação, saldo baixo, estorno de geração |
+| `email-dispatcher` | Chamado pelo pg_cron a cada 10 min (job `slideai-email-dispatch`, via pg_net, com o segredo `email_dispatch_secret` do Vault): roda o planejador e envia o que venceu |
+| `email-unsubscribe` + `/emails/preferencias` | Descadastro em um clique (`List-Unsubscribe-Post`) e página de preferências pelo token do link |
+| Perfil → Conta → E-mails | Preferência da própria conta (`get_my_email_preferences`/`set_my_email_preferences`) |
+
+Só os e-mails de **relacionamento** (`nurture`, `checkout_abandoned`, `winback`) respeitam o descadastro e saem em nome da Rebeca. Contas `admin`/`developer` não recebem relacionamento.
+
+### Implantação
+
+1. Migrações `0008_lifecycle_emails.sql` e `0009_help_center_emails.sql` (cópias em `supabase/migrations/20261004000300_*` e `20261004000400_*`).
+2. Funções: `email-dispatcher` e `email-unsubscribe` (novas, `verify_jwt = false` em `supabase/config.toml`), `cakto-webhook`, `send-email`, `support-chat`, `generate-presentation`.
+3. Criar na Cakto os cupons `COMECE10` (10%) e `VOLTA20` (20%).
+4. Conferir: `select jobname, schedule from cron.job;` (deve ter `slideai-email-dispatch`), `select * from email_schedule order by created_at desc limit 20;` e `select net._http_response` (respostas do pg_net) se nada sair.
 
 ### Mudar ou criar um modelo
 
-1. Edite `buildEmail` em `supabase/functions/_shared/emailTemplates.ts`. Os blocos aceitam `p`, `quote`, `list`, `steps`, `rows` e `note`; texto é sempre escapado, e `**negrito**` é a única marcação.
+1. Edite `buildEmail` em `supabase/functions/_shared/emailTemplates.ts` (suporte, portfólio, alertas) ou o modelo em `lifecycleTemplates.ts` (ciclo de vida). Os blocos aceitam `p`, `quote`, `list`, `steps`, `rows`, `note`, `stat`, `card`, `meter`, `ideas`, `compare`, `coupon` e `guarantee`; texto é sempre escapado, e `**negrito**` é a única marcação.
 2. Inclua um exemplo em `scripts/email-preview.ts`.
 3. Rode `npm run email:preview` e abra `.email-previews/*.html` no navegador (largura de celular também).
 4. `npm test` cobre renderização, escape e links.
-5. Implante as funções que usam o módulo: `send-email`, `support-chat`, `cakto-webhook` e `generate-presentation`.
+5. Implante as funções que usam o módulo: `send-email`, `support-chat`, `cakto-webhook`, `generate-presentation` e `email-dispatcher`.
 
 ## Identidade visual (vale para os dois caminhos)
 

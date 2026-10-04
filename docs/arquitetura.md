@@ -67,6 +67,8 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `generation_attempts` | Tentativas de geração cobradas e seu desfecho | Somente servidor |
 | `ops_alerts` | Alertas operacionais enviados à equipe | Servidor; leitura da equipe |
 | `email_log` | E-mails enviados (um por evento, pela chave única) | Somente servidor |
+| `billing_profiles`, `pending_charges` | Forma de pagamento, próxima cobrança, alerta de cobrança; Pix/boleto em aberto (para os avisos) | Somente servidor |
+| `email_schedule`, `email_preferences` | Fila de avisos agendados; descadastro do relacionamento (token) | Servidor; preferências por RPC |
 
 ### Funções SQL de negócio
 
@@ -102,4 +104,4 @@ Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `servi
 
 ## E-mails
 
-E-mails de cadastro, confirmação e senha saem pelo sistema de login da Lovable Cloud; os demais (boas-vindas, suporte, portfólio e alertas) pela Resend, a partir de `supabase/functions/_shared/email.ts`. Detalhes em [operacao/emails.md](operacao/emails.md).
+E-mails de cadastro, confirmação e senha saem pelo sistema de login da Lovable Cloud; os demais (avisos de ciclo de vida, suporte, portfólio e alertas) pela Resend, a partir de `supabase/functions/_shared/email.ts`. Os avisos de ciclo de vida são enviados pelo `cakto-webhook` e pelo `email-dispatcher` (pg_cron a cada 10 min). Detalhes em [operacao/emails.md](operacao/emails.md).

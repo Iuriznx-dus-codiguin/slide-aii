@@ -251,6 +251,11 @@ const Auth = () => {
                       Declaro ter 18 anos ou mais, ou autorização dos meus pais ou responsáveis.
                     </span>
                   </label>
+                  {/* Transparência (Termos 20.2–20.3): uma única caixa de aceite; o relacionamento por e-mail tem descadastro em um clique. */}
+                  <p className="text-[11px] leading-relaxed text-muted-foreground -mt-1 pl-6">
+                    Você vai receber avisos da conta e, de vez em quando, dicas e ofertas por e-mail. Dá para se descadastrar
+                    em um clique, a qualquer momento.
+                  </p>
                   <Button type="submit" variant="hero" className="w-full" disabled={loading || !acceptTerms}>
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />} Criar conta
                   </Button>

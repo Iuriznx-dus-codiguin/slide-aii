@@ -8,3 +8,11 @@ verify_jwt = false
 # JWT. A função só lê apresentações publicadas.
 [functions.og-preview]
 verify_jwt = false
+# Despachante dos avisos por e-mail: chamado pelo pg_cron (pg_net), sem JWT.
+# A função confere o segredo do Vault (email_dispatch_secret) antes de agir.
+[functions.email-dispatcher]
+verify_jwt = false
+# Descadastro em um clique (List-Unsubscribe-Post): chamado pelo provedor de
+# e-mail do destinatário, sem JWT. O token da URL é a credencial.
+[functions.email-unsubscribe]
+verify_jwt = false

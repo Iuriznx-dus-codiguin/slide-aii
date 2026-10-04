@@ -31,6 +31,15 @@ const BRAND = {
   font: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
 };
 
+/** Cor de destaque por situação (faixa do topo e número em destaque). Sempre acompanhada de texto. */
+export type Tone = "brand" | "success" | "warning" | "danger";
+const TONE: Record<Tone, [string, string]> = {
+  brand: [BRAND.primary, BRAND.accent],
+  success: ["#16A34A", "#22C55E"],
+  warning: ["#D97706", "#F59E0B"],
+  danger: ["#DC2626", "#F97316"],
+};
+
 export const escapeHtml = (v: unknown): string =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
@@ -43,12 +52,28 @@ export type Block =
   | { list: string[] }
   | { steps: string[] }
   | { rows: [string, string][] }
-  | { note: string };
+  | { note: string }
+  /** Número em destaque: "5 dias", "500 créditos". */
+  | { stat: string; label: string }
+  /** Cartão do plano: linhas rótulo → valor, com título opcional. */
+  | { card: [string, string][]; title?: string }
+  /** Medidor de créditos. */
+  | { meter: number; max: number; label: string }
+  /** Ideias de apresentação com link para gerar. */
+  | { ideas: { label: string; url: string }[]; title?: string }
+  /** Mini-tabela comparativa; `highlight` = índice da linha em destaque. */
+  | { compare: { head: string[]; rows: string[][]; highlight?: number } }
+  /** Cupom de desconto. */
+  | { coupon: string; text: string }
+  /** Faixa de garantias da compra. */
+  | { guarantee: true };
 
 const inline = (t: string) => escapeHtml(t).replace(/\*\*(.+?)\*\*/g, `<strong style="color:${BRAND.ink}">$1</strong>`);
 const plain = (t: string) => t.replace(/\*\*(.+?)\*\*/g, "$1");
 
-const blockHtml = (b: Block): string => {
+export const GUARANTEE_TEXT = "Pagamento seguro · Cancele quando quiser · 7 dias para desistir";
+
+const blockHtml = (b: Block, tone: Tone): string => {
   const p = `margin:0 0 16px;font-size:15px;line-height:24px;color:${BRAND.body}`;
   if ("p" in b) return `<p style="${p}">${inline(b.p)}</p>`;
   if ("note" in b) return `<p style="margin:0 0 16px;font-size:13px;line-height:20px;color:${BRAND.muted}">${inline(b.note)}</p>`;
@@ -66,6 +91,47 @@ const blockHtml = (b: Block): string => {
       + b.steps.map((s, i) => `<tr><td width="36" valign="top" style="padding:0 0 12px"><div style="width:26px;height:26px;border-radius:13px;background:${BRAND.quote};color:${BRAND.primary};font-size:13px;font-weight:700;line-height:26px;text-align:center">${i + 1}</div></td><td valign="top" style="padding:3px 0 12px;font-size:15px;line-height:22px;color:${BRAND.body}">${inline(s)}</td></tr>`).join("")
       + `</table>`;
   }
+  if ("stat" in b) {
+    const [c1] = TONE[tone];
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px"><tr><td align="center" style="background:${BRAND.quote};border-radius:12px;padding:20px 16px">`
+      + `<div style="font-size:38px;line-height:44px;font-weight:800;letter-spacing:-.02em;color:${c1}">${escapeHtml(b.stat)}</div>`
+      + `<div style="margin-top:4px;font-size:13px;line-height:18px;color:${BRAND.muted}">${escapeHtml(b.label)}</div></td></tr></table>`;
+  }
+  if ("card" in b) {
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:4px 0 20px;border:1px solid ${BRAND.line};border-radius:12px;background:#FBFAFF">`
+      + (b.title ? `<tr><td colspan="2" style="padding:14px 16px 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:${BRAND.primary}">${escapeHtml(b.title)}</td></tr>` : "")
+      + b.card.map(([k, v]) => `<tr><td style="padding:8px 16px;font-size:13px;color:${BRAND.muted};width:45%">${escapeHtml(k)}</td><td style="padding:8px 16px;font-size:14px;font-weight:600;color:${BRAND.ink};word-break:break-word">${escapeHtml(v)}</td></tr>`).join("")
+      + `<tr><td colspan="2" style="height:6px;font-size:0;line-height:0">&nbsp;</td></tr></table>`;
+  }
+  if ("meter" in b) {
+    const pct = Math.max(0, Math.min(100, Math.round((b.meter / Math.max(b.max, 1)) * 100)));
+    const [c1, c2] = TONE[tone];
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:4px 0 20px"><tr><td>`
+      + `<div style="font-size:13px;color:${BRAND.muted};margin-bottom:6px">${escapeHtml(b.label)}</div>`
+      + `<div style="height:10px;border-radius:5px;background:${BRAND.line};overflow:hidden"><div style="height:10px;width:${pct}%;border-radius:5px;background:${c1};background-image:linear-gradient(90deg,${c1},${c2})"></div></div>`
+      + `</td></tr></table>`;
+  }
+  if ("ideas" in b) {
+    return `<div style="margin:4px 0 20px">`
+      + (b.title ? `<div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:${BRAND.primary};margin-bottom:8px">${escapeHtml(b.title)}</div>` : "")
+      + b.ideas.map((i) => `<a href="${escapeHtml(i.url)}" target="_blank" style="display:block;margin:0 0 8px;padding:12px 14px;border:1px solid ${BRAND.line};border-radius:10px;background:#FBFAFF;font-size:14px;line-height:20px;color:${BRAND.ink};text-decoration:none">✦ ${escapeHtml(i.label)} <span style="color:${BRAND.primary};font-weight:600">→</span></a>`).join("")
+      + `</div>`;
+  }
+  if ("compare" in b) {
+    const { head, rows, highlight } = b.compare;
+    const th = head.map((h) => `<td style="padding:10px 12px;font-size:12px;font-weight:700;color:${BRAND.muted};border-bottom:1px solid ${BRAND.line}">${escapeHtml(h)}</td>`).join("");
+    const tr = rows.map((r, i) => `<tr style="${i === highlight ? `background:${BRAND.quote};` : ""}">${r.map((c, j) => `<td style="padding:10px 12px;font-size:14px;${j === 0 ? "font-weight:700;" : ""}color:${BRAND.ink};${i ? `border-top:1px solid ${BRAND.line};` : ""}">${inline(c)}</td>`).join("")}</tr>`).join("");
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:4px 0 20px;border:1px solid ${BRAND.line};border-radius:10px;border-collapse:separate;overflow:hidden"><tr>${th}</tr>${tr}</table>`;
+  }
+  if ("coupon" in b) {
+    return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:4px 0 20px"><tr><td align="center" style="border:2px dashed ${BRAND.primary};border-radius:12px;padding:16px">`
+      + `<div style="font-size:13px;color:${BRAND.body};margin-bottom:6px">${inline(b.text)}</div>`
+      + `<div style="font-size:24px;font-weight:800;letter-spacing:.12em;color:${BRAND.primary};font-family:Menlo,Consolas,monospace">${escapeHtml(b.coupon)}</div>`
+      + `</td></tr></table>`;
+  }
+  if ("guarantee" in b) {
+    return `<p style="margin:0 0 16px;font-size:12px;line-height:18px;color:${BRAND.muted};text-align:center">🔒 ${escapeHtml(GUARANTEE_TEXT)}</p>`;
+  }
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:4px 0 20px;border:1px solid ${BRAND.line};border-radius:8px">`
     + b.rows.map(([k, v], i) => `<tr><td style="padding:10px 14px;font-size:13px;color:${BRAND.muted};${i ? `border-top:1px solid ${BRAND.line};` : ""}width:40%">${escapeHtml(k)}</td><td style="padding:10px 14px;font-size:13px;color:${BRAND.ink};${i ? `border-top:1px solid ${BRAND.line};` : ""}word-break:break-word">${escapeHtml(v)}</td></tr>`).join("")
     + `</table>`;
@@ -77,33 +143,77 @@ const blockText = (b: Block): string => {
   if ("quote" in b) return (b.label ? `${b.label}:\n` : "") + b.quote.split("\n").map((l) => `> ${l}`).join("\n");
   if ("list" in b) return b.list.map((i) => `• ${plain(i)}`).join("\n");
   if ("steps" in b) return b.steps.map((s, i) => `${i + 1}. ${plain(s)}`).join("\n");
+  if ("stat" in b) return `[ ${b.stat} ] ${b.label}`;
+  if ("card" in b) return (b.title ? `${b.title}\n` : "") + b.card.map(([k, v]) => `${k}: ${v}`).join("\n");
+  if ("meter" in b) return b.label;
+  if ("ideas" in b) return (b.title ? `${b.title}\n` : "") + b.ideas.map((i) => `✦ ${i.label}: ${i.url}`).join("\n");
+  if ("compare" in b) return [b.compare.head.join(" | "), ...b.compare.rows.map((r) => r.map(plain).join(" | "))].join("\n");
+  if ("coupon" in b) return `${plain(b.text)}\nCupom: ${b.coupon}`;
+  if ("guarantee" in b) return GUARANTEE_TEXT;
   return b.rows.map(([k, v]) => `${k}: ${v}`).join("\n");
 };
+
+/**
+ * transactional: aviso de conta ou compra (rodapé padrão).
+ * relationship: dicas e ofertas, com descadastro (List-Unsubscribe).
+ * internal: alerta para a equipe.
+ */
+export type EmailKind = "transactional" | "relationship" | "internal";
 
 export interface EmailContent {
   subject: string;
   /** Linha de prévia mostrada pela caixa de entrada ao lado do assunto. */
   preheader: string;
+  /** Saudação adaptada ao perfil, antes do título. */
+  greeting?: string;
   title: string;
   blocks: Block[];
   cta?: { label: string; url: string };
+  /** Link secundário, discreto, abaixo do botão. */
+  secondary?: { label: string; url: string };
+  /** Assinatura ("Equipe SlideAI", "Rebeca, do time criativo do SlideAI"). */
+  signoff?: string;
+  tone?: Tone;
   /** Por que a pessoa recebeu (rodapé). */
   reason: string;
-  /** Alertas internos: sem rodapé público. */
+  kind?: EmailKind;
+  /** Alertas internos: sem rodapé público. Mantido por compatibilidade (= kind "internal"). */
   internal?: boolean;
+  /** Relacionamento: links de descadastro e de preferências. */
+  unsubscribeUrl?: string;
+  preferencesUrl?: string;
 }
 
-const ctaHtml = (cta: { label: string; url: string }) => `
-<table role="presentation" cellspacing="0" cellpadding="0" style="margin:8px 0 24px"><tr>
+const kindOf = (c: EmailContent): EmailKind => c.kind ?? (c.internal ? "internal" : "transactional");
+
+const ctaHtml = (cta: { label: string; url: string }, secondary?: { label: string; url: string }) => `
+<table role="presentation" cellspacing="0" cellpadding="0" style="margin:8px 0 ${secondary ? "12px" : "24px"}"><tr>
 <td bgcolor="${BRAND.primary}" style="border-radius:10px;background:${BRAND.primary};background-image:linear-gradient(135deg,${BRAND.primary},${BRAND.accent})">
 <a href="${escapeHtml(cta.url)}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:${BRAND.font};font-size:15px;font-weight:600;line-height:18px;color:#ffffff;text-decoration:none;border-radius:10px">${escapeHtml(cta.label)}</a>
 </td></tr></table>
+${secondary ? `<p style="margin:0 0 24px;font-size:14px"><a href="${escapeHtml(secondary.url)}" target="_blank" style="color:${BRAND.primary};font-weight:600;text-decoration:none">${escapeHtml(secondary.label)} →</a></p>` : ""}
 <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:${BRAND.muted}">Se o botão não abrir, copie este endereço no navegador:<br><a href="${escapeHtml(cta.url)}" style="color:${BRAND.primary};word-break:break-all">${escapeHtml(cta.url)}</a></p>`;
 
 const footerLink = (label: string, path: string) =>
   `<a href="${SITE_URL}${path}" style="color:${BRAND.muted};text-decoration:underline">${label}</a>`;
+const footerUrl = (label: string, url: string) =>
+  `<a href="${escapeHtml(url)}" style="color:${BRAND.muted};text-decoration:underline">${label}</a>`;
 
-export const renderLayout = (c: EmailContent): string => `<!doctype html>
+const footerHtml = (c: EmailContent): string => {
+  const kind = kindOf(c);
+  if (kind === "internal") return escapeHtml(c.reason);
+  const legal = `${footerLink("Termos de Uso", "/termos")} &nbsp;·&nbsp; ${footerLink("Privacidade", "/privacidade")} &nbsp;·&nbsp; <a href="${SITE_URL}" style="color:${BRAND.muted};text-decoration:none">slideai.com.br</a>`;
+  const opt = kind === "relationship" && c.unsubscribeUrl
+    ? `<br>Não quer mais receber dicas e ofertas? ${footerUrl("Descadastrar", c.unsubscribeUrl)}${c.preferencesUrl ? ` &nbsp;·&nbsp; ${footerUrl("Preferências de e-mail", c.preferencesUrl)}` : ""}<br>`
+    : "";
+  return `${escapeHtml(c.reason)}<br>
+  Dúvidas? Responda este e-mail ou acesse a ${footerLink("Central de Ajuda", "/ajuda")}.<br>${opt}<br>
+  ${legal}`;
+};
+
+export const renderLayout = (c: EmailContent): string => {
+  const [t1, t2] = TONE[c.tone ?? "brand"];
+  return `<!doctype html>
 <html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta charset="utf-8">
@@ -125,36 +235,45 @@ export const renderLayout = (c: EmailContent): string => `<!doctype html>
   </a>
 </td></tr>
 <tr><td bgcolor="${BRAND.card}" style="background:${BRAND.card};border:1px solid ${BRAND.line};border-radius:16px;overflow:hidden">
-  <div style="height:4px;line-height:4px;font-size:0;background:${BRAND.primary};background-image:linear-gradient(90deg,${BRAND.primary},${BRAND.accent})">&nbsp;</div>
-  <div style="padding:32px 32px 16px">
+  <div style="height:4px;line-height:4px;font-size:0;background:${t1};background-image:linear-gradient(90deg,${t1},${t2})">&nbsp;</div>
+  <div style="padding:32px 28px 16px">
+    ${c.greeting ? `<p style="margin:0 0 8px;font-size:15px;line-height:22px;color:${BRAND.body}">${escapeHtml(c.greeting)}</p>` : ""}
     <h1 style="margin:0 0 20px;font-size:22px;line-height:30px;font-weight:700;letter-spacing:-.01em;color:${BRAND.ink}">${escapeHtml(c.title)}</h1>
-    ${c.blocks.map(blockHtml).join("\n    ")}
-    ${c.cta ? ctaHtml(c.cta) : ""}
+    ${c.blocks.map((b) => blockHtml(b, c.tone ?? "brand")).join("\n    ")}
+    ${c.cta ? ctaHtml(c.cta, c.secondary) : ""}
+    ${c.signoff ? `<p style="margin:8px 0 16px;font-size:15px;line-height:22px;color:${BRAND.body};white-space:pre-line">${escapeHtml(c.signoff)}</p>` : ""}
   </div>
 </td></tr>
 <tr><td style="padding:24px 8px 0;font-size:12px;line-height:18px;color:${BRAND.muted};text-align:center">
-  ${c.internal ? escapeHtml(c.reason) : `${escapeHtml(c.reason)}<br>
-  Dúvidas? Responda este e-mail ou acesse a ${footerLink("Central de Ajuda", "/ajuda")}.<br><br>
-  ${footerLink("Termos de Uso", "/termos")} &nbsp;·&nbsp; ${footerLink("Privacidade", "/privacidade")} &nbsp;·&nbsp; <a href="${SITE_URL}" style="color:${BRAND.muted};text-decoration:none">slideai.com.br</a>`}
+  ${footerHtml(c)}
 </td></tr>
 </table>
 </td></tr>
 </table>
 </body>
 </html>`;
+};
 
-export const renderText = (c: EmailContent): string => [
-  c.title,
-  "",
-  ...c.blocks.map((b) => blockText(b) + "\n"),
-  ...(c.cta ? [`${c.cta.label}: ${c.cta.url}`, ""] : []),
-  "—",
-  c.reason,
-  ...(c.internal ? [] : [
-    `Dúvidas? Responda este e-mail ou acesse a Central de Ajuda: ${SITE_URL}/ajuda`,
-    `SlideAI · ${SITE_URL}`,
-  ]),
-].join("\n");
+export const renderText = (c: EmailContent): string => {
+  const kind = kindOf(c);
+  return [
+    ...(c.greeting ? [c.greeting, ""] : []),
+    c.title,
+    "",
+    ...c.blocks.map((b) => blockText(b) + "\n"),
+    ...(c.cta ? [`${c.cta.label}: ${c.cta.url}`] : []),
+    ...(c.secondary ? [`${c.secondary.label}: ${c.secondary.url}`] : []),
+    ...(c.cta || c.secondary ? [""] : []),
+    ...(c.signoff ? [c.signoff, ""] : []),
+    "—",
+    c.reason,
+    ...(kind === "internal" ? [] : [
+      `Dúvidas? Responda este e-mail ou acesse a Central de Ajuda: ${SITE_URL}/ajuda`,
+      ...(kind === "relationship" && c.unsubscribeUrl ? [`Descadastrar: ${c.unsubscribeUrl}`] : []),
+      `SlideAI · ${SITE_URL}`,
+    ]),
+  ].join("\n");
+};
 
 // ───────────── Eventos ─────────────
 export type EmailEvent =

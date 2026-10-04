@@ -8,7 +8,7 @@
 
 Com isso, cada mensagem mantém o bom relacionamento, facilita o uso e leva ao próximo pagamento (primeira compra, renovação ou recuperação), com o link certo e os dados certos.
 
-**Status:** plano para aprovação, sem código. A fase 1 (seção 10) pode começar assim que as decisões da seção 11 forem tomadas.
+**Status (04/10/2026):** fases 1 e 2 implementadas, com as decisões da seção 11. Código: `supabase/functions/_shared/lifecycle*.ts`, `email-dispatcher`, `email-unsubscribe` e a migração `0008_lifecycle_emails`. Operação: [../operacao/emails.md](../operacao/emails.md).
 
 ---
 
@@ -391,14 +391,14 @@ Cada fase vira um PR, com pré-visualização de todos os modelos e testes de: e
 
 ---
 
-## 11. Decisões e confirmações do dono
+## 11. Decisões do dono (04/10/2026)
 
-1. **Pix Automático:** qual valor a Cakto envia em `paymentMethod` para Pix Automático? Uma compra de teste resolve.
-2. **Checkout com e-mail preenchido:** a Cakto aceita `?email=` no link? Se aceitar, todo link sai com o e-mail da conta.
-3. **E-mails da própria Cakto:** manter só o recibo da Cakto e desligar os lembretes dela, para não haver mensagens repetidas ou conflitantes?
-4. **Consentimento de marketing:** aprovar a caixa no cadastro e a nova linha na Política de Privacidade. Sem isso, a fase 2 só pode enviar avisos de conta.
-5. **Remetente e assinatura:**
-   - `SlideAI <contato@slideai.com.br>` para tudo; ou
-   - uma pessoa nos e-mails de relacionamento (ex.: "Ju, do SlideAI"), mais próximo e com resposta pessoal.
-6. **Ofertas:** usar cupom na recuperação (ex.: D15 da nutrição, reconquista D+30)? Se sim, quais cupons existem na Cakto.
-7. **Caixa `suporte@slideai.com.br`:** os e-mails convidam a responder, então ela precisa existir e ser lida.
+| # | Tema | Decisão | Como ficou |
+| --- | --- | --- | --- |
+| 1 | Pix Automático | Valor `pix_automatico` | `AUTO_RENEW_METHODS` aceita `credit_card` e `pix_automatico` (e os apelidos `pix_auto` e `automatic_pix`, até confirmar com um pagamento real) |
+| 2 | E-mail no checkout | A Cakto identifica a compra pelo e-mail digitado no checkout | Todo e-mail com link de pagamento lembra: "use o e-mail da sua conta" |
+| 3 | Lembretes da Cakto | Manter os dois | O artigo de ajuda `emails-e-preferencias` explica: o da Cakto é o recibo; o do SlideAI conta o que muda na conta |
+| 4 | Consentimento | **Uma única caixa no cadastro** (o aceite dos Termos) | Pela LGPD, consentimento de marketing não pode vir embutido no aceite. Por isso, o relacionamento usa **legítimo interesse** (art. 7º, IX), com descadastro em um clique em todo e-mail, Termos 20.2–20.3 e Política (seção 3, seção 8) atualizados, versão 2026-10-04 e aviso de transparência abaixo da caixa |
+| 5 | Remetente do relacionamento | Pessoa do time (Robson, Fernando ou Rebeca) | **Rebeca, do SlideAI** (`SENDERS.relationship`). Avisos e compras saem de "SlideAI". Para trocar o nome, mude `SENDERS` e `RELATIONSHIP_SIGNOFF` em `lifecycleTemplates.ts` |
+| 6 | Cupons | Só nos últimos casos, 10% e 20% | **`COMECE10` (10%)** no último e-mail para quem nunca comprou (dia 30) e **`VOLTA20` (20%)** no último e-mail de reconquista (30 dias após o fim da assinatura). **Os dois precisam ser criados no painel da Cakto** |
+| 7 | Deploy | Após o reinício dos créditos da Lovable | Ver [../operacao/emails.md](../operacao/emails.md#implantação) |

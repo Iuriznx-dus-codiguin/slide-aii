@@ -123,6 +123,11 @@ const Privacy = () => {
               "Execução de contrato (art. 7º, V) e legítimo interesse (art. 7º, IX).",
             ],
             [
+              <><Strong>Comunicações por e-mail:</Strong> nome, e-mail, perfil de uso, plano, situação da assinatura, forma de pagamento (tipo, bandeira e 4 últimos dígitos do cartão, se houver), data da próxima cobrança, saldo de créditos, Pix ou boleto em aberto, e o registro dos e-mails enviados e da sua preferência de descadastro.</>,
+              "Avisos da conta e de pagamento (confirmações, lembretes de renovação, cobrança recusada) e comunicações de relacionamento (dicas, ideias, lembretes para concluir uma compra e ofertas), adaptadas ao seu perfil e à situação da conta.",
+              "Avisos: execução de contrato (art. 7º, V). Relacionamento: legítimo interesse (art. 7º, IX e art. 10), com descadastro em um clique em todo e-mail.",
+            ],
+            [
               <><Strong>Espectadores de apresentações publicadas:</Strong> data, hora e tipo de navegador da visita. Não guardamos o IP nem identificamos quem assistiu.</>,
               "Mostrar ao autor quantas visualizações a apresentação teve.",
               "Legítimo interesse (art. 7º, IX).",
@@ -160,6 +165,7 @@ const Privacy = () => {
             ["OpenAI e Google (Gemini), acessados diretamente ou pelo gateway de IA da Lovable", "Gerar e editar textos, falas e imagens e responder no chat de suporte.", "O que você escreve no formulário, no assistente de edição e no suporte, além do conteúdo das apresentações necessário para a tarefa."],
             ["Pexels", "Banco de fotos e vídeos.", "Termos de busca derivados do tema do slide, sem dados da sua conta."],
             ["Cakto", "Checkout, cobrança, renovação e reembolso.", "Dados do pedido e do pagamento. A Cakto é controladora dos dados que coleta no checkout."],
+            ["Resend", "Envio dos e-mails da plataforma (avisos, suporte e relacionamento).", "Nome, e-mail e o conteúdo de cada mensagem."],
             ["Google", "Login com Google (se você escolher) e fontes tipográficas (Google Fonts).", "Dados de login e, ao carregar as fontes, o seu IP e navegador."],
             ["Aplicativos que você conectar", "Assistentes de IA e outros aplicativos que você autorizar a acessar sua conta (seção 15 dos Termos).", "Apresentações e saldo de créditos, no limite da autorização dada."],
           ]}
@@ -198,6 +204,7 @@ const Privacy = () => {
             ["Diagnóstico, eventos de segurança, registros de geração e visitas a apresentações publicadas", "12 meses. Depois são eliminados automaticamente; o número de visualizações continua na apresentação."],
             ["Pedidos e pagamentos recebidos da Cakto", "5 anos após a transação, para obrigações fiscais e defesa em processos."],
             ["Extrato de créditos", "Enquanto a conta existir."],
+            ["E-mails enviados (registro) e agendamentos", "12 meses para o registro dos envios e 6 meses para os agendamentos. A preferência de descadastro fica enquanto a conta existir."],
             ["Registros de aceite dos Termos e da Política", "Enquanto a conta existir e por até 5 anos após o seu encerramento."],
           ]}
         />
@@ -216,7 +223,7 @@ const Privacy = () => {
           <li>eliminação dos dados tratados com base no seu consentimento e exclusão da conta;</li>
           <li>informação sobre com quem compartilhamos seus dados;</li>
           <li>informação sobre a possibilidade de não consentir e suas consequências, e revogação do consentimento;</li>
-          <li>oposição a tratamento feito com base em legítimo interesse, se descumprir a lei;</li>
+          <li>oposição a tratamento feito com base em legítimo interesse, se descumprir a lei. Para as comunicações de relacionamento, a oposição é imediata e não precisa de justificativa: use o link "Descadastrar" no rodapé do e-mail ou desligue em Perfil → Conta;</li>
           <li>revisão de decisões tomadas apenas com base em tratamento automatizado (seção 9).</li>
         </LegalList>
         <Clause n="8.1">

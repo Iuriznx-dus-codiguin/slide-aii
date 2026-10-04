@@ -18,9 +18,12 @@ import {
   extractSubscriptionId, hasValidSecret, isActiveSubscriber, normalizeSecret, parseExpectedSecrets,
   PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
   SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
+  billingAlertFor, billingSnapshotFrom, pendingChargeFrom,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
+import { scheduleLifecycle, sendLifecycle } from "../_shared/lifecycle.ts";
+import { planRank } from "../_shared/plans.ts";
 
 // Tabelas de créditos por plano: ./lib.ts (usadas também pela regra de
 // estorno, que precisa saber quanto cada pedido concedeu).
@@ -210,6 +213,11 @@ Deno.serve(async (req) => {
     return json({ ok: true, note: "plan not resolved" });
   }
 
+  // Para os avisos por e-mail (depois do processamento).
+  let prevPlan: string | null = null;
+  let prevWasSubscriber = false;
+  let bonusForEmail = 0;
+
   try {
     if (action === "paid" && plan) {
       const now = new Date();
@@ -223,6 +231,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       const prevIsSubscriber = isActiveSubscriber(before, now);
+      prevPlan = before?.plan ?? null;
+      prevWasSubscriber = prevIsSubscriber;
 
       if (plan === "single") {
         // Compra avulsa NÃO rebaixa o plano de quem já é assinante ativo:
@@ -288,6 +298,7 @@ Deno.serve(async (req) => {
           if (bonusErr) log.error("grant_signup_bonus_failed", { message: bonusErr.message });
           else bonusGranted = (bonusResult as { granted?: boolean } | null)?.granted === true;
         }
+        if (bonusGranted) bonusForEmail = signupBonus;
         log.info("subscription_credits", { plan, monthly, isRenewal, signupBonus, bonusGranted });
       }
     } else if (action === "refund") {
@@ -375,7 +386,112 @@ Deno.serve(async (req) => {
     }).eq("id", eventRowId);
   }
 
+  // ── Avisos por e-mail: dados de cobrança + envio/agendamento ──
+  // Nunca derruba o webhook: o pagamento já foi processado acima.
+  try {
+    await notifyLifecycle({
+      admin, userId, eventType: event_type, action, plan: plan ?? null, payload, eventRowId,
+      orderId: cakto_id ?? null, subscriptionId: subscriptionId ?? null,
+      prevPlan, prevWasSubscriber, bonus: bonusForEmail,
+    });
+  } catch (e) {
+    log.error("lifecycle_email_failed", { message: e instanceof Error ? e.message : String(e) });
+  }
+
   log.info("processed", { event_type, action, plan });
   await flushOpsAlerts(admin);
   return json({ ok: true, event: event_type, action, plan, userId });
 });
+
+// ───────────── Avisos por e-mail ─────────────
+// docs/produto/plano-de-avisos-por-email.md, seções 6.3 a 6.5.
+const spDate = (d = new Date()) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+async function notifyLifecycle(o: {
+  admin: any; userId: string; eventType: string; action: string; plan: string | null; payload: any;
+  eventRowId: string; orderId: string | null; subscriptionId: string | null;
+  prevPlan: string | null; prevWasSubscriber: boolean; bonus: number;
+}) {
+  const { admin, userId, payload } = o;
+  const ev = (o.eventType ?? "").toLowerCase();
+  const checkoutUrl = dig(payload, ["data.checkoutUrl", "checkoutUrl"]);
+  const ref = o.orderId ?? o.eventRowId;
+
+  // 1) Forma de pagamento e próxima cobrança da assinatura.
+  const { data: prevBilling } = await admin.from("billing_profiles").select("billing_alert").eq("user_id", userId).maybeSingle();
+  const snap = billingSnapshotFrom(payload);
+  const alert = billingAlertFor(ev, o.action as any);
+  const patch: Record<string, unknown> = {};
+  if (snap) Object.assign(patch, snap);
+  // Compra avulsa (sem assinatura no payload) não apaga alerta da assinatura.
+  if (alert !== undefined && (alert !== null || snap || o.action === "resumed")) {
+    patch.billing_alert = alert;
+    patch.billing_alert_at = alert ? new Date().toISOString() : null;
+  }
+  if (Object.keys(patch).length) {
+    await admin.from("billing_profiles").upsert({ user_id: userId, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  }
+
+  // 2) Pix/boleto em aberto; pagamento confirmado fecha os pendentes.
+  const pending = pendingChargeFrom(ev, payload);
+  if (pending) {
+    await admin.from("pending_charges").upsert(
+      { user_id: userId, order_id: o.orderId, subscription_id: o.subscriptionId, ...pending },
+      { onConflict: "order_id,kind" },
+    );
+  }
+  if (o.action === "paid") {
+    await admin.from("pending_charges").update({ resolved_at: new Date().toISOString() })
+      .eq("user_id", userId).is("resolved_at", null);
+  }
+
+  const send = (template: any, dedupeKey: string, data: Record<string, unknown> = {}) =>
+    sendLifecycle(admin, { userId, template, dedupeKey, data });
+  const schedule = (template: any, sendAt: Date, dedupeKey: string, data: Record<string, unknown> = {}) =>
+    scheduleLifecycle(admin, { userId, template, sendAt, dedupeKey, data });
+  const inMinutes = (m: number) => new Date(Date.now() + m * 60_000);
+
+  // 3) E-mails do evento.
+  if (o.action === "paid" && o.plan) {
+    if (o.plan === "single") {
+      await send("purchase_single", `purchase_single:${ref}`);
+    } else if (isRenewalEvent(ev)) {
+      const wasLate = !!prevBilling?.billing_alert;
+      await send(wasLate ? "subscription_reactivated" : "renewal_success", `renewal:${userId}:${spDate()}`);
+    } else {
+      // purchase_approved e subscription_created chegam juntos: a chave por
+      // conta + plano + dia garante um e-mail só.
+      const upgraded = o.prevWasSubscriber && planRank(o.prevPlan) < planRank(o.plan);
+      await send(upgraded ? "subscription_upgraded" : "subscription_created",
+        `subscription_start:${userId}:${o.plan}:${spDate()}`, { bonus: o.bonus });
+    }
+  } else if (o.action === "canceled") {
+    await send("subscription_canceled", `canceled:${userId}:${o.subscriptionId ?? spDate()}`);
+  } else if (o.action === "paused") {
+    await send("subscription_paused", `paused:${userId}:${spDate()}`);
+  } else if (o.action === "resumed") {
+    await send("subscription_reactivated", `resumed:${userId}:${spDate()}`);
+  } else if (o.action === "refund") {
+    await send(ev === "chargeback" ? "chargeback" : "refund_done", `${ev === "chargeback" ? "chargeback" : "refund"}:${ref}`);
+  } else if (ev === "refund_requested") {
+    await send("refund_requested", `refund_requested:${ref}`);
+  } else if (ev === "purchase_refused") {
+    await send("purchase_refused", `purchase_refused:${ref}`, { checkoutUrl });
+  } else if (ev === "subscription_renewal_refused") {
+    await send("renewal_refused", `renewal_refused:${userId}:${spDate()}`, { checkoutUrl });
+  } else if (ev === "subscription_late") {
+    await send("subscription_late", `late:${userId}:${spDate()}`, { checkoutUrl });
+  } else if (pending?.kind === "pix") {
+    await schedule("pix_pending", inMinutes(10), `pix_pending:${ref}`, { order_id: o.orderId });
+  } else if (pending?.kind === "boleto") {
+    // Véspera do vencimento às 9 h; se vence antes disso, em 1 hora.
+    const exp = pending.expires_at ? new Date(pending.expires_at) : null;
+    const eve = exp ? new Date(new Date(`${spDate(new Date(exp.getTime() - 86_400_000))}T09:00:00-03:00`)) : null;
+    const at = eve && eve.getTime() > Date.now() + 3_600_000 ? eve : inMinutes(60);
+    await schedule("boleto_pending", at, `boleto_pending:${ref}`, { order_id: o.orderId });
+  } else if (ev === "checkout_abandonment") {
+    const data = { checkoutUrl };
+    await schedule("checkout_abandoned", inMinutes(60), `checkout_abandoned_1h:${ref}`, data);
+    await schedule("checkout_abandoned", inMinutes(24 * 60), `checkout_abandoned_24h:${ref}`, data);
+  }
+}
