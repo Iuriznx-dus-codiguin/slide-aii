@@ -184,6 +184,7 @@ const ProfilePage = () => {
   const decideRequest = async (id: string, status: "approved" | "denied") => {
     const { error } = await supabase.from("profile_access_requests").update({ status }).eq("id", id);
     if (error) { toast.error(error.message); return; }
+    void sendPlatformEmail({ event: "access_decided", request_id: id });
     toast.success(status === "approved" ? "Acesso concedido" : "Solicitação recusada");
     loadRequests();
   };

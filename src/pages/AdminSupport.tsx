@@ -162,6 +162,7 @@ export default function AdminSupport() {
       resolved_by_human: markResolved ? true : convDetail.conv.resolved_by_ai === true ? false : null,
       closed_at: markResolved ? new Date().toISOString() : null,
     } as any).eq("id", convDetail.conv.id);
+    void sendPlatformEmail({ event: "support_reply", conversation_id: convDetail.conv.id, message: content, resolved: markResolved });
     setSendingReply(false);
     setReply("");
     toast.success("Resposta enviada ao usuário");
