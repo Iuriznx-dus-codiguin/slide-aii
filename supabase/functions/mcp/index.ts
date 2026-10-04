@@ -3,10 +3,10 @@
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
 // src/lib/mcp/index.ts
-import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@2.3.0";
+import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@2.0.4";
 
 // src/lib/mcp/tools/list-presentations.ts
-import { defineTool } from "npm:@lovable.dev/mcp-js@2.3.0";
+import { defineTool } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z } from "npm:zod@^3.25.76";
 
 // src/lib/mcp/supabase.ts
@@ -90,7 +90,7 @@ var list_presentations_default = defineTool({
 });
 
 // src/lib/mcp/tools/get-presentation.ts
-import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@2.3.0";
+import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z as z2 } from "npm:zod@^3.25.76";
 var get_presentation_default = defineTool2({
   name: "get_presentation",
@@ -128,7 +128,7 @@ var get_presentation_default = defineTool2({
 });
 
 // src/lib/mcp/tools/get-credit-balance.ts
-import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@2.3.0";
+import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z as z3 } from "npm:zod@^3.25.76";
 var get_credit_balance_default = defineTool3({
   name: "get_credit_balance",
@@ -164,7 +164,7 @@ var get_credit_balance_default = defineTool3({
 });
 
 // src/lib/mcp/tools/search-help-articles.ts
-import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@2.3.0";
+import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z as z4 } from "npm:zod@^3.25.76";
 var search_help_articles_default = defineTool4({
   name: "search_help_articles",
@@ -198,7 +198,7 @@ var search_help_articles_default = defineTool4({
 });
 
 // src/lib/mcp/tools/update-presentation.ts
-import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@2.3.0";
+import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z as z5 } from "npm:zod@^3.25.76";
 var update_presentation_default = defineTool5({
   name: "update_presentation",
@@ -262,5 +262,5 @@ var mcp_default = defineMcp({
 });
 
 // lovable-mcp-supabase-entry.ts
-import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@2.3.0/stacks/supabase";
+import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@2.0.4/stacks/supabase";
 Deno.serve(createSupabaseHandler(mcp_default, { functionName: "mcp" }));
