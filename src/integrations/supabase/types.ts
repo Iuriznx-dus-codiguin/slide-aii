@@ -88,6 +88,42 @@ export type Database = {
           },
         ]
       }
+      billing_profiles: {
+        Row: {
+          auto_renew: boolean
+          billing_alert: string | null
+          billing_alert_at: string | null
+          card_brand: string | null
+          card_last4: string | null
+          next_payment_date: string | null
+          payment_method: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_renew?: boolean
+          billing_alert?: string | null
+          billing_alert_at?: string | null
+          card_brand?: string | null
+          card_last4?: string | null
+          next_payment_date?: string | null
+          payment_method?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_renew?: boolean
+          billing_alert?: string | null
+          billing_alert_at?: string | null
+          card_brand?: string | null
+          card_last4?: string | null
+          next_payment_date?: string | null
+          payment_method?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       credit_transactions: {
         Row: {
           amount: number
@@ -175,6 +211,75 @@ export type Database = {
           recipient?: string
           status?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      email_preferences: {
+        Row: {
+          relationship_emails: boolean
+          token: string
+          unsubscribed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          relationship_emails?: boolean
+          token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          relationship_emails?: boolean
+          token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_schedule: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          created_at: string
+          data: Json
+          dedupe_key: string
+          id: string
+          processed_at: string | null
+          reason: string | null
+          send_at: string
+          status: string
+          template: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          data?: Json
+          dedupe_key: string
+          id?: string
+          processed_at?: string | null
+          reason?: string | null
+          send_at: string
+          status?: string
+          template: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          data?: Json
+          dedupe_key?: string
+          id?: string
+          processed_at?: string | null
+          reason?: string | null
+          send_at?: string
+          status?: string
+          template?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -558,6 +663,48 @@ export type Database = {
           provider?: string
           user_email?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      pending_charges: {
+        Row: {
+          amount: number | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          kind: string
+          order_id: string | null
+          pay_url: string | null
+          pix_code: string | null
+          resolved_at: string | null
+          subscription_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          kind: string
+          order_id?: string | null
+          pay_url?: string | null
+          pix_code?: string | null
+          resolved_at?: string | null
+          subscription_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          order_id?: string | null
+          pay_url?: string | null
+          pix_code?: string | null
+          resolved_at?: string | null
+          subscription_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -1124,6 +1271,29 @@ export type Database = {
         Args: { _fn: string; _key: string; _max_per_day: number }
         Returns: boolean
       }
+      claim_due_emails: {
+        Args: { _limit?: number }
+        Returns: {
+          attempts: number
+          claimed_at: string | null
+          created_at: string
+          data: Json
+          dedupe_key: string
+          id: string
+          processed_at: string | null
+          reason: string | null
+          send_at: string
+          status: string
+          template: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "email_schedule"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       consume_credits: {
         Args: { _credits_cost: number; _uid: string }
         Returns: Json
@@ -1136,9 +1306,16 @@ export type Database = {
         Args: { _kind: string; _presentation_id: string; _uid: string }
         Returns: Json
       }
+      email_dispatch_secret_ok: { Args: { _secret: string }; Returns: boolean }
+      ensure_email_preferences: { Args: { _uid: string }; Returns: string }
       ensure_monthly_credits: { Args: { _uid: string }; Returns: undefined }
       find_user_id_by_email: { Args: { _email: string }; Returns: string }
       generate_ticket_id: { Args: never; Returns: string }
+      get_email_preferences_by_token: {
+        Args: { _token: string }
+        Returns: Json
+      }
+      get_my_email_preferences: { Args: never; Returns: Json }
       get_portfolio_presentations: {
         Args: { _owner: string }
         Returns: {
@@ -1200,6 +1377,8 @@ export type Database = {
       }
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
+      is_internal_account: { Args: { _uid: string }; Returns: boolean }
+      plan_lifecycle_emails: { Args: { _now?: string }; Returns: Json }
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
       purge_expired_data: { Args: never; Returns: Json }
       purge_ops_data: { Args: never; Returns: Json }
@@ -1231,14 +1410,27 @@ export type Database = {
         Returns: Json
       }
       run_data_retention_if_due: { Args: never; Returns: undefined }
+      set_email_preferences_by_token: {
+        Args: { _relationship: boolean; _token: string }
+        Returns: boolean
+      }
       set_monthly_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
+      }
+      set_my_email_preferences: {
+        Args: { _relationship: boolean }
+        Returns: boolean
+      }
+      sp_local_at: {
+        Args: { _days: number; _hour: number; _ts: string }
+        Returns: string
       }
       subscription_is_current: {
         Args: { _plan: string; _renews_at: string; _status: string }
         Returns: boolean
       }
+      user_has_purchased: { Args: { _uid: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "developer" | "user"
