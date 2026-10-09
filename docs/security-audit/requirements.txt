@@ -1,0 +1,4 @@
+reportlab>=4.2
+matplotlib>=3.8
+# só para conferir o PDF (rasterizar páginas):
+pypdfium2>=4.30
