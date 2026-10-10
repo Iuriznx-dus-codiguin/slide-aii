@@ -1,0 +1,42 @@
+/* Keep landing layout and accessibility adjustments isolated from the editor. */
+.landing-page {
+  overflow-x: clip;
+}
+
+.landing-page section[id] {
+  scroll-margin-top: 5rem;
+}
+
+.landing-page h1,
+.landing-page h2,
+.landing-page h3 {
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.landing-page button,
+.landing-page a,
+.landing-page img {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: none) {
+  .landing-page button:hover,
+  .landing-page a:hover,
+  .landing-page .group:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing-page) {
+    scroll-behavior: auto;
+  }
+
+  .landing-page *,
+  .landing-page *::before,
+  .landing-page *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
