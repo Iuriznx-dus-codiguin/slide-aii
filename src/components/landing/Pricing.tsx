@@ -51,7 +51,8 @@ export const Pricing = () => {
   const proId = proPlanFor(cycle);
   const proBonus = PLAN_SIGNUP_BONUS[proId] ?? 0;
   const maxPrice = max[cycle];
-  const monthlyDecks = Math.floor((PLAN_MONTHLY_CREDITS[proId] * 3) / SINGLE_PURCHASE_CREDITS);
+  // Estimativa divulgada (≈ 3 apresentações no avulso × escala PRO).
+  const monthlyDecks = 20;
 
   return (
     <section id="pricing" className="py-12 sm:py-16 lg:py-20 relative">
@@ -169,7 +170,7 @@ export const Pricing = () => {
               <span className="font-display text-4xl xl:text-5xl font-extrabold tracking-tight">{proPrice.price}</span>
               <span className="text-sm text-muted-foreground">/ {proPrice.period}</span>
             </div>
-            <p className="mt-2 text-sm font-medium text-primary">≈ {monthlyDecks} apresentações por mês</p>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">≈ {monthlyDecks} apresentações por mês</p>
             {"monthlyEquivalent" in proPrice && (
               <p className="mt-1 text-xs text-primary font-medium">
                 Equivalente a R$ {proPrice.monthlyEquivalent}/mês
