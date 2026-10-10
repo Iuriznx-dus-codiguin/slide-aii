@@ -1,3 +1,5 @@
+import { MotionConfig } from "framer-motion";
+import "@/components/landing/landing.css";
 import { Navbar } from "@/components/landing/Navbar";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -11,7 +13,8 @@ import { Seo } from "@/components/Seo";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
+    <div className="landing-page min-h-screen bg-background">
       <Seo
         title="SlideAI — Crie apresentações incríveis em segundos com IA"
         description="Gere apresentações profissionais com inteligência artificial. Descreva o tema e receba slides editáveis com gráficos, imagens e design impecável."
@@ -24,11 +27,12 @@ const Index = () => {
         <Features />
         <UseCases />
         <Pricing />
-        <FAQ />
         <CTA />
+        <FAQ />
       </main>
       <Footer />
     </div>
+    </MotionConfig>
   );
 };
 

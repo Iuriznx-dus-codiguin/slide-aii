@@ -1,5 +1,6 @@
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { GraduationCap, BookOpen, Briefcase, Megaphone, Heart } from "lucide-react";
 
 const cases = [
@@ -47,26 +48,26 @@ const cases = [
 
 export const UseCases = () => {
   const [active, setActive] = useState(cases[0].id);
-  const current = cases.find((c) => c.id === active)!;
+  const current = cases.find((c) => c.id === active) ?? cases[0];
 
   return (
-    <section className="py-24 md:py-32">
-      <div className="container mx-auto px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12">
+    <section className="py-12 sm:py-16 lg:py-20">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
           <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 uppercase tracking-wider">
             Casos de uso
           </div>
-          <h2 className="font-display text-4xl md:text-5xl font-bold tracking-tight">
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
             Para qualquer momento da sua <span className="text-gradient">jornada</span>
           </h2>
         </div>
 
         <div className="flex flex-wrap justify-center gap-2 mb-10">
           {cases.map((c) => (
-            <button
+            <Button variant="ghost" aria-pressed={active === c.id}
               key={c.id}
               onClick={() => setActive(c.id)}
-              className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all ${
+              className={`inline-flex items-center gap-2 rounded-full h-11 px-3 sm:px-5 py-2.5 text-sm font-semibold transition-all ${
                 active === c.id
                   ? "bg-gradient-primary text-primary-foreground shadow-glow"
                   : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
@@ -74,21 +75,21 @@ export const UseCases = () => {
             >
               <c.icon className="h-4 w-4" />
               {c.label}
-            </button>
+            </Button>
           ))}
         </div>
 
-        <AnimatePresence mode="wait">
+        <div className="min-h-[510px] sm:min-h-[480px] md:min-h-[310px]">
           <motion.div
             key={current.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.4 }}
-            className="grid md:grid-cols-2 gap-8 md:gap-12 items-center max-w-5xl mx-auto"
+            transition={{ duration: 0.25 }}
+            className="grid md:grid-cols-2 gap-6 md:gap-10 items-center max-w-5xl mx-auto"
           >
             <div>
-              <h3 className="font-display text-3xl md:text-4xl font-bold mb-4">{current.title}</h3>
+              <h3 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</h3>
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</p>
               <ul className="space-y-3">
                 {current.bullets.map((b) => (
@@ -100,7 +101,7 @@ export const UseCases = () => {
               </ul>
             </div>
 
-            <div className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-8 flex flex-col justify-center shadow-elegant">
+            <div className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
               <div className="absolute inset-0 bg-gradient-glow opacity-50" />
               <div className="relative">
                 <current.icon className="h-12 w-12 text-primary mb-4" strokeWidth={1.5} />
@@ -114,7 +115,7 @@ export const UseCases = () => {
               </div>
             </div>
           </motion.div>
-        </AnimatePresence>
+        </div>
       </div>
     </section>
   );

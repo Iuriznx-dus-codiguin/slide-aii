@@ -1,44 +1,35 @@
 import { motion } from "framer-motion";
-import { animated } from "@react-spring/web";
 import { ArrowRight, Sparkles, Wand2, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useSpringHover } from "@/lib/physics";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import heroImg from "@/assets/hero-slides.jpg";
 
-const SpringWrap = ({ children, hoverY = -2 }: { children: React.ReactNode; hoverY?: number }) => {
-  const { bind, style } = useSpringHover({ hoverScale: 1.04, pressScale: 0.96, hoverY });
-  return (
-    <animated.div style={style} {...bind} className="inline-block">
-      {children}
-    </animated.div>
-  );
-};
-
 export const Hero = () => {
+  const reducedMotion = usePrefersReducedMotion();
   return (
-    <section className="relative pt-32 pb-20 md:pt-40 md:pb-28 overflow-hidden">
+    <section className="relative pt-24 pb-10 sm:pt-28 sm:pb-14 lg:pt-32 lg:pb-16 overflow-hidden">
       {/* Glow background */}
       <div className="absolute inset-0 bg-gradient-glow pointer-events-none" />
-      <div className="absolute top-20 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-primary/20 blur-[120px] pointer-events-none" />
 
-      <div className="container relative mx-auto px-6">
+
+      <div className="container relative mx-auto px-4 sm:px-6">
         <div className="mx-auto max-w-4xl text-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.4 }}
             className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-6"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Roteiro, design e imagens criados por IA
+            Powered By GPT-6 Astra
           </motion.div>
 
           <motion.h1
-            initial={{ opacity: 0, y: 24 }}
+            initial={reducedMotion ? false : { opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.1 }}
-            className="font-display text-[2.6rem] sm:text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05]"
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.05]"
           >
             Crie apresentações{" "}
             <span className="text-gradient">incríveis</span>
@@ -47,40 +38,40 @@ export const Hero = () => {
           </motion.h1>
 
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
+            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="mt-4 text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
           >
             Descreva seu tema e deixe a inteligência artificial gerar slides profissionais,
             com design impecável, gráficos e imagens. Pronto em cerca de um minuto.
           </motion.p>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.3 }}
-            className="mt-10 flex flex-col sm:flex-row gap-3 justify-center items-center"
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center"
           >
-            <Link to="/gerar">
-              <SpringWrap hoverY={-3}>
-                <Button variant="hero" size="xl" className="group">
+            <Link to="/gerar" className="w-full sm:w-auto">
+
+                <Button variant="hero" size="xl" className="group w-full px-5 sm:px-9">
                   Criar minha apresentação
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Button>
-              </SpringWrap>
+
             </Link>
-            <a href="#how">
-              <SpringWrap>
-                <Button variant="outline" size="xl">Ver como funciona</Button>
-              </SpringWrap>
+            <a href="#how" className="w-full sm:w-auto">
+
+                <Button variant="outline" size="xl" className="w-full px-5 sm:px-9">Ver como funciona</Button>
+
             </a>
           </motion.div>
 
           <motion.p
-            initial={{ opacity: 0 }}
+            initial={reducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.7, delay: 0.4 }}
+            transition={{ duration: 0.4, delay: 0.4 }}
             className="mt-4 text-xs text-muted-foreground"
           >
             Pagamento seguro · Cancele quando quiser · 7 dias para desistir
@@ -89,17 +80,17 @@ export const Hero = () => {
 
         {/* Hero mockup */}
         <motion.div
-          initial={{ opacity: 0, y: 60, scale: 0.95 }}
+          initial={reducedMotion ? false : { opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 1, delay: 0.4, ease: [0.19, 1, 0.22, 1] }}
-          className="relative mt-16 md:mt-20 mx-auto max-w-5xl"
+          transition={{ duration: 0.55, delay: 0.15, ease: [0.19, 1, 0.22, 1] }}
+          className="relative mt-8 sm:mt-10 lg:mt-12 mx-auto max-w-5xl"
         >
           <div className="relative rounded-3xl border border-border/60 bg-card shadow-elegant overflow-hidden">
             {/* Browser chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 bg-muted/30">
               <div className="flex gap-1.5">
                 <div className="h-3 w-3 rounded-full bg-destructive/60" />
-                <div className="h-3 w-3 rounded-full bg-yellow-400/60" />
+                <div className="h-3 w-3 rounded-full bg-accent/60" />
                 <div className="h-3 w-3 rounded-full bg-success/60" />
               </div>
               <div className="flex-1 text-center">
@@ -109,9 +100,9 @@ export const Hero = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-12 min-h-[400px] md:min-h-[500px]">
+            <div className="grid grid-cols-12 min-h-[220px] sm:min-h-[340px] lg:min-h-[440px]">
               {/* Sidebar slides */}
-              <div className="col-span-3 border-r border-border/60 bg-muted/20 p-3 space-y-2">
+              <div className="hidden sm:block sm:col-span-3 border-r border-border/60 bg-muted/20 p-3 space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
@@ -124,7 +115,7 @@ export const Hero = () => {
               </div>
 
               {/* Canvas */}
-              <div className="col-span-9 relative bg-gradient-subtle p-6 md:p-10 flex items-center justify-center">
+              <div className="col-span-12 sm:col-span-9 relative bg-gradient-subtle p-4 sm:p-6 lg:p-10 flex items-center justify-center">
                 <img
                   src={heroImg}
                   alt="Preview do editor SlideAI com apresentações geradas por IA"
@@ -134,17 +125,17 @@ export const Hero = () => {
                   decoding="async"
                   className="absolute inset-0 w-full h-full object-cover opacity-20"
                 />
-                <div className="relative w-full max-w-2xl aspect-video rounded-xl bg-card shadow-glow border border-border/60 p-6 md:p-10 flex flex-col justify-center">
+                <div className="relative w-full max-w-2xl aspect-video rounded-xl bg-card shadow-glow border border-border/60 p-4 sm:p-6 lg:p-10 flex flex-col justify-center">
                   <div className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4">
                     <Zap className="h-3 w-3" /> Slide 02 de 08
                   </div>
-                  <h3 className="font-display text-2xl md:text-4xl font-bold mb-3">
+                  <h3 className="font-display text-xl sm:text-2xl lg:text-4xl font-bold mb-3">
                     O futuro das <span className="text-gradient">apresentações</span>
                   </h3>
-                  <p className="text-sm md:text-base text-muted-foreground">
+                  <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
                     Conteúdo gerado por IA em segundos, com gráficos, imagens e narrativa coerente.
                   </p>
-                  <div className="mt-6 flex gap-3">
+                  <div className="mt-4 sm:mt-6 flex gap-3">
                     <div className="h-2 w-16 rounded-full bg-primary" />
                     <div className="h-2 w-10 rounded-full bg-muted-foreground/20" />
                     <div className="h-2 w-6 rounded-full bg-muted-foreground/20" />
@@ -156,7 +147,7 @@ export const Hero = () => {
 
           {/* Floating badge */}
           <motion.div
-            animate={{ y: [0, -10, 0] }}
+            animate={reducedMotion ? { y: 0 } : { y: [0, -6, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className="hidden md:flex absolute -left-6 top-1/3 items-center gap-2 rounded-2xl bg-card border border-border shadow-lg px-4 py-3"
           >

@@ -14,15 +14,15 @@ const features = [
 
 export const Features = () => {
   return (
-    <section id="features" className="py-24 md:py-32 bg-gradient-subtle relative overflow-hidden">
-      <div className="absolute top-0 right-0 h-96 w-96 rounded-full bg-accent/10 blur-[100px] pointer-events-none" />
+    <section id="features" className="py-12 sm:py-16 lg:py-20 bg-gradient-subtle relative overflow-hidden">
 
-      <div className="container mx-auto px-6 relative">
-        <div className="text-center max-w-2xl mx-auto mb-16">
+
+      <div className="container mx-auto px-4 sm:px-6 relative">
+        <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-12">
           <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 uppercase tracking-wider">
             Recursos
           </div>
-          <h2 className="font-display text-4xl md:text-5xl font-bold tracking-tight">
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
             Tudo que você precisa para <span className="text-gradient">brilhar</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
@@ -30,15 +30,15 @@ export const Features = () => {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {features.map((f, i) => (
             <motion.div
               key={f.title}
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
+              viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.5, delay: (i % 4) * 0.08 }}
-              className="group relative bg-card border border-border rounded-2xl p-6 hover:border-primary/40 hover:shadow-glow transition-all duration-500"
+              className="group relative bg-card border border-border rounded-2xl p-5 sm:p-6 hover:border-primary/40 hover:shadow-glow transition-[border-color,box-shadow] duration-200"
             >
               <div className="h-11 w-11 rounded-xl bg-gradient-card border border-primary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                 <f.icon className="h-5 w-5 text-primary" strokeWidth={2} />
