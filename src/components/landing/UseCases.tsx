@@ -98,41 +98,43 @@ export const UseCases = () => {
         </div>
 
         <div className="min-h-[510px] sm:min-h-[480px] md:min-h-[310px]">
-          <motion.div
-            key={current.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.25 }}
-            className="grid md:grid-cols-2 gap-6 md:gap-10 items-center max-w-5xl mx-auto"
-          >
-            <div>
-              <h3 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</h3>
-              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</p>
-              <ul className="space-y-3">
-                {current.bullets.map((b) => (
-                  <li key={b} className="flex items-center gap-3">
-                    <div className="h-2 w-2 rounded-full bg-gradient-primary" />
-                    <span className="font-medium">{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={current.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+              className="grid md:grid-cols-2 gap-6 md:gap-10 items-center max-w-5xl mx-auto"
+            >
+              <div>
+                <h3 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</h3>
+                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</p>
+                <ul className="space-y-3">
+                  {current.bullets.map((b) => (
+                    <li key={b} className="flex items-center gap-3">
+                      <div className="h-2 w-2 rounded-full bg-gradient-primary" />
+                      <span className="font-medium">{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-            <div className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
-              <div className="absolute inset-0 bg-gradient-glow opacity-50" />
-              <div className="relative">
-                <current.icon className="h-12 w-12 text-primary mb-4" strokeWidth={1.5} />
-                <div className="font-display text-2xl font-bold mb-2">{current.label}</div>
-                <div className="text-sm text-muted-foreground">Pré-visualização do tema</div>
-                <div className="mt-6 space-y-2">
-                  <div className="h-2 w-3/4 rounded bg-primary/20" />
-                  <div className="h-2 w-1/2 rounded bg-primary/15" />
-                  <div className="h-2 w-2/3 rounded bg-primary/10" />
+              <div className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
+                <div className="absolute inset-0 bg-gradient-glow opacity-50" />
+                <div className="relative">
+                  <current.icon className="h-12 w-12 text-primary mb-4" strokeWidth={1.5} />
+                  <div className="font-display text-2xl font-bold mb-2">{current.label}</div>
+                  <div className="text-sm text-muted-foreground">Pré-visualização do tema</div>
+                  <div className="mt-6 space-y-2">
+                    <div className="h-2 w-3/4 rounded bg-primary/20" />
+                    <div className="h-2 w-1/2 rounded bg-primary/15" />
+                    <div className="h-2 w-2/3 rounded bg-primary/10" />
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </section>
