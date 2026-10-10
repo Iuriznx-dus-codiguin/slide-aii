@@ -6,9 +6,9 @@ export const Footer = () => {
   const supplier = supplierLines();
   return (
     <footer className="border-t border-border bg-card/50">
-      <div className="container mx-auto px-6 py-16">
-        <div className="grid md:grid-cols-5 gap-10">
-          <div className="md:col-span-2">
+      <div className="container mx-auto px-4 sm:px-6 py-10 sm:py-12">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
             <div className="mb-4">
               <BrandLogo size={36} />
             </div>
@@ -54,7 +54,7 @@ export const Footer = () => {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="mt-8 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground text-center md:text-left">
             © {new Date().getFullYear()} {LEGAL.brand}. Todos os direitos reservados.
             {supplier.length > 0 && <span className="block text-xs mt-1">{supplier.join(" · ")}</span>}

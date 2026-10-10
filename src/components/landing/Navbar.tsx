@@ -22,12 +22,12 @@ export const Navbar = () => {
       style={{ backgroundColor: bg }}
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-border/40"
     >
-      <nav className="container mx-auto flex h-16 items-center justify-between px-6">
+      <nav className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
         <Link to="/" className="group transition-transform group-hover:scale-105">
           <BrandLogo size={36} />
         </Link>
 
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden lg:flex items-center gap-8">
           {links.map((l) => (
             l.to ? (
               <Link key={l.href} to={l.to} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{l.label}</Link>
@@ -37,19 +37,19 @@ export const Navbar = () => {
           ))}
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           <Link to="/auth"><Button variant="ghost" size="sm">Entrar</Button></Link>
           <Link to="/gerar"><Button variant="hero" size="sm">Criar apresentação</Button></Link>
         </div>
 
-        <button className="md:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open} aria-controls="landing-mobile-menu">
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        </Button>
       </nav>
 
       {open && (
-        <div className="md:hidden border-t border-border/40 bg-background/95 backdrop-blur-md">
-          <div className="container mx-auto px-6 py-4 flex flex-col gap-4">
+        <div id="landing-mobile-menu" className="lg:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border/40 bg-background/95 backdrop-blur-md">
+          <div className="container mx-auto px-4 sm:px-6 py-4 flex flex-col gap-4">
             {links.map((l) => (
               l.to ? (
                 <Link key={l.href} to={l.to} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">{l.label}</Link>
