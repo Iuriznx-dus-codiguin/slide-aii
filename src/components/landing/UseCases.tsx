@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useMotionPreference } from "@/hooks/useMotionPreference";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { GraduationCap, BookOpen, Briefcase, Megaphone, Heart } from "lucide-react";
 
 const cases = [
@@ -53,7 +53,7 @@ export const UseCases = () => {
 
   // Rotação automática dos casos de uso. Uma interação manual reinicia o
   // ciclo, para não trocar de slide logo depois do clique do usuário.
-  const prefersReducedMotion = useMotionPreference();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (prefersReducedMotion) return;
