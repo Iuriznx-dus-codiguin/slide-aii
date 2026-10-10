@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor, SINGLE_PURCHASE_CREDITS } from "@/lib/cakto";
+import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
