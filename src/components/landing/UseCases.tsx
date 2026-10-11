@@ -63,6 +63,18 @@ const cases = [
   },
 ];
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.2 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, x: 32, scale: 0.97 },
+  show: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, x: -24, scale: 0.98, transition: { duration: 0.25 } },
+};
+
 export const UseCases = () => {
   const [active, setActive] = useState(cases[0].id);
   const current = cases.find((c) => c.id === active) ?? cases[0];
