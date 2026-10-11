@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { GraduationCap, BookOpen, Briefcase, Megaphone, Heart } from "lucide-react";
+import { GraduationCap, BookOpen, Briefcase, Megaphone, Palette, FlaskConical, Rocket } from "lucide-react";
 
 const cases = [
   {
@@ -11,7 +11,7 @@ const cases = [
     label: "Acadêmico",
     title: "Defesas e seminários impecáveis",
     desc: "TCC, dissertações e artigos viram apresentações estruturadas, com gráficos de dados e narrativa clara.",
-    bullets: ["Estrutura científica automática", "Falas do apresentador", "Gráficos a partir de dados"],
+    bullets: ["Estrutura acadêmica automática", "Falas do apresentador", "Gráficos a partir de dados"],
   },
   {
     id: "school",
@@ -22,9 +22,9 @@ const cases = [
     bullets: ["Linguagem adaptada à idade", "Imagens ilustrativas", "Layouts coloridos"],
   },
   {
-    id: "work",
+    id: "corporate",
     icon: Briefcase,
-    label: "Trabalho",
+    label: "Corporativo",
     title: "Reuniões corporativas afiadas",
     desc: "Relatórios, kickoffs e revisões trimestrais com dados, KPIs e visual profissional e consistente.",
     bullets: ["Tom executivo", "Dashboards integrados", "Paleta corporativa"],
@@ -33,19 +33,47 @@ const cases = [
     id: "marketing",
     icon: Megaphone,
     label: "Marketing",
-    title: "Pitches que vendem",
-    desc: "Apresentações de venda, propostas e decks de investidores com storytelling persuasivo e design vibrante.",
+    title: "Campanhas que convertem",
+    desc: "Planos de campanha, relatórios de mídia e propostas comerciais com storytelling persuasivo e design vibrante.",
     bullets: ["Storytelling de vendas", "Métricas em destaque", "CTAs claros"],
   },
   {
-    id: "personal",
-    icon: Heart,
-    label: "Pessoal",
-    title: "Para a vida toda",
-    desc: "Casamentos, eventos, álbuns e até receitas — qualquer ideia ganha forma de slide elegante.",
-    bullets: ["Templates afetivos", "Fotos pessoais", "Tom personalizado"],
+    id: "creative",
+    icon: Palette,
+    label: "Criativo",
+    title: "Portfólios e ideias com identidade",
+    desc: "Portfólios, moodboards e apresentações autorais com composições ousadas, texturas e estilos visuais variados.",
+    bullets: ["Estilos visuais variados", "Composições ousadas", "Temas inteligentes"],
+  },
+  {
+    id: "scientific",
+    icon: FlaskConical,
+    label: "Científico",
+    title: "Pesquisas com rigor visual",
+    desc: "Congressos, pôsteres e resultados de pesquisa com dados organizados, citações e leitura objetiva.",
+    bullets: ["Dados e gráficos claros", "Estrutura científica", "Leitura objetiva"],
+  },
+  {
+    id: "pitch",
+    icon: Rocket,
+    label: "Pitch de Negócios",
+    title: "Pitches que conquistam investidores",
+    desc: "Decks de captação e propostas com narrativa enxuta: problema, solução, mercado, tração e pedido.",
+    bullets: ["Narrativa de captação", "Métricas de tração", "Fechamento com CTA"],
   },
 ];
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.2 } },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, x: 32, scale: 0.97 },
+  show: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, x: -24, scale: 0.98, transition: { duration: 0.25 } },
+};
 
 export const UseCases = () => {
   const [active, setActive] = useState(cases[0].id);
@@ -101,26 +129,36 @@ export const UseCases = () => {
           <AnimatePresence mode="wait">
             <motion.div
               key={current.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              variants={{
+                hidden: { opacity: 0, y: 28, scale: 0.985, filter: "blur(6px)" },
+                show: {
+                  opacity: 1, y: 0, scale: 1, filter: "blur(0px)",
+                  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1], staggerChildren: 0.08, delayChildren: 0.08 },
+                },
+                exit: {
+                  opacity: 0, y: -18, scale: 0.99, filter: "blur(4px)",
+                  transition: { duration: 0.3, ease: [0.4, 0, 1, 1] },
+                },
+              }}
               className="grid md:grid-cols-2 gap-6 md:gap-10 items-center max-w-5xl mx-auto"
             >
               <div>
-                <h3 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</h3>
-                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</p>
+                <motion.h3 variants={itemVariants} className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</motion.h3>
+                <motion.p variants={itemVariants} className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</motion.p>
                 <ul className="space-y-3">
                   {current.bullets.map((b) => (
-                    <li key={b} className="flex items-center gap-3">
+                    <motion.li variants={itemVariants} key={b} className="flex items-center gap-3">
                       <div className="h-2 w-2 rounded-full bg-gradient-primary" />
                       <span className="font-medium">{b}</span>
-                    </li>
+                    </motion.li>
                   ))}
                 </ul>
               </div>
 
-              <div className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
+              <motion.div variants={cardVariants} className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
                 <div className="absolute inset-0 bg-gradient-glow opacity-50" />
                 <div className="relative">
                   <current.icon className="h-12 w-12 text-primary mb-4" strokeWidth={1.5} />
@@ -132,7 +170,7 @@ export const UseCases = () => {
                     <div className="h-2 w-2/3 rounded bg-primary/10" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           </AnimatePresence>
         </div>
