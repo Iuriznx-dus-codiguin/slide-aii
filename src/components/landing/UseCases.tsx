@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { GraduationCap, BookOpen, Briefcase, Megaphone, Heart } from "lucide-react";
+import { GraduationCap, BookOpen, Briefcase, Megaphone, Palette, FlaskConical, Rocket } from "lucide-react";
 
 const cases = [
   {
@@ -11,7 +11,7 @@ const cases = [
     label: "Acadêmico",
     title: "Defesas e seminários impecáveis",
     desc: "TCC, dissertações e artigos viram apresentações estruturadas, com gráficos de dados e narrativa clara.",
-    bullets: ["Estrutura científica automática", "Falas do apresentador", "Gráficos a partir de dados"],
+    bullets: ["Estrutura acadêmica automática", "Falas do apresentador", "Gráficos a partir de dados"],
   },
   {
     id: "school",
@@ -22,9 +22,9 @@ const cases = [
     bullets: ["Linguagem adaptada à idade", "Imagens ilustrativas", "Layouts coloridos"],
   },
   {
-    id: "work",
+    id: "corporate",
     icon: Briefcase,
-    label: "Trabalho",
+    label: "Corporativo",
     title: "Reuniões corporativas afiadas",
     desc: "Relatórios, kickoffs e revisões trimestrais com dados, KPIs e visual profissional e consistente.",
     bullets: ["Tom executivo", "Dashboards integrados", "Paleta corporativa"],
@@ -33,17 +33,33 @@ const cases = [
     id: "marketing",
     icon: Megaphone,
     label: "Marketing",
-    title: "Pitches que vendem",
-    desc: "Apresentações de venda, propostas e decks de investidores com storytelling persuasivo e design vibrante.",
+    title: "Campanhas que convertem",
+    desc: "Planos de campanha, relatórios de mídia e propostas comerciais com storytelling persuasivo e design vibrante.",
     bullets: ["Storytelling de vendas", "Métricas em destaque", "CTAs claros"],
   },
   {
-    id: "personal",
-    icon: Heart,
-    label: "Pessoal",
-    title: "Para a vida toda",
-    desc: "Casamentos, eventos, álbuns e até receitas — qualquer ideia ganha forma de slide elegante.",
-    bullets: ["Templates afetivos", "Fotos pessoais", "Tom personalizado"],
+    id: "creative",
+    icon: Palette,
+    label: "Criativo",
+    title: "Portfólios e ideias com identidade",
+    desc: "Portfólios, moodboards e apresentações autorais com composições ousadas, texturas e estilos visuais variados.",
+    bullets: ["Estilos visuais variados", "Composições ousadas", "Temas inteligentes"],
+  },
+  {
+    id: "scientific",
+    icon: FlaskConical,
+    label: "Científico",
+    title: "Pesquisas com rigor visual",
+    desc: "Congressos, pôsteres e resultados de pesquisa com dados organizados, citações e leitura objetiva.",
+    bullets: ["Dados e gráficos claros", "Estrutura científica", "Leitura objetiva"],
+  },
+  {
+    id: "pitch",
+    icon: Rocket,
+    label: "Pitch de Negócios",
+    title: "Pitches que conquistam investidores",
+    desc: "Decks de captação e propostas com narrativa enxuta: problema, solução, mercado, tração e pedido.",
+    bullets: ["Narrativa de captação", "Métricas de tração", "Fechamento com CTA"],
   },
 ];
 
