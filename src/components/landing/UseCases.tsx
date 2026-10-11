@@ -117,26 +117,36 @@ export const UseCases = () => {
           <AnimatePresence mode="wait">
             <motion.div
               key={current.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              variants={{
+                hidden: { opacity: 0, y: 28, scale: 0.985, filter: "blur(6px)" },
+                show: {
+                  opacity: 1, y: 0, scale: 1, filter: "blur(0px)",
+                  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1], staggerChildren: 0.08, delayChildren: 0.08 },
+                },
+                exit: {
+                  opacity: 0, y: -18, scale: 0.99, filter: "blur(4px)",
+                  transition: { duration: 0.3, ease: [0.4, 0, 1, 1] },
+                },
+              }}
               className="grid md:grid-cols-2 gap-6 md:gap-10 items-center max-w-5xl mx-auto"
             >
               <div>
-                <h3 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</h3>
-                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</p>
+                <motion.h3 variants={itemVariants} className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{current.title}</motion.h3>
+                <motion.p variants={itemVariants} className="text-lg text-muted-foreground mb-6 leading-relaxed">{current.desc}</motion.p>
                 <ul className="space-y-3">
                   {current.bullets.map((b) => (
-                    <li key={b} className="flex items-center gap-3">
+                    <motion.li variants={itemVariants} key={b} className="flex items-center gap-3">
                       <div className="h-2 w-2 rounded-full bg-gradient-primary" />
                       <span className="font-medium">{b}</span>
-                    </li>
+                    </motion.li>
                   ))}
                 </ul>
               </div>
 
-              <div className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
+              <motion.div variants={cardVariants} className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">
                 <div className="absolute inset-0 bg-gradient-glow opacity-50" />
                 <div className="relative">
                   <current.icon className="h-12 w-12 text-primary mb-4" strokeWidth={1.5} />
@@ -148,7 +158,7 @@ export const UseCases = () => {
                     <div className="h-2 w-2/3 rounded bg-primary/10" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           </AnimatePresence>
         </div>
