@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
           .map((h: any) => ({ role: h.role === "assistant" ? "assistant" : "user", content: String(h.content).slice(0, 800) }))
       : [];
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const useOpenAI = !!OPENAI_API_KEY;
     if (!useOpenAI && !LOVABLE_API_KEY) throw new Error("Nenhuma chave de IA configurada");

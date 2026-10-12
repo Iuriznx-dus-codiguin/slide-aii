@@ -620,7 +620,7 @@ Deno.serve(async (req) => {
 
   try {
     const body: GenerateRequest = rawBody as GenerateRequest;
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const useOpenAI = !!OPENAI_API_KEY;
     if (!useOpenAI && !LOVABLE_API_KEY) {
