@@ -12,6 +12,7 @@
 //
 // Regra de privacidade: nada de e-mail, token, corpo de requisição ou prompt.
 // Só metadados operacionais e, quando útil, um hash curto (fingerprint).
+import { clientIp } from "./clientIp.ts";
 
 export type Severity = "info" | "warning" | "critical";
 
@@ -39,11 +40,9 @@ export async function fingerprint(value: string | null | undefined): Promise<str
   }
 }
 
-/** Hash de IP para rate limit/telemetria sem armazenar o endereço. */
+/** Hash de IP para telemetria sem armazenar o endereço (IP confiável: ./clientIp.ts). */
 export async function hashIp(req: Request): Promise<string | null> {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? req.headers.get("cf-connecting-ip");
-  return fingerprint(ip);
+  return fingerprint(clientIp(req));
 }
 
 export interface LoggerCtx {

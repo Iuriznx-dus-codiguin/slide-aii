@@ -21,12 +21,15 @@ import {
   billingAlertFor, billingSnapshotFrom, pendingChargeFrom,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
+import { clientIpKey } from "../_shared/clientIp.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
 import { scheduleLifecycle, sendLifecycle } from "../_shared/lifecycle.ts";
 import { planRank } from "../_shared/plans.ts";
 
 // Tabelas de créditos por plano: ./lib.ts (usadas também pela regra de
 // estorno, que precisa saber quanto cada pedido concedeu).
+
+const MAX_WEBHOOK_BODY_CHARS = 256 * 1024;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +63,10 @@ Deno.serve(async (req) => {
 
   let payload: any = {};
   const rawBody = await req.text().catch(() => "");
+  // Endpoint público (sem JWT): o corpo de um evento da Cakto tem poucos KB.
+  if (rawBody.length > MAX_WEBHOOK_BODY_CHARS) {
+    return json({ error: "payload too large" }, 413);
+  }
   if (rawBody) {
     try {
       payload = JSON.parse(rawBody);
@@ -77,6 +84,13 @@ Deno.serve(async (req) => {
 
   const provided = collectProvidedSecrets(req.headers, req.url, payload);
   if (!hasValidSecret(provided, WEBHOOK_SECRET)) {
+    // Qualquer um pode chamar este endereço: sem teto, cada POST inválido
+    // gravava um security_event (crescimento ilimitado da tabela). Além de
+    // 30 por hora do mesmo IP, só responde 401.
+    const { data: underLimit } = await admin.rpc("check_rate_limit", {
+      _key: `ip:${await clientIpKey(req)}`, _fn: "cakto-webhook-invalid", _max_per_hour: 30,
+    });
+    if (underLimit === false) return json({ error: "unauthorized" }, 401);
     // Diagnóstico sem vazar segredo: comparamos FINGERPRINTS (hash curto).
     // Se o fingerprint enviado pela Cakto for diferente do esperado, o valor
     // cadastrado no painel da Cakto não é o mesmo de CAKTO_WEBHOOK_SECRET.
@@ -234,7 +248,19 @@ Deno.serve(async (req) => {
       prevPlan = before?.plan ?? null;
       prevWasSubscriber = prevIsSubscriber;
 
-      if (plan === "single") {
+      if (plan === "single" && !cakto_id) {
+        // Sem o id do pedido não há como garantir crédito uma única vez por
+        // compra (nem estornar depois): acerto manual.
+        await raiseOpsAlert(admin, {
+          kind: "payment_without_order_id", severity: "critical", dedupeKey: `payment_without_order_id:${eventRowId}`,
+          title: "Compra avulsa sem id de pedido: crédito não aplicado automaticamente",
+          details: { evento: event_type, usuario: userId, payment_event: eventRowId },
+        });
+        await admin.from("payment_events")
+          .update({ processed: true, error_message: "single_without_order_id" })
+          .eq("id", eventRowId);
+        return json({ ok: true, note: "single purchase without order id needs review" });
+      } else if (plan === "single") {
         // Compra avulsa NÃO rebaixa o plano de quem já é assinante ativo:
         // apenas credita o bônus permanente (500 = 400 + 100 de vitrine).
         const patch: Record<string, unknown> = {
@@ -255,10 +281,23 @@ Deno.serve(async (req) => {
           if (zeroErr) log.error("zero_monthly_failed", { message: zeroErr.message });
         }
 
-        const { error: creditErr } = await admin.rpc("grant_bonus_credits", {
-          _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
+        // Uma vez por PEDIDO: a idempotência de payment_events é por
+        // (evento, pedido), e um segundo evento "pago" do mesmo pedido (tipo
+        // novo classificado pela heurística, por exemplo) creditava de novo.
+        const { data: granted, error: creditErr } = await admin.rpc("grant_order_bonus_credits", {
+          _uid: userId, _order_id: String(cakto_id), _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
         });
-        if (creditErr) log.error("grant_bonus_credits_failed", { message: creditErr.message });
+        if (creditErr && (creditErr.code === "PGRST202" || creditErr.code === "42883")) {
+          // Migração 0010 ainda não aplicada.
+          const { error: legacyErr } = await admin.rpc("grant_bonus_credits", {
+            _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
+          });
+          if (legacyErr) log.error("grant_bonus_credits_failed", { message: legacyErr.message });
+        } else if (creditErr) {
+          log.error("grant_order_bonus_credits_failed", { message: creditErr.message });
+        } else if ((granted as { granted?: boolean } | null)?.granted === false) {
+          log.info("single_purchase_already_granted", { cakto_id, reason: (granted as { reason?: string }).reason });
+        }
       } else {
         const patch: Record<string, unknown> = {
           plan,

@@ -21,6 +21,8 @@ export default defineTool({
     let query = supabase
       .from("presentations")
       .select("id, title, slug, description, slides_count, view_count, is_published, language, created_at")
+      // Só as do usuário: o RLS sozinho também devolvia decks publicados de terceiros.
+      .eq("user_id", ctx.getUserId())
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(limit ?? 20);

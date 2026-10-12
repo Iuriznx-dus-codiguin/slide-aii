@@ -14,6 +14,9 @@ const corsHeaders = {
 };
 
 export const MAX_SPEECH_REGENS = 5;
+const MAX_REGENS_PER_HOUR = 20;
+/** Teto de slides no prompt (a geração vai até 20; o editor pode somar alguns). */
+const MAX_DECK_SLIDES = 40;
 const LIMIT_MESSAGE = "Limite de regenerações de falas atingido para esta apresentação.";
 
 const json = (body: unknown, status = 200) =>
@@ -35,9 +38,18 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) return json({ error: "Sessão inválida." }, 401);
   const userId = userData.user.id;
 
+  // Teto por hora além da cota por apresentação: decks são baratos de criar,
+  // então a cota sozinha não limitava o volume total de chamadas de IA.
+  const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+    _key: `user:${userId}`, _fn: "regenerate-speeches", _max_per_hour: MAX_REGENS_PER_HOUR,
+  });
+  if (withinLimit === false) return json({ error: "Muitas regenerações em pouco tempo. Aguarde alguns minutos." }, 429);
+
   let body: { presentationId?: string; scope?: "slide" | "all"; slideIndex?: number };
   try {
-    body = await req.json();
+    const text = await req.text();
+    if (text.length > 4096) return json({ error: "Requisição inválida." }, 413);
+    body = JSON.parse(text);
   } catch {
     return json({ error: "Requisição inválida." }, 400);
   }
@@ -80,6 +92,7 @@ Deno.serve(async (req) => {
     .eq("presentation_id", presentationId)
     .order("position");
   if (slidesErr || !slideRows?.length) return json({ error: "Slides não encontrados." }, 404);
+  if (slideRows.length > MAX_DECK_SLIDES) return json({ error: "Apresentação grande demais para regenerar as falas." }, 400);
 
   const names: string[] = Array.isArray((pres as any).presenters_names) && (pres as any).presenters_names.length
     ? ((pres as any).presenters_names as string[])
@@ -153,32 +166,61 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
     },
   };
 
-  // Modelo da etapa vem do registro único (_shared/modelRegistry.ts).
-  const resp = await fetch(AI_ENDPOINTS.gateway, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: TEXT_STAGES.speeches.gateway,
-      messages: [{ role: "user", content: prompt }],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "set_speeches" } },
-    }),
+  // Reserva a vaga ANTES da chamada de IA, de forma atômica no banco: ler o
+  // contador, chamar a IA e só então gravar deixava pedidos em paralelo
+  // passarem do teto. Se a IA falhar, a vaga é devolvida.
+  const { data: reservedCount, error: reserveErr } = await admin.rpc("reserve_speech_regen", {
+    _presentation_id: presentationId, _uid: userId, _max: MAX_SPEECH_REGENS,
   });
-
-  if (resp.status === 429) return json({ error: "Muitas requisições de IA. Tente em instantes." }, 429);
-  if (resp.status === 402) return json({ error: "Créditos de IA insuficientes." }, 402);
-  if (!resp.ok) {
-    console.error("regenerate-speeches: AI error", resp.status, await resp.text());
+  // Migração 0010 ainda não aplicada: segue com o contador antigo.
+  const legacyCounter = !!reserveErr && (reserveErr.code === "PGRST202" || reserveErr.code === "42883");
+  if (reserveErr && !legacyCounter) {
+    console.error("regenerate-speeches: reserva falhou", reserveErr.message);
     return json({ error: "Falha ao gerar falas. Tente novamente." }, 500);
   }
+  if (!legacyCounter && (reservedCount === null || reservedCount === undefined)) {
+    return json({ error: LIMIT_MESSAGE, limitReached: true }, 429);
+  }
+  const usedNow = legacyCounter ? used + 1 : Number(reservedCount);
+  const fail = async (payload: Record<string, unknown>, status: number) => {
+    if (!legacyCounter) {
+      await admin.rpc("release_speech_regen", { _presentation_id: presentationId, _uid: userId });
+    }
+    return json(payload, status);
+  };
 
-  const aiJson = await resp.json();
-  const call = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
+  // Modelo da etapa vem do registro único (_shared/modelRegistry.ts).
+  let resp: Response;
+  try {
+    resp = await fetch(AI_ENDPOINTS.gateway, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: TEXT_STAGES.speeches.gateway,
+        messages: [{ role: "user", content: prompt }],
+        tools: [tool],
+        tool_choice: { type: "function", function: { name: "set_speeches" } },
+      }),
+    });
+  } catch (e) {
+    console.error("regenerate-speeches: AI request failed", e instanceof Error ? e.message : e);
+    return await fail({ error: "Falha ao gerar falas. Tente novamente." }, 502);
+  }
+
+  if (resp.status === 429) return await fail({ error: "Muitas requisições de IA. Tente em instantes." }, 429);
+  if (resp.status === 402) return await fail({ error: "Créditos de IA insuficientes." }, 402);
+  if (!resp.ok) {
+    console.error("regenerate-speeches: AI error", resp.status, await resp.text());
+    return await fail({ error: "Falha ao gerar falas. Tente novamente." }, 500);
+  }
+
   let parsed: any = {};
   try {
+    const aiJson = await resp.json();
+    const call = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
     parsed = JSON.parse(call?.function?.arguments ?? "{}");
   } catch {
-    return json({ error: "Resposta da IA inválida." }, 500);
+    return await fail({ error: "Resposta da IA inválida." }, 500);
   }
   const bySlide = new Map<number, any[]>();
   for (const s of parsed.slides ?? []) {
@@ -206,13 +248,15 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
     else updated.push({ position: s.position, presenters_data });
   }
 
-  if (!updated.length) return json({ error: "A IA não retornou falas. Tente novamente." }, 500);
+  if (!updated.length) return await fail({ error: "A IA não retornou falas. Tente novamente." }, 500);
 
-  const remaining = Math.max(0, MAX_SPEECH_REGENS - (used + 1));
-  await admin
-    .from("presentations")
-    .update({ speech_regen_count: used + 1 })
-    .eq("id", presentationId);
+  if (legacyCounter) {
+    await admin
+      .from("presentations")
+      .update({ speech_regen_count: usedNow })
+      .eq("id", presentationId);
+  }
+  const remaining = Math.max(0, MAX_SPEECH_REGENS - usedNow);
 
-  return json({ updated, used: used + 1, remaining, max: MAX_SPEECH_REGENS });
+  return json({ updated, used: usedNow, remaining, max: MAX_SPEECH_REGENS });
 });

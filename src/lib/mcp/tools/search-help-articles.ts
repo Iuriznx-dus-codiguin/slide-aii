@@ -16,8 +16,14 @@ export default defineTool({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
+    // O termo entra numa expressão `or=(...)` do PostgREST: vírgula, parênteses
+    // e aspas mudariam o filtro. Fica só o texto.
+    const safe = query.replace(/[,()"'\\*%:]/g, " ").replace(/\s+/g, " ").trim();
+    if (safe.length < 2) {
+      return { content: [{ type: "text", text: "Use pelo menos 2 letras na busca." }], isError: true };
+    }
     const supabase = supabaseForUser(ctx);
-    const term = `%${query}%`;
+    const term = `%${safe}%`;
     const { data, error } = await supabase
       .from("help_articles")
       .select("slug, title, category, content_md")

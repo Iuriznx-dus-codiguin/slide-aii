@@ -2,7 +2,7 @@
 // Modelos: ./lifecycleTemplates.ts · Regras: ./lifecycleRules.ts ·
 // Plano: docs/produto/plano-de-avisos-por-email.md
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { sendRenderedEmail, type SendResult } from "./email.ts";
+import { accountEmail, sendRenderedEmail, type SendResult } from "./email.ts";
 import { renderLayout, renderText, SITE_URL } from "./emailTemplates.ts";
 import {
   buildLifecycleEmail, firstNameOf, isAutoRenewMethod, type LifecycleTemplate, normalizePersona, templateKind,
@@ -29,11 +29,7 @@ export const loadLifecycleContext = async (admin: SupabaseClient, userId: string
     ]);
   if (!p) return null;
 
-  let email = (p.email ?? "").trim();
-  if (!email) {
-    const { data: u } = await admin.auth.admin.getUserById(userId);
-    email = u?.user?.email ?? "";
-  }
+  const email = await accountEmail(admin, userId, p.email);
   const { data: prefs } = await admin.from("email_preferences").select("relationship_emails").eq("user_id", userId).maybeSingle();
 
   const base = {

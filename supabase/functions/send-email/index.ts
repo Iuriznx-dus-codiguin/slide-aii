@@ -3,7 +3,7 @@
 // função não possa ser usada para mandar e-mail a qualquer endereço.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
-import { sendPlatformEmail } from "../_shared/email.ts";
+import { accountEmail, sendPlatformEmail } from "../_shared/email.ts";
 import { sendLifecycle } from "../_shared/lifecycle.ts";
 
 const corsHeaders = {
@@ -37,8 +37,17 @@ Deno.serve(async (req) => {
   const body = parsed.data;
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  const profileOf = async (id: string) =>
-    (await admin.from("profiles").select("id, full_name, username, email").eq("id", id).maybeSingle()).data;
+  // Destinatário pelo e-mail da conta (auth.users); nome limitado, porque vai
+  // no assunto de e-mails enviados a OUTRA pessoa.
+  const profileOf = async (id: string) => {
+    const p = (await admin.from("profiles").select("id, full_name, username, email").eq("id", id).maybeSingle()).data;
+    if (!p) return null;
+    return {
+      ...p,
+      full_name: p.full_name ? String(p.full_name).slice(0, 80) : p.full_name,
+      email: await accountEmail(admin, id, p.email),
+    };
+  };
 
   switch (body.event) {
     case "welcome": {
@@ -72,7 +81,11 @@ Deno.serve(async (req) => {
       const [owner, requester] = await Promise.all([profileOf(r.owner_id), profileOf(r.requester_id)]);
       const result = await sendPlatformEmail(admin, {
         to: owner?.email ?? "", userId: r.owner_id, dedupeKey: `access_requested:${r.id}`,
-        event: { type: "access_requested", requesterName: requester?.full_name || requester?.username || "Um usuário", message: r.message },
+        event: {
+          type: "access_requested",
+          requesterName: requester?.full_name || requester?.username || "Um usuário",
+          message: r.message ? String(r.message).slice(0, 500) : r.message,
+        },
       });
       return json({ ok: true, result });
     }

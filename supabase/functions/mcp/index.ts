@@ -78,7 +78,7 @@ var list_presentations_default = defineTool({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseForUser(ctx);
-    let query = supabase.from("presentations").select("id, title, slug, description, slides_count, view_count, is_published, language, created_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(limit ?? 20);
+    let query = supabase.from("presentations").select("id, title, slug, description, slides_count, view_count, is_published, language, created_at").eq("user_id", ctx.getUserId()).is("deleted_at", null).order("created_at", { ascending: false }).limit(limit ?? 20);
     if (search) query = query.ilike("title", `%${search}%`);
     const { data, error } = await query;
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
@@ -108,7 +108,7 @@ var get_presentation_default = defineTool2({
     const supabase = supabaseForUser(ctx);
     const { data: presentation, error } = await supabase.from("presentations").select(
       "id, title, slug, description, type, language, theme, slides_count, view_count, is_published, persona, depth_level, created_at"
-    ).eq("slug", slug).is("deleted_at", null).maybeSingle();
+    ).eq("slug", slug).eq("user_id", ctx.getUserId()).is("deleted_at", null).maybeSingle();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     if (!presentation) {
       return { content: [{ type: "text", text: `No presentation found for slug "${slug}".` }], isError: true };
@@ -179,8 +179,12 @@ var search_help_articles_default = defineTool4({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
+    const safe = query.replace(/[,()"'\\*%:]/g, " ").replace(/\s+/g, " ").trim();
+    if (safe.length < 2) {
+      return { content: [{ type: "text", text: "Use pelo menos 2 letras na busca." }], isError: true };
+    }
     const supabase = supabaseForUser(ctx);
-    const term = `%${query}%`;
+    const term = `%${safe}%`;
     const { data, error } = await supabase.from("help_articles").select("slug, title, category, content_md").eq("is_published", true).or(`title.ilike.${term},category.ilike.${term},content_md.ilike.${term}`).limit(limit ?? 5);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     const articles = (data ?? []).map((a) => ({
@@ -226,7 +230,7 @@ var update_presentation_default = defineTool5({
       };
     }
     const supabase = supabaseForUser(ctx);
-    const { data, error } = await supabase.from("presentations").update(patch).eq("slug", slug).is("deleted_at", null).select("id, title, slug, description, is_published").maybeSingle();
+    const { data, error } = await supabase.from("presentations").update(patch).eq("slug", slug).eq("user_id", ctx.getUserId()).is("deleted_at", null).select("id, title, slug, description, is_published").maybeSingle();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     if (!data) {
       return {

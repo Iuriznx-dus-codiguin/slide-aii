@@ -83,6 +83,27 @@ export const sendRenderedEmail = async (
   }
 };
 
+/**
+ * E-mail da CONTA (auth.users), a fonte da verdade. profiles.email é só uma
+ * cópia: até a migração 0010 o próprio usuário podia trocá-la pela API e
+ * redirecionar os e-mails da plataforma — com texto escolhido por ele — para
+ * qualquer endereço.
+ */
+export const accountEmail = async (
+  admin: SupabaseClient,
+  userId: string,
+  fallback?: string | null,
+): Promise<string> => {
+  try {
+    const { data } = await admin.auth.admin.getUserById(userId);
+    const email = data?.user?.email;
+    if (email) return email.trim().toLowerCase();
+  } catch {
+    /* cai na cópia do perfil */
+  }
+  return (fallback ?? "").trim().toLowerCase();
+};
+
 /** E-mails de suporte, portfólio e alertas (modelos de emailTemplates.ts). */
 export const sendPlatformEmail = async (
   admin: SupabaseClient,

@@ -40,15 +40,33 @@ const DevDashboard = () => {
       const since24h = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 
-      const [presTotal, slidesTotal, usersTotal, presRecent, slidesRecent, profiles, topGen, recentPres] = await Promise.all([
-        supabase.from("presentations").select("*", { count: "exact", head: true }),
-        supabase.from("slides").select("*", { count: "exact", head: true }),
+      // Contagens de conteúdo pelo RPC da equipe: sem leitura ampla das
+      // tabelas (migração 0010), a consulta direta só veria os decks do
+      // próprio admin. Sem o RPC (migração pendente), consulta direta.
+      const loadContent = async () => {
+        const { data, error } = await supabase.rpc("get_content_metrics");
+        if (!error && data && typeof data === "object") {
+          const c = data as { presentations_total?: number; slides_total?: number; presentations_24h?: number; slides_24h?: number; recent?: unknown[] };
+          return {
+            presTotal: c.presentations_total ?? 0, slidesTotal: c.slides_total ?? 0,
+            presRecent: c.presentations_24h ?? 0, slidesRecent: c.slides_24h ?? 0, recent: c.recent ?? [],
+          };
+        }
+        const [pt, st, pr, sr, rp] = await Promise.all([
+          supabase.from("presentations").select("*", { count: "exact", head: true }),
+          supabase.from("slides").select("*", { count: "exact", head: true }),
+          supabase.from("presentations").select("*", { count: "exact", head: true }).gte("created_at", since24h),
+          supabase.from("slides").select("*", { count: "exact", head: true }).gte("created_at", since24h),
+          supabase.from("presentations").select("title, created_at, slides_count").order("created_at", { ascending: false }).limit(8),
+        ]);
+        return { presTotal: pt.count ?? 0, slidesTotal: st.count ?? 0, presRecent: pr.count ?? 0, slidesRecent: sr.count ?? 0, recent: rp.data ?? [] };
+      };
+
+      const [content, usersTotal, profiles, topGen] = await Promise.all([
+        loadContent(),
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("presentations").select("*", { count: "exact", head: true }).gte("created_at", since24h),
-        supabase.from("slides").select("*", { count: "exact", head: true }).gte("created_at", since24h),
         supabase.from("profiles").select("plan, generations_count, updated_at"),
         supabase.from("profiles").select("full_name, generations_count").order("generations_count", { ascending: false }).limit(5),
-        supabase.from("presentations").select("title, created_at, slides_count").order("created_at", { ascending: false }).limit(8),
       ]);
 
       const profileRows = (profiles.data ?? []) as any[];
@@ -58,14 +76,14 @@ const DevDashboard = () => {
       const avgSlidesPerUser = profileRows.length ? totalGen / profileRows.length : 0;
 
       setM({
-        totalPresentations: presTotal.count ?? 0,
-        totalSlides: slidesTotal.count ?? 0,
+        totalPresentations: content.presTotal,
+        totalSlides: content.slidesTotal,
         totalUsers: usersTotal.count ?? 0,
         activeUsers7d, paidUsers, avgSlidesPerUser,
-        slidesLast24h: slidesRecent.count ?? 0,
-        presentationsLast24h: presRecent.count ?? 0,
+        slidesLast24h: content.slidesRecent,
+        presentationsLast24h: content.presRecent,
         topUsers: (topGen.data ?? []).map((u: any) => ({ full_name: u.full_name, gen: u.generations_count ?? 0 })),
-        recentPresentations: (recentPres.data ?? []) as any,
+        recentPresentations: content.recent as any,
       });
       setLoading(false);
     };

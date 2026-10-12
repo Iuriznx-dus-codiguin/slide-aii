@@ -42,7 +42,8 @@ const Settings = () => {
   const changePassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const password = new FormData(e.currentTarget).get("password") as string;
-    if (password.length < 6) { toast.error("Mínimo 6 caracteres"); return; }
+    // Mesmo mínimo do cadastro (Auth.tsx).
+    if (password.length < 8) { toast.error("Mínimo 8 caracteres"); return; }
     const { error } = await supabase.auth.updateUser({ password });
     if (error) toast.error(error.message);
     else toast.success("Senha alterada");
@@ -106,7 +107,7 @@ const Settings = () => {
             <form onSubmit={changePassword} className="space-y-4 bg-card border border-border rounded-2xl p-6">
               <div className="space-y-2">
                 <Label htmlFor="password">Nova senha</Label>
-                <Input id="password" name="password" type="password" minLength={6} required />
+                <Input id="password" name="password" type="password" minLength={8} required />
               </div>
               <Button variant="hero">Alterar senha</Button>
               <hr className="border-border" />

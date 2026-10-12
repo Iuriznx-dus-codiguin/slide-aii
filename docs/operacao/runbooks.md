@@ -2,14 +2,7 @@
 
 Consultas SQL rodam no SQL editor da Lovable Cloud. Nunca altere colunas de cobrança à mão sem registrar a movimentação em `credit_transactions`: use as funções.
 
-**Operações que mexem em créditos ou no plano** são barradas pelo gatilho `protect_billing_columns`, a menos que rodem como servidor. No SQL editor, envolva-as assim:
-
-```sql
-begin;
-select set_config('request.jwt.claims', '{"role":"service_role"}', true);
--- comando aqui
-commit;
-```
+**Operações que mexem em créditos ou no plano** são barradas pelo gatilho `protect_billing_columns` só quando vêm direto da API (papéis `anon`/`authenticated`). Desde a migração `0010_security_hardening`, o SQL editor, o pg_cron e as funções do banco passam sem precisar forjar o JWT de `service_role` (o envelope antigo com `set_config('request.jwt.claims', …)` continua funcionando, mas não é mais necessário). Antes da 0010, o mesmo gatilho barrava o estorno automático de gerações travadas — veja [a auditoria](../revisao/2026-10-11-auditoria-de-seguranca.md).
 
 ## Pagamento aprovado, mas não liberado
 
@@ -19,7 +12,7 @@ commit;
    from payment_events order by created_at desc limit 20;
    ```
 2. `user not found by email`: a compra foi feita com outro e-mail. Confirme com o cliente e aplique manualmente (passo 3).
-3. Nenhum evento: veja `security_events` (`webhook_invalid_secret`) e confira o segredo ([abaixo](#segredo-do-webhook)). Para liberar manualmente um avulso: `select grant_bonus_credits('<USER_ID>', 500, 'single_purchase');`. Para assinatura, peça à Cakto o reenvio do webhook (preferível), para o fluxo completo rodar.
+3. Nenhum evento: veja `security_events` (`webhook_invalid_secret`) e confira o segredo ([abaixo](#segredo-do-webhook)). Para liberar manualmente um avulso: `select grant_order_bonus_credits('<USER_ID>', '<ID_DO_PEDIDO>', 500, 'single_purchase');` (uma vez por pedido; sem o id do pedido, `grant_bonus_credits('<USER_ID>', 500, 'single_purchase')`). O alerta `payment_without_order_id` também cai aqui. Para assinatura, peça à Cakto o reenvio do webhook (preferível), para o fluxo completo rodar.
 
 ## Reembolso em revisão manual
 
@@ -29,7 +22,7 @@ Eventos com `error_message like 'refund_needs_review:%'` não retiraram nada aut
 select revoke_order_credits('<USER_ID>', '<ID_DO_PEDIDO>', <bonus_a_retirar>, <zerar_cota: true|false>, 'refund_revoke');
 ```
 
-Idempotente por pedido. Se for reembolso de assinatura, também: `update profiles set subscription_status = 'canceled', plan = 'free', cakto_subscription_id = null where id = '<USER_ID>';` (service role).
+Idempotente por pedido. Se for reembolso de assinatura, também: `update profiles set subscription_status = 'canceled', plan = 'free', cakto_subscription_id = null where id = '<USER_ID>';`.
 
 ## Créditos de geração que travou
 
@@ -44,7 +37,19 @@ select * from maintenance_runs where task = 'stale_generations';
 select * from cron.job where jobname = 'slideai-stale-generations';  -- se houver pg_cron
 ```
 
-Forçar agora: `select refund_stale_generations();` (service role). Débitos antigos, sem tentativa registrada, seguem pelo caminho manual: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');` (idempotente pela referência).
+Forçar agora: `select refund_stale_generations();`.
+
+Depois da 0010, confira se sobrou tentativa presa de antes da correção (o gatilho de cobrança abortava a varredura):
+
+```sql
+select count(*), min(created_at) from generation_attempts
+ where status = 'running' and created_at < now() - interval '10 minutes';
+select * from cron.job_run_details
+ where jobid = (select jobid from cron.job where jobname = 'slideai-stale-generations')
+ order by start_time desc limit 5;  -- se houver pg_cron
+```
+
+Se houver, `select refund_stale_generations();` estorna todas (idempotente por tentativa). Débitos antigos, sem tentativa registrada, seguem pelo caminho manual: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');` (idempotente pela referência).
 
 ## Alertas
 
@@ -113,3 +118,4 @@ Veja [atendimento-ao-titular.md](../lgpd/atendimento-ao-titular.md).
 - [ ] `access_logs` recebe registros com IP.
 - [ ] `select refund_stale_generations();` responde sem erro, e `generation_attempts` recebe linhas nas gerações cobradas.
 - [ ] `npm run email:preview` e conferência visual dos e-mails, se `_shared/email.ts` mudou.
+- [ ] Mudou RLS, gatilho ou RPC: `supabase/tests/security/run.sh` num Postgres local passa, e numa janela anônima um deck publicado abre pelo link, um privado não, e `GET /rest/v1/presentations?select=id` com a chave `anon` devolve `[]`.

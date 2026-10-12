@@ -1311,6 +1311,7 @@ export type Database = {
       ensure_monthly_credits: { Args: { _uid: string }; Returns: undefined }
       find_user_id_by_email: { Args: { _email: string }; Returns: string }
       generate_ticket_id: { Args: never; Returns: string }
+      get_content_metrics: { Args: never; Returns: Json }
       get_email_preferences_by_token: {
         Args: { _token: string }
         Returns: Json
@@ -1360,12 +1361,17 @@ export type Database = {
           website: string
         }[]
       }
+      get_shared_presentation: { Args: { _slug: string }; Returns: Json }
       grant_bonus_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
       }
       grant_bonus_credits_once: {
         Args: { _amount: number; _type: string; _uid: string }
+        Returns: Json
+      }
+      grant_order_bonus_credits: {
+        Args: { _amount: number; _order_id: string; _type: string; _uid: string }
         Returns: Json
       }
       has_role: {
@@ -1382,7 +1388,12 @@ export type Database = {
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
       purge_expired_data: { Args: never; Returns: Json }
       purge_ops_data: { Args: never; Returns: Json }
+      rate_limit_subject: { Args: never; Returns: string }
       record_access: { Args: { _event?: string }; Returns: undefined }
+      record_presentation_view: {
+        Args: { _presentation_id: string }
+        Returns: boolean
+      }
       refund_generation_credits: {
         Args: {
           _credits: number
@@ -1397,7 +1408,29 @@ export type Database = {
         Returns: Json
       }
       refund_stale_generations_if_due: { Args: never; Returns: undefined }
+      release_ai_edit_usage: {
+        Args: { _complex: boolean; _presentation_id: string; _uid: string }
+        Returns: undefined
+      }
+      release_speech_regen: {
+        Args: { _presentation_id: string; _uid: string }
+        Returns: undefined
+      }
       request_client_info: { Args: never; Returns: Json }
+      reserve_ai_edit_usage: {
+        Args: {
+          _complex: boolean
+          _max_complex: number
+          _max_messages: number
+          _presentation_id: string
+          _uid: string
+        }
+        Returns: Json
+      }
+      reserve_speech_regen: {
+        Args: { _max: number; _presentation_id: string; _uid: string }
+        Returns: number
+      }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
       revoke_order_credits: {
         Args: {

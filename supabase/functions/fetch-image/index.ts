@@ -33,6 +33,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findMatchingAsset, recordAsset, touchAsset } from "../_shared/assetIntelligence.ts";
 import { persistGeneratedImage } from "../_shared/assetStorage.ts";
 import { createLogger } from "../_shared/observability.ts";
+import { clientIpKey } from "../_shared/clientIp.ts";
 import { buildImagePrompt, sanitizeRecipe, type ImageRecipe } from "../_shared/imageDirector.ts";
 import {
   IMAGE_ENDPOINTS,
@@ -252,12 +253,15 @@ Deno.serve(async (req) => {
   }
 
   // Chave de rate limit: por usuário quando autenticado, por IP quando não.
-  const clientIp = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown")
-    .split(",")[0].trim();
-  const rlKey = userId ? `user:${userId}` : `ip:${clientIp}`;
+  // IP confiável (não o 1º item de x-forwarded-for, que o cliente escolhe) e
+  // pseudonimizado — o visitante do link público não tem o IP gravado.
+  const rlKey = userId ? `user:${userId}` : `ip:${await clientIpKey(req)}`;
 
   try {
-    const body: FetchImageBody = await req.json();
+    // Pedido legítimo tem poucos KB (query, prompt, receita e até 30 avoid_urls).
+    const bodyText = await req.text();
+    if (bodyText.length > 128 * 1024) return json({ url: null, error: "Pedido grande demais." }, 413);
+    const body: FetchImageBody = JSON.parse(bodyText || "{}");
     const strategy = body.strategy;
 
     // Validação de entrada (auditoria): tudo aqui vira prompt de IA ou query
@@ -493,6 +497,7 @@ Deno.serve(async (req) => {
     return json({ url: null });
   } catch (e) {
     console.error("fetch-image error:", e);
-    return json({ url: null, error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    // Detalhe só no log: a mensagem de exceção pode trazer dados internos.
+    return json({ url: null, error: "Falha ao buscar a imagem." }, 500);
   }
 });
