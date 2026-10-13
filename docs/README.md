@@ -6,7 +6,7 @@
 | --- | --- |
 | [arquitetura.md](arquitetura.md) | Componentes, fluxos principais, banco de dados, segurança e observabilidade |
 | [creditos-e-pagamentos.md](creditos-e-pagamentos.md) | Regras vigentes de créditos, planos, acesso, renovação, cancelamento e reembolso (referência) |
-| [motor-v2/](motor-v2/) | Motor de geração v2: auditoria, prompt de implantação e resumo |
+| [motor-v2/](motor-v2/) | Motor de geração v2: auditoria, prompt de implantação, resumo e como testar pelo Dev Mode |
 | [central-de-ajuda/](central-de-ajuda/README.md) | Como escrever, revisar e publicar artigos de ajuda |
 | [produto/plano-de-avisos-por-email.md](produto/plano-de-avisos-por-email.md) | Plano de avisos por e-mail: jornadas, catálogo, tom por perfil, links de pagamento e fases |
 

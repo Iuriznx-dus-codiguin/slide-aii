@@ -60,6 +60,7 @@ import {
   textRoute,
   type TokenUsage,
 } from "../_shared/modelRegistry.ts";
+import { parseRolloutPercent, pickEngine, type EngineDecision } from "../_shared/engineSelection.ts";
 import { generateContentV2 } from "./contentV2.ts";
 import { fillSpeakerNotes, normalizeSpeeches } from "./speeches.ts";
 import { persistPresentation, type PersistResult, type PersistSlide } from "./persist.ts";
@@ -130,17 +131,18 @@ interface GenerateRequest {
 }
 
 /**
- * Motor desta geração. Só o cliente novo (persist:"server") recebe o v2: um
- * cliente antigo gravaria o deck ele mesmo com um aiSlideToContent que não
- * conhece o bloco visual. Sem pedido explícito, vale o rollout percentual
- * (ENGINE_V2_ROLLOUT_PERCENT, padrão 0), estável por usuário.
+ * Motor desta geração: regra em _shared/engineSelection.ts (v1 é o principal;
+ * v2 só por escolha de desenvolvedor no Dev Mode ou por rollout percentual,
+ * ENGINE_V2_ROLLOUT_PERCENT, padrão 0, estável por usuário).
  */
-function pickEngine(requested: unknown, userId: string, persistOnServer: boolean): 1 | 2 {
-  if (!persistOnServer) return 1;
-  if (requested === 1 || requested === "1") return 1;
-  if (requested === 2 || requested === "2") return 2;
-  const rollout = Math.max(0, Math.min(100, Number(Deno.env.get("ENGINE_V2_ROLLOUT_PERCENT") ?? 0) || 0));
-  return rollout > 0 && stableHash(`engine-v2|${userId}`) * 100 < rollout ? 2 : 1;
+function decideEngine(requested: unknown, isDev: boolean, userId: string, persistOnServer: boolean): EngineDecision {
+  return pickEngine({
+    requested,
+    isDev,
+    persistOnServer,
+    rolloutPercent: parseRolloutPercent(Deno.env.get("ENGINE_V2_ROLLOUT_PERCENT") ?? 0),
+    bucket: stableHash(`engine-v2|${userId}`),
+  });
 }
 
 const personaGuide = (p?: string) => {
@@ -517,6 +519,9 @@ Deno.serve(async (req) => {
     creditsCharged = creditsCost;
   }
 
+  // Motor desta tentativa (definido mais abaixo): falhas também entram na
+  // comparação v1 × v2 do painel de métricas.
+  let engineForLog: EngineDecision | null = null;
   /**
    * Caminho único de falha pós-cobrança.
    *
@@ -577,6 +582,7 @@ Deno.serve(async (req) => {
         attempt_ref: attemptRef,
         title: rawBody?.title ?? null,
         plan: ent.plan,
+        ...(engineForLog ? { engine_version: engineForLog.engine, engine_reason: engineForLog.reason } : {}),
         ...opts.detail,
       },
     });
@@ -665,9 +671,11 @@ Deno.serve(async (req) => {
 
     // ───────────── Motor e persistência ─────────────
     const persistOnServer = rawBody?.persist === "server";
-    // Escolha manual do motor só para desenvolvedores (comparação no Dev Mode);
-    // para os demais vale o rollout.
-    const engine = pickEngine(isDev ? rawBody?.engineVersion : undefined, userId, persistOnServer);
+    // Escolha manual do motor só para desenvolvedores (teste do v2 pelo Dev
+    // Mode); para os demais vale o rollout, e sem rollout o v1.
+    const engineDecision = decideEngine(rawBody?.engineVersion, isDev, userId, persistOnServer);
+    const engine = engineDecision.engine;
+    engineForLog = engineDecision;
 
     // Orçamento de imagem decidido no SERVIDOR. O teto enviado pelo cliente
     // (Dev Mode) só vale para desenvolvedores, limitado a MAX_DEV_IMAGE_BUDGET_USD.
@@ -1285,6 +1293,8 @@ Deno.serve(async (req) => {
         arc_shape: storyOutline.arc_shape,
         text_depth: body.textDepth ?? "balanced",
         engine_version: engine,
+        engine_requested: engineDecision.requested,
+        engine_reason: engineDecision.reason,
         persisted: !!persisted?.ok,
         stages: {
           director: directorRes.meta,
@@ -1323,6 +1333,8 @@ Deno.serve(async (req) => {
       images_ai: imagesAi,
       duration_ms: Date.now() - t0,
       engine_version: engine,
+      engine_requested: engineDecision.requested,
+      engine_reason: engineDecision.reason,
     };
 
     if (persisted?.ok) {
@@ -1330,6 +1342,7 @@ Deno.serve(async (req) => {
         slug: persisted.slug,
         presentation_id: persisted.id,
         engine_version: engine,
+        engine_reason: engineDecision.reason,
         creative_brief: creativeBrief,
         _metrics: metrics,
       }), {

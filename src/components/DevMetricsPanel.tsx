@@ -106,6 +106,9 @@ export const DevMetricsPanel = () => {
   const pexelsRatio = totalPexels + totalAi > 0 ? (totalPexels / (totalPexels + totalAi)) * 100 : 0;
   const engines = [statsFor(successLogs, 1), statsFor(successLogs, 2)];
   const hasV2 = engines[1].count > 0;
+  // Falhas por motor: só as que registram o motor (gravado desde o seletor do Dev Mode).
+  const failuresOf = (engine: 1 | 2) =>
+    errorLogs.filter((l) => l.metadata?.engine_version != null && engineOf(l) === engine).length;
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
@@ -124,36 +127,41 @@ export const DevMetricsPanel = () => {
           <Metric icon={<Timer className="h-3.5 w-3.5" />} label="Tempo médio" value={`${(avgDuration / 1000).toFixed(1)}s`} />
         </div>
 
-        {hasV2 && (
-          <div className="rounded-lg border border-border p-3">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-              <Layers className="h-3 w-3" /> Comparação por motor (médias por geração)
-            </div>
-            <table className="mt-2 w-full text-[11px] font-mono">
-              <thead className="text-muted-foreground">
-                <tr className="text-left">
-                  <th className="font-normal">motor</th><th className="font-normal">n</th><th className="font-normal">custo</th>
-                  <th className="font-normal">tempo</th><th className="font-normal">out/slide</th><th className="font-normal">só texto</th>
-                  <th className="font-normal">img pedidas/exibidas</th><th className="font-normal">fallbacks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {engines.map((e) => (
-                  <tr key={e.engine} className="tabular-nums">
-                    <td>v{e.engine}</td>
-                    <td>{e.count}</td>
-                    <td>${e.costUsd.toFixed(3)}</td>
-                    <td>{(e.durationMs / 1000).toFixed(1)}s</td>
-                    <td>{e.outputPerSlide ? Math.round(e.outputPerSlide) : "—"}</td>
-                    <td>{e.textOnlyShare === null ? "—" : `${Math.round(e.textOnlyShare * 100)}%`}</td>
-                    <td>{e.imagesRequested}/{e.imagesDisplayed ?? "—"}</td>
-                    <td>{e.engine === 2 ? e.fallbacks : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Layers className="h-3 w-3" /> Comparação por motor (médias por geração)
           </div>
-        )}
+          <table className="mt-2 w-full text-[11px] font-mono">
+            <thead className="text-muted-foreground">
+              <tr className="text-left">
+                <th className="font-normal">motor</th><th className="font-normal">n</th><th className="font-normal">custo</th>
+                <th className="font-normal">tempo</th><th className="font-normal">out/slide</th><th className="font-normal">só texto</th>
+                <th className="font-normal">img pedidas/exibidas</th><th className="font-normal">fallbacks</th>
+                <th className="font-normal">falhas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {engines.map((e) => (
+                <tr key={e.engine} className="tabular-nums">
+                  <td>v{e.engine}</td>
+                  <td>{e.count}</td>
+                  <td>${e.costUsd.toFixed(3)}</td>
+                  <td>{(e.durationMs / 1000).toFixed(1)}s</td>
+                  <td>{e.outputPerSlide ? Math.round(e.outputPerSlide) : "—"}</td>
+                  <td>{e.textOnlyShare === null ? "—" : `${Math.round(e.textOnlyShare * 100)}%`}</td>
+                  <td>{e.imagesRequested}/{e.imagesDisplayed ?? "—"}</td>
+                  <td>{e.engine === 2 ? e.fallbacks : "—"}</td>
+                  <td>{failuresOf(e.engine)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!hasV2 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Nenhuma geração v2 nas últimas 50. Para testar, escolha "v2 · Motor de cenas" no Dev Mode (Ctrl+Shift+D) e gere uma apresentação.
+            </p>
+          )}
+        </div>
 
         {failureCauses.length > 0 && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
@@ -203,7 +211,7 @@ export const DevMetricsPanel = () => {
                 <span>${Number(l.actual_cost_usd).toFixed(3)}</span>
                 <span>{(l.duration_ms / 1000).toFixed(1)}s</span>
                 <span className="hidden md:inline">{l.mode}</span>
-                <span>v{engineOf(l)}</span>
+                <span title={l.metadata?.engine_reason ? `motivo: ${l.metadata.engine_reason}` : undefined}>v{engineOf(l)}</span>
               </div>
             </button>
             {openId === l.id && l.status === "success" && <LogDetail log={l} />}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Terminal, X, DollarSign, Image as ImageIcon, ExternalLink, Gauge } from "lucide-react";
+import { Terminal, X, DollarSign, Image as ImageIcon, ExternalLink, Gauge, Cpu, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -14,6 +14,7 @@ import {
   modeFromBudget,
   modeLabel,
   modeDescription,
+  ENGINE_OPTIONS,
   type DevSettings,
 } from "@/lib/devSettings";
 
@@ -29,8 +30,13 @@ export const DevModePanel = () => {
         if (isDeveloper) setOpen((v) => !v);
       }
     };
+    const onOpen = () => { if (isDeveloper) setOpen(true); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("devmode:open", onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("devmode:open", onOpen);
+    };
   }, [isDeveloper]);
 
   const update = (patch: Partial<DevSettings>) => saveDevSettings({ ...s, ...patch });
@@ -38,7 +44,7 @@ export const DevModePanel = () => {
   if (!isDeveloper) return null;
 
   const mode = modeFromBudget(s.maxBudgetUsd);
-  const sample = estimateGenerationCost(10, true, s.maxBudgetUsd, s.engineV2 ? 2 : 1);
+  const sample = estimateGenerationCost(10, true, s.maxBudgetUsd, s.engine);
 
   return (
     <>
@@ -72,6 +78,44 @@ export const DevModePanel = () => {
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-5 text-sm">
+              <section className="space-y-2" aria-labelledby="dev-engine-label">
+                <div id="dev-engine-label" className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Cpu className="h-3 w-3" /> Motor de geração
+                </div>
+                <div role="radiogroup" aria-labelledby="dev-engine-label" className="grid gap-2">
+                  {ENGINE_OPTIONS.map((o) => {
+                    const active = s.engine === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => update({ engine: o.value })}
+                        className={`text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold">{o.label}</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                              o.value === 2 ? "bg-amber-500/15 text-amber-700 dark:text-amber-300" : "bg-muted text-muted-foreground"
+                            }`}>{o.badge}</span>
+                            {active && <Check className="h-4 w-4 text-primary" aria-hidden />}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground leading-snug">{o.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Vale só para as suas gerações. Usuários sem papel de desenvolvedor continuam no v1. Depois de gerar, compare custo,
+                  tempo e imagens no painel de métricas do Dashboard.
+                </p>
+              </section>
+
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Bypass paywall</Label>
@@ -114,16 +158,6 @@ export const DevModePanel = () => {
                   <div className="flex justify-between font-semibold pt-1 border-t border-border"><span>Total</span><span>${sample.totalUsd.toFixed(3)}</span></div>
                   <div className="flex justify-between text-muted-foreground"><span>Tempo</span><span>~{Math.round(sample.seconds)}s</span></div>
                 </div>
-              </section>
-
-              <section className="space-y-2 p-3 rounded-lg border border-primary/40 bg-primary/5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Motor de cenas (v2)</Label>
-                  <Switch checked={s.engineV2} onCheckedChange={(v) => update({ engineV2: v })} />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Ligado, gera com o motor de cenas (v2); desligado, com o motor anterior (v1) — mesmo com o rollout em 100%. Compare custo e qualidade no painel de métricas.
-                </p>
               </section>
 
               <section className="space-y-2">
