@@ -13,7 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { useEntitlement } from "@/hooks/useEntitlement";
-import { estimateGenerationCost, modeFromBudget } from "@/lib/devSettings";
+import { engineOption, estimateGenerationCost, modeFromBudget, openDevModePanel } from "@/lib/devSettings";
+import { ENGINE_REASON_LABEL, type EngineReason } from "../../supabase/functions/_shared/engineSelection.ts";
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { CREDITS_PER_SLIDE, DEPTH_CREDITS, SPEECHES_CREDITS } from "@/lib/cakto";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import { defaultsForRole } from "@/lib/personaDefaults";
 import { persistLegacyDeck, type LegacyResponse } from "@/lib/legacyPersist";
 import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
-import { CreditCard, RefreshCw, AlertTriangle, Coins } from "lucide-react";
+import { CreditCard, RefreshCw, AlertTriangle, Coins, Cpu } from "lucide-react";
 
 /**
  * Corpo JSON de um erro de edge function.
@@ -86,6 +87,26 @@ const STEPS = [
   "Abrindo o editor...",
 ];
 const STEP_INTERVAL_MS = 3800;
+
+/**
+ * Só para desenvolvedores: confirma qual motor o servidor usou. Se divergir do
+ * escolhido no Dev Mode, avisa (função desatualizada, cliente antigo etc.).
+ */
+function reportEngineToDev(requested: 1 | 2, used: unknown, reason: unknown) {
+  const usedEngine = used === 2 ? 2 : used === 1 ? 1 : null;
+  const why = typeof reason === "string" && Object.prototype.hasOwnProperty.call(ENGINE_REASON_LABEL, reason)
+    ? ENGINE_REASON_LABEL[reason as EngineReason]
+    : "motivo não informado (função ainda sem o registro de motivo)";
+  if (usedEngine === null) {
+    toast.warning("Dev: o servidor não informou o motor usado.", { description: "A função generate-presentation publicada pode estar desatualizada." });
+    return;
+  }
+  if (usedEngine !== requested) {
+    toast.warning(`Dev: você escolheu v${requested}, mas o servidor gerou com v${usedEngine}.`, { description: `Motivo: ${why}.` });
+    return;
+  }
+  toast.info(`Dev: gerado com o motor v${usedEngine}.`, { description: `Motivo: ${why}.` });
+}
 
 const Generate = () => {
   const navigate = useNavigate();
@@ -255,10 +276,9 @@ const Generate = () => {
           // O servidor grava o deck e devolve o slug (sem perda de deck pago
           // ao fechar a aba, com o creative_brief certo).
           persist: "server",
-          // Desenvolvedores escolhem o motor pelo Dev Mode (ligado = v2,
-          // desligado = v1 para comparação, mesmo com o rollout em 100%).
-          // Os demais seguem o rollout configurado no servidor.
-          ...(isDeveloper ? { engineVersion: devSettings.engineV2 ? 2 : 1 } : {}),
+          // Desenvolvedores escolhem o motor no Dev Mode (v1 principal ou v2
+          // em teste). Os demais seguem a regra do servidor (v1 sem rollout).
+          ...(isDeveloper ? { engineVersion: devSettings.engine } : {}),
         },
       });
 
@@ -285,13 +305,15 @@ const Generate = () => {
       // Caminho principal: o deck já está salvo no servidor.
       if (data?.slug) {
         setStepIdx(STEPS.length - 1);
+        if (isDeveloper) reportEngineToDev(devSettings.engine, data.engine_version, data.engine_reason);
         toast.success("Apresentação criada! Abrindo editor…");
         navigate(`/editor/${data.slug}`);
         return;
       }
 
       // Servidor ainda sem persistência (janela de rollout): grava aqui, no
-      // formato antigo, já com o brief da resposta.
+      // formato antigo, já com o brief da resposta. Sempre v1.
+      if (isDeveloper) reportEngineToDev(devSettings.engine, 1, "legacy_client");
       if (!data?.slides?.length) throw new Error("Nenhum slide gerado");
       if (!user) throw new Error("Sessão expirada");
       const fontId = resolveFontPairing(data.font_pairing, autoFontForContext(type, theme, title));
@@ -526,8 +548,26 @@ const Generate = () => {
 
           )}
 
+          {isDeveloper && (() => {
+            const opt = engineOption(devSettings.engine);
+            return (
+              <button
+                type="button"
+                onClick={openDevModePanel}
+                className={`mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  devSettings.engine === 2 ? "border-amber-500/50 bg-amber-500/10" : "border-border bg-muted/30"
+                }`}
+                title="Trocar o motor no Dev Mode (Ctrl+Shift+D)"
+              >
+                <Cpu className="h-3.5 w-3.5" aria-hidden />
+                <span className="font-semibold">Motor desta geração: {opt.label}</span>
+                <span className="text-muted-foreground">({opt.badge}) · trocar</span>
+              </button>
+            );
+          })()}
+
           {canGenerate && devSettings.showCostOverlay && (() => {
-            const est = estimateGenerationCost(slidesCount, includeImages, devSettings.maxBudgetUsd, devSettings.engineV2 ? 2 : 1);
+            const est = estimateGenerationCost(slidesCount, includeImages, devSettings.maxBudgetUsd, devSettings.engine);
             const overBudget = est.totalUsd > devSettings.maxBudgetUsd;
             return (
               <div className={`mb-6 rounded-2xl border p-3 md:p-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono ${overBudget ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30"}`}>
@@ -536,7 +576,7 @@ const Generate = () => {
                 <span className="text-muted-foreground">~{Math.round(est.seconds)}s</span>
                 <span className="text-muted-foreground">Pexels {est.imagesPexels} · IA {est.imagesAi}</span>
                 <span className="text-muted-foreground">modo: {est.mode}</span>
-                <span className="text-muted-foreground">motor: v{devSettings.engineV2 ? 2 : 1}</span>
+                <span className="text-muted-foreground">motor: v{devSettings.engine}</span>
                 <span className="text-muted-foreground">teto: ${devSettings.maxBudgetUsd.toFixed(2)}</span>
                 {overBudget && <span className="text-destructive font-semibold">⚠ acima do teto</span>}
               </div>
