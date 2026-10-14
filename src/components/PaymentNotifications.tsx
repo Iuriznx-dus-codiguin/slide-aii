@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,7 +8,7 @@ import { isSubscriptionPlan, PLAN_LABELS } from "@/lib/cakto";
 
 const PAYMENT_SUCCESS_MESSAGE = "🎉 Compra realizada com sucesso! SlideAI agradece a sua contribuição 🎉";
 
-type ConfettiPiece = {
+export type ConfettiPiece = {
   id: number;
   left: string;
   delay: string;
@@ -17,7 +18,7 @@ type ConfettiPiece = {
   className: string;
 };
 
-const createConfetti = (): ConfettiPiece[] => {
+export const createConfetti = (): ConfettiPiece[] => {
   const palette = ["bg-primary", "bg-accent", "bg-secondary", "bg-foreground"];
   return Array.from({ length: 84 }, (_, i) => ({
     id: i,
@@ -44,11 +45,20 @@ const daysUntil = (date: string | null): number | null => {
 export const PaymentNotifications = () => {
   const { user } = useAuth();
   const ent = useEntitlement();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathRef = useRef(location.pathname);
+  pathRef.current = location.pathname;
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
 
   const renewalDays = useMemo(() => daysUntil(ent.subscription_renews_at), [ent.subscription_renews_at]);
 
   const celebratePayment = (message: string = PAYMENT_SUCCESS_MESSAGE) => {
+    // Pagamento reconhecido: leva à página de agradecimento (que faz confetes + alerta).
+    if (pathRef.current !== "/sucesso") {
+      navigate("/sucesso", { state: { message } });
+      return;
+    }
     setConfetti(createConfetti());
     window.setTimeout(() => {
       toast.success(message, { duration: 8000 });
