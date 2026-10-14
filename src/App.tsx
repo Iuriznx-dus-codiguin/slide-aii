@@ -36,6 +36,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SupportWidget } from "./components/SupportWidget";
 import { PaymentNotifications } from "./components/PaymentNotifications";
 import { LegalConsentGate } from "./components/legal/LegalConsentGate";
+import { AnalyticsTracker } from "./components/AnalyticsTracker";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AnalyticsTracker />
         <AuthProvider>
           <ErrorBoundary>
             <Routes>
