@@ -30,6 +30,7 @@ import Terms from "./pages/Terms.tsx";
 import OAuthConsent from "./pages/OAuthConsent.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import EmailPreferences from "./pages/EmailPreferences.tsx";
+import Success from "./pages/Success.tsx";
 import { DevModePanel } from "./components/DevModePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SupportWidget } from "./components/SupportWidget";
@@ -69,6 +70,8 @@ const App = () => (
               <Route path="/termos" element={<Terms />} />
               <Route path="/termos-de-uso" element={<Navigate to="/termos" replace />} />
               <Route path="/emails/preferencias" element={<EmailPreferences />} />
+              <Route path="/sucesso" element={<Success />} />
+              <Route path="/suceso" element={<Navigate to="/sucesso" replace />} />
               <Route path="/cookies" element={<Navigate to={{ pathname: "/privacidade", hash: "#cookies" }} replace />} />
               <Route path="/__dev" element={<ProtectedRoute><DevDashboard /></ProtectedRoute>} />
               <Route path="/admin/suporte" element={<ProtectedRoute><AdminSupport /></ProtectedRoute>} />
