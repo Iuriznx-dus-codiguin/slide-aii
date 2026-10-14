@@ -258,9 +258,12 @@ Deno.serve(async (req) => {
   const rlKey = userId ? `user:${userId}` : `ip:${await clientIpKey(req)}`;
 
   try {
-    // Pedido legítimo tem poucos KB (query, prompt, receita e até 30 avoid_urls).
+    // Teto de memória, não de conteúdo: o que vira prompt ou URL externa é
+    // limitado campo a campo abaixo. Folgado de propósito: clientes antigos
+    // mandam em avoid_urls imagens gravadas como data-URL (centenas de KB
+    // cada), que o filtro de avoid_urls descarta.
     const bodyText = await req.text();
-    if (bodyText.length > 128 * 1024) return json({ url: null, error: "Pedido grande demais." }, 413);
+    if (bodyText.length > 8 * 1024 * 1024) return json({ url: null, error: "Pedido grande demais." }, 413);
     const body: FetchImageBody = JSON.parse(bodyText || "{}");
     const strategy = body.strategy;
 
@@ -281,12 +284,12 @@ Deno.serve(async (req) => {
     if (body.style && !(body.style in STYLE_SUFFIX)) body.style = undefined;
     const recipe = body.recipe ? sanitizeRecipe(body.recipe) : null;
     // Acesso do usuário (plano/créditos/dev), consultado no máximo uma vez.
-    let entitlementCache: { allowed?: boolean; reason?: string } | null | undefined;
+    let entitlementCache: { allowed?: boolean; reason?: string; credits?: number } | null | undefined;
     const entitlement = async () => {
       if (entitlementCache !== undefined) return entitlementCache;
       if (!userId) return (entitlementCache = null);
       const { data } = await admin.rpc("can_user_generate", { _uid: userId, _credits_cost: 0 });
-      return (entitlementCache = (data as { allowed?: boolean; reason?: string } | null) ?? null);
+      return (entitlementCache = (data as { allowed?: boolean; reason?: string; credits?: number } | null) ?? null);
     };
     // Qualidade vem do pedido, mas "premium" (qualidade alta, a mais cara) só
     // vale para desenvolvedores — antes, qualquer cliente podia pedir.
@@ -319,8 +322,15 @@ Deno.serve(async (req) => {
     // Fora da cota da apresentação, imagem por IA exige conta com acesso
     // (plano ativo, créditos ou dev). Antes bastava estar logado: uma conta
     // gratuita gerava até 15 imagens de IA por hora por conta da plataforma.
+    // Conta avulsa só enquanto tem créditos: com custo 0, can_user_generate
+    // libera o plano "single" mesmo com saldo zerado, e uma compra de R$ 14,90
+    // virava imagens de IA para sempre.
+    const hasAiAccess = async (): Promise<boolean> => {
+      const e = await entitlement();
+      return !!e?.allowed && (e.reason !== "single" || (Number(e.credits) || 0) > 0);
+    };
     const withinGenericAiLimit = async (): Promise<boolean> => {
-      if (!(await entitlement())?.allowed) {
+      if (!(await hasAiAccess())) {
         await log.security("forbidden", { status: 402, detail: { strategy: "ai", reason: "no_plan_for_ai_image" } });
         return false;
       }
@@ -339,8 +349,8 @@ Deno.serve(async (req) => {
         return json({ url: null, error: "Autenticação necessária para geração de imagem por IA." }, 401);
       }
       if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) {
-        if (!(await entitlement())?.allowed) {
-          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo." }, 402);
+        if (!(await hasAiAccess())) {
+          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo ou créditos disponíveis." }, 402);
         }
         return json({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }, 429);
       }

@@ -54,7 +54,7 @@ Suítes que protegem regras de negócio e conformidade:
 | `src/test/caktoWebhook.test.ts` | Webhook de pagamento: idempotência, escopo do reembolso, eventos ignorados |
 | `src/test/helpCenterContent.test.ts` | Central de Ajuda publicada = arquivos `.md`; nenhum link quebrado; valores de preço e custo corretos |
 | `src/test/catalogParity.test.ts` | Paridade de catálogos entre o motor (Deno) e o renderizador (Vite) |
-| `src/test/securityHardening.test.ts` | Correções da auditoria de segurança: entrada que vira prompt, IP confiável, escapes, decks privados por padrão, filtros do MCP |
+| `src/test/securityHardening.test.ts` | Correções da auditoria de segurança: entrada e campos do banco que viram prompt, IP confiável e hash com chave, escapes, redirecionamento pós-login, decks privados por padrão, filtros do MCP |
 | `supabase/tests/security/` | Exploits e regressão de RLS/gatilhos num Postgres local ([como rodar](supabase/tests/security/README.md)) |
 
 Os dois `*.e2e.test.ts` dependem de variáveis de ambiente de um projeto real.

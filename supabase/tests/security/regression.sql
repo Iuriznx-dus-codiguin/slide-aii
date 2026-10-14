@@ -121,4 +121,47 @@ SET ROLE anon; SELECT set_config('request.jwt.claims', '{"role":"anon"}', false)
 SELECT pg_temp.ok((SELECT count(*) FROM public.get_portfolio_presentations('11111111-1111-1111-1111-111111111111')) = 1, 'portfólio público lista o deck publicado');
 SELECT pg_temp.ok((SELECT access_state FROM public.get_profile_for_viewer('vitima')) = 'granted', 'perfil público abre');
 RESET ROLE;
+-- 11. Revisão adversarial: fluxos legítimos que continuam valendo.
+-- Geração no servidor grava deck pago com brief (persist.ts).
+SET ROLE service_role; SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+INSERT INTO public.presentations(user_id, title, slug, is_paid, creative_brief, dynamic_theme)
+VALUES ('11111111-1111-1111-1111-111111111111', 'Deck com brief', 'deck-brief-xyz', true, '{"objective":"vender"}', '{"bg":"#000"}');
+SELECT pg_temp.ok((SELECT is_paid AND creative_brief->>'objective' = 'vender' FROM public.presentations WHERE slug = 'deck-brief-xyz'),
+  'deck do servidor mantém is_paid e brief');
+-- Webhook antigo (três argumentos) e novo (com pedido) concedem o bônus de ativação.
+SELECT pg_temp.ok((public.grant_bonus_credits_once('22222222-2222-2222-2222-222222222222', 800, 'subscription_signup_bonus')->>'granted')::boolean,
+  'bônus de ativação com a chamada antiga');
+SELECT pg_temp.ok(public.order_granted_bonus('22222222-2222-2222-2222-222222222222', 'QUALQUER', NULL, 'subscription_signup_bonus') = 0,
+  'bônus sem pedido nem evento correlato não é estornado por pedido qualquer');
+SELECT pg_temp.ok((public.grant_monthly_for_order('22222222-2222-2222-2222-222222222222', 'ORD-A1', 'SUB-A', 3200, 'subscription_monthly')->>'granted')::boolean
+  AND (public.grant_monthly_for_order('22222222-2222-2222-2222-222222222222', 'ORD-A2', 'SUB-A', 3200, 'subscription_renewal')->>'granted')::boolean,
+  'cada pedido da assinatura (ativação e renovação) concede a cota');
+SELECT pg_temp.ok((public.grant_monthly_for_order('22222222-2222-2222-2222-222222222222', NULL, 'SUB-A', 3200, 'subscription_renewal')->>'granted')::boolean,
+  'evento sem id de pedido ainda concede a cota (comportamento anterior)');
+RESET ROLE;
+-- Estorno no mesmo ciclo devolve tudo (bônus e mensal).
+UPDATE public.profiles SET plan = 'mensal', subscription_status = 'active', subscription_renews_at = now() + interval '20 days',
+  credits_bonus = 100, credits_monthly = 500, credits_cycle_anchor = current_date
+ WHERE id = '22222222-2222-2222-2222-222222222222';
+SELECT public.charge_generation('22222222-2222-2222-2222-222222222222', 550, 'dddddddd-0000-0000-0000-000000000009');
+SELECT public.refund_generation_credits('22222222-2222-2222-2222-222222222222', 550, 'dddddddd-0000-0000-0000-000000000009');
+SELECT pg_temp.ok((SELECT credits_bonus = 100 AND credits_monthly = 500 FROM public.profiles WHERE id = '22222222-2222-2222-2222-222222222222'),
+  'estorno no mesmo ciclo devolve bônus e cota mensal');
+-- Varredura sem estorno manual devolve normalmente.
+SELECT public.charge_generation('22222222-2222-2222-2222-222222222222', 120, 'dddddddd-0000-0000-0000-00000000000a');
+UPDATE public.generation_attempts SET created_at = now() - interval '1 hour' WHERE id = 'dddddddd-0000-0000-0000-00000000000a';
+SELECT pg_temp.ok((public.refund_stale_generations()->>'refunded')::int = 1, 'varredura devolve tentativa interrompida sem estorno manual');
+SELECT pg_temp.ok((SELECT credits_monthly FROM public.profiles WHERE id = '22222222-2222-2222-2222-222222222222') = 500, 'varredura devolve à cota do ciclo');
+-- Pedido de acesso a quem aceita, decisão do dono e acesso liberado.
+UPDATE public.profiles SET is_public = false, allow_access_requests = true WHERE id = '11111111-1111-1111-1111-111111111111';
+SET ROLE authenticated; SELECT pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+INSERT INTO public.profile_access_requests(owner_id, requester_id, message)
+VALUES ('11111111-1111-1111-1111-111111111111', auth.uid(), 'Posso ver seus decks?');
+SELECT pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+UPDATE public.profile_access_requests SET status = 'approved' WHERE owner_id = auth.uid();
+SELECT pg_temp.ok((SELECT status FROM public.profile_access_requests WHERE owner_id = auth.uid()) = 'approved', 'dono aprova pedido de acesso');
+SELECT pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+SELECT pg_temp.ok((SELECT count(*) FROM public.get_portfolio_presentations('11111111-1111-1111-1111-111111111111')) = 1, 'aprovado vê o portfólio privado');
+SELECT pg_temp.ok(NOT public.has_role(auth.uid(), 'admin'), 'usuário logado ainda consulta has_role (políticas)');
+RESET ROLE;
 \echo 'REGRESSAO OK'

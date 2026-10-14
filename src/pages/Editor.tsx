@@ -43,6 +43,7 @@ import { isSceneContent, type SlideAsset } from "../../supabase/functions/_share
 import { isDomain } from "../../supabase/functions/_shared/sceneCatalog.ts";
 import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAssets";
 import { saveResolvedAsset } from "@/lib/assetWrite";
+import { loadSharedPresentation } from "@/lib/sharedPresentation";
 import { useAuth } from "@/hooks/useAuth";
 import { VisualPanel } from "@/components/editor/VisualPanel";
 
@@ -202,7 +203,18 @@ const Editor = () => {
     (async () => {
       const { data: p } = await supabase.from("presentations")
         .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
-      if (!p) { setLoading(false); return; }
+      if (!p) {
+        // Deck de outra pessoa não aparece mais na tabela (sem leitura
+        // pública desde a migração 0010); se estiver publicado, o link abre.
+        const shared = await loadSharedPresentation(slug).catch(() => null);
+        if (shared && !shared.presentation.is_owner) {
+          toast.message("Esta apresentação é de outra pessoa — abrindo no modo apresentação.");
+          navigate(`/slides/${slug}`, { replace: true });
+          return;
+        }
+        setLoading(false);
+        return;
+      }
       // Só o dono edita. Uma apresentação pública de outra pessoa abria o
       // Editor (salvar falhava no RLS, mas as imagens pendentes eram buscadas
       // por conta da plataforma) — agora vai para o modo apresentação.

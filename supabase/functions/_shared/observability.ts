@@ -12,7 +12,7 @@
 //
 // Regra de privacidade: nada de e-mail, token, corpo de requisição ou prompt.
 // Só metadados operacionais e, quando útil, um hash curto (fingerprint).
-import { clientIp } from "./clientIp.ts";
+import { clientIpKey } from "./clientIp.ts";
 
 export type Severity = "info" | "warning" | "critical";
 
@@ -40,9 +40,18 @@ export async function fingerprint(value: string | null | undefined): Promise<str
   }
 }
 
-/** Hash de IP para telemetria sem armazenar o endereço (IP confiável: ./clientIp.ts). */
+/**
+ * IP para telemetria sem armazenar o endereço (IP confiável: ./clientIp.ts).
+ * Com chave (o mesmo HMAC das chaves de rate limit): o SHA-256 simples de um
+ * IPv4 se revertia por força bruta em minutos, e security_events é lido pela
+ * equipe.
+ */
 export async function hashIp(req: Request): Promise<string | null> {
-  return fingerprint(clientIp(req));
+  try {
+    return (await clientIpKey(req)).slice(0, 12);
+  } catch {
+    return null;
+  }
 }
 
 export interface LoggerCtx {

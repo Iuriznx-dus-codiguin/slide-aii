@@ -35,7 +35,8 @@ Auditoria ofensiva e defensiva da plataforma inteira (banco, Edge Functions, fro
 | B4 | Mensagens de exceção devolvidas ao cliente; `support-chat` aceitava ocorrência de outro usuário | Baixo (3.1) | Corrigido |
 | B5 | Senha mínima de 6 na troca e na redefinição (8 no cadastro) | Baixo | Corrigido |
 | B6 | `can_view_portfolio` chamável por qualquer um (consulta quem tem acesso a qual portfólio) | Baixo (3.1) | Corrigido |
-| R1–R12 | Recomendações que dependem de decisão, de configuração fora do repositório ou de teste em produção | — | [Seção 4](#4-recomendações-não-aplicadas) |
+| V1–V27 | Revisão adversarial do próprio diff: 24 corrigidos (entre eles redirecionamento aberto em `/auth`, quota de IA sem fim em conta avulsa zerada, e-mails de pedido de acesso como phishing, cinco falhas de crédito no webhook), 2 aceitos com justificativa, 1 informativo | até Médio | [Seção 6](#6-revisão-adversarial-do-diff) |
+| R1–R13 | Recomendações que dependem de decisão, de configuração fora do repositório ou de teste em produção | — | [Seção 4](#4-recomendações-não-aplicadas) |
 
 ---
 
@@ -194,10 +195,10 @@ Além do filtro por dono (C1), a busca de artigos montava `or=(title.ilike.%…%
 - **Escalonamento de papel:** `user_roles` sem escrita do cliente; `has_role` é `SECURITY DEFINER` com `search_path` fixo. A coluna `profiles.role` é só a persona do onboarding (não dá acesso a nada).
 - **Funções de cobrança:** todas `SECURITY DEFINER` com `search_path` fixo e executáveis só por `service_role`, exceto as de cliente previstas (`can_user_generate` força `_uid = auth.uid()`).
 - **Débito antes da IA:** `generate-presentation` valida acesso, aplica rate limit (12/h; dev 5/h e 5/dia) e debita com `charge_generation` (débito + tentativa na mesma transação, com `FOR UPDATE` no perfil) antes de qualquer chamada cara. Duas gerações simultâneas não gastam o mesmo saldo.
-- **Webhook:** fail-closed sem segredo, comparação em tempo constante, segredo fora da query string, idempotência por (evento, pedido), bônus de ativação uma vez por conta (`grant_bonus_credits_once`), estorno restrito ao pedido (`revoke_order_credits`).
+- **Webhook:** fail-closed sem segredo, comparação em tempo constante, segredo fora da query string, idempotência por (evento, pedido), bônus de ativação uma vez por conta (`grant_bonus_credits_once`), estorno restrito ao pedido (`revoke_order_credits`). A revisão adversarial achou cinco falhas de crédito que essa leitura não pegou (seção 6, V10–V18).
 - **SSRF:** nenhuma função busca URL fornecida pelo usuário (a extração de identidade de marca foi removida). `fetch-image` só chama Pexels e provedores de IA fixos; a URL de imagem do provedor só é lida, não buscada.
 - **Segredos:** o histórico do git só tem a chave `anon` (pública por design, expira em 2036). Nenhuma `service_role`, chave de IA, Pexels, Resend ou Cakto versionada. `service_role` só nas Edge Functions.
-- **Redirecionamento aberto:** `?next=` aceita só caminhos relativos; `emailRedirectTo` e o retorno do Google são prefixados pela origem; o consentimento OAuth só segue URLs devolvidas pelo servidor de autorização.
+- **Redirecionamento aberto:** `emailRedirectTo` e o retorno do Google são prefixados pela origem; o consentimento OAuth só segue URLs devolvidas pelo servidor de autorização. **Correção:** a primeira versão deste relatório dizia que `?next=` aceitava só caminhos relativos. Não aceitava: `/\evil.com` passava na regex e o navegador o resolve para `https://evil.com/` (V19, corrigido com `safeNextPath`).
 - **Markdown:** `react-markdown` (Central de Ajuda) e `streamdown` (suporte) não renderizam HTML cru; links `javascript:` são neutralizados. Links do portfólio público passam por `safeExternalUrl` (só http/https).
 - **Cabeçalhos:** `public/_headers` define HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `Referrer-Policy`, `Permissions-Policy` e CSP (com ressalvas em R6).
 - **CORS `*`** nas funções autenticadas não abre CSRF: a autenticação é por `Authorization: Bearer`, não por cookie.
@@ -252,11 +253,11 @@ Só contém URL e chave `anon` (públicas por design), mas o `.env.example` já 
 
 ### R7 — Reembolso depois do consumo
 
-`revoke_order_credits` retira só o saldo que ainda existe: quem compra, gasta tudo e pede reembolso fica com o que gerou. É uma regra de negócio (CDC, art. 49): defina política (reter créditos consumidos, negar reembolso integral após uso, revisão manual) e registre nos Termos.
+`revoke_order_credits` retira só o saldo que ainda existe: quem compra, gasta tudo e pede reembolso fica com o que gerou. Agora o caso gera o alerta `refund_after_consumption` (V18), mas a decisão continua sendo de negócio (CDC, art. 49): defina política (reter créditos consumidos, negar reembolso integral após uso, contestar chargeback) e registre nos Termos.
 
 ### R8 — Heurística de eventos da Cakto
 
-Evento de tipo desconhecido com `status: paid` ainda é tratado como pagamento. Para avulso, a 0010 impede crédito duplo; para assinatura, um evento novo redefine a cota mensal do ciclo. Recomendado: tipo desconhecido → ignorar e alertar (`ops_alerts`), depois de confirmar com a Cakto a lista completa de eventos.
+Evento de tipo desconhecido com `status: paid` ainda é tratado como pagamento. A 0010 impede crédito duplo do mesmo pedido, tanto avulso quanto cota mensal (V16); um pedido novo de verdade ainda é tratado como pagamento. Recomendado: tipo desconhecido → ignorar e alertar (`ops_alerts`), depois de confirmar com a Cakto a lista completa de eventos.
 
 ### R9 — Conteúdo público como vetor de phishing
 
@@ -274,11 +275,15 @@ Usuário autenticado pode inserir ocorrências à vontade (contexto JSON sem tet
 
 `security_events` já registra limites e acessos negados. Crie alertas (`ops_alerts`) para picos de `rate_limited`/`forbidden` por conta e para `record_presentation_view` recusado em volume.
 
+### R13 — Segredo próprio para o IP pseudonimizado
+
+As chaves de rate limit por IP e o `ip_hash` da telemetria usam HMAC com `RATE_LIMIT_PEPPER`; sem esse secret, a chave é a `service_role` (funciona, mas mistura funções de um segredo que não deveria ter outro uso). Crie o secret com um valor aleatório longo. As linhas antigas de `security_events.ip_hash` foram gravadas com SHA-256 sem chave (reversível por força bruta, V27): depois do deploy, `update security_events set ip_hash = null where created_at < '<data do deploy>';`.
+
 ---
 
 ## 5. Como implantar e verificar
 
-1. **Ordem: front e Edge Functions primeiro, migração depois.** O código novo funciona com o banco antigo (os RPCs novos caem no caminho anterior se ainda não existirem). O contrário não: com a 0010 aplicada, o visualizador antigo lê as tabelas direto e deixa de abrir decks publicados para visitantes até o front novo entrar no ar.
+1. **Ordem: front e Edge Functions primeiro, migração depois.** O código novo funciona com o banco antigo (os RPCs novos caem no caminho anterior se ainda não existirem; o webhook chama `grant_bonus_credits_once` sem o argumento novo, `set_monthly_credits` e o teto antigo de estorno). O contrário não: com a 0010 aplicada, o visualizador antigo lê as tabelas direto e deixa de abrir decks publicados para visitantes até o front novo entrar no ar; e um front antigo que ainda grave decks pelo cliente (`legacyPersist`) criaria decks sem falas e sem chat de edição (V9).
 2. **Migração:** `drizzle/migrations/0010_security_hardening.sql` (cópia idêntica em `supabase/migrations/20261011000100_security_hardening.sql`). Idempotente.
 3. **Pós-deploy:**
    - Abrir um deck publicado numa janela anônima (abre) e um privado (não abre); exportar PDF como visitante.
@@ -286,13 +291,49 @@ Usuário autenticado pode inserir ocorrências à vontade (contexto JSON sem tet
    - Regenerar falas e usar o chat de edição até o limite.
    - Rodar a consulta de tentativas presas do runbook e `select count(*) from access_logs where created_at > now() - interval '1 hour';`.
    - Confirmar com `curl` anônimo que `/rest/v1/presentations?select=id` devolve `[]`.
+   - Abrir `/auth?next=/%5Cexample.com` logado: deve ir para o painel, não para outro domínio.
+   - Pedir acesso a um portfólio que desligou os pedidos: a tela mostra erro e nenhum e-mail sai.
 4. **Testes locais:** `npm test` (inclui `securityHardening.test.ts`) e `supabase/tests/security/run.sh`.
 
 ---
 
 ## 6. Revisão adversarial do diff
 
-Seção preenchida com o resultado da revisão independente (cinco revisores por dimensão e um verificador por achado tentando refutá-lo).
+Cinco revisores independentes leram o diff de `d1353bc` até a primeira versão desta auditoria, cada um numa dimensão: migração, Edge Functions, front-end, lógica de créditos e superfície residual. Eles acharam 27 itens. Cinco passaram por verificadores independentes instruídos a refutá-los; os cinco se confirmaram. Os outros 22 verifiquei eu mesmo: li o código e reproduzi cada achado de crédito e de autorização no banco local (`exploits_before_fix.sql`, PoCs 10–13, no banco sem a 0010; `exploits.sql`, blocos 11–16, bloqueados com ela). Nenhum foi refutado. Três são duplicatas de outro item.
+
+"Do diff" quer dizer que a primeira versão desta auditoria introduziu ou piorou o problema. Os demais já existiam e nem a leitura original nem os testes os pegaram.
+
+| # | Achado | Origem | Severidade | Situação |
+| --- | --- | --- | --- | --- |
+| V1 | Teto de 128 KB no `fetch-image` recusava pedidos com imagens em base64 em `avoid_urls`; as imagens do resto do deck paravam | Do diff | Médio | Corrigido: teto de 8 MB, e o cliente manda só URLs http(s) curtas (`avoidUrlsForRequest`) |
+| V2 | Teto de 400 KB no `chat-editor` bloqueava o chat em decks com imagens em base64 | Do diff | Médio | Corrigido: teto de 12 MB; data-URLs viram `[imagem incorporada]` no prompt; cada texto até 4.000 caracteres e cada slide até 16.000 (`slideForPrompt`); 40 por hora e 150 por dia por conta |
+| V3 | Mesmo problema de V1/V2 visto pelo front-end | Do diff | Médio | Duplicata de V1/V2 |
+| V4 | `tsc -p tsconfig.app.json` quebrava: o teste importava um módulo com `Deno.env` | Do diff | Baixo | Corrigido (`globalThis.Deno`) |
+| V5 | Usuário criava conversas de suporte com qualquer estado e ocupava `ticket_id`s futuros: o atendimento de todos passava a falhar | Já existia | Médio (CVSS 5.4) | Corrigido: só o `support-chat` (servidor) cria conversas |
+| V6 | Mesmo achado de V5 pela superfície residual | Já existia | Médio | Duplicata de V5 |
+| V7 | Teste e2e de suporte inseria mensagem "assistant" como usuário | Do diff | Baixo | Corrigido: o teste abre a conversa pela função e confirma os bloqueios |
+| V8 | Editor não redirecionava mais quem abre deck publicado de outra pessoa | Do diff | Baixo | Corrigido: consulta `get_shared_presentation` e manda para `/slides/:slug` |
+| V9 | Persistência legada no cliente (`legacyPersist`) grava deck sem falas pagas (e, agora, sem chat de edição) | Do diff | Baixo | Aceito: o caminho só roda com front novo e função antiga; com a ordem de deploy da seção 5 ele não é alcançado |
+| V10 | Com `profiles.email` acompanhando o Auth, renovação, reembolso e cancelamento de quem trocou de e-mail caíam em "usuário não encontrado" | Do diff | Médio | Corrigido: conta achada por assinatura, pedido, e-mail atual, e-mail de compra anterior e cliente da Cakto (`resolveUserId`) |
+| V11 | Reembolso de uma reassinatura (sem bônus) retirava o bônus de ativação inteiro, levando junto créditos avulsos pagos | Já existia | Médio (CVSS 4.3, integridade) | Corrigido: o bônus guarda pedido e assinatura; o estorno retira só o que aquela assinatura deu (`order_granted_bonus`, com correlação por tempo para concessões antigas) |
+| V12 | Cancelar a assinatura antiga depois de assinar a nova cancelava a nova; a renovação da antiga trazia o plano antigo de volta | Já existia | Médio | Corrigido: evento de outra assinatura não mexe na vigente; cobrança da antiga gera alerta `payment_other_subscription` |
+| V13 | Aprovação processada depois do estorno creditava o pedido reembolsado | Já existia | Baixo | Corrigido: `already_refunded` em `grant_order_bonus_credits` e `grant_monthly_for_order`; e o estorno antecipado não retira créditos de outro pedido |
+| V14 | Estorno de geração depois do reset ou da renovação somava créditos expirados à cota nova (3.500 num plano de 3.200) | Já existia; a 0010 tornou frequente | Baixo | Corrigido: a parte mensal só volta se o débito é do ciclo atual e até a alocação |
+| V15 | Varredura de tentativas presas, reativada pela 0010, estornava de novo o que o suporte já tinha estornado à mão | Do diff | Baixo | Corrigido: estorno manual de mesmo valor, posterior à tentativa, fecha a tentativa (`attempt_ref`) |
+| V16 | Dois eventos "pagos" do mesmo pedido de assinatura recarregavam a cota mensal já gasta | Já existia | Baixo | Corrigido: cota uma vez por pedido (`grant_monthly_for_order`) |
+| V17 | Excluir a conta e assinar de novo com o mesmo e-mail concede outra vez o bônus de ativação | Já existia | Baixo | Aceito: exige pagar uma assinatura nova a cada vez, e outro e-mail contorna qualquer bloqueio por e-mail. Um registro do e-mail depois da exclusão manteria dado pessoal contra um pedido de exclusão (LGPD, art. 16) para ganho mínimo. Se virar abuso, bloquear pela identidade do pagamento (CPF/cartão) na Cakto |
+| V18 | Reembolso depois de gastar os créditos não retirava nada e ninguém ficava sabendo | Já existia | Baixo | Corrigido em parte: alerta `refund_after_consumption`; a política continua em R7 |
+| V19 | `/auth?next=/\evil.com` mandava para outro domínio (o react-router cai em `location.assign`), inclusive logo depois do login | Já existia; a seção 3 dizia o contrário | Médio (CVSS 6.1) | Corrigido: `safeNextPath` resolve a URL e exige a mesma origem |
+| V20 | Conta avulsa com saldo zero seguia com chat de edição e imagens de IA sem fim: um INSERT direto criava deck com cota nova de chat | Já existia | Médio (CVSS 5.3, custo) | Corrigido: deck do cliente nasce `is_paid = false` e o chat exige deck gerado; imagem de IA avulsa exige saldo no plano `single` |
+| V21 | Título, tipo, tema e brief (graváveis pelo dono) entravam sem teto nos prompts: ~1M de tokens por chamada | Já existia | Médio (CVSS 5.3, custo) | Corrigido: `CHECK` de tamanho (NOT VALID) e corte de cada campo no prompt (`promptField`); brief do cliente vira `NULL` no INSERT |
+| V22 | Pedido de acesso ao portfólio mandava e-mail da plataforma, com nome e mensagem do atacante no assunto e no corpo, a qualquer usuário com username, inclusive a quem desligou os pedidos; o dono podia trocar `requester_id` | Já existia | Médio (CVSS 5.4) | Corrigido: política exige que o dono aceite pedidos; mensagem até 500; só o status muda; 10 e-mails por hora por conta; assunto fixo |
+| V23 | Anônimo descobria contas de admin/developer (`has_role` aberto + `get_profile_for_viewer` devolvendo o id) | Já existia | Baixo (CVSS 3.7) | Corrigido: `has_role` só para `authenticated` e `service_role` |
+| V24 | POST sem segredo no webhook gerava um alerta "Crítico" por hora, com texto do atacante, para todos os admins | Já existia | Baixo | Corrigido: tipo do evento filtrado; o alerta só sai se nenhuma entrega válida chegou nas últimas 6 horas |
+| V25 | Verificação dos achados de crédito (proteções da 0010 conferidas: corrida de débito, idempotência, gatilhos) | — | Informativo | Sem ação |
+| V26 | Cota do chat renovável com deck em branco criado pela API (visão da migração) | Já existia | Baixo | Corrigido com V20 |
+| V27 | `security_events.ip_hash` era SHA-256 sem chave de 48 bits: reversível para o IP em minutos | Já existia | Baixo | Corrigido: mesmo HMAC das chaves de rate limit; linhas antigas em R13 |
+
+Testes novos: `exploits.sql` blocos 11–16 e `regression.sql` bloco 11 (fluxos legítimos: deck do servidor mantém brief e chat, bônus pela chamada antiga, cota por pedido de ativação e de renovação, estorno no mesmo ciclo, varredura sem estorno manual, pedido de acesso aprovado); `caktoWebhook.test.ts` (conta do evento, outra assinatura, rótulo do evento) e `securityHardening.test.ts` (prompts, redirecionamento, assunto do e-mail, hash do IP).
 
 ---
 

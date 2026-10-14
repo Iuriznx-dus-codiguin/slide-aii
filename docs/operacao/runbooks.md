@@ -11,7 +11,7 @@ Consultas SQL rodam no SQL editor da Lovable Cloud. Nunca altere colunas de cobr
    select created_at, event_type, processed, error_message, user_email, cakto_id
    from payment_events order by created_at desc limit 20;
    ```
-2. `user not found by email`: a compra foi feita com outro e-mail. Confirme com o cliente e aplique manualmente (passo 3).
+2. `user not found by email`: nenhuma chave do evento achou a conta. O webhook procura, nesta ordem, pela assinatura registrada no perfil, por um evento anterior do mesmo pedido, pelo e-mail atual da conta, por um e-mail usado em compra anterior e pelo cliente da Cakto (`user_resolved` nos logs diz por onde achou). Se nada casou, a compra foi feita com outro e-mail: confirme com o cliente e aplique manualmente (passo 3).
 3. Nenhum evento: veja `security_events` (`webhook_invalid_secret`) e confira o segredo ([abaixo](#segredo-do-webhook)). Para liberar manualmente um avulso: `select grant_order_bonus_credits('<USER_ID>', '<ID_DO_PEDIDO>', 500, 'single_purchase');` (uma vez por pedido; sem o id do pedido, `grant_bonus_credits('<USER_ID>', 500, 'single_purchase')`). O alerta `payment_without_order_id` também cai aqui. Para assinatura, peça à Cakto o reenvio do webhook (preferível), para o fluxo completo rodar.
 
 ## Reembolso em revisão manual
@@ -22,7 +22,9 @@ Eventos com `error_message like 'refund_needs_review:%'` não retiraram nada aut
 select revoke_order_credits('<USER_ID>', '<ID_DO_PEDIDO>', <bonus_a_retirar>, <zerar_cota: true|false>, 'refund_revoke');
 ```
 
-Idempotente por pedido. Se for reembolso de assinatura, também: `update profiles set subscription_status = 'canceled', plan = 'free', cakto_subscription_id = null where id = '<USER_ID>';`.
+Idempotente por pedido. Para saber quanto bônus aquele pedido ou assinatura de fato concedeu (o webhook usa o mesmo teto): `select order_granted_bonus('<USER_ID>', '<ID_DO_PEDIDO>', '<ID_DA_ASSINATURA ou null>', 'subscription_signup_bonus');` (`'single_purchase'` para avulso). Se for reembolso de assinatura, também: `update profiles set subscription_status = 'canceled', plan = 'free', cakto_subscription_id = null where id = '<USER_ID>';`.
+
+Depois de um estorno, a aprovação do mesmo pedido não credita mais (`already_refunded`), mesmo que a Cakto reenvie o evento.
 
 ## Créditos de geração que travou
 
@@ -49,7 +51,11 @@ select * from cron.job_run_details
  order by start_time desc limit 5;  -- se houver pg_cron
 ```
 
-Se houver, `select refund_stale_generations();` estorna todas (idempotente por tentativa). Débitos antigos, sem tentativa registrada, seguem pelo caminho manual: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');` (idempotente pela referência).
+Se houver, `select refund_stale_generations();` estorna todas (idempotente por tentativa). Estornos manuais feitos antes (referência `manual:...`, de mesmo valor e posteriores à tentativa) fecham a tentativa sem devolver de novo: o retorno mostra quantas em `manual`.
+
+Estorno manual: se a tentativa existe, use o id dela como referência, que já a fecha: `select refund_generation_credits('<USER_ID>', <creditos>, '<ID_DA_TENTATIVA>', 'stuck_generation');`. Débitos antigos, sem tentativa registrada: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');` (idempotente pela referência).
+
+A parte que saiu da cota mensal só volta se o débito é do ciclo atual e até a alocação do plano; o resto teria expirado com o ciclo e aparece em `expired_monthly` no retorno e na transação.
 
 ## Alertas
 
@@ -62,7 +68,7 @@ select created_at, recipient, status, error from email_log where event = 'ops_al
 
 | Tipo (`kind`) | O que significa | O que fazer |
 | --- | --- | --- |
-| `webhook_invalid_secret` | A Cakto mandou um evento com segredo diferente do configurado. Pagamentos não estão sendo processados. | [Segredo do webhook](#segredo-do-webhook). Depois, peça à Cakto o reenvio dos eventos recusados. |
+| `webhook_invalid_secret` | Chegou evento com segredo diferente do configurado e nenhuma entrega válida nas últimas 6 horas: provavelmente os pagamentos não estão sendo processados. (Com entregas válidas recentes, o POST inválido só vai para `security_events`.) | [Segredo do webhook](#segredo-do-webhook). Depois, peça à Cakto o reenvio dos eventos recusados. |
 | `webhook_not_configured` | `CAKTO_WEBHOOK_SECRET` não existe. | Crie o secret. |
 | `payment_user_not_found` | Pagamento, estorno ou cancelamento com e-mail que não tem conta. | [Pagamento aprovado, mas não liberado](#pagamento-aprovado-mas-não-liberado). Eventos de teste da Cakto também disparam: confira o e-mail. |
 | `payment_plan_not_resolved` | Pagamento de produto ou oferta fora do mapa de planos. | Inclua o id em `PLAN_BY_CHECKOUT_ID`/`PLAN_BY_PRODUCT_ID` (`cakto-webhook/lib.ts`) e peça o reenvio. |
@@ -70,6 +76,8 @@ select created_at, recipient, status, error from email_log where event = 'ops_al
 | `generation_errors` | 25% ou mais das gerações falharam na última hora (mínimo de 3). | Veja `generation_logs` (campo `reason`) e o status dos provedores de IA. |
 | `generation_refund_failed` | Uma geração falhou e o estorno não rodou. | A varredura tenta de novo em até 15 minutos. Se o alerta se repetir, veja os logs de `generate-presentation`. |
 | `generation_stale` | Gerações interrompidas foram estornadas pela varredura. | Esporádico é normal. Frequente indica tempo limite: veja a duração em `generation_logs`. |
+| `refund_after_consumption` | Reembolso ou chargeback de créditos que o cliente já tinha usado: o estorno retirou menos do que o pedido concedeu. | Decida pela política de reembolso (auditoria, R7): reter o valor, contestar o chargeback ou aceitar. Não há saldo negativo. |
+| `payment_other_subscription` | Cobrança de uma assinatura que não é a vigente da conta (o cliente trocou de plano e a antiga continuou ativa). Plano e cota não mudaram. | Confirme com o cliente, cancele a assinatura antiga na Cakto e reembolse a cobrança duplicada. |
 
 Sem nenhum admin com e-mail no perfil e sem `OPS_ALERT_EMAILS`, os alertas ficam pendentes (aparece `ops_alert_no_recipients` nos logs).
 
@@ -117,5 +125,6 @@ Veja [atendimento-ao-titular.md](../lgpd/atendimento-ao-titular.md).
 - [ ] Com uma conta comum, o diálogo de aceite aparece uma vez e registra em `legal_acceptances`.
 - [ ] `access_logs` recebe registros com IP.
 - [ ] `select refund_stale_generations();` responde sem erro, e `generation_attempts` recebe linhas nas gerações cobradas.
+- [ ] Secret `RATE_LIMIT_PEPPER` criado nas Edge Functions (valor aleatório longo): chave das contagens por IP e do `ip_hash` da telemetria. Sem ele, cai na chave `service_role`.
 - [ ] `npm run email:preview` e conferência visual dos e-mails, se `_shared/email.ts` mudou.
 - [ ] Mudou RLS, gatilho ou RPC: `supabase/tests/security/run.sh` num Postgres local passa, e numa janela anônima um deck publicado abre pelo link, um privado não, e `GET /rest/v1/presentations?select=id` com a chave `anon` devolve `[]`.

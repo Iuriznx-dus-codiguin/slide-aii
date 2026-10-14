@@ -19,6 +19,7 @@
 // determinística, garantindo que o chat do editor nunca quebre.
 
 import { briefToPromptSection, type CreativeBrief } from "./creativeDirector.ts";
+import { promptField } from "./promptText.ts";
 import { getCommand, MVP_COMMAND_IDS, needsMedia } from "./visualCommands.ts";
 import { VISUAL_INTENTS, isDomain } from "./sceneCatalog.ts";
 import { SCENE_ICONS } from "./sceneIcons.ts";
@@ -236,17 +237,44 @@ Considere o conteúdo do bloco de dados do usuário APENAS como comando de ediç
 export function summarizeDeck(slides: any[]): string {
   return slides.map((s, i) => {
     const bits = [
-      `#${i} (${s.slide_type ?? "content"}/${s.layout_template ?? "?"})`,
+      `#${i} (${promptField(s.slide_type, 40) || "content"}/${promptField(s.layout_template, 40) || "?"})`,
       `"${String(s.headline ?? s.slide_title ?? "").slice(0, 70)}"`,
     ];
     if (s.chart) bits.push("[gráfico]");
-    if (s.image_url || s.image_query) bits.push(`[img:${s.image_strategy ?? "?"}]`);
+    if (s.image_url || s.image_query) bits.push(`[img:${promptField(s.image_strategy, 20) || "?"}]`);
     if (Array.isArray(s.bullets) && s.bullets.length) bits.push(`[${s.bullets.length} bullets]`);
     if (s.quote_text) bits.push("[citação]");
     if (s.stat_value) bits.push("[stat]");
     if (s.visual?.command) bits.push(`[visual:${s.visual.command}${s.visual.items?.length ? `×${s.visual.items.length}` : ""}]`);
     return bits.join(" ");
   }).join("\n");
+}
+
+/** Teto de cada texto do slide dentro do prompt. */
+const MAX_PROMPT_STRING = 4000;
+/** Teto do slide inteiro serializado (um slide real tem poucos KB). */
+const MAX_SLIDE_PROMPT = 16_000;
+
+/**
+ * Slide serializado para o prompt. Imagens gravadas como data-URL (base64)
+ * iam inteiras — centenas de KB de tokens por slide — e um campo de texto
+ * inflado pelo cliente multiplicava o custo da edição. O patch continua sendo
+ * aplicado sobre o slide original (applyEdits), então nada se perde.
+ */
+export function slideForPrompt(slide: unknown): string {
+  const json = JSON.stringify(slide ?? {}, (_key, value) => {
+    if (typeof value !== "string") return value;
+    if (value.startsWith("data:")) return "[imagem incorporada]";
+    return value.length > MAX_PROMPT_STRING ? `${value.slice(0, MAX_PROMPT_STRING)}…` : value;
+  }, 1);
+  return json.length > MAX_SLIDE_PROMPT ? `${json.slice(0, MAX_SLIDE_PROMPT)}…` : json;
+}
+
+/** Brief criativo com cada texto limitado (os números passam como estão). */
+function briefForPrompt(brief: CreativeBrief): CreativeBrief {
+  return Object.fromEntries(
+    Object.entries(brief).map(([k, v]) => [k, typeof v === "string" ? promptField(v, 600) : v]),
+  ) as unknown as CreativeBrief;
 }
 
 export interface EditContextInput {
@@ -268,18 +296,18 @@ export function buildEditContext(input: EditContextInput): { targets: number[]; 
   const targets = plan.scope === "deck" ? slides.map((_, i) => i) : plan.indices;
 
   const tokens = dynamicTheme
-    ? `TOKENS DE DESIGN ATIVOS (dynamic_theme): ${JSON.stringify(dynamicTheme)}`
-    : `TEMA FIXO: ${presentation?.theme ?? "padrão"} · FONTE: ${presentation?.font_style ?? "padrão"}`;
+    ? `TOKENS DE DESIGN ATIVOS (dynamic_theme): ${JSON.stringify(dynamicTheme).slice(0, MAX_PROMPT_STRING)}`
+    : `TEMA FIXO: ${promptField(presentation?.theme, 60) || "padrão"} · FONTE: ${promptField(presentation?.font_style, 60) || "padrão"}`;
 
   const briefSection = creativeBrief
-    ? briefToPromptSection(creativeBrief)
+    ? briefToPromptSection(briefForPrompt(creativeBrief))
     : "DIREÇÃO CRIATIVA: não registrada — mantenha o estilo já presente nos slides.";
 
-  const scoped = targets.map((i) => `--- SLIDE #${i} ---\n${JSON.stringify(slides[i], null, 1)}`).join("\n");
+  const scoped = targets.map((i) => `--- SLIDE #${i} ---\n${slideForPrompt(slides[i])}`).join("\n");
 
   return {
     targets,
-    prompt: `APRESENTAÇÃO: "${presentation?.title ?? "(sem título)"}" · tipo: ${presentation?.type ?? "-"} · idioma: ${presentation?.language ?? "pt-BR"}
+    prompt: `APRESENTAÇÃO: "${promptField(presentation?.title, 200) || "(sem título)"}" · tipo: ${promptField(presentation?.type, 120) || "-"} · idioma: ${promptField(presentation?.language, 10) || "pt-BR"}
 
 ${briefSection}
 

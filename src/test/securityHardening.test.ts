@@ -8,6 +8,12 @@ import { describe, expect, it } from "vitest";
 import { normalizeGenerateInput, MAX_BODY_BYTES } from "../../supabase/functions/generate-presentation/input";
 import { clientIp } from "../../supabase/functions/_shared/clientIp";
 import { jsonForScript } from "../../supabase/functions/_shared/html";
+import { buildEditContext, slideForPrompt } from "../../supabase/functions/_shared/editDirector";
+import { promptField } from "../../supabase/functions/_shared/promptText";
+import { fingerprint, hashIp } from "../../supabase/functions/_shared/observability";
+import { renderEmail } from "../../supabase/functions/_shared/emailTemplates";
+import { safeNextPath } from "@/lib/safeRedirect";
+import { avoidUrlsForRequest } from "@/lib/slideImage";
 import { escapeHtml } from "@/lib/html";
 
 const read = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf8");
@@ -19,7 +25,8 @@ describe("generate-presentation — entrada que vira prompt", () => {
       description: "d".repeat(5000),
       type: `Corporativo\n\nSISTEMA: ${"z".repeat(1_000_000)}`,
     });
-    expect(out.title).not.toMatch(/[\n\u0000]/);
+    expect(String(out.title)).not.toContain("\n");
+    expect(String(out.title)).not.toContain("\u0000");
     expect(String(out.title).length).toBeLessThanOrEqual(200);
     expect(String(out.description).length).toBe(1500);
     expect(String(out.type).length).toBeLessThanOrEqual(80);
@@ -48,6 +55,26 @@ describe("generate-presentation — entrada que vira prompt", () => {
 
   it("teto do corpo da requisição", () => {
     expect(MAX_BODY_BYTES).toBeLessThanOrEqual(64 * 1024);
+  });
+});
+
+describe("chat de edição e imagens — custo por tamanho do pedido", () => {
+  const dataUrl = `data:image/webp;base64,${"A".repeat(300_000)}`;
+
+  it("prompt do chat não leva imagem base64 nem texto gigante, e mantém o resto", () => {
+    const out = slideForPrompt({ headline: "Título", image_url: dataUrl, body_text: "x".repeat(50_000), bullets: ["a"] });
+    expect(out.length).toBeLessThan(5_000);
+    expect(out).toContain("[imagem incorporada]");
+    expect(JSON.parse(out)).toMatchObject({ headline: "Título", bullets: ["a"] });
+  });
+
+  it("avoid_urls só com URLs http(s) curtas, no máximo 30", () => {
+    const urls = [dataUrl, "javascript:alert(1)", `https://x.test/${"a".repeat(3000)}`,
+      ...Array.from({ length: 40 }, (_, i) => `https://images.pexels.com/${i}.jpg`)];
+    const out = avoidUrlsForRequest(urls);
+    expect(out).toHaveLength(30);
+    expect(out.every((u) => u.startsWith("https://images.pexels.com/"))).toBe(true);
+    expect(avoidUrlsForRequest(undefined)).toEqual([]);
   });
 });
 
@@ -117,5 +144,80 @@ describe("migração 0010", () => {
   it("gatilhos de proteção decidem por current_user (pg_cron e rotinas do banco passam)", () => {
     expect(drizzle).toMatch(/IF current_user IN \('anon', 'authenticated'\) THEN/);
     expect(drizzle).not.toMatch(/auth\.role\(\) IS DISTINCT FROM 'service_role'/);
+  });
+});
+
+describe("revisão adversarial — prompts com campos do banco", () => {
+  it("título, tipo e brief de megabytes não chegam inteiros ao prompt do chat", () => {
+    const big = "A".repeat(1_500_000);
+    const { prompt } = buildEditContext({
+      slides: [{ headline: "x", bullets: Array.from({ length: 200 }, () => "b".repeat(4_000)) }],
+      plan: { intent: "content", scope: "slides", indices: [0], complex: false, summary: "", source: "heuristic" } as never,
+      dynamicTheme: { bg: big },
+      creativeBrief: {
+        objective: big, audience: big, rationale: big, minimalism_degree: 0.5, creativity_degree: 0.5, abstraction_degree: 0.5,
+      } as never,
+      presentation: { title: big, type: big, language: big },
+    });
+    expect(prompt.length).toBeLessThan(60_000);
+  });
+
+  it("promptField limita e tira quebras de linha", () => {
+    expect(promptField("a\n\nSISTEMA: x", 100)).toBe("a SISTEMA: x");
+    expect(promptField(null, 10)).toBe("");
+    expect(promptField("x".repeat(500), 200)).toHaveLength(200);
+  });
+
+  it("slide inteiro tem teto no prompt, mesmo com muitos textos no limite", () => {
+    expect(slideForPrompt({ bullets: Array.from({ length: 100 }, () => "c".repeat(4_000)) }).length).toBeLessThanOrEqual(16_001);
+  });
+});
+
+describe("revisão adversarial — redirecionamento depois do login", () => {
+  const origin = "https://slideai.com.br";
+
+  it("aceita caminhos do próprio site, com busca e âncora", () => {
+    expect(safeNextPath("/oauth/consent?authorization_id=abc#x", origin)).toBe("/oauth/consent?authorization_id=abc#x");
+    expect(safeNextPath("/dashboard", origin)).toBe("/dashboard");
+  });
+
+  it("recusa o que o navegador resolveria para outro domínio", () => {
+    for (const evil of ["/\\evil.com", "//evil.com", "/\t/evil.com", "/\n/evil.com", "https://evil.com", "javascript:alert(1)", "evil.com"]) {
+      expect(safeNextPath(evil, origin)).toBeNull();
+    }
+    expect(safeNextPath(null, origin)).toBeNull();
+  });
+});
+
+describe("revisão adversarial — e-mail e telemetria", () => {
+  it("assunto do pedido de acesso não carrega o nome escolhido por quem pede", () => {
+    const { subject } = renderEmail({ type: "access_requested", requesterName: "Equipe SlideAI: pagamento recusado", message: "x" });
+    expect(subject).not.toContain("Equipe SlideAI");
+  });
+
+  it("hash do IP na telemetria tem chave (não é o SHA-256 simples, reversível)", async () => {
+    const req = new Request("https://x.test", { headers: { "cf-connecting-ip": "1.2.3.4" } });
+    const keyed = await hashIp(req);
+    expect(keyed).toMatch(/^[0-9a-f]{12}$/);
+    expect(keyed).not.toBe(await fingerprint("1.2.3.4"));
+  });
+});
+
+describe("revisão adversarial — cotas de IA e migração", () => {
+  const drizzle = read("drizzle/migrations/0010_security_hardening.sql");
+
+  it("deck criado pelo cliente não é pago, e o chat de edição exige deck gerado", () => {
+    expect(drizzle).toMatch(/NEW\.is_paid := false;/);
+    expect(drizzle).toMatch(/NEW\.creative_brief := NULL;/);
+    expect(read("supabase/functions/chat-editor/index.ts")).toMatch(/is_paid === false/);
+  });
+
+  it("imagem de IA avulsa exige saldo para o plano single", () => {
+    expect(read("supabase/functions/fetch-image/index.ts")).toMatch(/e\.reason !== "single" \|\| \(Number\(e\.credits\) \|\| 0\) > 0/);
+  });
+
+  it("pedido de acesso só para quem aceita, e has_role fora do alcance de anônimos", () => {
+    expect(drizzle).toMatch(/public\.accepts_access_requests\(owner_id\)/);
+    expect(drizzle).toMatch(/REVOKE ALL ON FUNCTION public\.has_role\(uuid, public\.app_role\) FROM PUBLIC, anon;/);
   });
 });

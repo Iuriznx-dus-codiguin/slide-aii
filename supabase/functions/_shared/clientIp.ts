@@ -19,7 +19,8 @@ export function clientIp(req: Request): string {
  * simples de um IPv4 se reverte por força bruta.
  */
 export async function clientIpKey(req: Request): Promise<string> {
-  const secret = Deno.env.get("RATE_LIMIT_PEPPER") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "slideai";
+  const env = (globalThis as { Deno?: { env: { get(name: string): string | undefined } } }).Deno?.env;
+  const secret = env?.get("RATE_LIMIT_PEPPER") || env?.get("SUPABASE_SERVICE_ROLE_KEY") || "slideai";
   const key = await crypto.subtle.importKey(
     "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
   );

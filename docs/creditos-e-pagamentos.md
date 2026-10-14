@@ -14,9 +14,9 @@ Referência do comportamento atual. Os textos para o cliente estão nos [Termos 
 | Teto MAX (uso justo) | 16.000 por ciclo mensal | `plan_monthly_credits` |
 | Bônus de ativação PRO | 800 / 1.200 / 2.000 (mensal/trimestral/anual), uma vez por conta | `grant_bonus_credits_once` |
 | Gerações por hora | 12 (dev: 5/h e 5/dia) | `generate-presentation` |
-| Assistente de edição | 10 mensagens e 3 edições complexas por apresentação | `chat-editor` |
+| Assistente de edição | 10 mensagens e 3 edições complexas por apresentação gerada (40/h e 150/dia por conta) | `chat-editor` |
 | Regenerar falas | 5 por apresentação | `regenerate-speeches` |
-| Imagens por IA no editor | 15/h | `fetch-image` |
+| Imagens por IA no editor | 15/h; plano avulso só com saldo | `fetch-image` |
 
 `src/lib/fairUse.ts` reúne os limites citados nos Termos. Os testes de paridade conferem as constantes de preço entre o front e o webhook.
 
@@ -33,12 +33,15 @@ Com a assinatura encerrada, a sobra da cota mensal não vale mais (`consume_cred
 
 ## Eventos de pagamento (`cakto-webhook`)
 
+A conta do evento é achada pela assinatura registrada no perfil, por um evento anterior do mesmo pedido, pelo e-mail atual da conta, por um e-mail de compra anterior e pelo cliente da Cakto, nessa ordem (`resolveUserId`). Trocar o e-mail da conta não desliga a assinatura dos eventos seguintes.
+
 | Evento | Efeito |
 | --- | --- |
-| Compra avulsa | +500 de bônus, uma vez por pedido (`grant_order_bonus_credits`). Sem assinatura vigente: plano vira `single` e a sobra mensal é zerada. Evento sem id de pedido: nada é creditado, alerta `payment_without_order_id` para acerto manual |
-| Assinatura criada ou renovada | Plano ativo, `renews_at` = agora + período, cota redefinida (reancora o ciclo), bônus de ativação uma vez por conta |
-| Cancelamento | `subscription_status = canceled`; acesso e cota até `renews_at` |
-| Reembolso / chargeback | Estorna só o que o pedido concedeu (idempotente por pedido). Assinatura: encerra na hora (`plan = free`) e zera a cota. Caso ambíguo: vai para revisão manual (`webhook_refund_review`) |
+| Compra avulsa | +500 de bônus, uma vez por pedido (`grant_order_bonus_credits`); pedido já reembolsado não credita. Sem assinatura vigente: plano vira `single` e a sobra mensal é zerada. Evento sem id de pedido: nada é creditado, alerta `payment_without_order_id` para acerto manual |
+| Assinatura criada ou renovada | Plano ativo, `renews_at` = agora + período, cota redefinida uma vez por pedido (`grant_monthly_for_order`, reancora o ciclo), bônus de ativação uma vez por conta, guardando pedido e assinatura que o concederam |
+| Cobrança de outra assinatura com a vigente ativa (renovação da antiga) | Nada muda; alerta `payment_other_subscription`. Assinatura nova (troca de plano) continua valendo |
+| Cancelamento | `subscription_status = canceled`; acesso e cota até `renews_at`. Cancelar uma assinatura que não é a vigente não muda nada |
+| Reembolso / chargeback | Estorna só o que aquela compra concedeu (idempotente por pedido): avulso, os 500 do pedido; assinatura, encerra na hora (`plan = free`), zera a cota e retira o bônus de ativação só se foi aquela assinatura que o deu (`order_granted_bonus`). Créditos já gastos não ficam negativos: alerta `refund_after_consumption`. Caso ambíguo: vai para revisão manual (`webhook_refund_review`) |
 | Recusa, Pix/boleto gerado, abandono | Ignorado |
 
 ## Ciclo mensal
@@ -47,6 +50,6 @@ A cota renova um mês depois de `credits_cycle_anchor` (data da ativação ou da
 
 ## Pontos de atenção
 
-- Geração que trava (queda da função ou tempo esgotado) é estornada automaticamente em até 15 minutos (`generation_attempts` + `refund_stale_generations`): [runbook](operacao/runbooks.md#créditos-de-geração-que-travou). Até a migração 0010 esse estorno era barrado pelo gatilho de cobrança; confira as tentativas presas de antes (runbook).
-- Cotas por apresentação (falas: 5; chat: 10 mensagens ou 3 edições complexas) são reservadas no banco antes da chamada de IA (`reserve_speech_regen`, `reserve_ai_edit_usage`) e devolvidas se ela falhar; os contadores não são graváveis pelo cliente.
+- Geração que trava (queda da função ou tempo esgotado) é estornada automaticamente em até 15 minutos (`generation_attempts` + `refund_stale_generations`): [runbook](operacao/runbooks.md#créditos-de-geração-que-travou). Até a migração 0010 esse estorno era barrado pelo gatilho de cobrança; confira as tentativas presas de antes (runbook). A parte que saiu da cota mensal só volta se o débito é do ciclo atual e até a alocação do plano.
+- Cotas por apresentação (falas: 5; chat: 10 mensagens ou 3 edições complexas) são reservadas no banco antes da chamada de IA (`reserve_speech_regen`, `reserve_ai_edit_usage`) e devolvidas se ela falhar; os contadores não são graváveis pelo cliente. Só decks gerados pelo servidor (`is_paid`) têm cota de chat: um INSERT direto na API nasce com `is_paid = false`.
 - Imagens de IA não consomem créditos: é a principal alavanca de custo (ver revisão de 27/09/2026, decisão B1).

@@ -36,8 +36,14 @@ const corsHeaders = {
 
 export const MAX_CHAT_MESSAGES = 10;
 export const MAX_COMPLEX_EDITS = 3;
-/** Teto do corpo (deck + histórico). 40 slides densos ficam bem abaixo disso. */
-const MAX_BODY_CHARS = 400_000;
+/**
+ * Teto de memória do corpo (deck + histórico). Folgado porque decks antigos
+ * guardam imagens como data-URL em content.image_url; o que vai para o prompt
+ * é podado em buildEditContext (data-URLs e textos longos), não aqui.
+ */
+const MAX_BODY_CHARS = 12_000_000;
+/** Teto diário por conta: decks são baratos de criar, então a cota por deck sozinha não limita o total. */
+const MAX_EDITS_PER_DAY = 150;
 const LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
 
 
@@ -95,11 +101,14 @@ Deno.serve(async (req) => {
       status: ent.reason === "no_plan" ? 402 : 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const { data: withinLimit } = await admin.rpc("check_rate_limit", {
-    _key: `user:${userId}`, _fn: "chat-editor", _max_per_hour: 40,
-  });
-  if (withinLimit === false) {
-    await log.security("rate_limited", { status: 429, detail: { max_per_hour: 40 } });
+  const [{ data: withinLimit }, { data: withinDaily }] = await Promise.all([
+    admin.rpc("check_rate_limit", { _key: `user:${userId}`, _fn: "chat-editor", _max_per_hour: 40 }),
+    admin.rpc("check_rate_limit_daily", { _key: `user:${userId}`, _fn: "chat-editor", _max_per_day: MAX_EDITS_PER_DAY }),
+  ]);
+  if (withinLimit === false || withinDaily === false) {
+    await log.security("rate_limited", {
+      status: 429, detail: { scope: withinDaily === false ? "daily" : "hourly", max_per_hour: 40, max_per_day: MAX_EDITS_PER_DAY },
+    });
     return new Response(JSON.stringify({ error: "Muitas edições em pouco tempo. Aguarde alguns minutos." }), {
       status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -179,7 +188,7 @@ Deno.serve(async (req) => {
       });
     }
     {
-      const baseCols = "id, user_id, title, type, language, theme, font_style, creative_brief, dynamic_theme";
+      const baseCols = "id, user_id, title, type, language, theme, font_style, creative_brief, dynamic_theme, is_paid";
       const first = await admin
         .from("presentations")
         .select(`${baseCols}, ai_edit_messages, ai_edit_complex`)
@@ -198,6 +207,15 @@ Deno.serve(async (req) => {
       if (pres && pres.user_id !== userId) {
         await log.security("forbidden", { status: 403, detail: { reason: "presentation_not_owned" } });
         return new Response(JSON.stringify({ error: "Apresentação não encontrada." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // A cota do chat vem com o deck GERADO (pago em créditos). Deck criado
+      // por INSERT direto na API nasce com is_paid = false (migração 0010):
+      // antes, cada linha nova era uma cota nova de graça.
+      if ((pres as { is_paid?: boolean }).is_paid === false) {
+        await log.security("forbidden", { status: 403, detail: { reason: "presentation_not_generated" } });
+        return new Response(JSON.stringify({ error: "O chat de edição vale para apresentações geradas pelo SlideAI." }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

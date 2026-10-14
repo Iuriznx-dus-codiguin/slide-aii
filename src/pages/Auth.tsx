@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { acceptCurrentTerms, signupConsentMetadata } from "@/lib/legalConsent";
+import { safeNextPath } from "@/lib/safeRedirect";
 import { z } from "zod";
 
 const emailSchema = z.string().trim().email("Email inválido").max(255);
@@ -36,9 +37,8 @@ const Auth = () => {
 
   // Destino pós-login: usado pela tela de consentimento OAuth (integrações de
   // agentes), que precisa que o usuário volte exatamente para o pedido.
-  // Só aceitamos caminhos relativos do próprio site.
-  const rawNext = searchParams.get("next");
-  const nextPath = rawNext && /^\/(?!\/)/.test(rawNext) ? rawNext : null;
+  // Só aceitamos caminhos do próprio site (safeNextPath).
+  const nextPath = safeNextPath(searchParams.get("next"));
   const afterAuth = nextPath ?? "/dashboard";
 
   useEffect(() => {

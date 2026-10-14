@@ -78,6 +78,13 @@ Deno.serve(async (req) => {
       const { data: r } = await admin.from("profile_access_requests")
         .select("id, owner_id, requester_id, message").eq("id", body.request_id).maybeSingle();
       if (!r || r.requester_id !== user.id) return json({ error: "not_found" }, 404);
+      // E-mail da plataforma para OUTRA pessoa, com texto escolhido por quem
+      // pede: teto por conta (a política do banco já exige que o dono aceite
+      // pedidos; aqui limita o volume de quem tenta usar isso em massa).
+      const { data: underLimit } = await admin.rpc("check_rate_limit", {
+        _key: `user:${user.id}`, _fn: "send-email-access-requested", _max_per_hour: 10,
+      });
+      if (underLimit === false) return json({ error: "rate_limited" }, 429);
       const [owner, requester] = await Promise.all([profileOf(r.owner_id), profileOf(r.requester_id)]);
       const result = await sendPlatformEmail(admin, {
         to: owner?.email ?? "", userId: r.owner_id, dedupeKey: `access_requested:${r.id}`,

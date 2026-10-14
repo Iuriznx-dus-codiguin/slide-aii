@@ -7,6 +7,7 @@
 // ============================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AI_ENDPOINTS, TEXT_STAGES } from "../_shared/modelRegistry.ts";
+import { promptField } from "../_shared/promptText.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,8 +95,9 @@ Deno.serve(async (req) => {
   if (slidesErr || !slideRows?.length) return json({ error: "Slides não encontrados." }, 404);
   if (slideRows.length > MAX_DECK_SLIDES) return json({ error: "Apresentação grande demais para regenerar as falas." }, 400);
 
+  // Nomes vêm do deck (o dono pode alterá-los): limitados em quantidade e tamanho no prompt.
   const names: string[] = Array.isArray((pres as any).presenters_names) && (pres as any).presenters_names.length
-    ? ((pres as any).presenters_names as string[])
+    ? ((pres as any).presenters_names as unknown[]).slice(0, 10).map((n) => promptField(n, 60) || "Apresentador")
     : ["Apresentador 1"];
 
   const targets = scope === "all"
@@ -104,10 +106,10 @@ Deno.serve(async (req) => {
   if (!targets.length) return json({ error: "Slide não encontrado." }, 404);
 
   const deckMap = slideRows
-    .map((s: any) => `${s.position + 1}. ${s.content?.headline ?? "(sem título)"}`)
+    .map((s: any) => `${s.position + 1}. ${promptField(s.content?.headline, 120) || "(sem título)"}`)
     .join("\n");
 
-  const prompt = `Você é diretor de roteiro de apresentações. Escreva as FALAS EXATAS (script literal, português do Brasil) para os slides abaixo da apresentação "${(pres as any).title}".
+  const prompt = `Você é diretor de roteiro de apresentações. Escreva as FALAS EXATAS (script literal, português do Brasil) para os slides abaixo da apresentação "${promptField((pres as any).title, 200)}".
 
 MAPA DO DECK:
 ${deckMap}
