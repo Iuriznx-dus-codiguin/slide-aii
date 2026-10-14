@@ -45,6 +45,7 @@ import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAss
 import { saveResolvedAsset } from "@/lib/assetWrite";
 import { loadSharedPresentation } from "@/lib/sharedPresentation";
 import { useAuth } from "@/hooks/useAuth";
+import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { VisualPanel } from "@/components/editor/VisualPanel";
 
 // Fonte única compartilhada com o backend — ver _shared/slideComposition.ts.
@@ -84,6 +85,8 @@ interface SlideRow {
 interface Pres {
   id: string; title: string; slug: string; theme: string; font_style: string;
   include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
+  /** 1 = motor principal, 2 = motor de cenas (teste); selo só para devs. */
+  engine_version?: number;
 }
 
 // Bloco 13: thumbnail renderizado em 800x450 (4x menos pixels que 1920x1080)
@@ -148,6 +151,7 @@ const Editor = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { isDeveloper } = useDeveloperRole();
   // Id (string estável): o objeto `user` muda a cada renovação de token e
   // recarregaria o deck, perdendo edições não salvas.
   const userId = user?.id ?? null;
@@ -202,7 +206,7 @@ const Editor = () => {
     if (!slug || authLoading) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
+        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version").eq("slug", slug).maybeSingle();
       if (!p) {
         // Deck de outra pessoa não aparece mais na tabela (sem leitura
         // pública desde a migração 0010); se estiver publicado, o link abre.
@@ -658,6 +662,16 @@ const Editor = () => {
           <div className="flex items-center gap-1 min-w-0">
             <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
             <span className="font-display font-semibold truncate text-sm">{pres.title}</span>
+            {isDeveloper && (
+              <span
+                className={`ml-1 flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                  pres.engine_version === 2 ? "bg-amber-500/15 text-amber-700 dark:text-amber-300" : "bg-muted text-muted-foreground"
+                }`}
+                title="Visível só para desenvolvedores: motor que gerou esta apresentação"
+              >
+                {pres.engine_version === 2 ? "v2 · teste" : "v1"}
+              </span>
+            )}
           </div>
           <div className="h-5 w-px bg-border hidden md:block" />
           <div className="flex items-center gap-1">

@@ -22,7 +22,9 @@
 export type Provider = "openai" | "gateway";
 
 export const AI_ENDPOINTS: Record<Provider, string> = {
-  openai: "https://api.openai.com/v1/chat/completions",
+  // Texto "primário" agora roda via OpenRouter (OPENROUTER_API_KEY); a chave
+  // da OpenAI segue só para imagens (IMAGE_ENDPOINTS).
+  openai: "https://openrouter.ai/api/v1/chat/completions",
   gateway: "https://ai.gateway.lovable.dev/v1/chat/completions",
 };
 
@@ -48,14 +50,14 @@ interface TextStageSpec {
 
 export const TEXT_STAGES: Record<TextStage, TextStageSpec> = {
   // Decisões curtas: modelo mini/flash (planejamento, não escrita rica).
-  director: { openai: "gpt-4.1-mini", gateway: "google/gemini-2.5-flash", timeoutMs: 12000 },
-  story: { openai: "gpt-4.1-mini", gateway: "google/gemini-2.5-flash", timeoutMs: 15000 },
+  director: { openai: "openai/gpt-4.1-mini", gateway: "google/gemini-2.5-flash", timeoutMs: 12000 },
+  story: { openai: "openai/gpt-4.1-mini", gateway: "google/gemini-2.5-flash", timeoutMs: 15000 },
   // Escrita do conteúdo: modelo principal.
-  content: { openai: "gpt-4.1", gateway: "google/gemini-2.5-pro" },
-  contentRetry: { openai: "gpt-4.1", gateway: "google/gemini-2.5-pro" },
-  editClassify: { openai: "gpt-4.1-mini", gateway: "google/gemini-2.5-flash", timeoutMs: 12000 },
-  editApply: { openai: "gpt-4.1-mini", gateway: "google/gemini-2.5-flash" },
-  speeches: { openai: "gpt-4.1-mini", gateway: "google/gemini-2.5-flash" },
+  content: { openai: "openai/gpt-4.1", gateway: "google/gemini-2.5-pro" },
+  contentRetry: { openai: "openai/gpt-4.1", gateway: "google/gemini-2.5-pro" },
+  editClassify: { openai: "openai/gpt-4.1-mini", gateway: "google/gemini-2.5-flash", timeoutMs: 12000 },
+  editApply: { openai: "openai/gpt-4.1-mini", gateway: "google/gemini-2.5-flash" },
+  speeches: { openai: "openai/gpt-4.1-mini", gateway: "google/gemini-2.5-flash" },
 };
 
 export interface TextRoute {
@@ -86,8 +88,8 @@ export function textFallbackRoute(stage: TextStage, keys: ProviderKeys): TextRou
 
 /** USD por 1M de tokens. */
 export const TEXT_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-4.1": { input: 2, output: 8 },
-  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
+  "openai/gpt-4.1": { input: 2, output: 8 },
+  "openai/gpt-4.1-mini": { input: 0.4, output: 1.6 },
   "google/gemini-2.5-pro": { input: 1.25, output: 10 },
   "google/gemini-2.5-flash": { input: 0.3, output: 2.5 },
 };

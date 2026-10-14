@@ -14,6 +14,9 @@ import {
   imageCostUsd,
   maxAiVisualsFor,
 } from "../../supabase/functions/_shared/modelRegistry.ts";
+import { DEFAULT_ENGINE, parseEngine, type EngineVersion } from "../../supabase/functions/_shared/engineSelection.ts";
+
+export type { EngineVersion };
 
 export type BudgetMode = "economy" | "balanced" | "premium";
 
@@ -24,8 +27,12 @@ export interface DevSettings {
   maxBudgetUsd: number;
   showCostOverlay: boolean;
   bypassPaywall: boolean;
-  /** Gera com o motor de cenas (v2) em vez do motor atual (comparação A/B). */
-  engineV2: boolean;
+  /**
+   * Motor das gerações feitas por este desenvolvedor: 1 = motor principal (o
+   * que todos os usuários recebem), 2 = motor de cenas, em teste. O servidor só
+   * respeita esta escolha para contas com papel admin/developer.
+   */
+  engine: EngineVersion;
 }
 
 const KEY = "slideai.devSettings";
@@ -35,8 +42,34 @@ export const DEFAULT_DEV_SETTINGS: DevSettings = {
   maxBudgetUsd: 0.30,
   showCostOverlay: true,
   bypassPaywall: true,
-  engineV2: false,
+  engine: DEFAULT_ENGINE,
 };
+
+export interface EngineOption {
+  value: EngineVersion;
+  label: string;
+  badge: string;
+  description: string;
+}
+
+/** Opções do seletor de motor no Dev Mode (mesmos textos no indicador da geração). */
+export const ENGINE_OPTIONS: EngineOption[] = [
+  {
+    value: 1,
+    label: "v1 · Principal",
+    badge: "produção",
+    description: "O motor que todos os usuários recebem. Use para reproduzir o que o cliente vê.",
+  },
+  {
+    value: 2,
+    label: "v2 · Motor de cenas",
+    badge: "teste",
+    description: "Slides em camadas, mídia decidida no servidor e Quality Gate. Só para desenvolvedores; o deck fica marcado como v2.",
+  },
+];
+
+export const engineOption = (v: EngineVersion): EngineOption =>
+  ENGINE_OPTIONS.find((o) => o.value === v) ?? ENGINE_OPTIONS[0];
 
 export const COSTS = REGISTRY_COSTS;
 
@@ -62,12 +95,19 @@ export const loadDevSettings = (): DevSettings => {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULT_DEV_SETTINGS };
     const parsed = JSON.parse(raw);
-    // Migração: remove campos antigos (forcePexelsOnly, imageBudgetMode).
-    const { forcePexelsOnly: _f, imageBudgetMode: _m, ...clean } = parsed ?? {};
-    return { ...DEFAULT_DEV_SETTINGS, ...clean };
+    // Migração: remove campos antigos (forcePexelsOnly, imageBudgetMode) e
+    // converte o antigo interruptor engineV2 (boolean) no seletor de motor.
+    const { forcePexelsOnly: _f, imageBudgetMode: _m, engineV2, ...clean } = parsed ?? {};
+    const engine = parseEngine(clean.engine) ?? (engineV2 === true ? 2 : DEFAULT_ENGINE);
+    return { ...DEFAULT_DEV_SETTINGS, ...clean, engine };
   } catch {
     return { ...DEFAULT_DEV_SETTINGS };
   }
+};
+
+/** Abre o painel Dev Mode de qualquer tela (ex.: indicador de motor na geração). */
+export const openDevModePanel = () => {
+  window.dispatchEvent(new CustomEvent("devmode:open"));
 };
 
 export const saveDevSettings = (s: DevSettings) => {
