@@ -134,10 +134,9 @@ const Auth = () => {
     setLoading(true);
     if (nextPath) sessionStorage.setItem("auth_next", nextPath);
     else sessionStorage.removeItem("auth_next");
-    // redirect_uri precisa ser exatamente a origem (sem caminho/query) para
-    // coincidir com a lista de URLs permitidas do OAuth.
+    // Retorno sem parâmetros extras; o destino fica guardado na sessão.
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}/auth`,
     });
     if (result.error) {
       setLoading(false);
