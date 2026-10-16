@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import { SlideStage } from "@/components/SlideStage";
 import { ExportMenu } from "@/components/ExportMenu";
@@ -16,9 +15,13 @@ import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
 import { useAuth } from "@/hooks/useAuth";
 import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAssets";
 import { saveResolvedAsset } from "@/lib/assetWrite";
+import { loadSharedPresentation, recordPresentationView } from "@/lib/sharedPresentation";
 
 interface Pres {
-  id: string; user_id?: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
+  id: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
+  /** Calculado no servidor (get_shared_presentation): o user_id do autor não é exposto. */
+  is_owner: boolean;
+  is_published?: boolean;
   include_speeches?: boolean; presenters_names?: string[];
   dynamic_theme?: any;
   // Fase 1: brief do Creative Director Engine, consumido pelo Motion Director
@@ -47,14 +50,15 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,user_id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
-      if (!p) { setLoading(false); return; }
+      // Pelo slug exato (RPC): publicada e fora da lixeira, ou do próprio usuário.
+      const deck = await loadSharedPresentation(slug).catch(() => null);
+      if (!deck) { setLoading(false); return; }
+      const p = deck.presentation;
       setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as unknown as Pres);
       document.title = `${p.title} — SlideAI`;
-      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content,speaker_notes,presenters_data").eq("presentation_id", p.id).order("position");
-      setSlides(((s as any[]) ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })) as any);
+      setSlides(deck.slides.map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })) as any);
       setLoading(false);
-      supabase.from("slide_views").insert({ presentation_id: p.id, user_agent: navigator.userAgent }).then(() => {});
+      void recordPresentationView(p.id);
     })();
   }, [slug]);
 
@@ -63,7 +67,7 @@ const SlideViewer = () => {
   // compartilhado sem passar pelo Editor ficava sem fotos. Visitantes não
   // disparam buscas (custo e cota são do dono).
   const { user } = useAuth();
-  const isOwner = !!user && !!pres?.user_id && pres.user_id === user.id;
+  const isOwner = !!user && !!pres?.is_owner;
   const slidesRef = useRef(slides);
   useEffect(() => { slidesRef.current = slides; }, [slides]);
   const onAssetResolved = useCallback(async (slideId: string, patch: AssetPatch) => {
@@ -177,6 +181,11 @@ const SlideViewer = () => {
               </PopoverTrigger>
               <PopoverContent className="w-64">
                 <div className="space-y-2">
+                  {isOwner && pres.is_published === false && (
+                    <p className="text-xs text-muted-foreground">
+                      Esta apresentação é privada: o link só abre para você. Publique-a no painel para compartilhar.
+                    </p>
+                  )}
                   <Button variant="outline" size="sm" className="w-full justify-start" onClick={copyLink}><Copy className="h-4 w-4" /> Copiar link</Button>
                   <a href={`https://wa.me/?text=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">
                     <Button variant="outline" size="sm" className="w-full justify-start">WhatsApp</Button>

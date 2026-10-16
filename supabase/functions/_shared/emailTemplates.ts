@@ -368,7 +368,9 @@ export const buildEmail = (e: EmailEvent): EmailContent => {
       };
     case "access_requested":
       return {
-        subject: `${e.requesterName} pediu acesso ao seu portfólio`,
+        // Assunto fixo: o nome é escolhido por quem pede e chegava ao assunto
+        // de um e-mail assinado pela plataforma ("Equipe SlideAI: pagamento...").
+        subject: "Novo pedido de acesso ao seu portfólio",
         preheader: "Aprove ou recuse o pedido no seu perfil.",
         title: "Novo pedido de acesso ao portfólio",
         blocks: [

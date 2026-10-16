@@ -35,6 +35,7 @@ export default defineTool({
       .from("presentations")
       .update(patch)
       .eq("slug", slug)
+      .eq("user_id", ctx.getUserId())
       .is("deleted_at", null)
       .select("id, title, slug, description, is_published")
       .maybeSingle();

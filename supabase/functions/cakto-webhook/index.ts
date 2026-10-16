@@ -19,14 +19,18 @@ import {
   PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
   SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
   billingAlertFor, billingSnapshotFrom, pendingChargeFrom,
+  isOtherSubscriptionEvent, resolveUserId, safeEventLabel,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
+import { clientIpKey } from "../_shared/clientIp.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
 import { scheduleLifecycle, sendLifecycle } from "../_shared/lifecycle.ts";
 import { planRank } from "../_shared/plans.ts";
 
 // Tabelas de créditos por plano: ./lib.ts (usadas também pela regra de
 // estorno, que precisa saber quanto cada pedido concedeu).
+
+const MAX_WEBHOOK_BODY_CHARS = 256 * 1024;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +64,10 @@ Deno.serve(async (req) => {
 
   let payload: any = {};
   const rawBody = await req.text().catch(() => "");
+  // Endpoint público (sem JWT): o corpo de um evento da Cakto tem poucos KB.
+  if (rawBody.length > MAX_WEBHOOK_BODY_CHARS) {
+    return json({ error: "payload too large" }, 413);
+  }
   if (rawBody) {
     try {
       payload = JSON.parse(rawBody);
@@ -77,6 +85,13 @@ Deno.serve(async (req) => {
 
   const provided = collectProvidedSecrets(req.headers, req.url, payload);
   if (!hasValidSecret(provided, WEBHOOK_SECRET)) {
+    // Qualquer um pode chamar este endereço: sem teto, cada POST inválido
+    // gravava um security_event (crescimento ilimitado da tabela). Além de
+    // 30 por hora do mesmo IP, só responde 401.
+    const { data: underLimit } = await admin.rpc("check_rate_limit", {
+      _key: `ip:${await clientIpKey(req)}`, _fn: "cakto-webhook-invalid", _max_per_hour: 30,
+    });
+    if (underLimit === false) return json({ error: "unauthorized" }, 401);
     // Diagnóstico sem vazar segredo: comparamos FINGERPRINTS (hash curto).
     // Se o fingerprint enviado pela Cakto for diferente do esperado, o valor
     // cadastrado no painel da Cakto não é o mesmo de CAKTO_WEBHOOK_SECRET.
@@ -96,19 +111,28 @@ Deno.serve(async (req) => {
           authorization: !!req.headers.get("authorization"),
           body_secret: typeof payload?.secret === "string",
         },
-        event_type: extractEventType(payload) || null,
+        event_type: safeEventLabel(extractEventType(payload)),
       },
     });
     // Um por hora: o segredo do painel da Cakto e o da Lovable Cloud divergem.
-    await raiseOpsAlert(admin, {
-      kind: "webhook_invalid_secret", severity: "critical", dedupeKey: `webhook_invalid_secret:${hourBucket()}`,
-      title: "Webhook da Cakto recusado: segredo diferente do configurado",
-      details: {
-        evento: extractEventType(payload) || null,
-        impressao_recebida: providedFps.filter(Boolean).join(", ") || "nenhuma",
-        impressao_esperada: expectedFps.join(", "),
-      },
-    });
+    // Só quando nenhuma entrega válida chegou nas últimas 6 horas: com o
+    // segredo funcionando, o POST inválido é ruído (ou alguém de fora), e
+    // qualquer um mandava um alerta "Crítico" por hora a todos os admins.
+    // O tipo do evento vai filtrado: o texto é de quem chamou.
+    const { count: recentValid } = await admin.from("payment_events")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", new Date(Date.now() - 6 * 3_600_000).toISOString());
+    if (!recentValid) {
+      await raiseOpsAlert(admin, {
+        kind: "webhook_invalid_secret", severity: "critical", dedupeKey: `webhook_invalid_secret:${hourBucket()}`,
+        title: "Webhook da Cakto recusado: segredo diferente do configurado",
+        details: {
+          evento: safeEventLabel(extractEventType(payload)),
+          impressao_recebida: providedFps.filter(Boolean).join(", ") || "nenhuma",
+          impressao_esperada: expectedFps.join(", "),
+        },
+      });
+    }
     return json({ error: "unauthorized" }, 401);
   }
 
@@ -123,29 +147,43 @@ Deno.serve(async (req) => {
   const customerId = dig(payload, ["data.customer.id", "customer.id"]) as string | undefined;
   const subscriptionId = extractSubscriptionId(payload);
 
-  // Resolve o user_id pelo e-mail.
-  //
-  // Ordem: profiles.email (case-insensitive) → auth.users via
-  // `find_user_id_by_email` (SECURITY DEFINER, só service_role). O segundo
-  // passo é essencial: perfis antigos podem estar sem e-mail preenchido e,
-  // sem ele, o pagamento nunca era creditado a ninguém.
-  let userId: string | null = null;
-  if (email) {
-    const { data: profile } = await admin
-      .from("profiles").select("id").ilike("email", escapeLike(email)).maybeSingle();
-    if (profile?.id) {
-      userId = profile.id;
-    } else {
-      const { data: foundId, error: findErr } = await admin
-        .rpc("find_user_id_by_email", { _email: email });
-      if (findErr) log.error("find_user_by_email_failed", { message: findErr.message });
-      if (typeof foundId === "string" && foundId) {
-        userId = foundId;
-        // Backfill: garante que a próxima cobrança resolva no primeiro passo.
-        await admin.from("profiles").update({ email }).eq("id", userId);
-      }
-    }
-  }
+  // Conta do evento: assinatura → pedido → e-mail atual → e-mail de compra
+  // anterior → cliente da Cakto (ver resolveUserId). Uma chave que aponta
+  // para mais de uma conta não decide nada.
+  const single = (ids: Array<string | null | undefined>): string | null => {
+    const unique = [...new Set(ids.filter((v): v is string => !!v))];
+    return unique.length === 1 ? unique[0] : null;
+  };
+  const existing = async (id: string | null): Promise<string | null> => {
+    if (!id) return null;
+    const { data } = await admin.from("profiles").select("id").eq("id", id).maybeSingle();
+    return data?.id ?? null;
+  };
+  const { userId, via: userVia } = await resolveUserId(
+    { subscriptionId, orderId: cakto_id, email, customerId },
+    {
+      bySubscription: async (id) => single(((await admin.from("profiles").select("id")
+        .eq("cakto_subscription_id", id).limit(2)).data ?? []).map((r: { id: string }) => r.id)),
+      byOrder: async (id) => existing(single(((await admin.from("payment_events").select("user_id")
+        .eq("cakto_id", id).not("user_id", "is", null).limit(10)).data ?? []).map((r: { user_id: string }) => r.user_id))),
+      byEmail: async (address) => {
+        // profiles.email (sem curinga) → auth.users via find_user_id_by_email
+        // (SECURITY DEFINER, só service_role): perfis antigos podem estar sem e-mail.
+        const { data: profile } = await admin
+          .from("profiles").select("id").ilike("email", escapeLike(address)).maybeSingle();
+        if (profile?.id) return profile.id;
+        const { data: foundId, error: findErr } = await admin.rpc("find_user_id_by_email", { _email: address });
+        if (findErr) log.error("find_user_by_email_failed", { message: findErr.message });
+        return typeof foundId === "string" && foundId ? foundId : null;
+      },
+      byPurchaseEmail: async (address) => existing((await admin.from("payment_events").select("user_id")
+        .eq("user_email", address).not("user_id", "is", null)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.user_id ?? null),
+      byCustomer: async (id) => single(((await admin.from("profiles").select("id")
+        .eq("cakto_customer_id", id).limit(2)).data ?? []).map((r: { id: string }) => r.id)),
+    },
+  );
+  if (userId && userVia !== "email") log.info("user_resolved", { via: userVia });
 
   const { data: insertedEvent, error: insertErr } = await admin
     .from("payment_events")
@@ -213,10 +251,22 @@ Deno.serve(async (req) => {
     return json({ ok: true, note: "plan not resolved" });
   }
 
+  // A assinatura já apareceu em outro evento da conta (é antiga, não nova).
+  const subscriptionSeenBefore = async (id: string): Promise<boolean> => {
+    const seen = async (shape: Record<string, unknown>) => {
+      const { count } = await admin.from("payment_events").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).neq("id", eventRowId).contains("payload", shape);
+      return (count ?? 0) > 0;
+    };
+    return (await seen({ data: { subscription: { id } } })) || (await seen({ subscription: { id } }));
+  };
+
   // Para os avisos por e-mail (depois do processamento).
   let prevPlan: string | null = null;
   let prevWasSubscriber = false;
   let bonusForEmail = 0;
+  // Evento de outra assinatura que não muda a conta: sem aviso por e-mail.
+  let skipNotify = false;
 
   try {
     if (action === "paid" && plan) {
@@ -234,7 +284,19 @@ Deno.serve(async (req) => {
       prevPlan = before?.plan ?? null;
       prevWasSubscriber = prevIsSubscriber;
 
-      if (plan === "single") {
+      if (plan === "single" && !cakto_id) {
+        // Sem o id do pedido não há como garantir crédito uma única vez por
+        // compra (nem estornar depois): acerto manual.
+        await raiseOpsAlert(admin, {
+          kind: "payment_without_order_id", severity: "critical", dedupeKey: `payment_without_order_id:${eventRowId}`,
+          title: "Compra avulsa sem id de pedido: crédito não aplicado automaticamente",
+          details: { evento: event_type, usuario: userId, payment_event: eventRowId },
+        });
+        await admin.from("payment_events")
+          .update({ processed: true, error_message: "single_without_order_id" })
+          .eq("id", eventRowId);
+        return json({ ok: true, note: "single purchase without order id needs review" });
+      } else if (plan === "single") {
         // Compra avulsa NÃO rebaixa o plano de quem já é assinante ativo:
         // apenas credita o bônus permanente (500 = 400 + 100 de vitrine).
         const patch: Record<string, unknown> = {
@@ -255,10 +317,44 @@ Deno.serve(async (req) => {
           if (zeroErr) log.error("zero_monthly_failed", { message: zeroErr.message });
         }
 
-        const { error: creditErr } = await admin.rpc("grant_bonus_credits", {
-          _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
+        // Uma vez por PEDIDO: a idempotência de payment_events é por
+        // (evento, pedido), e um segundo evento "pago" do mesmo pedido (tipo
+        // novo classificado pela heurística, por exemplo) creditava de novo.
+        const { data: granted, error: creditErr } = await admin.rpc("grant_order_bonus_credits", {
+          _uid: userId, _order_id: String(cakto_id), _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
         });
-        if (creditErr) log.error("grant_bonus_credits_failed", { message: creditErr.message });
+        if (creditErr && (creditErr.code === "PGRST202" || creditErr.code === "42883")) {
+          // Migração 0010 ainda não aplicada.
+          const { error: legacyErr } = await admin.rpc("grant_bonus_credits", {
+            _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
+          });
+          if (legacyErr) log.error("grant_bonus_credits_failed", { message: legacyErr.message });
+        } else if (creditErr) {
+          log.error("grant_order_bonus_credits_failed", { message: creditErr.message });
+        } else if ((granted as { granted?: boolean } | null)?.granted === false) {
+          log.info("single_purchase_already_granted", { cakto_id, reason: (granted as { reason?: string }).reason });
+        }
+      } else if (isOtherSubscriptionEvent({
+        action, payloadSubscriptionId: subscriptionId, profileSubscriptionId: before?.cakto_subscription_id,
+        profileIsActive: prevIsSubscriber, renewal: isRenewalEvent(event_type),
+        // Só consulta o histórico quando pode ser uma assinatura antiga.
+        knownSubscription: !!subscriptionId && prevIsSubscriber && !isRenewalEvent(event_type)
+          && !!before?.cakto_subscription_id && before.cakto_subscription_id !== subscriptionId
+          && await subscriptionSeenBefore(subscriptionId),
+      })) {
+        // Cobrança de uma assinatura antiga enquanto outra está ativa: a
+        // conta paga duas vezes. Não troca plano nem cota; o suporte resolve.
+        skipNotify = true;
+        log.warn("payment_other_subscription", { event_type });
+        await raiseOpsAlert(admin, {
+          kind: "payment_other_subscription", severity: "warning", dedupeKey: `payment_other_subscription:${eventRowId}`,
+          title: "Cobrança de uma assinatura que não é a vigente da conta (cliente pagando duas assinaturas?)",
+          details: {
+            evento: event_type, usuario: userId, plano_do_evento: plan, plano_atual: before?.plan ?? null,
+            assinatura_do_evento: subscriptionId ?? null, assinatura_atual: before?.cakto_subscription_id ?? null,
+            pedido: cakto_id ?? null, payment_event: eventRowId,
+          },
+        });
       } else {
         const patch: Record<string, unknown> = {
           plan,
@@ -274,11 +370,23 @@ Deno.serve(async (req) => {
         // transação diferencia as duas para a animação no app.
         const isRenewal = isRenewalEvent(event_type)
           || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
+        // Uma vez por PEDIDO (grant_monthly_for_order): purchase_approved e
+        // subscription_created do mesmo pedido, ou um reenvio tardio, não
+        // devolvem a cota já gasta entre um e outro.
         const monthly = PLAN_MONTHLY_CREDITS[plan] ?? 0;
-        const { error: monthlyErr } = await admin.rpc("set_monthly_credits", {
-          _uid: userId, _amount: monthly, _type: isRenewal ? "subscription_renewal" : "subscription_monthly",
+        const monthlyType = isRenewal ? "subscription_renewal" : "subscription_monthly";
+        const { data: monthlyResult, error: orderMonthlyErr } = await admin.rpc("grant_monthly_for_order", {
+          _uid: userId, _order_id: cakto_id ?? null, _subscription_id: subscriptionId ?? null, _amount: monthly, _type: monthlyType,
         });
-        if (monthlyErr) log.error("set_monthly_credits_failed", { message: monthlyErr.message });
+        if (orderMonthlyErr && (orderMonthlyErr.code === "PGRST202" || orderMonthlyErr.code === "42883")) {
+          // Migração 0010 ainda não aplicada.
+          const { error: monthlyErr } = await admin.rpc("set_monthly_credits", { _uid: userId, _amount: monthly, _type: monthlyType });
+          if (monthlyErr) log.error("set_monthly_credits_failed", { message: monthlyErr.message });
+        } else if (orderMonthlyErr) {
+          log.error("grant_monthly_for_order_failed", { message: orderMonthlyErr.message });
+        } else if ((monthlyResult as { granted?: boolean } | null)?.granted === false) {
+          log.info("monthly_already_granted", { cakto_id, reason: (monthlyResult as { reason?: string }).reason });
+        }
 
         // Bônus permanente: UMA VEZ POR CONTA, nunca em renovação.
         //
@@ -292,9 +400,16 @@ Deno.serve(async (req) => {
         const signupBonus = PLAN_SIGNUP_BONUS[plan] ?? 0;
         let bonusGranted = false;
         if (!isRenewal && signupBonus > 0) {
-          const { data: bonusResult, error: bonusErr } = await admin.rpc("grant_bonus_credits_once", {
-            _uid: userId, _amount: signupBonus, _type: "subscription_signup_bonus",
+          // Pedido e assinatura ficam na transação: o estorno só retira o
+          // bônus quando é o pedido que o concedeu.
+          const bonusArgs = { _uid: userId, _amount: signupBonus, _type: "subscription_signup_bonus" };
+          let { data: bonusResult, error: bonusErr } = await admin.rpc("grant_bonus_credits_once", {
+            ...bonusArgs, _metadata: { order_id: cakto_id ?? null, subscription_id: subscriptionId ?? null },
           });
+          if (bonusErr && (bonusErr.code === "PGRST202" || bonusErr.code === "42883")) {
+            // Migração 0010 ainda não aplicada (função de três argumentos).
+            ({ data: bonusResult, error: bonusErr } = await admin.rpc("grant_bonus_credits_once", bonusArgs));
+          }
           if (bonusErr) log.error("grant_signup_bonus_failed", { message: bonusErr.message });
           else bonusGranted = (bonusResult as { granted?: boolean } | null)?.granted === true;
         }
@@ -339,23 +454,60 @@ Deno.serve(async (req) => {
           cakto_subscription_id: null,
         }).eq("id", userId);
       }
+      // Teto do estorno: o bônus que ESTA compra concedeu (o pedido avulso,
+      // ou a assinatura reembolsada). Antes, o reembolso de uma reassinatura
+      // (que não dá bônus) retirava o bônus de ativação inteiro, levando junto
+      // créditos avulsos pagos.
+      const { data: granted, error: grantedErr } = await admin.rpc("order_granted_bonus", {
+        _uid: userId, _order_id: cakto_id ?? null,
+        _subscription_id: scope.kind === "single" ? null : subscriptionId ?? null,
+        _type: scope.kind === "single" ? "single_purchase" : "subscription_signup_bonus",
+      });
+      if (grantedErr) log.warn("order_granted_bonus_unavailable", { code: grantedErr.code });
+      // Sem a migração 0010, mantém o teto anterior (o valor do plano).
+      const revokeBonus = grantedErr ? scope.revokeBonus : Math.min(scope.revokeBonus, Number(granted) || 0);
       const { data: revoked, error: revokeErr } = await admin.rpc("revoke_order_credits", {
         _uid: userId,
         _order_id: cakto_id ?? `${event_type}:${subscriptionId ?? "sem-id"}`,
-        _revoke_bonus: scope.revokeBonus,
+        _revoke_bonus: revokeBonus,
         _zero_monthly: scope.zeroMonthly,
         _type: "refund_revoke",
       });
       if (revokeErr) log.error("revoke_order_credits_failed", { message: revokeErr.message });
-      else log.info("credits_revoked", { revoked, scope: scope.kind });
+      else log.info("credits_revoked", { revoked, scope: scope.kind, revokeBonus });
+      // Créditos do pedido já gastos: o estorno não tem de onde tirar. Sem
+      // saldo negativo; a equipe decide (chargeback depois de usar tudo).
+      const r = revoked as { reason?: string; revoked_bonus?: number } | null;
+      if (!revokeErr && r?.reason !== "already_revoked" && (r?.revoked_bonus ?? 0) < revokeBonus) {
+        await raiseOpsAlert(admin, {
+          kind: "refund_after_consumption", severity: "warning", dedupeKey: `refund_after_consumption:${eventRowId}`,
+          title: "Reembolso ou chargeback de créditos que já tinham sido usados",
+          details: {
+            evento: event_type, usuario: userId, pedido: cakto_id ?? null, payment_event: eventRowId,
+            creditos_do_pedido: revokeBonus, estornados: r?.revoked_bonus ?? 0, ja_usados: revokeBonus - (r?.revoked_bonus ?? 0),
+          },
+        });
+      }
 
     } else if (action === "canceled") {
       // Não apaga o plano: apenas marca canceled. Pelos Termos (seção 7), o
       // acesso e a cota continuam até subscription_renews_at — fim do período
       // pago — e só então o entitlement pausa as gerações (o bônus segue valendo).
-      await admin.from("profiles").update({
-        subscription_status: "canceled",
-      }).eq("id", userId);
+      // Cancelar a assinatura ANTIGA depois de assinar outra (troca de plano)
+      // não cancela a nova.
+      const { data: cur } = await admin.from("profiles")
+        .select("cakto_subscription_id").eq("id", userId).maybeSingle();
+      if (isOtherSubscriptionEvent({
+        action, payloadSubscriptionId: subscriptionId, profileSubscriptionId: cur?.cakto_subscription_id,
+        profileIsActive: true, renewal: false, knownSubscription: true,
+      })) {
+        skipNotify = true;
+        log.info("cancel_other_subscription_skipped", { event_type });
+      } else {
+        await admin.from("profiles").update({
+          subscription_status: "canceled",
+        }).eq("id", userId);
+      }
     } else if (action === "paused" || action === "resumed") {
       // Pausa suspende a cota mensal (o bônus permanente segue valendo);
       // retomar reativa sem recreditar — a cota volta na próxima renovação.
@@ -389,7 +541,7 @@ Deno.serve(async (req) => {
   // ── Avisos por e-mail: dados de cobrança + envio/agendamento ──
   // Nunca derruba o webhook: o pagamento já foi processado acima.
   try {
-    await notifyLifecycle({
+    if (!skipNotify) await notifyLifecycle({
       admin, userId, eventType: event_type, action, plan: plan ?? null, payload, eventRowId,
       orderId: cakto_id ?? null, subscriptionId: subscriptionId ?? null,
       prevPlan, prevWasSubscriber, bonus: bonusForEmail,

@@ -85,7 +85,7 @@ export async function persistLegacyDeck(form: LegacyForm, data: LegacyResponse, 
   const slug = generateSlug(form.title);
   const { data: pres, error: pErr } = await supabase.from("presentations").insert({
     user_id: form.userId, title: form.title, description: form.description, type: form.type, language: form.language,
-    theme: form.theme, font_style: fontId, slug, slides_count: slides.length, is_paid: true, is_published: true,
+    theme: form.theme, font_style: fontId, slug, slides_count: slides.length, is_paid: true, is_published: false,
     persona: form.persona, depth_level: form.textDepth, presenters_count: form.presentersCount,
     presenters_names: form.presentersNames, include_speeches: form.includeSpeeches,
     dynamic_theme: data.dynamic_theme ?? null,

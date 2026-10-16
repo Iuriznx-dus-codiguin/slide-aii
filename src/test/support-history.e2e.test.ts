@@ -69,25 +69,41 @@ describe("suporte — acesso anônimo é totalmente bloqueado", () => {
 
 const authed = creds("A") ? describe : describe.skip;
 
+// Conversas só nascem pelo support-chat (migração 0010): o INSERT direto
+// deixava ocupar ticket_ids e inundar a fila da equipe.
+const openConversation = async (client: SupabaseClient, message: string): Promise<string | null> => {
+  const { data, error } = await client.functions.invoke("support-chat", { body: { message } });
+  if (error) return null;
+  return (data as { conversation_id?: string } | null)?.conversation_id ?? null;
+};
+
 authed("suporte — histórico persiste e respeita o dono", () => {
+  it("usuário não cria conversa nem grava resposta da equipe direto pela API", async () => {
+    const a = await signIn("A");
+    if (!a) return;
+    clients.push(a.client);
+    const { error: convError } = await a.client
+      .from("support_conversations")
+      .insert({ user_id: a.userId, subject: "E2E direto", state: "resolved", ticket_id: "TCK-999999" });
+    expect(convError).toBeTruthy();
+  });
+
   it("mensagens gravadas voltam na releitura, em ordem", async () => {
     const a = await signIn("A");
     expect(a, "credenciais E2E_USER_A inválidas").toBeTruthy();
     if (!a) return;
     clients.push(a.client);
 
-    const { data: conv, error: convError } = await a.client
-      .from("support_conversations")
-      .insert({ user_id: a.userId, subject: "E2E histórico", state: "open" })
-      .select("id")
-      .single();
-    expect(convError).toBeNull();
-    if (!conv) return;
+    const convId = await openConversation(a.client, "E2E histórico: primeira");
+    expect(convId, "support-chat não abriu a conversa").toBeTruthy();
+    if (!convId) return;
 
-    await a.client.from("support_messages").insert([
-      { conversation_id: conv.id, role: "user", content: "primeira" },
-      { conversation_id: conv.id, role: "assistant", content: "segunda" },
-    ]);
+    const { error: userMsgError } = await a.client.from("support_messages")
+      .insert({ conversation_id: convId, role: "user", content: "segunda" });
+    expect(userMsgError).toBeNull();
+    const { error: spoofError } = await a.client.from("support_messages")
+      .insert({ conversation_id: convId, role: "assistant", content: "reembolso aprovado" });
+    expect(spoofError).toBeTruthy();
 
     // releitura em cliente novo: simula reabrir /suporte/:id em outra sessão
     const fresh = await signIn("A");
@@ -96,11 +112,12 @@ authed("suporte — histórico persiste e respeita o dono", () => {
     const { data: msgs } = await fresh.client
       .from("support_messages")
       .select("role,content")
-      .eq("conversation_id", conv.id)
+      .eq("conversation_id", convId)
       .order("created_at", { ascending: true });
 
-    expect(msgs?.map((m) => m.content)).toEqual(["primeira", "segunda"]);
-    expect(msgs?.[0].role).toBe("user");
+    expect(msgs?.[0]).toMatchObject({ role: "user", content: "E2E histórico: primeira" });
+    expect(msgs?.[msgs.length - 1]).toMatchObject({ role: "user", content: "segunda" });
+    expect(msgs?.some((m) => m.content === "reembolso aprovado")).toBe(false);
   });
 
   const cross = creds("B") ? it : it.skip;
@@ -110,31 +127,24 @@ authed("suporte — histórico persiste e respeita o dono", () => {
     if (!a || !b) return;
     clients.push(a.client, b.client);
 
-    const { data: conv } = await a.client
-      .from("support_conversations")
-      .insert({ user_id: a.userId, subject: "E2E RLS", state: "open" })
-      .select("id")
-      .single();
-    if (!conv) return;
-    await a.client
-      .from("support_messages")
-      .insert({ conversation_id: conv.id, role: "user", content: "privado" });
+    const convId = await openConversation(a.client, "E2E RLS: privado");
+    if (!convId) return;
 
     const { data: readAsB } = await b.client
       .from("support_messages")
       .select("id")
-      .eq("conversation_id", conv.id);
+      .eq("conversation_id", convId);
     expect(readAsB ?? []).toEqual([]);
 
     const { data: convAsB } = await b.client
       .from("support_conversations")
       .select("id")
-      .eq("id", conv.id);
+      .eq("id", convId);
     expect(convAsB ?? []).toEqual([]);
 
     const { error: writeAsB } = await b.client
       .from("support_messages")
-      .insert({ conversation_id: conv.id, role: "user", content: "invasão" });
+      .insert({ conversation_id: convId, role: "user", content: "invasão" });
     expect(writeAsB).toBeTruthy();
 
     const { error: stealConv } = await b.client

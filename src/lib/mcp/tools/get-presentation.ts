@@ -24,6 +24,7 @@ export default defineTool({
         "id, title, slug, description, type, language, theme, slides_count, view_count, is_published, persona, depth_level, created_at",
       )
       .eq("slug", slug)
+      .eq("user_id", ctx.getUserId())
       .is("deleted_at", null)
       .maybeSingle();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };

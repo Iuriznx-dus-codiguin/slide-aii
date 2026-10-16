@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { supabase } from "@/integrations/supabase/client";
 import { exportPresentationToPptx } from "@/lib/exportPptx";
 import { exportPresentationToPdf } from "@/lib/exportPdf";
+import { loadSharedPresentation } from "@/lib/sharedPresentation";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
 
@@ -22,6 +23,27 @@ interface Props {
 
 export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", slug, variant = "outline", size = "sm", label = "Exportar" }: Props) => {
   const [busy, setBusy] = useState(false);
+
+  /**
+   * Visitantes de um link publicado não leem as tabelas (migração 0010): com
+   * o slug, o deck vem do mesmo RPC do visualizador. Sem slug, leitura direta
+   * (só o dono passa no RLS).
+   */
+  const fetchDeck = async () => {
+    const deck = slug ? await loadSharedPresentation(slug) : null;
+    if (deck && deck.presentation.id === presentationId) {
+      return {
+        rows: deck.slides,
+        art: {
+          dynamicTheme: (deck.presentation.dynamic_theme ?? null) as ArtDirection["dynamicTheme"],
+          creativeBrief: (deck.presentation.creative_brief ?? null) as ArtDirection["creativeBrief"],
+        },
+      };
+    }
+    return { rows: await fetchSlides(), art: await fetchArtDirection() };
+  };
+
+  type ArtDirection = Awaited<ReturnType<typeof fetchArtDirection>>;
 
   const fetchSlides = async () => {
     const { data: rows, error } = await supabase
@@ -55,11 +77,10 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     setBusy(true);
     const t = toast.loading("Gerando PPTX…");
     try {
-      const rows = await fetchSlides();
-      if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
       // Tema e brief da APRESENTAÇÃO — antes o PPTX lia o tema de
       // slides[0].content, que as gerações novas não gravam.
-      const art = await fetchArtDirection();
+      const { rows, art } = await fetchDeck();
+      if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
       await exportPresentationToPptx({
         title,
         themeId,
@@ -81,9 +102,8 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     setBusy(true);
     const t = toast.loading("Renderizando PDF (0%)…");
     try {
-      const rows = await fetchSlides();
+      const { rows, art } = await fetchDeck();
       if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
-      const art = await fetchArtDirection();
       await exportPresentationToPdf({
         title,
         themeId,

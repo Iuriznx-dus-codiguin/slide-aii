@@ -65,6 +65,7 @@ import { generateContentV2 } from "./contentV2.ts";
 import { fillSpeakerNotes, normalizeSpeeches } from "./speeches.ts";
 import { persistPresentation, type PersistResult, type PersistSlide } from "./persist.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
+import { MAX_BODY_BYTES, normalizeGenerateInput } from "./input.ts";
 
 // ───────────── Faixa de slides e custo em créditos ─────────────
 export const MIN_SLIDES = 5;
@@ -89,9 +90,12 @@ export function computeCreditsCost(input: {
   includeSpeeches?: boolean;
 }): number {
   const slides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(input.slidesCount || 8)));
-  return slides * CREDITS_PER_SLIDE
-    + (DEPTH_CREDITS[input.textDepth ?? "balanced"] ?? DEPTH_CREDITS.balanced)
-    + (input.includeSpeeches ? SPEECHES_CREDITS : 0);
+  // Só chaves próprias: "constructor" ou "__proto__" vindos do cliente
+  // devolviam um objeto e o custo virava texto (NaN na comparação de débito).
+  const depth = input.textDepth && Object.prototype.hasOwnProperty.call(DEPTH_CREDITS, input.textDepth)
+    ? DEPTH_CREDITS[input.textDepth]
+    : DEPTH_CREDITS.balanced;
+  return slides * CREDITS_PER_SLIDE + depth + (input.includeSpeeches ? SPEECHES_CREDITS : 0);
 }
 
 const corsHeaders = {
@@ -388,8 +392,18 @@ Deno.serve(async (req) => {
   // ───────────── Corpo lido ANTES do entitlement ─────────────
   // O custo em créditos depende do pedido (slides, profundidade, falas),
   // então o corpo precisa estar disponível já na checagem de saldo.
+  // Corpo limitado e normalizado ANTES de qualquer uso: os campos viram prompt
+  // (custo por token) e o custo em créditos depende deles (./input.ts).
+  const bodyText = await req.text().catch(() => "");
+  if (new TextEncoder().encode(bodyText).length > MAX_BODY_BYTES) {
+    await log.security("invalid_input", { status: 413, detail: { reason: "body_too_large", bytes: bodyText.length } });
+    return new Response(JSON.stringify({ error: "Pedido grande demais. Encurte o título e a descrição." }), {
+      status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
   let rawBody: any = {};
-  try { rawBody = await req.json(); } catch { rawBody = {}; }
+  try { rawBody = JSON.parse(bodyText || "{}"); } catch { rawBody = {}; }
+  rawBody = normalizeGenerateInput(rawBody);
   const requestedSlides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Number(rawBody?.slidesCount) || 8));
   const creditsCost = computeCreditsCost({
     slidesCount: requestedSlides,

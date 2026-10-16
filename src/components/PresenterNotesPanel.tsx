@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Printer, Users, X, FileDown, FileText, Sparkles, Loader2 } from "lucide-react";
 import { exportScriptToPdf, exportScriptToDocx } from "@/lib/exportScript";
+import { escapeHtml } from "@/lib/html";
 
 export interface PresenterEntry {
   id: string;
@@ -82,11 +83,16 @@ function buildFullScript(
   return parts.join("\n");
 }
 
+// A janela de impressão herda a origem do app (about:blank aberto daqui):
+// título, nomes e falas — escritos pelo usuário ou pela IA — entravam crus em
+// document.write, e um `<img onerror>` rodava com acesso à sessão salva no
+// navegador. Todo texto passa por escapeHtml.
 function printScript(title: string, slides: Array<{ headline?: string; presenters_data?: PresenterEntry[] }>) {
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) return;
+  const t = escapeHtml(title);
   const html = `
-    <html><head><title>${title} — Roteiro</title>
+    <html><head><title>${t} — Roteiro</title>
     <style>
       body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 30px;line-height:1.6;color:#222}
       h1{font-size:28px;border-bottom:2px solid #222;padding-bottom:10px}
@@ -98,14 +104,14 @@ function printScript(title: string, slides: Array<{ headline?: string; presenter
       .slide-no{color:#A855F7;font-weight:bold}
       @media print{body{margin:20px}h2{break-before:page}}
     </style></head><body>
-    <h1>${title}</h1>
+    <h1>${t}</h1>
     ${slides.map((s, i) => `
-      <h2><span class="slide-no">Slide ${i + 1}.</span> ${s.headline ?? "(sem título)"}</h2>
+      <h2><span class="slide-no">Slide ${i + 1}.</span> ${escapeHtml(s.headline ?? "(sem título)")}</h2>
       ${(s.presenters_data ?? []).map((p) => `
         <div class="pres">
-          <h3>${p.name || "Apresentador"}</h3>
-          ${p.transition_anchor ? `<div class="anchor">↪ ${p.transition_anchor}</div>` : ""}
-          ${p.exact_speech ? `<div class="speech"><strong>Fala:</strong><br>${p.exact_speech.replace(/\n/g, "<br>")}</div>` : ""}
+          <h3>${escapeHtml(p.name || "Apresentador")}</h3>
+          ${p.transition_anchor ? `<div class="anchor">↪ ${escapeHtml(p.transition_anchor)}</div>` : ""}
+          ${p.exact_speech ? `<div class="speech"><strong>Fala:</strong><br>${escapeHtml(p.exact_speech).replace(/\n/g, "<br>")}</div>` : ""}
         </div>
       `).join("")}
     `).join("")}

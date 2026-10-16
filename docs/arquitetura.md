@@ -53,12 +53,12 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 
 | Tabela | Conteúdo | Acesso (RLS) |
 | --- | --- | --- |
-| `profiles` | Perfil, plano, assinatura, créditos | Dono; campos de cobrança protegidos por gatilho (`protect_billing_columns`) |
-| `presentations`, `slides` | Apresentações e slides | Dono; leitura pública se publicada e fora da lixeira |
+| `profiles` | Perfil, plano, assinatura, créditos | Dono; cobrança, e-mail e contadores protegidos por gatilho (`protect_billing_columns`); o e-mail acompanha `auth.users` |
+| `presentations`, `slides` | Apresentações e slides (nascem privadas) | Só o dono pela API; link público pelo RPC `get_shared_presentation(slug)` (publicada e fora da lixeira); campos do servidor protegidos (`protect_presentation_server_fields`) |
 | `credit_transactions` | Extrato de créditos | Dono (leitura); escrita só por funções |
 | `payment_events` | Eventos da Cakto | Somente servidor |
 | `generation_logs` | Telemetria de geração | Somente servidor e equipe |
-| `slide_views` | Visitas a apresentações publicadas (data e navegador) | Inserção pública em apresentação publicada; leitura do dono |
+| `slide_views` | Visitas a apresentações publicadas (data e navegador) | Inserção só pelo RPC `record_presentation_view` (teto por visitante, IP pseudonimizado); leitura do dono |
 | `support_conversations`, `support_messages` | Atendimentos | Dono e equipe |
 | `help_articles`, `error_catalog` | Central de Ajuda e catálogo de erros | Leitura pública; escrita da equipe |
 | `legal_acceptances` | Aceites dos Termos/Política | Dono lê os próprios; escrita só por `accept_legal_terms` |
@@ -87,6 +87,8 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `service_role`, exceto as marcadas como de cliente (`can_user_generate`, `accept_legal_terms`, `record_access`).
 
 ## Segurança
+
+Auditoria mais recente e o que cada correção protege: [revisao/2026-10-11-auditoria-de-seguranca.md](revisao/2026-10-11-auditoria-de-seguranca.md). Testes do banco (exploits e regressão): [supabase/tests/security](../supabase/tests/security/README.md).
 
 - RLS em todas as tabelas; campos de cobrança e contadores de IA protegidos por gatilhos.
 - Webhook autenticado por segredo, com idempotência por evento + pedido e revisão manual em reembolsos ambíguos.
