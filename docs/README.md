@@ -35,3 +35,4 @@
 | [revisao/2026-09-27-correcoes-lovable.md](revisao/2026-09-27-correcoes-lovable.md) | Aplicação das correções na Lovable Cloud |
 | [revisao/2026-09-29-analise-de-lancamento.md](revisao/2026-09-29-analise-de-lancamento.md) | Prontidão para lançamento: bloqueadores, produto, segurança, escalabilidade e custos |
 | [revisao/2026-10-11-auditoria-de-seguranca.md](revisao/2026-10-11-auditoria-de-seguranca.md) | Auditoria de segurança: achados por severidade, correções da migração 0010, recomendações e lacunas |
+| [revisao/2026-10-16-implantacao-da-auditoria.md](revisao/2026-10-16-implantacao-da-auditoria.md) | Implantação da auditoria: estado da branch, prompt para o Lovable, conferência pós-deploy e o que muda para os usuários |

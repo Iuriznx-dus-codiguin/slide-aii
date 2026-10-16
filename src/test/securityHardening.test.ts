@@ -189,6 +189,15 @@ describe("revisão adversarial — redirecionamento depois do login", () => {
   });
 });
 
+describe("revisão adversarial — destino pós-login validado em todo caminho", () => {
+  it("Auth não volta à regex antiga (aceitava /\\evil.com), nem no destino guardado do login com Google", () => {
+    const auth = read("src/pages/Auth.tsx");
+    expect(auth).not.toContain("/^\\/(?!\\/)/");
+    expect(auth).toContain("safeNextPath(searchParams.get(\"next\"))");
+    expect(auth).toContain("safeNextPath(takeStoredNext())");
+  });
+});
+
 describe("revisão adversarial — e-mail e telemetria", () => {
   it("assunto do pedido de acesso não carrega o nome escolhido por quem pede", () => {
     const { subject } = renderEmail({ type: "access_requested", requesterName: "Equipe SlideAI: pagamento recusado", message: "x" });

@@ -59,6 +59,8 @@ Suítes que protegem regras de negócio e conformidade:
 
 Os dois `*.e2e.test.ts` dependem de variáveis de ambiente de um projeto real.
 
+**CI** (`.github/workflows/ci.yml`, em todo PR e na `main`): tipos do app, testes unitários (sem os e2e, que falam com a produção), build e `supabase/tests/security/run.sh` num Postgres 16 descartável. As dependências vêm do registro público do npm, porque o `bun.lock` aponta para o espelho privado da Lovable.
+
 ## Banco de dados e migrações
 
 - As migrações aplicadas pela Lovable Cloud ficam em `drizzle/migrations/` (com `meta/_journal.json`). O histórico anterior está em `supabase/migrations/` (uma cópia de cada migração nova é mantida lá).

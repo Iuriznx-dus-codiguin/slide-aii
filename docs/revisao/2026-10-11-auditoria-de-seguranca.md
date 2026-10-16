@@ -283,6 +283,8 @@ As chaves de rate limit por IP e o `ip_hash` da telemetria usam HMAC com `RATE_L
 
 ## 5. Como implantar e verificar
 
+Passo a passo completo, com o prompt para o Lovable e as consultas de conferência: [2026-10-16-implantacao-da-auditoria.md](2026-10-16-implantacao-da-auditoria.md).
+
 1. **Ordem: front e Edge Functions primeiro, migração depois.** O código novo funciona com o banco antigo (os RPCs novos caem no caminho anterior se ainda não existirem; o webhook chama `grant_bonus_credits_once` sem o argumento novo, `set_monthly_credits` e o teto antigo de estorno). O contrário não: com a 0010 aplicada, o visualizador antigo lê as tabelas direto e deixa de abrir decks publicados para visitantes até o front novo entrar no ar; e um front antigo que ainda grave decks pelo cliente (`legacyPersist`) criaria decks sem falas e sem chat de edição (V9).
 2. **Migração:** `drizzle/migrations/0010_security_hardening.sql` (cópia idêntica em `supabase/migrations/20261011000100_security_hardening.sql`). Idempotente.
 3. **Pós-deploy:**
