@@ -71,6 +71,13 @@
       "when": 1791100540000,
       "tag": "0009_help_center_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791763260000,
+      "tag": "0010_security_hardening",
+      "breakpoints": true
     }
   ]
 }

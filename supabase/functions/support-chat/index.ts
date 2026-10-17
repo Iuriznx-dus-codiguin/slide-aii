@@ -61,8 +61,20 @@ Deno.serve(async (req) => {
     const message: string = String(body.message ?? "").trim();
     const action: string | null = body.action ?? null; // "confirm_yes" | "confirm_no" | null
     let conversationId: string | null = body.conversation_id ?? null;
-    const errorCodeHint: string | null = body.error_code ?? null;
-    const relatedOccurrenceId: string | null = body.occurrence_id ?? null;
+    // Código do catálogo e ocorrência vêm do cliente: só aceitos no formato
+    // esperado e, a ocorrência, se for do próprio usuário.
+    let errorCodeHint: string | null = null;
+    if (typeof body.error_code === "string" && /^[A-Z]{2,4}-\d{3}$/.test(body.error_code)) {
+      // Código fora do catálogo quebrava a gravação (chave estrangeira) com 500.
+      const { data: known } = await admin.from("error_catalog").select("code").eq("code", body.error_code).maybeSingle();
+      errorCodeHint = known?.code ?? null;
+    }
+    let relatedOccurrenceId: string | null = null;
+    if (typeof body.occurrence_id === "string" && /^[0-9a-f-]{36}$/i.test(body.occurrence_id)) {
+      const { data: occ } = await admin.from("error_occurrences")
+        .select("id").eq("id", body.occurrence_id).eq("user_id", user.id).maybeSingle();
+      relatedOccurrenceId = occ?.id ?? null;
+    }
 
     if (!action && (!message || message.length > 2000)) {
       return new Response(JSON.stringify({ error: "invalid_message", request_id: requestId }), { status: 400, headers: respHeaders });
@@ -133,19 +145,26 @@ Deno.serve(async (req) => {
 
     // ─────────────── FLUXO NORMAL: mensagem de texto
     if (!conversationId) {
-      const { data: ticket } = await admin.rpc("generate_ticket_id");
-      const { data: conv, error: convErr } = await admin
-        .from("support_conversations")
-        .insert({
-          user_id: user.id,
-          ticket_id: ticket,
-          state: "diagnosing",
-          related_occurrence_id: relatedOccurrenceId,
-          related_error_code: errorCodeHint,
-          subject: message.slice(0, 80),
-        })
-        .select("id, ticket_id").single();
-      if (convErr) throw convErr;
+      // Número já ocupado (conversa criada pelo INSERT antigo do cliente, antes
+      // da migração 0010): tenta o próximo em vez de falhar o atendimento.
+      let conv: { id: string; ticket_id: string | null } | null = null;
+      for (let attempt = 0; attempt < 5 && !conv; attempt++) {
+        const { data: ticket } = await admin.rpc("generate_ticket_id");
+        const { data, error: convErr } = await admin
+          .from("support_conversations")
+          .insert({
+            user_id: user.id,
+            ticket_id: ticket,
+            state: "diagnosing",
+            related_occurrence_id: relatedOccurrenceId,
+            related_error_code: errorCodeHint,
+            subject: message.slice(0, 80),
+          })
+          .select("id, ticket_id").single();
+        if (convErr && !(convErr.code === "23505" && attempt < 4)) throw convErr;
+        conv = data;
+      }
+      if (!conv) throw new Error("support_conversation_not_created");
       conversationId = conv.id;
       void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_opened:${conv.id}`, event: { type: "ticket_opened", ticketId: conv.ticket_id ?? "", subject: message.slice(0, 200), conversationId: conv.id } });
     } else {
@@ -337,8 +356,9 @@ ${recentText}`;
     }), { headers: respHeaders });
   } catch (e) {
     console.error("[support-chat]", requestId, "fatal", e);
+    // Detalhe só no log (com o request_id); a exceção pode trazer dados internos.
     return new Response(JSON.stringify({
-      error: "internal", message: e instanceof Error ? e.message : String(e), request_id: requestId,
+      error: "internal", request_id: requestId,
     }), { status: 500, headers: respHeaders });
   }
 });

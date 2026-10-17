@@ -11,6 +11,14 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AiSlide } from "@/lib/aiSlide";
 import type { SlideAsset } from "../../supabase/functions/_shared/sceneMedia.ts";
 
+/**
+ * Só URLs http(s) curtas, no máximo 30 — o mesmo filtro do servidor. Imagens
+ * antigas gravadas como data-URL (base64, centenas de KB cada) não servem
+ * para a Pexels evitar repetição e estouravam o teto do corpo da requisição.
+ */
+export const avoidUrlsForRequest = (urls: string[] | undefined): string[] =>
+  (urls ?? []).filter((u) => typeof u === "string" && /^https?:\/\//i.test(u) && u.length <= 2048).slice(0, 30);
+
 export interface SlideImageRequest extends Pick<AiSlide, "ai_image_prompt" | "image_strategy" | "image_style"> {
   /** Query já resolvida — pode diferir de slide.image_query (desduplicação). */
   query: string;
@@ -34,7 +42,7 @@ export async function fetchSlideImage(req: SlideImageRequest): Promise<string | 
         strategy: req.image_strategy ?? "pexels",
         style: req.image_style,
         orientation: "landscape",
-        ...(req.avoidUrls?.length ? { avoid_urls: req.avoidUrls } : {}),
+        ...(avoidUrlsForRequest(req.avoidUrls).length ? { avoid_urls: avoidUrlsForRequest(req.avoidUrls) } : {}),
       },
     });
     return data?.url ?? null;
@@ -76,7 +84,7 @@ export async function fetchSlideAsset(asset: SlideAsset, ctx: AssetFetchContext 
         budget_mode: asset.budget_mode,
         orientation: asset.aspect === "1:1" ? "square" : "landscape",
         ...(ctx.presentationId ? { presentation_id: ctx.presentationId } : {}),
-        ...(ctx.avoidUrls?.length ? { avoid_urls: ctx.avoidUrls.slice(0, 30) } : {}),
+        ...(avoidUrlsForRequest(ctx.avoidUrls).length ? { avoid_urls: avoidUrlsForRequest(ctx.avoidUrls) } : {}),
       },
     });
     return data?.url ?? null;

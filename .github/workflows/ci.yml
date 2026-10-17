@@ -1,0 +1,64 @@
+# Checagens de cada PR e da main. Sem segredos e sem acesso ao projeto real:
+# tudo roda contra um Postgres descartável e o código do repositório.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Tipos, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # O bun.lock aponta para o espelho privado da Lovable, inacessível fora
+      # dela: instala do registro público, dentro das faixas do package.json.
+      - name: Dependências
+        run: npm install --no-package-lock --no-audit --no-fund --registry=https://registry.npmjs.org
+      - name: Tipos (app)
+        run: npx tsc -p tsconfig.app.json --noEmit
+      # Os *.e2e.test.ts falam com o Supabase de produção (e criam dados lá):
+      # ficam fora do CI.
+      - name: Testes unitários
+        run: npx vitest run --exclude "**/*.e2e.test.ts" --exclude "**/node_modules/**"
+      - name: Build
+        run: npm run build
+
+  database:
+    name: Segurança do banco (RLS, gatilhos, RPCs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      # Todas as migrações num Postgres limpo; cada exploit da auditoria tem de
+      # falhar e cada fluxo legítimo tem de passar (supabase/tests/security).
+      - name: Exploits bloqueados e fluxos legítimos
+        run: bash supabase/tests/security/run.sh

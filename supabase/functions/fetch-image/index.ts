@@ -33,6 +33,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findMatchingAsset, recordAsset, touchAsset } from "../_shared/assetIntelligence.ts";
 import { persistGeneratedImage } from "../_shared/assetStorage.ts";
 import { createLogger } from "../_shared/observability.ts";
+import { clientIpKey } from "../_shared/clientIp.ts";
 import { buildImagePrompt, sanitizeRecipe, type ImageRecipe } from "../_shared/imageDirector.ts";
 import {
   IMAGE_ENDPOINTS,
@@ -252,12 +253,18 @@ Deno.serve(async (req) => {
   }
 
   // Chave de rate limit: por usuário quando autenticado, por IP quando não.
-  const clientIp = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown")
-    .split(",")[0].trim();
-  const rlKey = userId ? `user:${userId}` : `ip:${clientIp}`;
+  // IP confiável (não o 1º item de x-forwarded-for, que o cliente escolhe) e
+  // pseudonimizado — o visitante do link público não tem o IP gravado.
+  const rlKey = userId ? `user:${userId}` : `ip:${await clientIpKey(req)}`;
 
   try {
-    const body: FetchImageBody = await req.json();
+    // Teto de memória, não de conteúdo: o que vira prompt ou URL externa é
+    // limitado campo a campo abaixo. Folgado de propósito: clientes antigos
+    // mandam em avoid_urls imagens gravadas como data-URL (centenas de KB
+    // cada), que o filtro de avoid_urls descarta.
+    const bodyText = await req.text();
+    if (bodyText.length > 8 * 1024 * 1024) return json({ url: null, error: "Pedido grande demais." }, 413);
+    const body: FetchImageBody = JSON.parse(bodyText || "{}");
     const strategy = body.strategy;
 
     // Validação de entrada (auditoria): tudo aqui vira prompt de IA ou query
@@ -277,12 +284,12 @@ Deno.serve(async (req) => {
     if (body.style && !(body.style in STYLE_SUFFIX)) body.style = undefined;
     const recipe = body.recipe ? sanitizeRecipe(body.recipe) : null;
     // Acesso do usuário (plano/créditos/dev), consultado no máximo uma vez.
-    let entitlementCache: { allowed?: boolean; reason?: string } | null | undefined;
+    let entitlementCache: { allowed?: boolean; reason?: string; credits?: number } | null | undefined;
     const entitlement = async () => {
       if (entitlementCache !== undefined) return entitlementCache;
       if (!userId) return (entitlementCache = null);
       const { data } = await admin.rpc("can_user_generate", { _uid: userId, _credits_cost: 0 });
-      return (entitlementCache = (data as { allowed?: boolean; reason?: string } | null) ?? null);
+      return (entitlementCache = (data as { allowed?: boolean; reason?: string; credits?: number } | null) ?? null);
     };
     // Qualidade vem do pedido, mas "premium" (qualidade alta, a mais cara) só
     // vale para desenvolvedores — antes, qualquer cliente podia pedir.
@@ -315,8 +322,15 @@ Deno.serve(async (req) => {
     // Fora da cota da apresentação, imagem por IA exige conta com acesso
     // (plano ativo, créditos ou dev). Antes bastava estar logado: uma conta
     // gratuita gerava até 15 imagens de IA por hora por conta da plataforma.
+    // Conta avulsa só enquanto tem créditos: com custo 0, can_user_generate
+    // libera o plano "single" mesmo com saldo zerado, e uma compra de R$ 14,90
+    // virava imagens de IA para sempre.
+    const hasAiAccess = async (): Promise<boolean> => {
+      const e = await entitlement();
+      return !!e?.allowed && (e.reason !== "single" || (Number(e.credits) || 0) > 0);
+    };
     const withinGenericAiLimit = async (): Promise<boolean> => {
-      if (!(await entitlement())?.allowed) {
+      if (!(await hasAiAccess())) {
         await log.security("forbidden", { status: 402, detail: { strategy: "ai", reason: "no_plan_for_ai_image" } });
         return false;
       }
@@ -335,8 +349,8 @@ Deno.serve(async (req) => {
         return json({ url: null, error: "Autenticação necessária para geração de imagem por IA." }, 401);
       }
       if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) {
-        if (!(await entitlement())?.allowed) {
-          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo." }, 402);
+        if (!(await hasAiAccess())) {
+          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo ou créditos disponíveis." }, 402);
         }
         return json({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }, 429);
       }
@@ -493,6 +507,7 @@ Deno.serve(async (req) => {
     return json({ url: null });
   } catch (e) {
     console.error("fetch-image error:", e);
-    return json({ url: null, error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    // Detalhe só no log: a mensagem de exceção pode trazer dados internos.
+    return json({ url: null, error: "Falha ao buscar a imagem." }, 500);
   }
 });

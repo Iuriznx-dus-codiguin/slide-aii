@@ -15,6 +15,7 @@
 // visualizador público. Uma apresentação privada devolve 404 sem vazar nada.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { createLogger } from "../_shared/observability.ts";
+import { jsonForScript } from "../_shared/html.ts";
 
 const SITE = "https://slideai.com.br";
 
@@ -26,6 +27,9 @@ const corsHeaders = {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+/** Slugs gerados por generateSlug: minúsculas, dígitos e hífen. */
+const SLUG_RE = /^[a-z0-9-]{1,120}$/;
 
 /** Só http(s) — impede que uma URL `javascript:` acabe dentro de uma meta tag. */
 const safeUrl = (u: unknown): string | null => {
@@ -60,7 +64,7 @@ ${image ? `<meta property="og:image" content="${esc(image)}" />` : ""}
 <meta name="twitter:description" content="${esc(description)}" />
 ${image ? `<meta name="twitter:image" content="${esc(image)}" />` : ""}
 <meta http-equiv="refresh" content="0; url=${esc(url)}" />
-<script type="application/ld+json">${JSON.stringify({
+<script type="application/ld+json">${jsonForScript({
     "@context": "https://schema.org",
     "@type": "PresentationDigitalDocument",
     name: title,
@@ -106,7 +110,7 @@ Deno.serve(async (req) => {
       },
     });
 
-  if (!slug || slug === "og-preview") {
+  if (!slug || slug === "og-preview" || !SLUG_RE.test(slug)) {
     return html(page({
       title: "SlideAI — Crie apresentações em segundos com IA",
       description: "Descreva o tema e receba slides editáveis com design, imagens e animações.",

@@ -9,7 +9,13 @@ import {
   escapeLike,
   extractCaktoId,
   isActiveSubscriber,
+  isOtherSubscriptionEvent,
   extractEventType,
+  looksLikeCaktoDelivery,
+  PAID_EVENT_TYPES,
+  paidEventAfterRefund,
+  resolveUserId,
+  safeEventLabel,
   PLAN_SIGNUP_BONUS,
   refundScopeFor,
   SINGLE_PURCHASE_CREDITS,
@@ -164,5 +170,106 @@ describe("classifyEvent — eventos oficiais da Cakto (payload de teste traz sta
     ["subscription_late_recovered", "paid"], ["refund", "refund"], ["chargeback", "refund"],
   ])("%s → %s", (event, expected) => {
     expect(classifyEvent(event, "paid")).toBe(expected);
+  });
+});
+
+describe("isOtherSubscriptionEvent — evento de outra assinatura não mexe na vigente", () => {
+  const base = { payloadSubscriptionId: "sub_A", profileSubscriptionId: "sub_B", profileIsActive: true, renewal: false, knownSubscription: false };
+
+  it("cancelar a assinatura antiga depois de assinar a nova não cancela a nova", () => {
+    expect(isOtherSubscriptionEvent({ ...base, action: "canceled" })).toBe(true);
+    expect(isOtherSubscriptionEvent({ ...base, action: "canceled", payloadSubscriptionId: "sub_B" })).toBe(false);
+  });
+
+  it("renovação da antiga com a nova ativa não troca plano nem cota", () => {
+    expect(isOtherSubscriptionEvent({ ...base, action: "paid", renewal: true })).toBe(true);
+    expect(isOtherSubscriptionEvent({ ...base, action: "paid", knownSubscription: true })).toBe(true);
+  });
+
+  it("assinatura NOVA (troca de plano) e reassinatura depois do fim continuam valendo", () => {
+    expect(isOtherSubscriptionEvent({ ...base, action: "paid" })).toBe(false);
+    expect(isOtherSubscriptionEvent({ ...base, action: "paid", renewal: true, profileIsActive: false })).toBe(false);
+  });
+
+  it("sem id no evento ou no perfil (legado), nada muda", () => {
+    expect(isOtherSubscriptionEvent({ ...base, action: "canceled", payloadSubscriptionId: null })).toBe(false);
+    expect(isOtherSubscriptionEvent({ ...base, action: "canceled", profileSubscriptionId: null })).toBe(false);
+  });
+});
+
+describe("resolveUserId — conta do evento além do e-mail atual", () => {
+  const lookup = (found: Partial<Record<string, string>>) => {
+    const calls: string[] = [];
+    const step = (name: string) => async (v: string) => { calls.push(`${name}:${v}`); return found[name] ?? null; };
+    return {
+      calls,
+      api: {
+        bySubscription: step("subscription"), byOrder: step("order"), byEmail: step("email"),
+        byPurchaseEmail: step("purchase_email"), byCustomer: step("customer"),
+      },
+    };
+  };
+
+  it("assinatura registrada vence o e-mail (conta trocou de e-mail depois de assinar)", async () => {
+    const l = lookup({ subscription: "u-sub", email: "u-email" });
+    expect(await resolveUserId({ subscriptionId: "sub_1", email: "antigo@x.com" }, l.api)).toEqual({ userId: "u-sub", via: "subscription" });
+  });
+
+  it("reembolso acha a conta pela aprovação do mesmo pedido", async () => {
+    const l = lookup({ order: "u-order" });
+    expect(await resolveUserId({ orderId: "ord_1", email: "antigo@x.com" }, l.api)).toEqual({ userId: "u-order", via: "order" });
+  });
+
+  it("compra nova: e-mail atual, depois e-mail de compra anterior, depois cliente da Cakto", async () => {
+    const l = lookup({ purchase_email: "u-old" });
+    expect(await resolveUserId({ subscriptionId: "sub_new", orderId: "ord_new", email: "a@x.com", customerId: "cus_1" }, l.api))
+      .toEqual({ userId: "u-old", via: "purchase_email" });
+    expect(l.calls).toEqual(["subscription:sub_new", "order:ord_new", "email:a@x.com", "purchase_email:a@x.com"]);
+  });
+
+  it("nenhuma chave casa: usuário não encontrado", async () => {
+    expect(await resolveUserId({ email: "x@x.com" }, lookup({}).api)).toEqual({ userId: null, via: null });
+  });
+});
+
+describe("safeEventLabel — texto de chamada sem segredo não vai para o alerta", () => {
+  it("mantém tipos válidos e troca texto livre", () => {
+    expect(safeEventLabel("purchase_approved")).toBe("purchase_approved");
+    expect(safeEventLabel("AÇÃO NECESSÁRIA: confirme em https://cakto-verify.example")).toBe("(inválido)");
+    expect(safeEventLabel("x".repeat(41))).toBe("(inválido)");
+    expect(safeEventLabel("")).toBeNull();
+  });
+});
+
+describe("evento pago depois do estorno não reativa nada", () => {
+  it("pedido já reembolsado: avulso ou assinatura", () => {
+    expect(paidEventAfterRefund({ orderRefunded: true, subscriptionRefunded: false, renewal: false })).toBe(true);
+    expect(paidEventAfterRefund({ orderRefunded: true, subscriptionRefunded: false, renewal: true })).toBe(true);
+  });
+
+  it("ativação atrasada de assinatura reembolsada (evento irmão com outro id)", () => {
+    expect(paidEventAfterRefund({ orderRefunded: false, subscriptionRefunded: true, renewal: false })).toBe(true);
+  });
+
+  it("renovação de assinatura reembolsada é cobrança nova; pedido sem estorno segue normal", () => {
+    expect(paidEventAfterRefund({ orderRefunded: false, subscriptionRefunded: true, renewal: true })).toBe(false);
+    expect(paidEventAfterRefund({ orderRefunded: false, subscriptionRefunded: false, renewal: false })).toBe(false);
+  });
+});
+
+describe("assinatura antiga: só eventos pagos contam", () => {
+  it("Pix/boleto gerado e recusa não são pagamento", () => {
+    expect(PAID_EVENT_TYPES).toEqual(expect.arrayContaining(["purchase_approved", "subscription_created", "subscription_renewed"]));
+    for (const t of ["pix_gerado", "boleto_gerado", "purchase_refused", "subscription_canceled"]) {
+      expect(PAID_EVENT_TYPES).not.toContain(t);
+    }
+  });
+});
+
+describe("POST recusado que parece da Cakto (outro webhook com outro segredo)", () => {
+  it("exige segredo e tipo de evento conhecido", () => {
+    expect(looksLikeCaktoDelivery("purchase_approved", 1)).toBe(true);
+    expect(looksLikeCaktoDelivery("purchase_approved", 0)).toBe(false);
+    expect(looksLikeCaktoDelivery("AÇÃO NECESSÁRIA", 1)).toBe(false);
   });
 });

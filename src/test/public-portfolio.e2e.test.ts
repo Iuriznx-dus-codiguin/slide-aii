@@ -41,42 +41,38 @@ describe("portfólio público — permissões", () => {
 });
 
 describe("apresentações compartilhadas — slugs e visibilidade", () => {
-  it("anônimo só enxerga apresentações publicadas e não excluídas", async () => {
-    const { data, error } = await anon
-      .from("presentations")
-      .select("id,slug,is_published,deleted_at")
-      .limit(50);
-    expect(error).toBeNull();
-    for (const item of data ?? []) {
-      expect(item.is_published).toBe(true);
-      expect(item.deleted_at).toBeNull();
-      expect(item.slug).toBeTruthy();
-    }
+  // Migração 0010: sem leitura pública das tabelas. Antes, esta consulta
+  // devolvia TODAS as apresentações publicadas de todos os usuários.
+  it("anônimo não lista apresentações nem slides pela API", async () => {
+    const { data: pres } = await anon.from("presentations").select("id,slug").limit(50);
+    expect(pres ?? []).toEqual([]);
+    const { data: slides } = await anon.from("slides").select("id").limit(50);
+    expect(slides ?? []).toEqual([]);
   });
 
   it("slug inexistente não retorna apresentação", async () => {
-    const { data } = await anon
-      .from("presentations")
-      .select("id")
-      .eq("slug", `slug-inexistente-${Date.now()}`)
-      .maybeSingle();
+    const { data, error } = await anon.rpc("get_shared_presentation", { _slug: `slug-inexistente-${Date.now()}` });
+    expect(error).toBeNull();
     expect(data).toBeNull();
   });
 
+  it("anônimo não registra visualização direto na tabela", async () => {
+    const { error } = await anon.from("slide_views").insert({ presentation_id: "00000000-0000-0000-0000-000000000000" });
+    expect(error).toBeTruthy();
+  });
+
   it("anônimo não consegue alterar nem excluir apresentações", async () => {
-    const { data } = await anon.from("presentations").select("id").limit(1);
-    const target = data?.[0]?.id;
-    if (!target) return;
-    const { error: updateError } = await anon
+    const { data: updated } = await anon
       .from("presentations")
       .update({ title: "hackeado" })
-      .eq("id", target)
+      .neq("id", "00000000-0000-0000-0000-000000000000")
       .select("id");
     const { data: deleted } = await anon
       .from("presentations")
       .delete()
-      .eq("id", target)
+      .neq("id", "00000000-0000-0000-0000-000000000000")
       .select("id");
-    expect(updateError ?? (deleted ?? []).length === 0).toBeTruthy();
+    expect(updated ?? []).toEqual([]);
+    expect(deleted ?? []).toEqual([]);
   });
 });

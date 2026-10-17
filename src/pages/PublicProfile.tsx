@@ -80,7 +80,13 @@ export default function PublicProfile() {
       message: requestMessage.trim().slice(0, 400) || null,
     }).select("id").single();
     setRequesting(false);
-    if (error) { toast.error(error.code === "23505" ? "Você já solicitou acesso a este portfólio." : error.message); return; }
+    if (error) {
+      // 42501: o dono desligou os pedidos depois que a página abriu (a política do banco recusa).
+      toast.error(error.code === "23505" ? "Você já solicitou acesso a este portfólio."
+        : error.code === "42501" ? "Este portfólio não está aceitando pedidos de acesso."
+        : error.message);
+      return;
+    }
     if (created?.id) void sendPlatformEmail({ event: "access_requested", request_id: created.id });
     toast.success("Solicitação enviada. Você será liberado assim que o dono aprovar.");
     setRequestMessage("");

@@ -79,7 +79,8 @@ export async function persistPresentation(admin: any, args: PersistArgs): Promis
     font_style: args.fontStyle,
     slides_count: args.slides.length,
     is_paid: true,
-    is_published: true,
+    // Privada até o dono publicar (Termos, seção 12; Central de Ajuda).
+    is_published: false,
     persona: args.persona ?? null,
     depth_level: args.textDepth ?? null,
     presenters_count: args.presentersCount,

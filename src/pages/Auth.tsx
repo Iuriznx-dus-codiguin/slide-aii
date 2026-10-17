@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { acceptCurrentTerms, signupConsentMetadata } from "@/lib/legalConsent";
+import { safeNextPath } from "@/lib/safeRedirect";
 import { z } from "zod";
 
 const emailSchema = z.string().trim().email("Email inválido").max(255);
@@ -21,6 +22,27 @@ const emailSchema = z.string().trim().email("Email inválido").max(255);
 const passwordSchema = z.string().min(6, "Senha precisa ter ao menos 6 caracteres").max(100);
 const newPasswordSchema = z.string().min(8, "A senha precisa ter ao menos 8 caracteres").max(100);
 const nameSchema = z.string().trim().min(1, "Nome obrigatório").max(100);
+
+// sessionStorage pode lançar (armazenamento bloqueado pelo navegador): o login
+// segue funcionando, só sem o destino guardado.
+const STORED_NEXT_KEY = "auth_next";
+const takeStoredNext = (): string | null => {
+  try {
+    const value = sessionStorage.getItem(STORED_NEXT_KEY);
+    sessionStorage.removeItem(STORED_NEXT_KEY);
+    return value;
+  } catch {
+    return null;
+  }
+};
+const storeNext = (path: string | null) => {
+  try {
+    if (path) sessionStorage.setItem(STORED_NEXT_KEY, path);
+    else sessionStorage.removeItem(STORED_NEXT_KEY);
+  } catch {
+    /* sem armazenamento: volta para o painel */
+  }
+};
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -36,18 +58,16 @@ const Auth = () => {
 
   // Destino pós-login: usado pela tela de consentimento OAuth (integrações de
   // agentes), que precisa que o usuário volte exatamente para o pedido.
-  // Só aceitamos caminhos relativos do próprio site.
-  const rawNext = searchParams.get("next");
-  const nextPath = rawNext && /^\/(?!\/)/.test(rawNext) ? rawNext : null;
+  // Só aceitamos caminhos do próprio site (safeNextPath).
+  const nextPath = safeNextPath(searchParams.get("next"));
   const afterAuth = nextPath ?? "/dashboard";
 
   useEffect(() => {
     document.title = "Entrar — SlideAI";
     if (user) {
-      const stored = sessionStorage.getItem("auth_next");
-      sessionStorage.removeItem("auth_next");
-      const safe = stored && /^\/(?!\/)/.test(stored) ? stored : null;
-      navigate(nextPath ?? safe ?? "/dashboard");
+      // Destino guardado antes do login com Google (o retorno vem sem
+      // parâmetros). Validado de novo como qualquer ?next=.
+      navigate(nextPath ?? safeNextPath(takeStoredNext()) ?? "/dashboard");
     }
   }, [user, navigate, nextPath]);
 
@@ -132,8 +152,7 @@ const Auth = () => {
 
   const handleGoogle = async () => {
     setLoading(true);
-    if (nextPath) sessionStorage.setItem("auth_next", nextPath);
-    else sessionStorage.removeItem("auth_next");
+    storeNext(nextPath);
     // Retorno sem parâmetros extras; o destino fica guardado na sessão.
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: `${window.location.origin}/auth`,
@@ -144,7 +163,7 @@ const Auth = () => {
       return;
     }
     if (result.redirected) return;
-    sessionStorage.removeItem("auth_next");
+    storeNext(null);
     navigate(afterAuth);
   };
 

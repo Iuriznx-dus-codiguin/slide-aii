@@ -298,7 +298,9 @@ export interface RefundScope {
  * créditos de outras compras. Agora:
  *   • avulso → retira até os 500 créditos daquela compra; plano intacto;
  *   • assinatura vigente (mesmo id, ou perfil sem id registrado) → cancela,
- *     zera a cota mensal e retira até o bônus de ativação daquele plano;
+ *     zera a cota mensal e retira até o bônus de ativação daquele plano (o
+ *     webhook limita ao bônus que aquela assinatura de fato concedeu:
+ *     order_granted_bonus);
  *   • assinatura diferente da vigente ou plano não identificado → nada é
  *     estornado automaticamente; o evento fica marcado para revisão.
  */
@@ -351,6 +353,106 @@ export const isActiveSubscriber = (
   if (!["active", "trialing"].includes(status)) return false;
   if (renews !== null && renews <= now.getTime()) return false;
   return true;
+};
+
+/**
+ * Evento de uma assinatura que NÃO é a vigente do perfil (mesmo e-mail com
+ * duas assinaturas: troca de plano é "assinar o novo e cancelar o antigo").
+ * Antes, o cancelamento da antiga marcava a nova como cancelada, e a
+ * renovação da antiga, se ficou ativa, trazia o plano e a cota dela de volta.
+ *   • cancelamento de outra assinatura → nunca mexe na vigente;
+ *   • pagamento de outra assinatura, com a vigente ainda ativa → só quando é
+ *     renovação ou a assinatura já foi aplicada a esta conta antes (cobrança
+ *     de uma assinatura antiga). Assinatura NOVA continua valendo: é a troca,
+ *     inclusive quando o Pix/boleto dela ou o evento irmão chegou antes.
+ * Sem id no evento ou no perfil (legado), nada muda.
+ */
+export const isOtherSubscriptionEvent = (input: {
+  action: EventAction;
+  payloadSubscriptionId?: string | null;
+  profileSubscriptionId?: string | null;
+  profileIsActive: boolean;
+  renewal: boolean;
+  knownSubscription: boolean;
+}): boolean => {
+  const { payloadSubscriptionId: event, profileSubscriptionId: current } = input;
+  if (!event || !current || event === current) return false;
+  if (input.action === "canceled") return true;
+  if (input.action === "paid") return input.profileIsActive && (input.renewal || input.knownSubscription);
+  return false;
+};
+
+/** Tipos de evento que a Cakto manda quando uma cobrança é paga. */
+export const PAID_EVENT_TYPES: string[] = Object.keys(CAKTO_EVENT_ACTIONS).filter((k) => CAKTO_EVENT_ACTIONS[k] === "paid");
+
+/**
+ * Evento "pago" que chega depois do estorno do mesmo pedido (a entrega da
+ * aprovação falhou e a Cakto reenviou), ou ativação atrasada de uma
+ * assinatura já reembolsada (o evento irmão pode vir com outro id). Não
+ * reativa plano, cota nem bônus. Renovação de uma assinatura reembolsada é
+ * cobrança nova: segue o fluxo normal.
+ */
+export const paidEventAfterRefund = (input: {
+  orderRefunded: boolean;
+  subscriptionRefunded: boolean;
+  renewal: boolean;
+}): boolean => input.orderRefunded || (input.subscriptionRefunded && !input.renewal);
+
+/**
+ * POST recusado que parece vir da Cakto (traz um segredo e um tipo de evento
+ * conhecido): com outras entregas válidas chegando, indica um segundo webhook
+ * com segredo diferente, não ruído.
+ */
+export const looksLikeCaktoDelivery = (eventType: string, providedSecrets: number): boolean =>
+  providedSecrets > 0 && Object.prototype.hasOwnProperty.call(CAKTO_EVENT_ACTIONS, (eventType ?? "").toLowerCase().trim());
+
+/** Chaves do evento usadas para achar a conta, da mais específica à mais fraca. */
+export interface UserKeys {
+  subscriptionId?: string | null;
+  orderId?: string | null;
+  email?: string | null;
+  customerId?: string | null;
+}
+
+export interface UserLookup {
+  /** Perfil com esta assinatura registrada. */
+  bySubscription(id: string): Promise<string | null>;
+  /** Conta de um evento anterior do mesmo pedido (ex.: a aprovação, num reembolso). */
+  byOrder(id: string): Promise<string | null>;
+  /** E-mail atual da conta (profiles.email / auth.users). */
+  byEmail(email: string): Promise<string | null>;
+  /** E-mail usado numa compra anterior (a conta pode ter trocado de e-mail). */
+  byPurchaseEmail(email: string): Promise<string | null>;
+  /** Perfil com este cliente da Cakto. */
+  byCustomer(id: string): Promise<string | null>;
+}
+
+/**
+ * Conta do evento. Só por e-mail, uma troca de e-mail da conta (que agora
+ * atualiza profiles.email) fazia renovação, reembolso e cancelamento caírem
+ * em "usuário não encontrado". A assinatura e o pedido identificam a conta
+ * que já recebeu aquele pagamento; o e-mail decide compras novas.
+ */
+export async function resolveUserId(keys: UserKeys, lookup: UserLookup): Promise<{ userId: string | null; via: string | null }> {
+  const steps: Array<[string, string | null | undefined, (v: string) => Promise<string | null>]> = [
+    ["subscription", keys.subscriptionId, (v) => lookup.bySubscription(v)],
+    ["order", keys.orderId, (v) => lookup.byOrder(v)],
+    ["email", keys.email, (v) => lookup.byEmail(v)],
+    ["purchase_email", keys.email, (v) => lookup.byPurchaseEmail(v)],
+    ["customer", keys.customerId, (v) => lookup.byCustomer(v)],
+  ];
+  for (const [via, value, find] of steps) {
+    if (!value) continue;
+    const userId = await find(String(value));
+    if (userId) return { userId, via };
+  }
+  return { userId: null, via: null };
+}
+
+/** Tipo do evento para alertas e logs de chamadas NÃO autenticadas: o texto vem de qualquer um. */
+export const safeEventLabel = (eventType: string | null | undefined): string | null => {
+  if (!eventType) return null;
+  return /^[a-z0-9_.-]{1,40}$/.test(eventType) ? eventType : "(inválido)";
 };
 
 // ───────────── Dados para os avisos por e-mail ─────────────

@@ -21,6 +21,7 @@ import { createLogger } from "../_shared/observability.ts";
 import {
   applyEdits,
   buildEditContext,
+  MAX_EDIT_PROMPT_CHARS,
   classifyEditIntent,
   EDIT_SYSTEM_PROMPT,
   EDIT_TOOL,
@@ -36,6 +37,14 @@ const corsHeaders = {
 
 export const MAX_CHAT_MESSAGES = 10;
 export const MAX_COMPLEX_EDITS = 3;
+/**
+ * Teto de memória do corpo (deck + histórico). Folgado porque decks antigos
+ * guardam imagens como data-URL em content.image_url; o que vai para o prompt
+ * é podado em buildEditContext (data-URLs e textos longos), não aqui.
+ */
+const MAX_BODY_CHARS = 12_000_000;
+/** Teto diário por conta: decks são baratos de criar, então a cota por deck sozinha não limita o total. */
+const MAX_EDITS_PER_DAY = 150;
 const LIMIT_MESSAGE = "Limite de edições com IA atingido, gere uma nova apresentação do zero.";
 
 
@@ -93,18 +102,30 @@ Deno.serve(async (req) => {
       status: ent.reason === "no_plan" ? 402 : 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const { data: withinLimit } = await admin.rpc("check_rate_limit", {
-    _key: `user:${userId}`, _fn: "chat-editor", _max_per_hour: 40,
-  });
-  if (withinLimit === false) {
-    await log.security("rate_limited", { status: 429, detail: { max_per_hour: 40 } });
+  const [{ data: withinLimit }, { data: withinDaily }] = await Promise.all([
+    admin.rpc("check_rate_limit", { _key: `user:${userId}`, _fn: "chat-editor", _max_per_hour: 40 }),
+    admin.rpc("check_rate_limit_daily", { _key: `user:${userId}`, _fn: "chat-editor", _max_per_day: MAX_EDITS_PER_DAY }),
+  ]);
+  if (withinLimit === false || withinDaily === false) {
+    await log.security("rate_limited", {
+      status: 429, detail: { scope: withinDaily === false ? "daily" : "hourly", max_per_hour: 40, max_per_day: MAX_EDITS_PER_DAY },
+    });
     return new Response(JSON.stringify({ error: "Muitas edições em pouco tempo. Aguarde alguns minutos." }), {
       status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
+  // Devolve a cota reservada se a edição falhar depois da reserva.
+  let releaseReservation: () => Promise<void> = async () => {};
   try {
     const rawBody = await req.text();
+    // O deck vem do cliente e vira prompt: sem teto, slides inflados
+    // artificialmente multiplicavam o custo de cada mensagem.
+    if (rawBody.length > MAX_BODY_CHARS) {
+      return new Response(JSON.stringify({ error: "Apresentação muito grande para edição por chat." }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (!rawBody) {
       return new Response(JSON.stringify({ error: "Corpo da requisição vazio" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -168,7 +189,7 @@ Deno.serve(async (req) => {
       });
     }
     {
-      const baseCols = "id, user_id, title, type, language, theme, font_style, creative_brief, dynamic_theme";
+      const baseCols = "id, user_id, title, type, language, theme, font_style, creative_brief, dynamic_theme, is_paid";
       const first = await admin
         .from("presentations")
         .select(`${baseCols}, ai_edit_messages, ai_edit_complex`)
@@ -187,6 +208,15 @@ Deno.serve(async (req) => {
       if (pres && pres.user_id !== userId) {
         await log.security("forbidden", { status: 403, detail: { reason: "presentation_not_owned" } });
         return new Response(JSON.stringify({ error: "Apresentação não encontrada." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // A cota do chat vem com o deck GERADO (pago em créditos). Deck criado
+      // por INSERT direto na API nasce com is_paid = false (migração 0010):
+      // antes, cada linha nova era uma cota nova de graça.
+      if ((pres as { is_paid?: boolean }).is_paid === false) {
+        await log.security("forbidden", { status: 403, detail: { reason: "presentation_not_generated" } });
+        return new Response(JSON.stringify({ error: "O chat de edição vale para apresentações geradas pelo SlideAI." }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -225,17 +255,36 @@ Deno.serve(async (req) => {
     // ── Fase 1: intenção + escopo ──
     const plan = await classifyEditIntent(safeInstruction, summarizeDeck(slides), safeHistory, keys, slides.length);
 
-    // A cota de "edições complexas" é cobrada ANTES de gastar a chamada cara:
-    // se este comando é complexo e já estouraria o teto, recusamos agora.
-    if (plan.complex && usedComplex + 1 > MAX_COMPLEX_EDITS) {
-      return new Response(JSON.stringify({
-        error: LIMIT_MESSAGE,
-        reason: "edit_quota_reached",
-        usage: { messages: usedMessages, complex_edits: usedComplex, max_messages: MAX_CHAT_MESSAGES, max_complex_edits: MAX_COMPLEX_EDITS },
-      }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // A cota é RESERVADA antes da chamada cara, de forma atômica no banco:
+    // checar, chamar a IA e só depois gravar deixava mensagens em paralelo
+    // passarem do teto. Se a edição falhar, a reserva é devolvida.
+    const quotaReached = (messages: number, complex: number) => new Response(JSON.stringify({
+      error: LIMIT_MESSAGE,
+      reason: "edit_quota_reached",
+      usage: { messages, complex_edits: complex, max_messages: MAX_CHAT_MESSAGES, max_complex_edits: MAX_COMPLEX_EDITS },
+    }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    if (plan.complex && usedComplex + 1 > MAX_COMPLEX_EDITS) return quotaReached(usedMessages, usedComplex);
+    const { data: reserved, error: reserveErr } = await admin.rpc("reserve_ai_edit_usage", {
+      _presentation_id: presentation.id, _uid: userId, _complex: !!plan.complex,
+      _max_messages: MAX_CHAT_MESSAGES, _max_complex: MAX_COMPLEX_EDITS,
+    });
+    // Migração 0010 ainda não aplicada: grava o uso no fim, como antes.
+    const legacyUsage = !!reserveErr && (reserveErr.code === "PGRST202" || reserveErr.code === "42883");
+    if (reserveErr && !legacyUsage) {
+      console.error("chat-editor: reserva da cota falhou", reserveErr.message);
+      return new Response(JSON.stringify({ error: "Erro ao processar edição." }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (!legacyUsage && !reserved) return quotaReached(usedMessages, usedComplex);
+    let reservationOpen = !legacyUsage;
+    releaseReservation = async () => {
+      if (!reservationOpen) return;
+      reservationOpen = false;
+      await admin.rpc("release_ai_edit_usage", { _presentation_id: presentation.id, _uid: userId, _complex: !!plan.complex });
+    };
 
     // ── Fase 2: contexto completo, escopado ──
     const { targets, prompt } = buildEditContext({
@@ -245,6 +294,14 @@ Deno.serve(async (req) => {
       creativeBrief,
       presentation,
     });
+
+    if (prompt.length > MAX_EDIT_PROMPT_CHARS) {
+      await releaseReservation();
+      await log.security("invalid_input", { status: 413, detail: { reason: "edit_prompt_too_large", chars: prompt.length } });
+      return new Response(JSON.stringify({ error: "Esta edição envolve conteúdo demais de uma vez. Peça a mudança em menos slides." }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const historyMessages = safeHistory.map((h) => ({ role: h.role, content: h.content }));
     const userPrompt = `${prompt}
@@ -295,17 +352,20 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
+        await releaseReservation();
         return new Response(JSON.stringify({ error: "Limite de requisições atingido. Aguarde um momento." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (aiResponse.status === 402) {
+        await releaseReservation();
         return new Response(JSON.stringify({ error: "Créditos de IA esgotados." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const t = await aiResponse.text();
       console.error("chat-editor error:", aiResponse.status, t);
+      await releaseReservation();
       return new Response(JSON.stringify({ error: "Erro ao processar edição." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -315,6 +375,7 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
       console.error("chat-editor: no tool_call in response", JSON.stringify(data).slice(0, 500));
+      await releaseReservation();
       return new Response(JSON.stringify({ error: "A IA não retornou edição estruturada. Tente reformular a instrução." }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -324,6 +385,7 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       parsed = JSON.parse(toolCall.function.arguments);
     } catch (e) {
       console.error("chat-editor: tool args JSON parse failed", e, "len=", toolCall.function.arguments?.length);
+      await releaseReservation();
       return new Response(JSON.stringify({ error: "Resposta da IA truncada — tente uma instrução menor (ex: edite poucos slides por vez)." }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -349,12 +411,15 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       max_messages: MAX_CHAT_MESSAGES,
       max_complex_edits: MAX_COMPLEX_EDITS,
     };
-    // Registra o uso no banco (só depois de a edição dar certo).
+    // Uso no banco: já reservado acima (a edição deu certo, a reserva fica).
+    // Sem a migração 0010, grava agora, como antes.
+    reservationOpen = false;
     {
-      const { data: saved, error: usageErr } = await admin.rpc("add_ai_edit_usage", {
-        _presentation_id: presentation.id, _uid: userId, _complex: !!plan.complex,
-      });
-      if (usageErr) console.warn("chat-editor: add_ai_edit_usage falhou", usageErr.message);
+      const saved = legacyUsage
+        ? (await admin.rpc("add_ai_edit_usage", {
+          _presentation_id: presentation.id, _uid: userId, _complex: !!plan.complex,
+        })).data
+        : reserved;
       const s = saved as { messages?: number; complex_edits?: number } | null;
       if (s && typeof s.messages === "number") {
         nextUsage.messages = Math.max(nextUsage.messages, s.messages);
@@ -379,7 +444,9 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
     });
   } catch (e) {
     console.error("chat-editor error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    await releaseReservation().catch(() => {});
+    // Detalhe só no log: a mensagem da exceção pode trazer dados internos.
+    return new Response(JSON.stringify({ error: "Erro ao processar edição. Tente novamente." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
