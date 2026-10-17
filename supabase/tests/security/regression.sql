@@ -163,5 +163,10 @@ SELECT pg_temp.ok((SELECT status FROM public.profile_access_requests WHERE owner
 SELECT pg_temp.as_user('22222222-2222-2222-2222-222222222222');
 SELECT pg_temp.ok((SELECT count(*) FROM public.get_portfolio_presentations('11111111-1111-1111-1111-111111111111')) = 1, 'aprovado vê o portfólio privado');
 SELECT pg_temp.ok(NOT public.has_role(auth.uid(), 'admin'), 'usuário logado ainda consulta has_role (políticas)');
+SELECT pg_temp.as_user('54783c81-cf39-4789-ac0a-794a55c5f465');
+SELECT pg_temp.ok(public.has_role(auth.uid(), 'admin') AND public.has_role(auth.uid(), 'developer'), 'equipe se reconhece pelo has_role');
+RESET ROLE; SET ROLE service_role; SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+SELECT pg_temp.ok(public.has_role('54783c81-cf39-4789-ac0a-794a55c5f465', 'admin'), 'servidor consulta has_role de qualquer conta');
+SELECT pg_temp.ok(public.generate_ticket_id() ~ '^TCK-[0-9]{6,}$', 'número de chamado continua no formato TCK-');
 RESET ROLE;
 \echo 'REGRESSAO OK'

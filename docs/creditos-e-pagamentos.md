@@ -39,9 +39,10 @@ A conta do evento é achada pela assinatura registrada no perfil, por um evento 
 | --- | --- |
 | Compra avulsa | +500 de bônus, uma vez por pedido (`grant_order_bonus_credits`); pedido já reembolsado não credita. Sem assinatura vigente: plano vira `single` e a sobra mensal é zerada. Evento sem id de pedido: nada é creditado, alerta `payment_without_order_id` para acerto manual |
 | Assinatura criada ou renovada | Plano ativo, `renews_at` = agora + período, cota redefinida uma vez por pedido (`grant_monthly_for_order`, reancora o ciclo), bônus de ativação uma vez por conta, guardando pedido e assinatura que o concederam |
-| Cobrança de outra assinatura com a vigente ativa (renovação da antiga) | Nada muda; alerta `payment_other_subscription`. Assinatura nova (troca de plano) continua valendo |
+| Cobrança de outra assinatura com a vigente ativa (renovação da antiga) | Nada muda; alerta `payment_other_subscription`. Assinatura nova (troca de plano) continua valendo, inclusive paga por Pix/boleto |
+| Pagamento de pedido já reembolsado (reenvio tardio) | Nada é reativado; alerta `payment_after_refund` |
 | Cancelamento | `subscription_status = canceled`; acesso e cota até `renews_at`. Cancelar uma assinatura que não é a vigente não muda nada |
-| Reembolso / chargeback | Estorna só o que aquela compra concedeu (idempotente por pedido): avulso, os 500 do pedido; assinatura, encerra na hora (`plan = free`), zera a cota e retira o bônus de ativação só se foi aquela assinatura que o deu (`order_granted_bonus`). Créditos já gastos não ficam negativos: alerta `refund_after_consumption`. Caso ambíguo: vai para revisão manual (`webhook_refund_review`) |
+| Reembolso / chargeback | Estorna só o que aquela compra concedeu (idempotente por pedido): avulso, os 500 do pedido; assinatura, encerra na hora (`plan = free`), zera a cota e retira o bônus de ativação só se foi aquela assinatura que o deu e só uma vez (`order_granted_bonus`). Créditos já gastos não ficam negativos: alerta `refund_after_consumption`. Caso ambíguo: vai para revisão manual (`webhook_refund_review`) |
 | Recusa, Pix/boleto gerado, abandono | Ignorado |
 
 ## Ciclo mensal

@@ -145,19 +145,26 @@ Deno.serve(async (req) => {
 
     // ─────────────── FLUXO NORMAL: mensagem de texto
     if (!conversationId) {
-      const { data: ticket } = await admin.rpc("generate_ticket_id");
-      const { data: conv, error: convErr } = await admin
-        .from("support_conversations")
-        .insert({
-          user_id: user.id,
-          ticket_id: ticket,
-          state: "diagnosing",
-          related_occurrence_id: relatedOccurrenceId,
-          related_error_code: errorCodeHint,
-          subject: message.slice(0, 80),
-        })
-        .select("id, ticket_id").single();
-      if (convErr) throw convErr;
+      // Número já ocupado (conversa criada pelo INSERT antigo do cliente, antes
+      // da migração 0010): tenta o próximo em vez de falhar o atendimento.
+      let conv: { id: string; ticket_id: string | null } | null = null;
+      for (let attempt = 0; attempt < 5 && !conv; attempt++) {
+        const { data: ticket } = await admin.rpc("generate_ticket_id");
+        const { data, error: convErr } = await admin
+          .from("support_conversations")
+          .insert({
+            user_id: user.id,
+            ticket_id: ticket,
+            state: "diagnosing",
+            related_occurrence_id: relatedOccurrenceId,
+            related_error_code: errorCodeHint,
+            subject: message.slice(0, 80),
+          })
+          .select("id, ticket_id").single();
+        if (convErr && !(convErr.code === "23505" && attempt < 4)) throw convErr;
+        conv = data;
+      }
+      if (!conv) throw new Error("support_conversation_not_created");
       conversationId = conv.id;
       void sendPlatformEmail(admin, { to: user.email ?? "", userId: user.id, dedupeKey: `ticket_opened:${conv.id}`, event: { type: "ticket_opened", ticketId: conv.ticket_id ?? "", subject: message.slice(0, 200), conversationId: conv.id } });
     } else {

@@ -11,6 +11,9 @@ import {
   isActiveSubscriber,
   isOtherSubscriptionEvent,
   extractEventType,
+  looksLikeCaktoDelivery,
+  PAID_EVENT_TYPES,
+  paidEventAfterRefund,
   resolveUserId,
   safeEventLabel,
   PLAN_SIGNUP_BONUS,
@@ -235,5 +238,38 @@ describe("safeEventLabel — texto de chamada sem segredo não vai para o alerta
     expect(safeEventLabel("AÇÃO NECESSÁRIA: confirme em https://cakto-verify.example")).toBe("(inválido)");
     expect(safeEventLabel("x".repeat(41))).toBe("(inválido)");
     expect(safeEventLabel("")).toBeNull();
+  });
+});
+
+describe("evento pago depois do estorno não reativa nada", () => {
+  it("pedido já reembolsado: avulso ou assinatura", () => {
+    expect(paidEventAfterRefund({ orderRefunded: true, subscriptionRefunded: false, renewal: false })).toBe(true);
+    expect(paidEventAfterRefund({ orderRefunded: true, subscriptionRefunded: false, renewal: true })).toBe(true);
+  });
+
+  it("ativação atrasada de assinatura reembolsada (evento irmão com outro id)", () => {
+    expect(paidEventAfterRefund({ orderRefunded: false, subscriptionRefunded: true, renewal: false })).toBe(true);
+  });
+
+  it("renovação de assinatura reembolsada é cobrança nova; pedido sem estorno segue normal", () => {
+    expect(paidEventAfterRefund({ orderRefunded: false, subscriptionRefunded: true, renewal: true })).toBe(false);
+    expect(paidEventAfterRefund({ orderRefunded: false, subscriptionRefunded: false, renewal: false })).toBe(false);
+  });
+});
+
+describe("assinatura antiga: só eventos pagos contam", () => {
+  it("Pix/boleto gerado e recusa não são pagamento", () => {
+    expect(PAID_EVENT_TYPES).toEqual(expect.arrayContaining(["purchase_approved", "subscription_created", "subscription_renewed"]));
+    for (const t of ["pix_gerado", "boleto_gerado", "purchase_refused", "subscription_canceled"]) {
+      expect(PAID_EVENT_TYPES).not.toContain(t);
+    }
+  });
+});
+
+describe("POST recusado que parece da Cakto (outro webhook com outro segredo)", () => {
+  it("exige segredo e tipo de evento conhecido", () => {
+    expect(looksLikeCaktoDelivery("purchase_approved", 1)).toBe(true);
+    expect(looksLikeCaktoDelivery("purchase_approved", 0)).toBe(false);
+    expect(looksLikeCaktoDelivery("AÇÃO NECESSÁRIA", 1)).toBe(false);
   });
 });

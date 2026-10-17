@@ -21,6 +21,7 @@ import { createLogger } from "../_shared/observability.ts";
 import {
   applyEdits,
   buildEditContext,
+  MAX_EDIT_PROMPT_CHARS,
   classifyEditIntent,
   EDIT_SYSTEM_PROMPT,
   EDIT_TOOL,
@@ -293,6 +294,14 @@ Deno.serve(async (req) => {
       creativeBrief,
       presentation,
     });
+
+    if (prompt.length > MAX_EDIT_PROMPT_CHARS) {
+      await releaseReservation();
+      await log.security("invalid_input", { status: 413, detail: { reason: "edit_prompt_too_large", chars: prompt.length } });
+      return new Response(JSON.stringify({ error: "Esta edição envolve conteúdo demais de uma vez. Peça a mudança em menos slides." }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const historyMessages = safeHistory.map((h) => ({ role: h.role, content: h.content }));
     const userPrompt = `${prompt}

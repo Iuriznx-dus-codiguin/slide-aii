@@ -35,7 +35,7 @@ Auditoria ofensiva e defensiva da plataforma inteira (banco, Edge Functions, fro
 | B4 | Mensagens de exceção devolvidas ao cliente; `support-chat` aceitava ocorrência de outro usuário | Baixo (3.1) | Corrigido |
 | B5 | Senha mínima de 6 na troca e na redefinição (8 no cadastro) | Baixo | Corrigido |
 | B6 | `can_view_portfolio` chamável por qualquer um (consulta quem tem acesso a qual portfólio) | Baixo (3.1) | Corrigido |
-| V1–V27 | Revisão adversarial do próprio diff: 24 corrigidos (entre eles redirecionamento aberto em `/auth`, quota de IA sem fim em conta avulsa zerada, e-mails de pedido de acesso como phishing, cinco falhas de crédito no webhook), 2 aceitos com justificativa, 1 informativo | até Médio | [Seção 6](#6-revisão-adversarial-do-diff) |
+| V1–V39 | Revisão adversarial do próprio diff, em duas rodadas: 36 corrigidos (entre eles redirecionamento aberto em `/auth`, IA sem fim em conta avulsa zerada, e-mails de pedido de acesso como phishing, falhas de crédito no webhook, troca de plano paga por Pix ignorada e token de descadastro enviado ao Google), 2 aceitos com justificativa, 1 informativo | até Alto | [Seção 6](#6-revisão-adversarial-do-diff) |
 | R1–R13 | Recomendações que dependem de decisão, de configuração fora do repositório ou de teste em produção | — | [Seção 4](#4-recomendações-não-aplicadas) |
 
 ---
@@ -198,7 +198,7 @@ Além do filtro por dono (C1), a busca de artigos montava `or=(title.ilike.%…%
 - **Webhook:** fail-closed sem segredo, comparação em tempo constante, segredo fora da query string, idempotência por (evento, pedido), bônus de ativação uma vez por conta (`grant_bonus_credits_once`), estorno restrito ao pedido (`revoke_order_credits`). A revisão adversarial achou cinco falhas de crédito que essa leitura não pegou (seção 6, V10–V18).
 - **SSRF:** nenhuma função busca URL fornecida pelo usuário (a extração de identidade de marca foi removida). `fetch-image` só chama Pexels e provedores de IA fixos; a URL de imagem do provedor só é lida, não buscada.
 - **Segredos:** o histórico do git só tem a chave `anon` (pública por design, expira em 2036). Nenhuma `service_role`, chave de IA, Pexels, Resend ou Cakto versionada. `service_role` só nas Edge Functions.
-- **Redirecionamento aberto:** `emailRedirectTo` e o retorno do Google são prefixados pela origem; o consentimento OAuth só segue URLs devolvidas pelo servidor de autorização. **Correção:** a primeira versão deste relatório dizia que `?next=` aceitava só caminhos relativos. Não aceitava: `/\evil.com` passava na regex e o navegador o resolve para `https://evil.com/` (V19, corrigido com `safeNextPath`).
+- **Redirecionamento aberto:** `emailRedirectTo` e o retorno do Google são prefixados pela origem; o consentimento OAuth só segue URLs devolvidas pelo servidor de autorização. **Correção:** a primeira versão deste relatório dizia que `?next=` aceitava só caminhos relativos. Não aceitava: `/\evil.com` passava na regex e o navegador o resolve para `https://evil.com/` (V19, corrigido com `safeNextPath`). A primeira versão de `safeNextPath` ainda deixava `/.//evil.com` virar `//evil.com` na normalização (V36, corrigido).
 - **Markdown:** `react-markdown` (Central de Ajuda) e `streamdown` (suporte) não renderizam HTML cru; links `javascript:` são neutralizados. Links do portfólio público passam por `safeExternalUrl` (só http/https).
 - **Cabeçalhos:** `public/_headers` define HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `Referrer-Policy`, `Permissions-Policy` e CSP (com ressalvas em R6).
 - **CORS `*`** nas funções autenticadas não abre CSRF: a autenticação é por `Authorization: Bearer`, não por cookie.
@@ -293,7 +293,7 @@ Passo a passo completo, com o prompt para o Lovable e as consultas de conferênc
    - Regenerar falas e usar o chat de edição até o limite.
    - Rodar a consulta de tentativas presas do runbook e `select count(*) from access_logs where created_at > now() - interval '1 hour';`.
    - Confirmar com `curl` anônimo que `/rest/v1/presentations?select=id` devolve `[]`.
-   - Abrir `/auth?next=/%5Cexample.com` logado: deve ir para o painel, não para outro domínio.
+   - Abrir `/auth?next=/%5Cexample.com` e `/auth?next=/.//example.com` logado: deve ir para o painel, não para outro domínio.
    - Pedir acesso a um portfólio que desligou os pedidos: a tela mostra erro e nenhum e-mail sai.
 4. **Testes locais:** `npm test` (inclui `securityHardening.test.ts`) e `supabase/tests/security/run.sh`.
 
@@ -311,7 +311,7 @@ Cinco revisores independentes leram o diff de `d1353bc` até a primeira versão 
 | V2 | Teto de 400 KB no `chat-editor` bloqueava o chat em decks com imagens em base64 | Do diff | Médio | Corrigido: teto de 12 MB; data-URLs viram `[imagem incorporada]` no prompt; cada texto até 4.000 caracteres e cada slide até 16.000 (`slideForPrompt`); 40 por hora e 150 por dia por conta |
 | V3 | Mesmo problema de V1/V2 visto pelo front-end | Do diff | Médio | Duplicata de V1/V2 |
 | V4 | `tsc -p tsconfig.app.json` quebrava: o teste importava um módulo com `Deno.env` | Do diff | Baixo | Corrigido (`globalThis.Deno`) |
-| V5 | Usuário criava conversas de suporte com qualquer estado e ocupava `ticket_id`s futuros: o atendimento de todos passava a falhar | Já existia | Médio (CVSS 5.4) | Corrigido: só o `support-chat` (servidor) cria conversas |
+| V5 | Usuário criava conversas de suporte com qualquer estado e ocupava `ticket_id`s futuros: o atendimento de todos passava a falhar | Já existia | Médio (CVSS 5.4) | Corrigido: só o `support-chat` (servidor) cria conversas; números já ocupados antes do deploy em V35 |
 | V6 | Mesmo achado de V5 pela superfície residual | Já existia | Médio | Duplicata de V5 |
 | V7 | Teste e2e de suporte inseria mensagem "assistant" como usuário | Do diff | Baixo | Corrigido: o teste abre a conversa pela função e confirma os bloqueios |
 | V8 | Editor não redirecionava mais quem abre deck publicado de outra pessoa | Do diff | Baixo | Corrigido: consulta `get_shared_presentation` e manda para `/slides/:slug` |
@@ -319,9 +319,9 @@ Cinco revisores independentes leram o diff de `d1353bc` até a primeira versão 
 | V10 | Com `profiles.email` acompanhando o Auth, renovação, reembolso e cancelamento de quem trocou de e-mail caíam em "usuário não encontrado" | Do diff | Médio | Corrigido: conta achada por assinatura, pedido, e-mail atual, e-mail de compra anterior e cliente da Cakto (`resolveUserId`) |
 | V11 | Reembolso de uma reassinatura (sem bônus) retirava o bônus de ativação inteiro, levando junto créditos avulsos pagos | Já existia | Médio (CVSS 4.3, integridade) | Corrigido: o bônus guarda pedido e assinatura; o estorno retira só o que aquela assinatura deu (`order_granted_bonus`, com correlação por tempo para concessões antigas) |
 | V12 | Cancelar a assinatura antiga depois de assinar a nova cancelava a nova; a renovação da antiga trazia o plano antigo de volta | Já existia | Médio | Corrigido: evento de outra assinatura não mexe na vigente; cobrança da antiga gera alerta `payment_other_subscription` |
-| V13 | Aprovação processada depois do estorno creditava o pedido reembolsado | Já existia | Baixo | Corrigido: `already_refunded` em `grant_order_bonus_credits` e `grant_monthly_for_order`; e o estorno antecipado não retira créditos de outro pedido |
+| V13 | Aprovação processada depois do estorno creditava o pedido reembolsado | Já existia | Baixo | Corrigido: `already_refunded` em `grant_order_bonus_credits` e `grant_monthly_for_order`; e o estorno antecipado não retira créditos de outro pedido. Para assinaturas a correção estava incompleta: completada em V29 |
 | V14 | Estorno de geração depois do reset ou da renovação somava créditos expirados à cota nova (3.500 num plano de 3.200) | Já existia; a 0010 tornou frequente | Baixo | Corrigido: a parte mensal só volta se o débito é do ciclo atual e até a alocação |
-| V15 | Varredura de tentativas presas, reativada pela 0010, estornava de novo o que o suporte já tinha estornado à mão | Do diff | Baixo | Corrigido: estorno manual de mesmo valor, posterior à tentativa, fecha a tentativa (`attempt_ref`) |
+| V15 | Varredura de tentativas presas, reativada pela 0010, estornava de novo o que o suporte já tinha estornado à mão | Do diff | Baixo | Substituído por V32: fechar a tentativa por valor e data tirava do usuário estornos devidos. Agora a varredura estorna e avisa a equipe da possível duplicidade |
 | V16 | Dois eventos "pagos" do mesmo pedido de assinatura recarregavam a cota mensal já gasta | Já existia | Baixo | Corrigido: cota uma vez por pedido (`grant_monthly_for_order`) |
 | V17 | Excluir a conta e assinar de novo com o mesmo e-mail concede outra vez o bônus de ativação | Já existia | Baixo | Aceito: exige pagar uma assinatura nova a cada vez, e outro e-mail contorna qualquer bloqueio por e-mail. Um registro do e-mail depois da exclusão manteria dado pessoal contra um pedido de exclusão (LGPD, art. 16) para ganho mínimo. Se virar abuso, bloquear pela identidade do pagamento (CPF/cartão) na Cakto |
 | V18 | Reembolso depois de gastar os créditos não retirava nada e ninguém ficava sabendo | Já existia | Baixo | Corrigido em parte: alerta `refund_after_consumption`; a política continua em R7 |
@@ -329,13 +329,46 @@ Cinco revisores independentes leram o diff de `d1353bc` até a primeira versão 
 | V20 | Conta avulsa com saldo zero seguia com chat de edição e imagens de IA sem fim: um INSERT direto criava deck com cota nova de chat | Já existia | Médio (CVSS 5.3, custo) | Corrigido: deck do cliente nasce `is_paid = false` e o chat exige deck gerado; imagem de IA avulsa exige saldo no plano `single` |
 | V21 | Título, tipo, tema e brief (graváveis pelo dono) entravam sem teto nos prompts: ~1M de tokens por chamada | Já existia | Médio (CVSS 5.3, custo) | Corrigido: `CHECK` de tamanho (NOT VALID) e corte de cada campo no prompt (`promptField`); brief do cliente vira `NULL` no INSERT |
 | V22 | Pedido de acesso ao portfólio mandava e-mail da plataforma, com nome e mensagem do atacante no assunto e no corpo, a qualquer usuário com username, inclusive a quem desligou os pedidos; o dono podia trocar `requester_id` | Já existia | Médio (CVSS 5.4) | Corrigido: política exige que o dono aceite pedidos; mensagem até 500; só o status muda; 10 e-mails por hora por conta; assunto fixo |
-| V23 | Anônimo descobria contas de admin/developer (`has_role` aberto + `get_profile_for_viewer` devolvendo o id) | Já existia | Baixo (CVSS 3.7) | Corrigido: `has_role` só para `authenticated` e `service_role` |
+| V23 | Anônimo descobria contas de admin/developer (`has_role` aberto + `get_profile_for_viewer` devolvendo o id) | Já existia | Baixo (CVSS 3.7) | Corrigido: `has_role` só para `authenticated` e `service_role`; conta logada consultando outra pessoa fechado em V33 |
 | V24 | POST sem segredo no webhook gerava um alerta "Crítico" por hora, com texto do atacante, para todos os admins | Já existia | Baixo | Corrigido: tipo do evento filtrado; o alerta só sai se nenhuma entrega válida chegou nas últimas 6 horas |
 | V25 | Verificação dos achados de crédito (proteções da 0010 conferidas: corrida de débito, idempotência, gatilhos) | — | Informativo | Sem ação |
 | V26 | Cota do chat renovável com deck em branco criado pela API (visão da migração) | Já existia | Baixo | Corrigido com V20 |
 | V27 | `security_events.ip_hash` era SHA-256 sem chave de 48 bits: reversível para o IP em minutos | Já existia | Baixo | Corrigido: mesmo HMAC das chaves de rate limit; linhas antigas em R13 |
 
 Testes novos: `exploits.sql` blocos 11–16 e `regression.sql` bloco 11 (fluxos legítimos: deck do servidor mantém brief e chat, bônus pela chamada antiga, cota por pedido de ativação e de renovação, estorno no mesmo ciclo, varredura sem estorno manual, pedido de acesso aprovado); `caktoWebhook.test.ts` (conta do evento, outra assinatura, rótulo do evento) e `securityHardening.test.ts` (prompts, redirecionamento, assunto do e-mail, hash do IP).
+
+### Rodada 3: revisão independente das correções da rodada 2
+
+Cinco revisores independentes, um por dimensão (pagamentos e créditos, permissões do banco, Edge Functions, front-end, e afirmações do relatório e da implantação), leram as correções de `1a6177d` e os merges seguintes. Quatro deles concluíram; o de afirmações e a verificação cruzada pararam no limite de uso. Cada achado veio com reprodução própria (banco local, Deno ou vitest), e cada um foi reproduzido de novo antes da correção. O resultado da verificação cruzada fica na descrição do PR.
+
+| # | Achado | Origem | Severidade | Situação |
+| --- | --- | --- | --- | --- |
+| V28 | Troca de plano ignorada como "outra assinatura" quando o Pix/boleto da nova assinatura chegava antes, ou quando os dois eventos pagos da mesma compra chegavam juntos | Rodada 2 | Alto | Corrigido: assinatura "antiga" é só a que já foi aplicada à conta (cota mensal concedida, ou evento pago, há mais de um dia) |
+| V29 | Evento pago depois do estorno reativava a assinatura (plano, cota por todo o período e bônus de ativação) | Já existia (V13 incompleto) | Médio | Corrigido: o webhook não reativa nada e alerta `payment_after_refund`; `grant_bonus_credits_once` recusa pedido ou assinatura reembolsados; reembolso aparece antes de "já concedido" |
+| V30 | Segundo reembolso de outro pedido da mesma assinatura retirava o bônus de ativação de novo, levando créditos avulsos pagos | Já existia (V11 incompleto) | Baixo | Corrigido: o estorno guarda a assinatura, e `order_granted_bonus` desconta o que já saiu |
+| V31 | O silêncio de 6 horas escondia um segundo webhook da Cakto com segredo errado enquanto outro entregava | Rodada 2 | Baixo | Corrigido: entrega com segredo e tipo de evento conhecido recusada vira aviso diário `webhook_invalid_secret_partial` |
+| V32 | A varredura usava estornos `manual:` sem relação para fechar tentativas presas, e o usuário perdia o estorno | Rodada 2 | Baixo | Corrigido: a varredura sempre estorna; a coincidência vira o alerta `generation_refund_possible_duplicate` para conferência |
+| V33 | Conta logada (gratuita) ainda descobria contas da equipe pelo `has_role` | Já existia (V23 incompleto) | Baixo | Corrigido: para clientes, `has_role` só responde sobre o próprio usuário; servidor e rotinas do banco seguem consultando qualquer conta |
+| V34 | Restrições NOT VALID travavam linhas antigas fora dos limites: pedido de acesso que o dono não conseguia revogar, deck que não ia para a lixeira nem registrava visualização (o erro ainda devolvia a linha inteira ao visitante) | Rodada 2 | Baixo | Corrigido: a migração corta as linhas antigas e valida as restrições, inclusive a dos contadores negativos da rodada 1 |
+| V35 | Números de chamado já ocupados pelo INSERT antigo continuavam derrubando atendimentos depois do deploy; acima de 999999 o número era truncado | Já existia (V5 incompleto) | Baixo | Corrigido: a sequência pula os números ocupados, o número não é mais truncado e o `support-chat` tenta o próximo se colidir |
+| V36 | `/auth?next=/.//evil.com`: a normalização de `safeNextPath` virava `//evil.com` e mandava para outro domínio | Rodada 2 | Médio (CVSS 6.1) | Corrigido: o caminho normalizado é conferido de novo |
+| V37 | GA4 e Google Ads recebiam a URL completa, com o token de descadastro (`/emails/preferencias?t=`), o `?next=` e ids de autorização | Merge da `main` | Baixo (privacidade) | Corrigido: só parâmetros de campanha (`utm_*`, `gclid`) vão para o Google |
+| V38 | Mapa do deck no chat sem teto (`visual.command`): com o corpo de 12 MB, um pedido virava ~1M de tokens | Rodada 2 | Médio | Corrigido: linha do mapa até 200 caracteres e prompt inteiro até 200.000; acima disso a edição é recusada e a cota devolvida |
+| V39 | Roteiro do apresentador com mais de 4.000 caracteres chegava cortado à IA, e a edição sobrescrevia o original com a versão cortada | Rodada 2 | Baixo | Corrigido: roteiro e corpo vão inteiros até 12.000 caracteres; um campo que a IA viu cortado nunca é sobrescrito |
+
+Testes da rodada 3:
+- `exploits.sql`, blocos 14 a 16, que agora cobrem:
+  - varredura com estorno manual sem relação;
+  - aprovação depois do reembolso;
+  - segundo reembolso;
+  - `has_role` de outra conta.
+- `upgrade_before.sql` e `upgrade.sql`, que rodam no CI: um banco com dados gravados pelos buracos antigos, atualizado pela 0010. A dona revoga o pedido longo, o deck grande volta a aceitar alterações e o próximo chamado pula os números ocupados.
+- `caktoWebhook.test.ts`: evento pago depois do estorno, tipos de evento pago e entrega recusada com cara de Cakto.
+- `securityHardening.test.ts`:
+  - desvios `/.//`, `/..//` e `/%2e%2e//`;
+  - URL enviada ao Google;
+  - teto do mapa do deck e do prompt;
+  - roteiro longo preservado.
 
 ---
 

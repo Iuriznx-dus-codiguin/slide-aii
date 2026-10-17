@@ -362,8 +362,9 @@ export const isActiveSubscriber = (
  * renovação da antiga, se ficou ativa, trazia o plano e a cota dela de volta.
  *   • cancelamento de outra assinatura → nunca mexe na vigente;
  *   • pagamento de outra assinatura, com a vigente ainda ativa → só quando é
- *     renovação ou a assinatura já apareceu antes para a conta (cobrança de
- *     uma assinatura antiga). Assinatura NOVA continua valendo: é a troca.
+ *     renovação ou a assinatura já foi aplicada a esta conta antes (cobrança
+ *     de uma assinatura antiga). Assinatura NOVA continua valendo: é a troca,
+ *     inclusive quando o Pix/boleto dela ou o evento irmão chegou antes.
  * Sem id no evento ou no perfil (legado), nada muda.
  */
 export const isOtherSubscriptionEvent = (input: {
@@ -380,6 +381,30 @@ export const isOtherSubscriptionEvent = (input: {
   if (input.action === "paid") return input.profileIsActive && (input.renewal || input.knownSubscription);
   return false;
 };
+
+/** Tipos de evento que a Cakto manda quando uma cobrança é paga. */
+export const PAID_EVENT_TYPES: string[] = Object.keys(CAKTO_EVENT_ACTIONS).filter((k) => CAKTO_EVENT_ACTIONS[k] === "paid");
+
+/**
+ * Evento "pago" que chega depois do estorno do mesmo pedido (a entrega da
+ * aprovação falhou e a Cakto reenviou), ou ativação atrasada de uma
+ * assinatura já reembolsada (o evento irmão pode vir com outro id). Não
+ * reativa plano, cota nem bônus. Renovação de uma assinatura reembolsada é
+ * cobrança nova: segue o fluxo normal.
+ */
+export const paidEventAfterRefund = (input: {
+  orderRefunded: boolean;
+  subscriptionRefunded: boolean;
+  renewal: boolean;
+}): boolean => input.orderRefunded || (input.subscriptionRefunded && !input.renewal);
+
+/**
+ * POST recusado que parece vir da Cakto (traz um segredo e um tipo de evento
+ * conhecido): com outras entregas válidas chegando, indica um segundo webhook
+ * com segredo diferente, não ruído.
+ */
+export const looksLikeCaktoDelivery = (eventType: string, providedSecrets: number): boolean =>
+  providedSecrets > 0 && Object.prototype.hasOwnProperty.call(CAKTO_EVENT_ACTIONS, (eventType ?? "").toLowerCase().trim());
 
 /** Chaves do evento usadas para achar a conta, da mais específica à mais fraca. */
 export interface UserKeys {

@@ -25,7 +25,8 @@
 --    pelo pedido que o deu, nada de crédito depois do estorno), estorno de
 --    geração limitado ao ciclo, varredura que respeita estornos manuais,
 --    pedidos de acesso ao portfólio só para quem os aceita, e has_role fora
---    do alcance de anônimos.
+--    do alcance de anônimos. Linhas antigas que já passavam dos novos
+--    limites são corrigidas antes das restrições.
 --
 -- Idempotente: pode ser aplicada de novo sem efeito colateral.
 
@@ -151,6 +152,16 @@ CREATE TRIGGER trg_protect_presentation_server_fields
   BEFORE INSERT OR UPDATE ON public.presentations
   FOR EACH ROW EXECUTE FUNCTION public.protect_presentation_server_fields();
 
+-- Contadores negativos gravados pelo INSERT antigo do cliente: zerados antes
+-- da restrição. Uma CHECK, mesmo NOT VALID, é conferida em todo UPDATE da
+-- linha; sem isto, o deck deixaria de aceitar qualquer alteração (lixeira,
+-- publicar, reserva do chat). Os gatilhos de proteção só valem para o cliente.
+UPDATE public.presentations
+   SET ai_edit_messages = GREATEST(ai_edit_messages, 0),
+       ai_edit_complex = GREATEST(ai_edit_complex, 0),
+       speech_regen_count = GREATEST(speech_regen_count, 0)
+ WHERE ai_edit_messages < 0 OR ai_edit_complex < 0 OR speech_regen_count < 0;
+
 DO $do$
 BEGIN
   ALTER TABLE public.presentations
@@ -159,12 +170,26 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END
 $do$;
+ALTER TABLE public.presentations VALIDATE CONSTRAINT presentations_ai_usage_nonnegative;
 
 -- Título, tipo, tema e brief entram nos prompts do chat de edição e das falas.
 -- Sem teto, um título de megabytes virava ~1M de tokens por chamada. Os limites
 -- ficam muito acima do que as telas e a geração gravam (título 200, tipo 80,
--- descrição 1500; tema e brief têm poucos KB). NOT VALID: só vale para
--- escritas novas.
+-- descrição 1500; tema e brief têm poucos KB). Linhas que já passavam do
+-- limite (só possíveis pela API) são cortadas antes, pelo mesmo motivo do
+-- bloco acima; tema e brief acima do teto voltam ao padrão (NULL).
+UPDATE public.presentations
+   SET title = left(title, 300),
+       type = left(type, 200),
+       description = left(description, 5000),
+       dynamic_theme = CASE WHEN pg_column_size(dynamic_theme) > 16384 THEN NULL ELSE dynamic_theme END,
+       creative_brief = CASE WHEN pg_column_size(creative_brief) > 32768 THEN NULL ELSE creative_brief END
+ WHERE char_length(title) > 300
+    OR char_length(type) > 200
+    OR char_length(description) > 5000
+    OR pg_column_size(dynamic_theme) > 16384
+    OR pg_column_size(creative_brief) > 32768;
+
 DO $do$
 BEGIN
   ALTER TABLE public.presentations
@@ -179,6 +204,7 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END
 $do$;
+ALTER TABLE public.presentations VALIDATE CONSTRAINT presentations_prompt_field_sizes;
 
 -- ─────────────── 4. Apresentações privadas por padrão ───────────────
 
@@ -366,6 +392,39 @@ GRANT EXECUTE ON FUNCTION public.can_view_portfolio(uuid, uuid) TO service_role;
 DROP POLICY IF EXISTS "conv_own_insert" ON public.support_conversations;
 REVOKE INSERT ON public.support_conversations FROM anon, authenticated;
 
+-- Números já ocupados pelo INSERT antigo: a sequência passa do maior ticket
+-- existente, senão cada número ocupado derrubaria a abertura de um atendimento
+-- de verdade. E o número deixa de ser cortado em 6 dígitos (lpad truncava
+-- 1000000 para "100000", voltando a números já usados).
+DO $do$
+DECLARE
+  _max bigint;
+BEGIN
+  SELECT max(substring(ticket_id FROM 5)::bigint) INTO _max
+    FROM public.support_conversations
+   WHERE ticket_id ~ '^TCK-[0-9]{1,18}$';
+  IF _max IS NOT NULL AND _max >= (SELECT last_value FROM public.support_ticket_seq) THEN
+    PERFORM setval('public.support_ticket_seq', _max, true);
+  END IF;
+END
+$do$;
+
+CREATE OR REPLACE FUNCTION public.generate_ticket_id()
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _n bigint;
+BEGIN
+  _n := nextval('public.support_ticket_seq');
+  RETURN 'TCK-' || CASE WHEN _n < 1000000 THEN lpad(_n::text, 6, '0') ELSE _n::text END;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.generate_ticket_id() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.generate_ticket_id() TO service_role;
+
 -- Mensagens do usuário entram pelo support-chat (servidor). Escrita direta só
 -- como "user": antes dava para inserir "assistant"/"system" no próprio
 -- atendimento (falso "reembolso aprovado" para a equipe e injeção no histórico).
@@ -482,19 +541,20 @@ BEGIN
   IF NOT FOUND THEN
     RETURN jsonb_build_object('granted', false, 'reason', 'no_profile');
   END IF;
-  IF EXISTS (
-    SELECT 1 FROM public.credit_transactions
-     WHERE user_id = _uid AND type = _type AND metadata->>'order_id' = _order_id
-  ) THEN
-    RETURN jsonb_build_object('granted', false, 'reason', 'already_granted');
-  END IF;
   -- Estorno processado antes da aprovação (entrega da aprovação falhou e a
   -- Cakto reenviou depois): o pedido já foi devolvido, não há o que creditar.
+  -- Vem antes de "já concedido" para o webhook saber que é um reembolso.
   IF EXISTS (
     SELECT 1 FROM public.credit_transactions
      WHERE user_id = _uid AND type = 'refund_revoke' AND metadata->>'order_id' = _order_id
   ) THEN
     RETURN jsonb_build_object('granted', false, 'reason', 'already_refunded');
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.credit_transactions
+     WHERE user_id = _uid AND type = _type AND metadata->>'order_id' = _order_id
+  ) THEN
+    RETURN jsonb_build_object('granted', false, 'reason', 'already_granted');
   END IF;
   UPDATE public.profiles
      SET credits_bonus = COALESCE(credits_bonus, 0) + _amount
@@ -581,16 +641,16 @@ BEGIN
   IF COALESCE(_order_id, '') <> '' THEN
     IF EXISTS (
       SELECT 1 FROM public.credit_transactions
+       WHERE user_id = _uid AND type = 'refund_revoke' AND metadata->>'order_id' = _order_id
+    ) THEN
+      RETURN jsonb_build_object('granted', false, 'reason', 'already_refunded');
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM public.credit_transactions
        WHERE user_id = _uid AND type IN ('subscription_monthly', 'subscription_renewal')
          AND metadata->>'order_id' = _order_id
     ) THEN
       RETURN jsonb_build_object('granted', false, 'reason', 'already_granted');
-    END IF;
-    IF EXISTS (
-      SELECT 1 FROM public.credit_transactions
-       WHERE user_id = _uid AND type = 'refund_revoke' AND metadata->>'order_id' = _order_id
-    ) THEN
-      RETURN jsonb_build_object('granted', false, 'reason', 'already_refunded');
     END IF;
   END IF;
   -- Ativação/renovação reancora o ciclo no dia do pagamento (set_monthly_credits).
@@ -630,6 +690,16 @@ BEGIN
   IF NOT FOUND THEN
     RETURN jsonb_build_object('granted', false, 'reason', 'no_profile');
   END IF;
+  -- Ativação de um pedido (ou assinatura) que já foi reembolsado: a aprovação
+  -- chegou depois do estorno. Não há bônus a dar.
+  IF EXISTS (
+    SELECT 1 FROM public.credit_transactions
+     WHERE user_id = _uid AND type = 'refund_revoke'
+       AND ((COALESCE(_metadata->>'order_id', '') <> '' AND metadata->>'order_id' = _metadata->>'order_id')
+         OR (COALESCE(_metadata->>'subscription_id', '') <> '' AND metadata->>'subscription_id' = _metadata->>'subscription_id'))
+  ) THEN
+    RETURN jsonb_build_object('granted', false, 'reason', 'already_refunded');
+  END IF;
   IF EXISTS (SELECT 1 FROM public.credit_transactions WHERE user_id = _uid AND type = _type) THEN
     RETURN jsonb_build_object('granted', false, 'reason', 'already_granted');
   END IF;
@@ -644,7 +714,8 @@ END;
 $$;
 
 -- Quanto uma assinatura (ou, sem assinatura no evento, o pedido) concedeu de
--- crédito bônus do tipo dado: é o teto do estorno. O reembolso de uma
+-- crédito bônus do tipo dado, menos o que outro estorno dela já retirou: é o
+-- teto do estorno. O reembolso de uma
 -- assinatura cancela aquela assinatura; o bônus de OUTRA (a primeira, já
 -- gasto) não entra, nem os créditos avulsos. Concessões anteriores a esta
 -- migração não guardavam a ligação: conta a que aconteceu junto (±10 min) de
@@ -658,23 +729,95 @@ STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-  WITH k AS (SELECT COALESCE(_order_id, '') AS ord, COALESCE(_subscription_id, '') AS sub)
-  SELECT COALESCE(sum(ct.amount), 0)::integer
-    FROM public.credit_transactions ct, k
-   WHERE ct.user_id = _uid AND ct.type = _type AND ct.amount > 0
-     AND (
-       (k.sub <> '' AND ct.metadata->>'subscription_id' = k.sub)
-       OR (k.sub = '' AND k.ord <> '' AND ct.metadata->>'order_id' = k.ord)
-       OR (NOT (COALESCE(ct.metadata, '{}'::jsonb) ?| ARRAY['order_id', 'subscription_id'])
-           AND EXISTS (
-             SELECT 1 FROM public.payment_events pe
-              WHERE pe.user_id = _uid
-                AND pe.created_at BETWEEN ct.created_at - interval '10 minutes'
-                                      AND ct.created_at + interval '10 minutes'
-                AND ((k.sub <> '' AND (pe.payload @> jsonb_build_object('data', jsonb_build_object('subscription', jsonb_build_object('id', k.sub)))
-                                       OR pe.payload @> jsonb_build_object('subscription', jsonb_build_object('id', k.sub))))
-                     OR (k.sub = '' AND k.ord <> '' AND pe.cakto_id = k.ord))))
-     )
+  WITH k AS (SELECT COALESCE(_order_id, '') AS ord, COALESCE(_subscription_id, '') AS sub),
+  granted AS (
+    SELECT COALESCE(sum(ct.amount), 0)::integer AS total
+      FROM public.credit_transactions ct, k
+     WHERE ct.user_id = _uid AND ct.type = _type AND ct.amount > 0
+       AND (
+         (k.sub <> '' AND ct.metadata->>'subscription_id' = k.sub)
+         OR (k.sub = '' AND k.ord <> '' AND ct.metadata->>'order_id' = k.ord)
+         OR (NOT (COALESCE(ct.metadata, '{}'::jsonb) ?| ARRAY['order_id', 'subscription_id'])
+             AND EXISTS (
+               SELECT 1 FROM public.payment_events pe
+                WHERE pe.user_id = _uid
+                  AND pe.created_at BETWEEN ct.created_at - interval '10 minutes'
+                                        AND ct.created_at + interval '10 minutes'
+                  AND ((k.sub <> '' AND (pe.payload @> jsonb_build_object('data', jsonb_build_object('subscription', jsonb_build_object('id', k.sub)))
+                                         OR pe.payload @> jsonb_build_object('subscription', jsonb_build_object('id', k.sub))))
+                       OR (k.sub = '' AND k.ord <> '' AND pe.cakto_id = k.ord))))
+       )
+  ),
+  -- Bônus já retirado por outro reembolso/chargeback da mesma assinatura (ou
+  -- do mesmo pedido): sem isto, cada pedido reembolsado da assinatura tirava o
+  -- bônus de novo, levando créditos avulsos pagos.
+  revoked AS (
+    SELECT COALESCE(sum(COALESCE((ct.metadata->>'revoked_bonus')::integer, 0)), 0)::integer AS total
+      FROM public.credit_transactions ct, k
+     WHERE ct.user_id = _uid AND ct.type = 'refund_revoke'
+       AND ((k.sub <> '' AND ct.metadata->>'subscription_id' = k.sub)
+         OR (k.sub = '' AND k.ord <> '' AND ct.metadata->>'order_id' = k.ord))
+  )
+  SELECT GREATEST(granted.total - revoked.total, 0) FROM granted, revoked
+$$;
+
+-- Estorno por pedido, agora guardando também a assinatura: é o que permite
+-- descontar o bônus já retirado (order_granted_bonus) e reconhecer a
+-- aprovação atrasada de uma assinatura reembolsada. O parâmetro novo tem
+-- padrão: chamadas com cinco argumentos continuam valendo. Corpo igual ao da
+-- 0002 fora isso.
+DROP FUNCTION IF EXISTS public.revoke_order_credits(uuid, text, integer, boolean, text);
+CREATE OR REPLACE FUNCTION public.revoke_order_credits(
+  _uid uuid,
+  _order_id text,
+  _revoke_bonus integer,
+  _zero_monthly boolean,
+  _type text DEFAULT 'refund_revoke',
+  _subscription_id text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _p public.profiles%ROWTYPE;
+  _bonus_cut integer;
+  _monthly_cut integer;
+BEGIN
+  SELECT * INTO _p FROM public.profiles WHERE id = _uid FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'no_profile');
+  END IF;
+
+  IF _order_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.credit_transactions
+     WHERE user_id = _uid AND type = _type AND metadata->>'order_id' = _order_id
+  ) THEN
+    RETURN jsonb_build_object('ok', true, 'revoked', 0, 'reason', 'already_revoked');
+  END IF;
+
+  _bonus_cut := LEAST(GREATEST(COALESCE(_revoke_bonus, 0), 0), COALESCE(_p.credits_bonus, 0));
+  _monthly_cut := CASE WHEN _zero_monthly THEN COALESCE(_p.credits_monthly, 0) ELSE 0 END;
+
+  UPDATE public.profiles
+     SET credits_bonus = COALESCE(credits_bonus, 0) - _bonus_cut,
+         credits_monthly = COALESCE(credits_monthly, 0) - _monthly_cut,
+         credits_cycle_anchor = CASE WHEN _zero_monthly THEN NULL ELSE credits_cycle_anchor END
+   WHERE id = _uid;
+
+  INSERT INTO public.credit_transactions(user_id, type, amount, balance_bonus_after, balance_monthly_after, metadata)
+  VALUES (
+    _uid, _type, -(_bonus_cut + _monthly_cut),
+    COALESCE(_p.credits_bonus, 0) - _bonus_cut,
+    COALESCE(_p.credits_monthly, 0) - _monthly_cut,
+    jsonb_strip_nulls(jsonb_build_object('order_id', _order_id, 'subscription_id', NULLIF(_subscription_id, ''),
+      'revoked_bonus', _bonus_cut, 'revoked_monthly', _monthly_cut))
+  );
+
+  RETURN jsonb_build_object('ok', true, 'revoked', _bonus_cut + _monthly_cut,
+    'revoked_bonus', _bonus_cut, 'revoked_monthly', _monthly_cut);
+END;
 $$;
 
 -- Estorno de geração: a parte que saiu da cota mensal só volta se o débito é
@@ -771,9 +914,13 @@ END; $function$;
 
 -- Varredura de tentativas interrompidas: até esta migração ela abortava no
 -- gatilho (item 1), e o runbook mandava estornar à mão com referência
--- 'manual:...', que não fecha a tentativa. Cada estorno manual de mesmo valor,
--- feito depois da tentativa e ainda não usado, passa a fechá-la sem devolver
--- de novo (fica marcado com attempt_ref). Corpo igual ao da 0006 fora isso.
+-- 'manual:...', que não fecha a tentativa. A varredura não tem como saber se
+-- um estorno manual foi daquela tentativa ou de um débito antigo sem
+-- tentativa: fechar a tentativa por valor e data tiraria do usuário um estorno
+-- devido. Então ela estorna normalmente e, quando há um estorno manual de mesmo
+-- valor feito depois da tentativa, avisa a equipe (alerta
+-- generation_refund_possible_duplicate) para conferir. Corpo igual ao da 0006
+-- fora isso.
 CREATE OR REPLACE FUNCTION public.refund_stale_generations(_older_than interval DEFAULT interval '10 minutes')
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -789,7 +936,7 @@ DECLARE
   _credits integer := 0;
   _failed integer := 0;
   _recovered integer := 0;
-  _manual_count integer := 0;
+  _possible_duplicates jsonb := '[]'::jsonb;
 BEGIN
   IF NOT pg_try_advisory_xact_lock(hashtext('slideai:stale-generations')) THEN
     RETURN jsonb_build_object('skipped', true);
@@ -812,27 +959,6 @@ BEGIN
       CONTINUE;
     END IF;
 
-    -- Já estornada à mão pelo suporte.
-    _manual := NULL;
-    UPDATE public.credit_transactions ct
-       SET metadata = ct.metadata || jsonb_build_object('attempt_ref', _a.id::text)
-     WHERE ct.id = (
-       SELECT m.id FROM public.credit_transactions m
-        WHERE m.user_id = _a.user_id AND m.type = 'generation_refund'
-          AND m.metadata->>'reference' LIKE 'manual:%'
-          AND NOT (m.metadata ? 'attempt_ref')
-          AND COALESCE((m.metadata->>'requested')::integer, m.amount) = _a.credits
-          AND m.created_at >= _a.created_at
-        ORDER BY m.created_at
-        LIMIT 1
-        FOR UPDATE SKIP LOCKED)
-    RETURNING ct.id INTO _manual;
-    IF _manual IS NOT NULL THEN
-      UPDATE public.generation_attempts SET status = 'refunded', finished_at = now() WHERE id = _a.id;
-      _manual_count := _manual_count + 1;
-      CONTINUE;
-    END IF;
-
     _r := public.refund_generation_credits(_a.user_id, _a.credits, _a.id::text, 'stale_timeout');
     _ok := COALESCE((_r->>'refunded')::boolean, false) OR COALESCE(_r->>'reason' = 'already_refunded', false);
     UPDATE public.generation_attempts
@@ -842,6 +968,19 @@ BEGIN
     IF COALESCE((_r->>'refunded')::boolean, false) THEN
       _refunded := _refunded + 1;
       _credits := _credits + _a.credits;
+      -- Estorno manual de mesmo valor depois da tentativa: pode ter sido desta.
+      SELECT m.id INTO _manual
+        FROM public.credit_transactions m
+       WHERE m.user_id = _a.user_id AND m.type = 'generation_refund'
+         AND m.metadata->>'reference' LIKE 'manual:%'
+         AND COALESCE((m.metadata->>'requested')::integer, m.amount) = _a.credits
+         AND m.created_at >= _a.created_at
+       ORDER BY m.created_at
+       LIMIT 1;
+      IF _manual IS NOT NULL AND jsonb_array_length(_possible_duplicates) < 50 THEN
+        _possible_duplicates := _possible_duplicates || jsonb_build_object(
+          'usuario', _a.user_id, 'tentativa', _a.id, 'creditos', _a.credits, 'estorno_manual', _manual);
+      END IF;
     ELSIF NOT _ok THEN
       _failed := _failed + 1;
     END IF;
@@ -866,14 +1005,23 @@ BEGIN
       CASE WHEN _refunded + _failed = 1 THEN '1 geração interrompida sem resposta'
            ELSE format('%s gerações interrompidas sem resposta', _refunded + _failed) END,
       jsonb_build_object('estornadas', _refunded, 'creditos_devolvidos', _credits, 'estorno_com_falha', _failed,
-                         'ja_estornadas_a_mao', _manual_count,
                          'sem_resposta_ha_mais_de', _older_than::text),
       'generation_stale:' || gen_random_uuid()
     );
   END IF;
 
+  IF jsonb_array_length(_possible_duplicates) > 0 THEN
+    INSERT INTO public.ops_alerts(kind, severity, title, details, dedupe_key)
+    VALUES (
+      'generation_refund_possible_duplicate', 'warning',
+      'Geração estornada pela varredura que pode já ter sido estornada à mão',
+      jsonb_build_object('casos', _possible_duplicates),
+      'generation_refund_possible_duplicate:' || gen_random_uuid()
+    );
+  END IF;
+
   RETURN jsonb_build_object('refunded', _refunded, 'credits', _credits, 'refund_failed', _failed,
-                            'recovered', _recovered, 'manual', _manual_count);
+                            'recovered', _recovered, 'possible_duplicates', jsonb_array_length(_possible_duplicates));
 END;
 $function$;
 
@@ -883,6 +1031,8 @@ REVOKE ALL ON FUNCTION public.grant_bonus_credits_once(uuid, integer, text, json
 GRANT EXECUTE ON FUNCTION public.grant_bonus_credits_once(uuid, integer, text, jsonb) TO service_role;
 REVOKE ALL ON FUNCTION public.order_granted_bonus(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.order_granted_bonus(uuid, text, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.revoke_order_credits(uuid, text, integer, boolean, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.revoke_order_credits(uuid, text, integer, boolean, text, text) TO service_role;
 REVOKE ALL ON FUNCTION public.refund_generation_credits(uuid, integer, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.refund_generation_credits(uuid, integer, text, text) TO service_role;
 REVOKE ALL ON FUNCTION public.refund_stale_generations(interval) FROM PUBLIC, anon, authenticated;
@@ -914,7 +1064,11 @@ CREATE POLICY "par_insert_own" ON public.profile_access_requests
   FOR INSERT TO authenticated
   WITH CHECK (requester_id = auth.uid() AND status = 'pending' AND public.accepts_access_requests(owner_id));
 
--- A tela limita a mensagem a 400 caracteres; o e-mail cita até 500.
+-- A tela limita a mensagem a 400 caracteres; o e-mail cita até 500. Pedidos
+-- antigos acima disso (só pela API) são cortados antes: a restrição é
+-- conferida em todo UPDATE, e o dono não conseguiria mais aprovar, recusar
+-- nem revogar o pedido.
+UPDATE public.profile_access_requests SET message = left(message, 500) WHERE char_length(message) > 500;
 DO $do$
 BEGIN
   ALTER TABLE public.profile_access_requests
@@ -922,6 +1076,7 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END
 $do$;
+ALTER TABLE public.profile_access_requests VALIDATE CONSTRAINT profile_access_requests_message_len;
 
 -- O dono só decide (status). Reescrever requester_id mandava o e-mail de
 -- "acesso decidido" para qualquer conta.
@@ -949,6 +1104,19 @@ CREATE TRIGGER trg_protect_access_request_fields
 
 -- has_role é usada só por políticas TO authenticated e por funções do
 -- servidor. Aberta a anônimos, junto com get_profile_for_viewer (username →
--- id), dizia a qualquer visitante quais contas são de admin/developer.
+-- id), dizia a qualquer visitante quais contas são de admin/developer; e
+-- qualquer conta logada (gratuita) fazia o mesmo. Para clientes (JWT anon ou
+-- authenticated) ela só responde sobre o próprio usuário — todas as políticas
+-- e funções passam auth.uid(). O servidor (service_role) e as rotinas do banco
+-- (sem JWT) continuam consultando qualquer conta.
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role)
+     AND (_user_id = auth.uid() OR COALESCE(auth.role(), '') NOT IN ('anon', 'authenticated'))
+$function$;
 REVOKE ALL ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated, service_role;

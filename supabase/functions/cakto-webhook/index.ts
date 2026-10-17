@@ -20,6 +20,7 @@ import {
   SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
   billingAlertFor, billingSnapshotFrom, pendingChargeFrom,
   isOtherSubscriptionEvent, resolveUserId, safeEventLabel,
+  looksLikeCaktoDelivery, paidEventAfterRefund, PAID_EVENT_TYPES,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 import { clientIpKey } from "../_shared/clientIp.ts";
@@ -115,10 +116,12 @@ Deno.serve(async (req) => {
       },
     });
     // Um por hora: o segredo do painel da Cakto e o da Lovable Cloud divergem.
-    // Só quando nenhuma entrega válida chegou nas últimas 6 horas: com o
-    // segredo funcionando, o POST inválido é ruído (ou alguém de fora), e
-    // qualquer um mandava um alerta "Crítico" por hora a todos os admins.
-    // O tipo do evento vai filtrado: o texto é de quem chamou.
+    // "Crítico" só quando nenhuma entrega válida chegou nas últimas 6 horas:
+    // qualquer um mandava um alerta crítico por hora a todos os admins. Com
+    // entregas válidas chegando, um POST que parece da Cakto (traz segredo e
+    // um tipo de evento conhecido) indica OUTRO webhook com segredo diferente
+    // (ex.: o de uma oferta nova): vira aviso, uma vez por dia. O tipo do
+    // evento vai filtrado: o texto é de quem chamou.
     const { count: recentValid } = await admin.from("payment_events")
       .select("id", { count: "exact", head: true })
       .gte("created_at", new Date(Date.now() - 6 * 3_600_000).toISOString());
@@ -129,6 +132,17 @@ Deno.serve(async (req) => {
         details: {
           evento: safeEventLabel(extractEventType(payload)),
           impressao_recebida: providedFps.filter(Boolean).join(", ") || "nenhuma",
+          impressao_esperada: expectedFps.join(", "),
+        },
+      });
+    } else if (looksLikeCaktoDelivery(extractEventType(payload), providedFps.filter(Boolean).length)) {
+      await raiseOpsAlert(admin, {
+        kind: "webhook_invalid_secret_partial", severity: "warning",
+        dedupeKey: `webhook_invalid_secret_partial:${new Date().toISOString().slice(0, 10)}`,
+        title: "Entrega da Cakto recusada enquanto outras passam: um dos webhooks pode estar com outro segredo",
+        details: {
+          evento: safeEventLabel(extractEventType(payload)),
+          impressao_recebida: providedFps.filter(Boolean).join(", "),
           impressao_esperada: expectedFps.join(", "),
         },
       });
@@ -251,14 +265,30 @@ Deno.serve(async (req) => {
     return json({ ok: true, note: "plan not resolved" });
   }
 
-  // A assinatura já apareceu em outro evento da conta (é antiga, não nova).
-  const subscriptionSeenBefore = async (id: string): Promise<boolean> => {
-    const seen = async (shape: Record<string, unknown>) => {
+  // A assinatura já foi aplicada a esta conta antes (é antiga, não nova): uma
+  // cota mensal concedida por ela, ou um evento PAGO dela, há mais de um dia.
+  // Pix/boleto gerado e o evento irmão da mesma compra (que chegam juntos, às
+  // vezes em paralelo) não contam: contavam, e a troca de plano paga por Pix
+  // era ignorada.
+  const subscriptionAppliedBefore = async (id: string): Promise<boolean> => {
+    const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
+    const { count: grants } = await admin.from("credit_transactions").select("id", { count: "exact", head: true })
+      .eq("user_id", userId).in("type", ["subscription_monthly", "subscription_renewal"])
+      .eq("metadata->>subscription_id", id).lt("created_at", dayAgo);
+    if ((grants ?? 0) > 0) return true;
+    const paidSeen = async (shape: Record<string, unknown>) => {
       const { count } = await admin.from("payment_events").select("id", { count: "exact", head: true })
-        .eq("user_id", userId).neq("id", eventRowId).contains("payload", shape);
+        .eq("user_id", userId).in("event_type", PAID_EVENT_TYPES).lt("created_at", dayAgo).contains("payload", shape);
       return (count ?? 0) > 0;
     };
-    return (await seen({ data: { subscription: { id } } })) || (await seen({ subscription: { id } }));
+    return (await paidSeen({ data: { subscription: { id } } })) || (await paidSeen({ subscription: { id } }));
+  };
+  // Estorno já registrado para este pedido ou esta assinatura.
+  const refundRecorded = async (key: "order_id" | "subscription_id", value: string | null | undefined): Promise<boolean> => {
+    if (!value) return false;
+    const { count } = await admin.from("credit_transactions").select("id", { count: "exact", head: true })
+      .eq("user_id", userId).eq("type", "refund_revoke").eq(`metadata->>${key}`, value);
+    return (count ?? 0) > 0;
   };
 
   // Para os avisos por e-mail (depois do processamento).
@@ -284,7 +314,31 @@ Deno.serve(async (req) => {
       prevPlan = before?.plan ?? null;
       prevWasSubscriber = prevIsSubscriber;
 
-      if (plan === "single" && !cakto_id) {
+      // Aprovação que chega depois do estorno do mesmo pedido (ou ativação
+      // atrasada de assinatura já reembolsada): antes, reativava o plano com
+      // cota mensal por todo o período e dava o bônus de ativação de novo.
+      const afterRefund = paidEventAfterRefund({
+        orderRefunded: await refundRecorded("order_id", cakto_id),
+        subscriptionRefunded: plan !== "single" && await refundRecorded("subscription_id", subscriptionId),
+        renewal: isRenewalEvent(event_type),
+      });
+
+      if (afterRefund) {
+        skipNotify = true;
+        log.warn("paid_after_refund", { event_type, cakto_id });
+        await raiseOpsAlert(admin, {
+          kind: "payment_after_refund", severity: "warning", dedupeKey: `payment_after_refund:${eventRowId}`,
+          title: "Pagamento de um pedido já reembolsado: nada foi reativado",
+          details: {
+            evento: event_type, usuario: userId, pedido: cakto_id ?? null, assinatura: subscriptionId ?? null,
+            payment_event: eventRowId,
+          },
+        });
+        await admin.from("payment_events")
+          .update({ processed: true, error_message: "paid_after_refund" })
+          .eq("id", eventRowId);
+        return json({ ok: true, note: "paid event of a refunded order ignored" });
+      } else if (plan === "single" && !cakto_id) {
         // Sem o id do pedido não há como garantir crédito uma única vez por
         // compra (nem estornar depois): acerto manual.
         await raiseOpsAlert(admin, {
@@ -340,7 +394,7 @@ Deno.serve(async (req) => {
         // Só consulta o histórico quando pode ser uma assinatura antiga.
         knownSubscription: !!subscriptionId && prevIsSubscriber && !isRenewalEvent(event_type)
           && !!before?.cakto_subscription_id && before.cakto_subscription_id !== subscriptionId
-          && await subscriptionSeenBefore(subscriptionId),
+          && await subscriptionAppliedBefore(subscriptionId),
       })) {
         // Cobrança de uma assinatura antiga enquanto outra está ativa: a
         // conta paga duas vezes. Não troca plano nem cota; o suporte resolve.
@@ -466,13 +520,22 @@ Deno.serve(async (req) => {
       if (grantedErr) log.warn("order_granted_bonus_unavailable", { code: grantedErr.code });
       // Sem a migração 0010, mantém o teto anterior (o valor do plano).
       const revokeBonus = grantedErr ? scope.revokeBonus : Math.min(scope.revokeBonus, Number(granted) || 0);
-      const { data: revoked, error: revokeErr } = await admin.rpc("revoke_order_credits", {
+      // A assinatura vai junto no registro do estorno: desconta o bônus já
+      // retirado num segundo reembolso dela e reconhece a ativação atrasada.
+      const revokeArgs = {
         _uid: userId,
         _order_id: cakto_id ?? `${event_type}:${subscriptionId ?? "sem-id"}`,
         _revoke_bonus: revokeBonus,
         _zero_monthly: scope.zeroMonthly,
         _type: "refund_revoke",
+      };
+      let { data: revoked, error: revokeErr } = await admin.rpc("revoke_order_credits", {
+        ...revokeArgs, _subscription_id: scope.kind === "single" ? null : subscriptionId ?? null,
       });
+      if (revokeErr && (revokeErr.code === "PGRST202" || revokeErr.code === "42883")) {
+        // Migração 0010 ainda não aplicada (função de cinco argumentos).
+        ({ data: revoked, error: revokeErr } = await admin.rpc("revoke_order_credits", revokeArgs));
+      }
       if (revokeErr) log.error("revoke_order_credits_failed", { message: revokeErr.message });
       else log.info("credits_revoked", { revoked, scope: scope.kind, revokeBonus });
       // Créditos do pedido já gastos: o estorno não tem de onde tirar. Sem

@@ -8,11 +8,12 @@ import { describe, expect, it } from "vitest";
 import { normalizeGenerateInput, MAX_BODY_BYTES } from "../../supabase/functions/generate-presentation/input";
 import { clientIp } from "../../supabase/functions/_shared/clientIp";
 import { jsonForScript } from "../../supabase/functions/_shared/html";
-import { buildEditContext, slideForPrompt } from "../../supabase/functions/_shared/editDirector";
+import { applyEdits, buildEditContext, MAX_EDIT_PROMPT_CHARS, slideForPrompt, summarizeDeck } from "../../supabase/functions/_shared/editDirector";
 import { promptField } from "../../supabase/functions/_shared/promptText";
 import { fingerprint, hashIp } from "../../supabase/functions/_shared/observability";
 import { renderEmail } from "../../supabase/functions/_shared/emailTemplates";
 import { safeNextPath } from "@/lib/safeRedirect";
+import { sanitizedLocation } from "@/lib/analytics";
 import { avoidUrlsForRequest } from "@/lib/slideImage";
 import { escapeHtml } from "@/lib/html";
 
@@ -62,8 +63,10 @@ describe("chat de edição e imagens — custo por tamanho do pedido", () => {
   const dataUrl = `data:image/webp;base64,${"A".repeat(300_000)}`;
 
   it("prompt do chat não leva imagem base64 nem texto gigante, e mantém o resto", () => {
-    const out = slideForPrompt({ headline: "Título", image_url: dataUrl, body_text: "x".repeat(50_000), bullets: ["a"] });
-    expect(out.length).toBeLessThan(5_000);
+    const out = slideForPrompt({ headline: "Título", image_url: dataUrl, body_text: "x".repeat(50_000), subtitle: "s".repeat(50_000), bullets: ["a"] });
+    // Corpo (texto longo de verdade) até 12.000; os demais textos até 4.000.
+    expect(out.length).toBeLessThan(17_000);
+    expect(JSON.parse(out).subtitle.length).toBe(4_001);
     expect(out).toContain("[imagem incorporada]");
     expect(JSON.parse(out)).toMatchObject({ headline: "Título", bullets: ["a"] });
   });
@@ -169,7 +172,7 @@ describe("revisão adversarial — prompts com campos do banco", () => {
   });
 
   it("slide inteiro tem teto no prompt, mesmo com muitos textos no limite", () => {
-    expect(slideForPrompt({ bullets: Array.from({ length: 100 }, () => "c".repeat(4_000)) }).length).toBeLessThanOrEqual(16_001);
+    expect(slideForPrompt({ bullets: Array.from({ length: 100 }, () => "c".repeat(4_000)) }).length).toBeLessThanOrEqual(24_001);
   });
 });
 
@@ -179,10 +182,12 @@ describe("revisão adversarial — redirecionamento depois do login", () => {
   it("aceita caminhos do próprio site, com busca e âncora", () => {
     expect(safeNextPath("/oauth/consent?authorization_id=abc#x", origin)).toBe("/oauth/consent?authorization_id=abc#x");
     expect(safeNextPath("/dashboard", origin)).toBe("/dashboard");
+    expect(safeNextPath("/.lovable/oauth/consent?authorization_id=abc", origin)).toBe("/.lovable/oauth/consent?authorization_id=abc");
   });
 
   it("recusa o que o navegador resolveria para outro domínio", () => {
-    for (const evil of ["/\\evil.com", "//evil.com", "/\t/evil.com", "/\n/evil.com", "https://evil.com", "javascript:alert(1)", "evil.com"]) {
+    for (const evil of ["/\\evil.com", "//evil.com", "/\t/evil.com", "/\n/evil.com", "https://evil.com", "javascript:alert(1)", "evil.com",
+      "/.//evil.com", "/..//evil.com", "/%2e%2e//evil.com", "/x/..//evil.com"]) {
       expect(safeNextPath(evil, origin)).toBeNull();
     }
     expect(safeNextPath(null, origin)).toBeNull();
@@ -228,5 +233,43 @@ describe("revisão adversarial — cotas de IA e migração", () => {
   it("pedido de acesso só para quem aceita, e has_role fora do alcance de anônimos", () => {
     expect(drizzle).toMatch(/public\.accepts_access_requests\(owner_id\)/);
     expect(drizzle).toMatch(/REVOKE ALL ON FUNCTION public\.has_role\(uuid, public\.app_role\) FROM PUBLIC, anon;/);
+  });
+});
+
+describe("revisão adversarial — URL enviada ao Google Analytics/Ads", () => {
+  it("tira token de descadastro, destino pós-login e ids de autorização; mantém campanha", () => {
+    expect(sanitizedLocation("https://slideai.com.br/emails/preferencias?t=segredo-123")).toBe("https://slideai.com.br/emails/preferencias");
+    expect(sanitizedLocation("https://slideai.com.br/auth?next=%2Foauth%2Fconsent%3Fauthorization_id%3Dabc")).toBe("https://slideai.com.br/auth");
+    expect(sanitizedLocation("https://slideai.com.br/?utm_source=google&utm_campaign=x&gclid=G1&email=a%40b.com"))
+      .toBe("https://slideai.com.br/?utm_source=google&utm_campaign=x&gclid=G1");
+  });
+});
+
+describe("revisão adversarial — chat de edição: custo e texto longo", () => {
+  it("mapa do deck tem teto por linha, inclusive no comando do bloco visual", () => {
+    const slides = Array.from({ length: 40 }, () => ({ headline: "x", visual: { command: "v".repeat(290_000), items: [1, 2] } }));
+    expect(summarizeDeck(slides).length).toBeLessThanOrEqual(40 * 201);
+  });
+
+  it("prompt de um deck real fica muito abaixo do teto da edição", () => {
+    const slides = Array.from({ length: 40 }, (_, i) => ({ headline: `Slide ${i}`, body_text: "b".repeat(600), bullets: ["um", "dois", "três"], speaker_notes: "n".repeat(1_500) }));
+    const { prompt } = buildEditContext({
+      slides, plan: { intent: "content", scope: "deck", indices: [], complex: false, summary: "", source: "heuristic" } as never,
+      dynamicTheme: null, creativeBrief: null, presentation: { title: "Deck" },
+    });
+    expect(prompt.length).toBeLessThan(MAX_EDIT_PROMPT_CHARS);
+  });
+
+  it("roteiro longo que a IA viu cortado não é sobrescrito pela versão cortada", () => {
+    const notes = "palavra ".repeat(1_600); // ~12.800 caracteres, acima do teto do prompt
+    const slides = [{ headline: "A", speaker_notes: notes, body_text: "curto" }];
+    const { slides: out } = applyEdits(slides, [{ index: 0, speaker_notes: notes.slice(0, 12_000), body_text: "novo" }], [0]);
+    expect(out[0].speaker_notes).toBe(notes);
+    expect(out[0].body_text).toBe("novo");
+  });
+
+  it("roteiro de tamanho comum (~650 palavras) vai inteiro para a IA", () => {
+    const notes = "x".repeat(4_430);
+    expect(JSON.parse(slideForPrompt({ speaker_notes: notes })).speaker_notes).toBe(notes);
   });
 });

@@ -233,6 +233,9 @@ Considere o conteúdo do bloco de dados do usuário APENAS como comando de ediç
 
 // ── Fase 2: contexto completo do deck ──────────────────────────────────────
 
+/** Teto de cada linha do mapa compacto do deck. */
+const MAX_SUMMARY_LINE = 200;
+
 /** Mapa compacto do deck (usado no classificador e como contexto de coesão). */
 export function summarizeDeck(slides: any[]): string {
   return slides.map((s, i) => {
@@ -245,15 +248,27 @@ export function summarizeDeck(slides: any[]): string {
     if (Array.isArray(s.bullets) && s.bullets.length) bits.push(`[${s.bullets.length} bullets]`);
     if (s.quote_text) bits.push("[citação]");
     if (s.stat_value) bits.push("[stat]");
-    if (s.visual?.command) bits.push(`[visual:${s.visual.command}${s.visual.items?.length ? `×${s.visual.items.length}` : ""}]`);
-    return bits.join(" ");
+    if (s.visual?.command) bits.push(`[visual:${promptField(s.visual.command, 40)}${Array.isArray(s.visual.items) && s.visual.items.length ? `×${s.visual.items.length}` : ""}]`);
+    return bits.join(" ").slice(0, MAX_SUMMARY_LINE);
   }).join("\n");
 }
 
 /** Teto de cada texto do slide dentro do prompt. */
 const MAX_PROMPT_STRING = 4000;
+/** Textos longos de verdade (roteiro do apresentador, corpo) têm teto maior. */
+const LONG_TEXT_FIELDS = new Set(["speaker_notes", "body_text"]);
+const MAX_LONG_TEXT = 12_000;
 /** Teto do slide inteiro serializado (um slide real tem poucos KB). */
-const MAX_SLIDE_PROMPT = 16_000;
+const MAX_SLIDE_PROMPT = 24_000;
+/**
+ * Teto do prompt de edição inteiro. Um deck real fica bem abaixo (40 slides de
+ * poucos KB); acima disso a edição é recusada antes da chamada de IA, em vez de
+ * virar ~1M de tokens com o corpo de até 12 MB que as imagens em base64 exigem.
+ */
+export const MAX_EDIT_PROMPT_CHARS = 200_000;
+
+/** Teto de um campo de texto do slide dentro do prompt. */
+export const promptLimitFor = (key: string): number => (LONG_TEXT_FIELDS.has(key) ? MAX_LONG_TEXT : MAX_PROMPT_STRING);
 
 /**
  * Slide serializado para o prompt. Imagens gravadas como data-URL (base64)
@@ -262,10 +277,11 @@ const MAX_SLIDE_PROMPT = 16_000;
  * aplicado sobre o slide original (applyEdits), então nada se perde.
  */
 export function slideForPrompt(slide: unknown): string {
-  const json = JSON.stringify(slide ?? {}, (_key, value) => {
+  const json = JSON.stringify(slide ?? {}, (key, value) => {
     if (typeof value !== "string") return value;
     if (value.startsWith("data:")) return "[imagem incorporada]";
-    return value.length > MAX_PROMPT_STRING ? `${value.slice(0, MAX_PROMPT_STRING)}…` : value;
+    const max = promptLimitFor(key);
+    return value.length > max ? `${value.slice(0, max)}…` : value;
   }, 1);
   return json.length > MAX_SLIDE_PROMPT ? `${json.slice(0, MAX_SLIDE_PROMPT)}…` : json;
 }
@@ -448,6 +464,9 @@ export function applyEdits(slides: any[], edits: any[], targets: number[]): { sl
     for (const [k, v] of Object.entries(e)) {
       if (k === "index" || k === "clear_image" || k === "remove_chart" || k === "remove_visual" || k === "visual") continue;
       if (v === undefined || v === null) continue;
+      // A IA viu este texto cortado (slideForPrompt): devolver a versão dela
+      // apagaria o final sem aviso. O original fica.
+      if (typeof orig?.[k] === "string" && orig[k].length > promptLimitFor(k)) continue;
       if (typeof v === "string" && v.trim() === "") continue;
       if (Array.isArray(v) && v.length === 0) continue;
       next[k] = v;

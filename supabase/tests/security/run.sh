@@ -2,7 +2,7 @@
 # Testes de segurança do banco num Postgres local (não toca no projeto real).
 #
 # Uso (PGHOST/PGPORT/PGUSER apontando para um Postgres 15+ descartável):
-#   supabase/tests/security/run.sh           # com a 0010: exploits bloqueados + regressão
+#   supabase/tests/security/run.sh           # com a 0010: exploits bloqueados + regressão + atualização
 #   supabase/tests/security/run.sh --before  # sem a 0010: mostra cada exploit funcionando
 #
 # Cria e recria os bancos slideai_sec_* no servidor indicado.
@@ -42,4 +42,10 @@ build_db slideai_sec_exploits yes
 
 build_db slideai_sec_regression yes
 "${PSQL[@]}" -d slideai_sec_regression -f "$HERE/regression.sql" 2>&1 | grep -E "ok:|FALHOU|ERROR|REGRESSAO" | sed -E 's/.*(NOTICE|ERROR):  //'
+
+# Banco que já tinha dados gravados pelos buracos antigos, depois atualizado.
+build_db slideai_sec_upgrade no
+"${PSQL[@]}" -d slideai_sec_upgrade -f "$HERE/upgrade_before.sql" >/dev/null
+"${PSQL[@]}" -d slideai_sec_upgrade -f "$REPO/drizzle/migrations/0010_security_hardening.sql" >/dev/null 2>&1
+"${PSQL[@]}" -d slideai_sec_upgrade -f "$HERE/upgrade.sql" 2>&1 | grep -E "ok:|FALHOU|ERROR|ATUALIZACAO" | sed -E 's/.*(NOTICE|ERROR):  //'
 echo "SEGURANCA DO BANCO OK"

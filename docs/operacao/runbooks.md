@@ -24,7 +24,7 @@ select revoke_order_credits('<USER_ID>', '<ID_DO_PEDIDO>', <bonus_a_retirar>, <z
 
 Idempotente por pedido. Para saber quanto bônus aquele pedido ou assinatura de fato concedeu (o webhook usa o mesmo teto): `select order_granted_bonus('<USER_ID>', '<ID_DO_PEDIDO>', '<ID_DA_ASSINATURA ou null>', 'subscription_signup_bonus');` (`'single_purchase'` para avulso). Se for reembolso de assinatura, também: `update profiles set subscription_status = 'canceled', plan = 'free', cakto_subscription_id = null where id = '<USER_ID>';`.
 
-Depois de um estorno, a aprovação do mesmo pedido não credita mais (`already_refunded`), mesmo que a Cakto reenvie o evento.
+Depois de um estorno, a aprovação do mesmo pedido não credita nem reativa nada (`already_refunded`, alerta `payment_after_refund`), mesmo que a Cakto reenvie o evento. Vale também para a ativação atrasada de uma assinatura já reembolsada. A renovação de uma assinatura reembolsada é tratada como cobrança nova. Um segundo reembolso da mesma assinatura não retira de novo o bônus de ativação (`order_granted_bonus` desconta o que já saiu).
 
 ## Créditos de geração que travou
 
@@ -51,7 +51,7 @@ select * from cron.job_run_details
  order by start_time desc limit 5;  -- se houver pg_cron
 ```
 
-Se houver, `select refund_stale_generations();` estorna todas (idempotente por tentativa). Estornos manuais feitos antes (referência `manual:...`, de mesmo valor e posteriores à tentativa) fecham a tentativa sem devolver de novo: o retorno mostra quantas em `manual`.
+Se houver, `select refund_stale_generations();` estorna todas (idempotente por tentativa). Quando existe um estorno manual de mesmo valor feito depois da tentativa (referência `manual:...`), a varredura não tem como saber se ele foi daquela tentativa ou de um débito antigo: ela estorna mesmo assim (para ninguém ficar sem o que é devido) e abre o alerta `generation_refund_possible_duplicate` com os pares tentativa/estorno para conferência. O retorno mostra quantos em `possible_duplicates`.
 
 Estorno manual: se a tentativa existe, use o id dela como referência, que já a fecha: `select refund_generation_credits('<USER_ID>', <creditos>, '<ID_DA_TENTATIVA>', 'stuck_generation');`. Débitos antigos, sem tentativa registrada: `select refund_generation_credits('<USER_ID>', <creditos>, 'manual:<data-hora>', 'stuck_generation');` (idempotente pela referência).
 
@@ -68,7 +68,8 @@ select created_at, recipient, status, error from email_log where event = 'ops_al
 
 | Tipo (`kind`) | O que significa | O que fazer |
 | --- | --- | --- |
-| `webhook_invalid_secret` | Chegou evento com segredo diferente do configurado e nenhuma entrega válida nas últimas 6 horas: provavelmente os pagamentos não estão sendo processados. (Com entregas válidas recentes, o POST inválido só vai para `security_events`.) | [Segredo do webhook](#segredo-do-webhook). Depois, peça à Cakto o reenvio dos eventos recusados. |
+| `webhook_invalid_secret` | Chegou evento com segredo diferente do configurado e nenhuma entrega válida nas últimas 6 horas: provavelmente os pagamentos não estão sendo processados. | [Segredo do webhook](#segredo-do-webhook). Depois, peça à Cakto o reenvio dos eventos recusados. |
+| `webhook_invalid_secret_partial` | Uma entrega com cara de Cakto (segredo e tipo de evento conhecidos) foi recusada enquanto outras passam: um segundo webhook (ex.: de uma oferta nova) está com outro segredo. Uma vez por dia. | Compare `impressao_recebida` com o segredo de cada webhook no painel da Cakto; inclua o que falta em `CAKTO_WEBHOOK_SECRET` (aceita vários, separados por vírgula) e peça o reenvio. |
 | `webhook_not_configured` | `CAKTO_WEBHOOK_SECRET` não existe. | Crie o secret. |
 | `payment_user_not_found` | Pagamento, estorno ou cancelamento com e-mail que não tem conta. | [Pagamento aprovado, mas não liberado](#pagamento-aprovado-mas-não-liberado). Eventos de teste da Cakto também disparam: confira o e-mail. |
 | `payment_plan_not_resolved` | Pagamento de produto ou oferta fora do mapa de planos. | Inclua o id em `PLAN_BY_CHECKOUT_ID`/`PLAN_BY_PRODUCT_ID` (`cakto-webhook/lib.ts`) e peça o reenvio. |
@@ -77,7 +78,9 @@ select created_at, recipient, status, error from email_log where event = 'ops_al
 | `generation_refund_failed` | Uma geração falhou e o estorno não rodou. | A varredura tenta de novo em até 15 minutos. Se o alerta se repetir, veja os logs de `generate-presentation`. |
 | `generation_stale` | Gerações interrompidas foram estornadas pela varredura. | Esporádico é normal. Frequente indica tempo limite: veja a duração em `generation_logs`. |
 | `refund_after_consumption` | Reembolso ou chargeback de créditos que o cliente já tinha usado: o estorno retirou menos do que o pedido concedeu. | Decida pela política de reembolso (auditoria, R7): reter o valor, contestar o chargeback ou aceitar. Não há saldo negativo. |
-| `payment_other_subscription` | Cobrança de uma assinatura que não é a vigente da conta (o cliente trocou de plano e a antiga continuou ativa). Plano e cota não mudaram. | Confirme com o cliente, cancele a assinatura antiga na Cakto e reembolse a cobrança duplicada. |
+| `payment_other_subscription` | Cobrança de uma assinatura que não é a vigente da conta e que já foi aplicada a ela antes (o cliente trocou de plano e a antiga continuou ativa). Plano e cota não mudaram. | Confirme com o cliente, cancele a assinatura antiga na Cakto e reembolse a cobrança duplicada. |
+| `payment_after_refund` | Evento pago de um pedido já reembolsado (reenvio tardio da Cakto) ou ativação atrasada de uma assinatura reembolsada. Nada foi reativado. | Confira na Cakto se o pedido está mesmo reembolsado. Se o cliente pagou de novo de verdade, aplique à mão. |
+| `generation_refund_possible_duplicate` | A varredura estornou uma tentativa presa que pode já ter sido estornada à mão (estorno `manual:` de mesmo valor depois dela). | Para cada par, confira se o estorno manual foi daquela tentativa; se foi, retire o valor em dobro com um ajuste (`revoke_order_credits` com um id de ajuste). |
 
 Sem nenhum admin com e-mail no perfil e sem `OPS_ALERT_EMAILS`, os alertas ficam pendentes (aparece `ops_alert_no_recipients` nos logs).
 

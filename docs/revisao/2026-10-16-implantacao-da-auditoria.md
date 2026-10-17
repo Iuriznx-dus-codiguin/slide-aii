@@ -14,7 +14,8 @@ Como levar para produção o que está na branch `claude/blissful-hamilton-v61ro
 | 13–14/10 | `1a6177d` | Revisão adversarial do próprio diff: 27 achados (V1–V27), 24 corrigidos, 2 aceitos, 1 informativo | Os mesmos testes, ampliados (exploits 11–16, regressão 11, testes do webhook, dos prompts, do redirecionamento, do e-mail e da telemetria); build; lint sem erro novo |
 | 14/10 | `7cb8dd5` | Merge da `main` (PR #9, seletor de motor) | Conflito em `Editor.tsx` resolvido mantendo as duas mudanças; 448 testes; tsc; `deno check` |
 | 16/10 | `7b0ab7c`, `67e4d20` | Merge da `main` (login com Google, GA4, página de sucesso) e correção do destino guardado do login com Google | 448 testes; tsc; testes do banco |
-| 16/10 | este commit | CI no GitHub, teste contra a volta da regex antiga em `Auth.tsx`, mensagem clara quando o portfólio não aceita pedidos, este documento | Os mesmos comandos que o CI roda |
+| 16/10 | `87bfc33` | CI no GitHub, teste contra a volta da regex antiga em `Auth.tsx`, mensagem clara quando o portfólio não aceita pedidos, este documento | Os mesmos comandos que o CI roda |
+| 16/10 | este commit | Revisão independente das correções da rodada 2 (V28–V39): 12 problemas corrigidos, entre eles troca de plano paga por Pix ignorada, reativação depois do reembolso, novo desvio do redirecionamento (`/.//`), token de descadastro enviado ao Google e prompt do chat sem teto | Cada problema reproduzido antes da correção; banco (exploits, regressão e o novo teste de atualização de banco com dados antigos), 459 testes, tsc, lint sem erro novo, CI |
 
 ### Interrupções e o que foi feito para que não deixassem rastro
 
@@ -26,7 +27,7 @@ A branch foi interrompida várias vezes por limite de uso (créditos), troca de 
 
 ### O que ainda não foi verificado, e por quê
 
-- **Revisão independente das correções da rodada 2.** Duas tentativas de revisão por agentes independentes pararam no limite de uso: na segunda, 0 de 6 revisores concluíram. As correções de `1a6177d` foram verificadas por testes (cada falha reproduzida no banco sem a correção e bloqueada com ela, mais os fluxos legítimos), mas não por um segundo revisor. Recomendo repetir essa revisão antes do merge, com folga de uso.
+- **Revisão independente das correções da rodada 2.** As duas primeiras tentativas pararam no limite de uso. Na terceira, 4 dos 5 revisores concluíram: pagamentos, banco, Edge Functions e front-end. Juntos, acharam os 12 problemas V28–V39, todos reproduzidos e corrigidos (relatório, seção 6, rodada 3). O quinto revisor (afirmações do relatório e da implantação) e a verificação cruzada de cada achado também pararam no limite. A repetição está registrada na descrição do PR.
 - **Testes e2e contra a produção:** não rodam neste ambiente (sem rede para o projeto). A etapa 6 do prompt roda os testes anônimos lá.
 - **Estado real do banco de produção** (políticas criadas pelo painel, buckets, configuração do Auth): só a verificação da etapa 5 mostra.
 - **`deno check`** só nas funções alteradas. `chat-editor` e `support-chat` já tinham três erros de tipo, que continuam lá.
@@ -116,10 +117,13 @@ ETAPA 5 — Verificação do banco (rode e me mostre cada resultado)
        'release_ai_edit_usage','release_speech_regen','reserve_ai_edit_usage',
        'reserve_speech_regen','sync_profile_email')
    order by 1;
-5.3 Bônus de ativação com um único formato (esperado: 1 linha,
-    "_uid uuid, _amount integer, _type text, _metadata jsonb")
-  select pg_get_function_identity_arguments(oid) from pg_proc
-   where proname = 'grant_bonus_credits_once' and pronamespace = 'public'::regnamespace;
+5.3 Bônus de ativação e estorno com um único formato cada (esperado: 2 linhas,
+    grant_bonus_credits_once | "_uid uuid, _amount integer, _type text, _metadata jsonb" e
+    revoke_order_credits | "_uid uuid, _order_id text, _revoke_bonus integer, _zero_monthly boolean, _type text, _subscription_id text")
+  select proname, pg_get_function_identity_arguments(oid) from pg_proc
+   where proname in ('grant_bonus_credits_once','revoke_order_credits')
+     and pronamespace = 'public'::regnamespace
+   order by 1;
 5.4 Permissões (esperado na ordem: false, true, false, false, true, true, false, false)
   select
     has_function_privilege('anon', 'public.has_role(uuid, public.app_role)', 'EXECUTE'),
@@ -137,7 +141,8 @@ ETAPA 5 — Verificação do banco (rode e me mostre cada resultado)
        'trg_protect_billing_columns','trg_protect_presentation_server_fields',
        'trg_protect_support_conversation_fields')
    order by 1;
-5.6 Restrições novas (esperado: 3 linhas, convalidated = false)
+5.6 Restrições novas (esperado: 3 linhas, convalidated = true: a migração corrige
+    as linhas antigas que passavam dos limites e valida as restrições)
   select conname, convalidated from pg_constraint
    where conname in ('presentations_ai_usage_nonnegative','presentations_prompt_field_sizes',
                      'profile_access_requests_message_len');
@@ -154,7 +159,13 @@ ETAPA 5 — Verificação do banco (rode e me mostre cada resultado)
    where status = 'running' and created_at < now() - interval '10 minutes';
   select public.refund_stale_generations();
   -- me mostre as duas saídas; a segunda devolve quantas foram estornadas
-  -- (refunded), quantas já tinham estorno manual (manual) e falhas (refund_failed).
+  -- (refunded), quantas coincidem com um estorno manual e foram para conferência
+  -- (possible_duplicates, alerta generation_refund_possible_duplicate) e falhas
+  -- (refund_failed).
+5.11 Números de chamado de suporte (esperado: proximo_numero maior que maior_ocupado)
+  select (select last_value from public.support_ticket_seq) as proximo_numero,
+         (select max(substring(ticket_id from 5)::bigint) from public.support_conversations
+           where ticket_id ~ '^TCK-[0-9]{1,18}$') as maior_ocupado;
 
 ETAPA 6 — Build e testes
   1. npm run build → sem erro.
@@ -183,7 +194,7 @@ do esperado; (d) o resumo dos testes. Não mude nada além do que foi pedido.
 2. **Faça o percurso completo com uma conta comum:**
    - gere uma apresentação: ela aparece como **Privada** no painel;
    - publique-a, regenere as falas e use o chat de edição.
-3. **Confira o redirecionamento:** logado, abra `https://slideai.com.br/auth?next=/%5Cexample.com`. Você deve cair no painel, não em outro site. Faça o mesmo login com Google a partir de `/auth?next=/perfil`: a volta deve ser em `/perfil`.
+3. **Confira o redirecionamento:** logado, abra `https://slideai.com.br/auth?next=/%5Cexample.com` e `https://slideai.com.br/auth?next=/.//example.com`. Nos dois você deve cair no painel, não em outro site. Faça o mesmo login com Google a partir de `/auth?next=/perfil`: a volta deve ser em `/perfil`.
 4. **Pagamento:** faça uma compra avulsa real com uma conta de teste e o reembolso dela. Confira em `credit_transactions`:
    - a concessão traz o `order_id`;
    - o estorno retira só os 500 daquele pedido.
@@ -196,7 +207,14 @@ do esperado; (d) o resumo dos testes. Não mude nada além do que foi pedido.
      - `https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.doubleclick.net` em `connect-src`.
 
      Depois, confira os eventos no painel do GA4.
-8. **Acompanhe os alertas** nas primeiras semanas. Os tipos novos são `refund_after_consumption` e `payment_other_subscription`; o que fazer em cada um está no [runbook](../operacao/runbooks.md#alertas).
+8. **Acompanhe os alertas** nas primeiras semanas. Os tipos novos são:
+   - `refund_after_consumption`;
+   - `payment_other_subscription`;
+   - `payment_after_refund`;
+   - `webhook_invalid_secret_partial`;
+   - `generation_refund_possible_duplicate`.
+
+   O que fazer em cada um está no [runbook](../operacao/runbooks.md#alertas).
 
 ---
 

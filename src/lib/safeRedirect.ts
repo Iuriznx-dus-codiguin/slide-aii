@@ -18,5 +18,9 @@ export function safeNextPath(raw: string | null | undefined, origin: string = wi
     return null;
   }
   if (url.origin !== new URL(origin).origin) return null;
-  return `${url.pathname}${url.search}${url.hash}`;
+  // A normalização some com "." e ".." mas mantém o segmento vazio seguinte:
+  // "/.//evil.com" vira "//evil.com", que o navegador lê como outro domínio.
+  const path = `${url.pathname}${url.search}${url.hash}`;
+  if (path.startsWith("//") || new URL(path, origin).origin !== url.origin) return null;
+  return path;
 }
