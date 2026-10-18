@@ -61,12 +61,13 @@ select created_at, recipient, status, error from email_log where event = 'ops_al
 | `webhook_not_configured` | `CAKTO_WEBHOOK_SECRET` não existe. | Crie o secret. |
 | `payment_user_not_found` | Pagamento, estorno ou cancelamento com e-mail que não tem conta. | [Pagamento aprovado, mas não liberado](#pagamento-aprovado-mas-não-liberado). Eventos de teste da Cakto também disparam: confira o e-mail. |
 | `payment_plan_not_resolved` | Pagamento de produto ou oferta fora do mapa de planos. | Inclua o id em `PLAN_BY_CHECKOUT_ID`/`PLAN_BY_PRODUCT_ID` (`cakto-webhook/lib.ts`) e peça o reenvio. |
-| `payment_process_error` | Erro ao aplicar um evento. | Veja `payment_events.error_message` e os logs da função. |
+| `payment_process_error` | Erro ao aplicar um evento (inclusive falha ao conceder ou retirar créditos). O evento fica com `processed = false`, os avisos por e-mail não saem e a resposta à Cakto é 500. | Veja `payment_events.error_message` e os logs da função. Corrija a causa e aplique o evento à mão: [Pagamento aprovado, mas não liberado](#pagamento-aprovado-mas-não-liberado). Um reenvio da Cakto é ignorado como duplicado. |
 | `generation_errors` | 25% ou mais das gerações falharam na última hora (mínimo de 3). | Veja `generation_logs` (campo `reason`) e o status dos provedores de IA. |
 | `generation_refund_failed` | Uma geração falhou e o estorno não rodou. | A varredura tenta de novo em até 15 minutos. Se o alerta se repetir, veja os logs de `generate-presentation`. |
 | `generation_stale` | Gerações interrompidas foram estornadas pela varredura. | Esporádico é normal. Frequente indica tempo limite: veja a duração em `generation_logs`. |
+| `generation_outcome_unrecorded` | Uma geração foi entregue, mas o banco não registrou o desfecho. | Confira a tentativa em `generation_attempts`; se ficou `running`, marque como `succeeded` antes da varredura estornar um deck entregue. |
 
-Sem nenhum admin com e-mail no perfil e sem `OPS_ALERT_EMAILS`, os alertas ficam pendentes (aparece `ops_alert_no_recipients` nos logs).
+Sem nenhum admin com e-mail no perfil e sem `OPS_ALERT_EMAILS`, os alertas ficam pendentes (aparece `ops_alert_no_recipients` nos logs). Um alerta cujo envio falhou para todos os destinatários volta para a fila e é reenviado por até 24 horas.
 
 ## Avisos por e-mail não saem
 

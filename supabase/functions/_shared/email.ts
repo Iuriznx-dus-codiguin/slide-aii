@@ -34,12 +34,26 @@ export const sendRenderedEmail = async (
   const to = opts.to?.trim().toLowerCase();
   if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return "failed";
 
-  const { data: row, error: insErr } = await admin.from("email_log").insert({
+  let { data: row, error: insErr } = await admin.from("email_log").insert({
     dedupe_key: opts.dedupeKey, event: opts.event, recipient: to, user_id: opts.userId ?? null,
   }).select("id").single();
-  if (insErr) {
-    if (insErr.code === "23505") return "duplicate";
-    console.error("email_log_insert_failed", insErr.message);
+  // Mesma chave já registrada: se o envio anterior FALHOU (ex.: instabilidade
+  // do provedor), reivindica o registro e tenta de novo; se foi enviado ou
+  // está em andamento, é repetição. A troca de status é atômica: duas
+  // execuções em paralelo não reenviam em dobro.
+  let retrying = false;
+  if (insErr?.code === "23505") {
+    const { data: reclaimed } = await admin.from("email_log")
+      .update({ status: "pending", error: null })
+      .eq("dedupe_key", opts.dedupeKey).eq("status", "failed")
+      .select("id");
+    if (!reclaimed?.length) return "duplicate";
+    row = reclaimed[0];
+    insErr = null;
+    retrying = true;
+  }
+  if (insErr || !row) {
+    console.error("email_log_insert_failed", insErr?.message);
     return "failed";
   }
 
@@ -58,7 +72,9 @@ export const sendRenderedEmail = async (
         "Content-Type": "application/json",
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "X-Connection-Api-Key": RESEND_API_KEY,
-        "Idempotency-Key": opts.dedupeKey.slice(0, 256),
+        // Nova tentativa usa outra chave: o provedor pode guardar a resposta
+        // de erro da primeira pela mesma chave.
+        "Idempotency-Key": (retrying ? `${opts.dedupeKey}:retry:${crypto.randomUUID().slice(0, 8)}` : opts.dedupeKey).slice(0, 256),
       },
       body: JSON.stringify({
         from: opts.from ?? FROM, to: [to], reply_to: REPLY_TO,

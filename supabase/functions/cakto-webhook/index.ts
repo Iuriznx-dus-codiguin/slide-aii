@@ -18,7 +18,7 @@ import {
   extractSubscriptionId, hasValidSecret, isActiveSubscriber, normalizeSecret, parseExpectedSecrets,
   PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
   SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
-  billingAlertFor, billingSnapshotFrom, pendingChargeFrom,
+  billingAlertFor, billingSnapshotFrom, must, mustReturn, pendingChargeFrom,
 } from "./lib.ts";
 import { createLogger, fingerprint } from "../_shared/observability.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
@@ -244,21 +244,19 @@ Deno.serve(async (req) => {
           patch.plan = "single";
           patch.subscription_status = null;
         }
-        await admin.from("profiles").update(patch).eq("id", userId);
+        must(await admin.from("profiles").update(patch).eq("id", userId), "profiles.update(single)");
         // Sem assinatura ativa, a sobra da cota mensal de uma assinatura
         // cancelada/vencida não pode voltar a valer junto com o avulso
         // (can_user_generate e consume_credits somam bônus + mensal).
         if (!prevIsSubscriber && (before?.credits_monthly ?? 0) > 0) {
-          const { error: zeroErr } = await admin.rpc("set_monthly_credits", {
+          mustReturn(await admin.rpc("set_monthly_credits", {
             _uid: userId, _amount: 0, _type: "subscription_ended",
-          });
-          if (zeroErr) log.error("zero_monthly_failed", { message: zeroErr.message });
+          }), "set_monthly_credits(0)");
         }
 
-        const { error: creditErr } = await admin.rpc("grant_bonus_credits", {
+        mustReturn(await admin.rpc("grant_bonus_credits", {
           _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
-        });
-        if (creditErr) log.error("grant_bonus_credits_failed", { message: creditErr.message });
+        }), "grant_bonus_credits");
       } else {
         const patch: Record<string, unknown> = {
           plan,
@@ -268,17 +266,16 @@ Deno.serve(async (req) => {
           cakto_subscription_id: subscriptionId ?? null,
         };
         if (renewsAt) patch.subscription_renews_at = renewsAt.toISOString();
-        await admin.from("profiles").update(patch).eq("id", userId);
+        must(await admin.from("profiles").update(patch).eq("id", userId), "profiles.update(subscription)");
 
         // Cota mensal SEMPRE redefinida (ativação ou renovação). O tipo da
         // transação diferencia as duas para a animação no app.
         const isRenewal = isRenewalEvent(event_type)
           || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
         const monthly = PLAN_MONTHLY_CREDITS[plan] ?? 0;
-        const { error: monthlyErr } = await admin.rpc("set_monthly_credits", {
+        mustReturn(await admin.rpc("set_monthly_credits", {
           _uid: userId, _amount: monthly, _type: isRenewal ? "subscription_renewal" : "subscription_monthly",
-        });
-        if (monthlyErr) log.error("set_monthly_credits_failed", { message: monthlyErr.message });
+        }), "set_monthly_credits");
 
         // Bônus permanente: UMA VEZ POR CONTA, nunca em renovação.
         //
@@ -292,11 +289,11 @@ Deno.serve(async (req) => {
         const signupBonus = PLAN_SIGNUP_BONUS[plan] ?? 0;
         let bonusGranted = false;
         if (!isRenewal && signupBonus > 0) {
-          const { data: bonusResult, error: bonusErr } = await admin.rpc("grant_bonus_credits_once", {
+          const bonusResult = mustReturn(await admin.rpc("grant_bonus_credits_once", {
             _uid: userId, _amount: signupBonus, _type: "subscription_signup_bonus",
-          });
-          if (bonusErr) log.error("grant_signup_bonus_failed", { message: bonusErr.message });
-          else bonusGranted = (bonusResult as { granted?: boolean } | null)?.granted === true;
+          }), "grant_bonus_credits_once") as { granted?: boolean; reason?: string };
+          if (bonusResult.reason === "no_profile") throw new Error("grant_bonus_credits_once: perfil não encontrado");
+          bonusGranted = bonusResult.granted === true;
         }
         if (bonusGranted) bonusForEmail = signupBonus;
         log.info("subscription_credits", { plan, monthly, isRenewal, signupBonus, bonusGranted });
@@ -333,29 +330,29 @@ Deno.serve(async (req) => {
       }
 
       if (scope.cancelSubscription) {
-        await admin.from("profiles").update({
+        must(await admin.from("profiles").update({
           subscription_status: "canceled",
           plan: "free",
           cakto_subscription_id: null,
-        }).eq("id", userId);
+        }).eq("id", userId), "profiles.update(refund)");
       }
-      const { data: revoked, error: revokeErr } = await admin.rpc("revoke_order_credits", {
+      const revoked = mustReturn(await admin.rpc("revoke_order_credits", {
         _uid: userId,
         _order_id: cakto_id ?? `${event_type}:${subscriptionId ?? "sem-id"}`,
         _revoke_bonus: scope.revokeBonus,
         _zero_monthly: scope.zeroMonthly,
         _type: "refund_revoke",
-      });
-      if (revokeErr) log.error("revoke_order_credits_failed", { message: revokeErr.message });
-      else log.info("credits_revoked", { revoked, scope: scope.kind });
+      }), "revoke_order_credits") as { ok?: boolean; reason?: string };
+      if (revoked.ok === false) throw new Error(`revoke_order_credits: ${revoked.reason ?? "falhou"}`);
+      log.info("credits_revoked", { revoked, scope: scope.kind });
 
     } else if (action === "canceled") {
       // Não apaga o plano: apenas marca canceled. Pelos Termos (seção 7), o
       // acesso e a cota continuam até subscription_renews_at — fim do período
       // pago — e só então o entitlement pausa as gerações (o bônus segue valendo).
-      await admin.from("profiles").update({
+      must(await admin.from("profiles").update({
         subscription_status: "canceled",
-      }).eq("id", userId);
+      }).eq("id", userId), "profiles.update(canceled)");
     } else if (action === "paused" || action === "resumed") {
       // Pausa suspende a cota mensal (o bônus permanente segue valendo);
       // retomar reativa sem recreditar — a cota volta na próxima renovação.
@@ -363,9 +360,9 @@ Deno.serve(async (req) => {
         .select("plan, cakto_subscription_id").eq("id", userId).maybeSingle();
       const sameSub = !subscriptionId || !cur?.cakto_subscription_id || cur.cakto_subscription_id === subscriptionId;
       if (cur?.plan && (SUBSCRIPTION_PLANS as readonly string[]).includes(cur.plan) && sameSub) {
-        await admin.from("profiles").update({
+        must(await admin.from("profiles").update({
           subscription_status: action === "paused" ? "paused" : "active",
-        }).eq("id", userId);
+        }).eq("id", userId), "profiles.update(pause)");
       } else {
         log.info("pause_resume_skipped", { event_type, sameSub });
       }
@@ -373,8 +370,12 @@ Deno.serve(async (req) => {
       log.info("event_ignored", { event_type, status });
     }
 
-    await admin.from("payment_events").update({ processed: true }).eq("id", eventRowId);
+    const { error: markErr } = await admin.from("payment_events").update({ processed: true }).eq("id", eventRowId);
+    if (markErr) log.error("payment_event_mark_failed", { message: markErr.message });
   } catch (e) {
+    // O evento fica com processed=false e o erro gravado. Um reenvio da Cakto
+    // cai na idempotência (duplicate); o acerto é manual, pelo runbook
+    // "pagamento não liberado", a partir deste alerta.
     log.error("process_error", { message: e instanceof Error ? e.message : String(e) });
     await raiseOpsAlert(admin, {
       kind: "payment_process_error", severity: "critical", dedupeKey: `payment_process_error:${eventRowId}`,
@@ -384,6 +385,9 @@ Deno.serve(async (req) => {
     await admin.from("payment_events").update({
       error_message: e instanceof Error ? e.message : String(e),
     }).eq("id", eventRowId);
+    // Sem os avisos de ciclo de vida: não dizemos "compra aprovada" a quem
+    // ainda não recebeu os créditos.
+    return json({ error: "processing_failed" }, 500);
   }
 
   // ── Avisos por e-mail: dados de cobrança + envio/agendamento ──

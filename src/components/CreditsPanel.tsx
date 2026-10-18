@@ -19,6 +19,7 @@ interface Tx {
 const TYPE_LABELS: Record<string, string> = {
   consume: "Geração de apresentação",
   generation_refund: "Devolução de geração com falha",
+  generation_shortfall_refund: "Devolução de slides não entregues",
   monthly_reset: "Renovação mensal do plano",
   monthly_grant: "Créditos mensais do plano",
   subscription_monthly: "Cota do plano (ativação)",

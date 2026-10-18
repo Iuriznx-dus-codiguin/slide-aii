@@ -99,6 +99,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Orçamento de tempo da geração. A plataforma encerra a função em 150 s; sem
+ * teto, um provedor lento derrubava a requisição com erro genérico e o
+ * estorno só vinha pela varredura. Cada chamada de IA recebe um timeout que
+ * cabe no que resta, com folga para estornar e responder.
+ */
+export const GENERATION_BUDGET_MS = 135_000;
+const AI_TIMEOUT_MESSAGE = "A IA demorou demais para responder — tente de novo, de preferência com menos slides.";
+export const isTimeoutError = (e: unknown): boolean =>
+  e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+
 // Custos: vêm do registro único (_shared/modelRegistry.ts). O custo real de
 // texto é calculado a partir do `usage` devolvido por cada chamada; o das
 // imagens é o custo por imagem do modo × imagens planejadas (o custo exato de
@@ -359,6 +370,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const t0 = Date.now();
+  const deadline = t0 + GENERATION_BUDGET_MS;
+  const remainingMs = () => deadline - Date.now();
+  /** Timeout de uma chamada de IA: até `cap`, sem passar do que resta (−15 s de folga). */
+  const aiSignal = (cap: number) => AbortSignal.timeout(Math.max(5_000, Math.min(cap, remainingMs() - 15_000)));
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -760,6 +775,7 @@ Deno.serve(async (req) => {
         storyOutline,
         plan,
         providerKeys,
+        deadline,
       );
       if (!content.ok) {
         return await failGeneration({ code: content.code, message: content.message, status: content.status, detail: content.detail });
@@ -968,15 +984,18 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestPayload),
+        signal: aiSignal(110_000),
       });
 
-      if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status)) {
+      // Fallback só se ainda houver tempo para uma segunda chamada completa.
+      if (!aiResponse.ok && useOpenAI && LOVABLE_API_KEY && ![429, 402].includes(aiResponse.status) && remainingMs() > 30_000) {
         const errBody = await aiResponse.text().catch(() => "");
         console.warn("OpenAI falhou com status", aiResponse.status, "err=", errBody.slice(0, 600), "— tentando fallback Gemini");
         aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({ ...requestPayload, model: "google/gemini-2.5-pro" }),
+          signal: aiSignal(90_000),
         });
         usedModel = "google/gemini-2.5-pro";
       }
@@ -1044,7 +1063,7 @@ Deno.serve(async (req) => {
 
       // Se veio muito menos que o pedido, tenta uma segunda passagem pelo Gemini
       // exigindo o número exato de slides. Evita cair no fallback com 1 slide só.
-      if (parsed.slides.length < Math.max(MIN_SLIDES, Math.ceil(slidesCount * 0.7)) && LOVABLE_API_KEY) {
+      if (parsed.slides.length < Math.max(MIN_SLIDES, Math.ceil(slidesCount * 0.7)) && LOVABLE_API_KEY && remainingMs() > 45_000) {
         console.warn("Contagem de slides baixa:", parsed.slides.length, "de", slidesCount, "— nova tentativa Gemini");
         try {
           const tRetry = Date.now();
@@ -1059,6 +1078,7 @@ Deno.serve(async (req) => {
                 { role: "user", content: `${userPrompt}\n\nATENÇÃO: devolva EXATAMENTE ${slidesCount} slides no array 'slides'. Nem mais, nem menos. Cada slide completo (Passo C).` },
               ],
             }),
+            signal: aiSignal(90_000),
           });
           if (retry.ok) {
             const rdata = await retry.json();
@@ -1255,28 +1275,52 @@ Deno.serve(async (req) => {
       }
     }
 
+    const slidesTotal = persistOnServer ? rows.length : legacySlides.length;
+
+    // A cobrança foi pelo número de slides pedido. Se a IA entregou menos,
+    // devolve a diferença (10 créditos por slide); a função é idempotente
+    // por tentativa e reduz a tentativa, então a varredura não estorna o
+    // valor cheio depois.
+    let shortfallRefunded = 0;
+    if (creditsCharged > 0 && slidesTotal < requestedSlides) {
+      const { data: sf, error: sfErr } = await admin.rpc("refund_generation_shortfall", {
+        _uid: userId, _credits: (requestedSlides - slidesTotal) * CREDITS_PER_SLIDE, _reference: attemptRef,
+      });
+      if (sfErr) console.warn("refund_generation_shortfall falhou:", sfErr.code, sfErr.message);
+      else if ((sf as { refunded?: boolean } | null)?.refunded) {
+        shortfallRefunded = Number((sf as { credits?: number }).credits) || 0;
+      }
+    }
+
     // Desfecho da tentativa cobrada: sucesso (a varredura de estorno ignora).
+    // Uma falha aqui é rara, mas faria a varredura estornar um deck entregue:
+    // tenta de novo e, persistindo, avisa a equipe.
+    const outcomeErrors: string[] = [];
     if (creditsCharged > 0) {
-      const { error: attemptErr } = await admin.from("generation_attempts")
+      const markSucceeded = () => admin.from("generation_attempts")
         .update({ status: "succeeded", finished_at: new Date().toISOString() }).eq("id", attemptRef);
-      if (attemptErr) console.error("generation_attempts_update_failed", attemptErr.message);
+      let { error: attemptErr } = await markSucceeded();
+      if (attemptErr) ({ error: attemptErr } = await markSucceeded());
+      if (attemptErr) {
+        console.error("generation_attempts_update_failed", attemptErr.message);
+        outcomeErrors.push(`tentativa: ${attemptErr.message}`);
+      }
     }
 
     // Contador de perfil incrementado no servidor (antes era autodeclarado
     // pelo cliente, o que podia divergir de generation_logs).
     await admin.rpc("increment_profile_generations", { _uid: userId });
 
-    const slidesTotal = persistOnServer ? rows.length : legacySlides.length;
     // Log de sucesso para o painel de métricas Dev: latência, tokens reais,
     // comandos, fallbacks e imagens solicitadas × exibidas, por etapa.
-    await admin.from("generation_logs").insert({
+    const successLog = {
       user_id: userId,
       status: "success",
       reason: ent.reason,
       model: contentModel,
       mode: budgetMode,
       slides_count: slidesTotal,
-      credits_charged: isDev ? 0 : creditsCost,
+      credits_charged: isDev ? 0 : creditsCost - shortfallRefunded,
       images_pexels: imagesPexels,
       images_ai: imagesAi,
       estimated_cost_usd: estimatedCost,
@@ -1288,6 +1332,8 @@ Deno.serve(async (req) => {
         title: body.title,
         type: body.type,
         plan: ent.plan,
+        slides_requested: requestedSlides,
+        credits_shortfall_refunded: shortfallRefunded,
         creative_brief_style: creativeBrief.visual_style,
         domain: creativeBrief.domain ?? null,
         arc_shape: storyOutline.arc_shape,
@@ -1325,7 +1371,25 @@ Deno.serve(async (req) => {
           ai_visuals_used: resolveReport.ai_visuals_used,
         } : {}),
       },
-    });
+    };
+    let { error: logErr } = await admin.from("generation_logs").insert(successLog);
+    if (logErr) ({ error: logErr } = await admin.from("generation_logs").insert(successLog));
+    if (logErr) {
+      console.error("generation_logs_insert_failed", logErr.message);
+      outcomeErrors.push(`log: ${logErr.message}`);
+    }
+    if (creditsCharged > 0 && outcomeErrors.length) {
+      await raiseOpsAlert(admin, {
+        kind: "generation_outcome_unrecorded", severity: "warning",
+        dedupeKey: `generation_outcome_unrecorded:${attemptRef}`,
+        title: "Geração entregue sem desfecho registrado",
+        details: {
+          usuario: userId, tentativa: attemptRef, apresentacao: persisted?.ok ? persisted.id : null,
+          erros: outcomeErrors.join(" | ").slice(0, 300),
+          observacao: "Se a tentativa ficou 'running', a varredura vai estornar um deck que foi entregue.",
+        },
+      });
+    }
 
     const metrics = {
       actual_cost_usd: actualCost,
@@ -1335,6 +1399,7 @@ Deno.serve(async (req) => {
       engine_version: engine,
       engine_requested: engineDecision.requested,
       engine_reason: engineDecision.reason,
+      credits_shortfall_refunded: shortfallRefunded,
     };
 
     if (persisted?.ok) {
@@ -1362,6 +1427,14 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("generate-presentation error:", e);
+    if (isTimeoutError(e)) {
+      return await failGeneration({
+        code: "ai_timeout",
+        message: AI_TIMEOUT_MESSAGE,
+        status: 504,
+        detail: { elapsed_ms: Date.now() - t0 },
+      });
+    }
     return await failGeneration({
       code: "internal_error",
       message: "Algo quebrou no meio da geração. O erro foi registrado para a equipe.",

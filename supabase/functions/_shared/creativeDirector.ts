@@ -266,9 +266,29 @@ export function buildDefaultBrief(input: BriefInput): CreativeBrief {
   };
 }
 
-function withDefaults(partial: Partial<CreativeBrief>, input: BriefInput): CreativeBrief {
+/** Campos do brief que são texto: valor de outro tipo vindo da IA cai no padrão. */
+const BRIEF_STRING_FIELDS = [
+  "objective", "audience", "technical_level", "visual_style", "formality", "emotional_identity",
+  "pacing", "visual_density", "contrast", "hierarchy_strength", "spacing", "asymmetry",
+  "narrative_type", "element_density", "rationale",
+] as const;
+const BRIEF_DEGREES = ["minimalism_degree", "creativity_degree", "abstraction_degree"] as const;
+
+export function withDefaults(partial: Partial<CreativeBrief>, input: BriefInput): CreativeBrief {
   const base = buildDefaultBrief(input);
   const merged = { ...base, ...partial };
+  // A IA às vezes devolve null, "0.7" ou fora de faixa. Sem isto, um grau não
+  // numérico derrubava a geração (toFixed) e todas as edições por chat.
+  for (const k of BRIEF_DEGREES) {
+    const n = Number(merged[k]);
+    merged[k] = Number.isFinite(n) ? clamp01(n) : base[k];
+  }
+  for (const k of BRIEF_STRING_FIELDS) {
+    if (typeof merged[k] !== "string") (merged as Record<string, unknown>)[k] = base[k];
+  }
+  for (const k of ["allowed_transitions", "forbidden_effects"] as const) {
+    if (!Array.isArray(merged[k]) || merged[k].some((v) => typeof v !== "string")) merged[k] = base[k];
+  }
   // Domínio fora do catálogo nunca chega ao Plano Visual.
   if (!isDomain(merged.domain)) merged.domain = base.domain;
   return merged;

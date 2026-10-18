@@ -7,6 +7,7 @@
 // ============================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AI_ENDPOINTS, TEXT_STAGES } from "../_shared/modelRegistry.ts";
+import { speechesByPosition } from "./lib.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,9 @@ const corsHeaders = {
 };
 
 export const MAX_SPEECH_REGENS = 5;
+/** Teto por conta, além do limite por apresentação. */
+export const MAX_SPEECH_REGENS_PER_HOUR = 10;
+const SPEECH_TIMEOUT_MS = 45_000;
 const LIMIT_MESSAGE = "Limite de regenerações de falas atingido para esta apresentação.";
 
 const json = (body: unknown, status = 200) =>
@@ -35,7 +39,12 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) return json({ error: "Sessão inválida." }, 401);
   const userId = userData.user.id;
 
-  let body: { presentationId?: string; scope?: "slide" | "all"; slideIndex?: number };
+  const { data: withinLimit } = await admin.rpc("check_rate_limit", {
+    _key: `user:${userId}`, _fn: "regenerate-speeches", _max_per_hour: MAX_SPEECH_REGENS_PER_HOUR,
+  });
+  if (withinLimit === false) return json({ error: "Muitas regenerações em pouco tempo. Aguarde alguns minutos." }, 429);
+
+  let body: { presentationId?: string; scope?: "slide" | "all"; slideIndex?: number; slideId?: string };
   try {
     body = await req.json();
   } catch {
@@ -44,6 +53,9 @@ Deno.serve(async (req) => {
   const presentationId = String(body.presentationId ?? "");
   const scope = body.scope === "all" ? "all" : "slide";
   const slideIndex = Number.isInteger(body.slideIndex) ? Number(body.slideIndex) : 0;
+  // O id do slide é o alvo preferido: o índice da tela pode não bater com a
+  // posição gravada (reordenação ainda não salva).
+  const slideId = typeof body.slideId === "string" ? body.slideId : null;
   if (!presentationId) return json({ error: "Apresentação não informada." }, 400);
 
   // Elegibilidade (não consome geração — função somente-leitura)
@@ -87,7 +99,9 @@ Deno.serve(async (req) => {
 
   const targets = scope === "all"
     ? slideRows
-    : slideRows.filter((s) => s.position === slideIndex);
+    : slideId
+      ? slideRows.filter((s) => s.id === slideId)
+      : slideRows.filter((s) => s.position === slideIndex);
   if (!targets.length) return json({ error: "Slide não encontrado." }, 404);
 
   const deckMap = slideRows
@@ -114,6 +128,27 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return json({ error: "IA não configurada." }, 500);
 
+  // Cota reservada ANTES da IA, numa instrução que confere o teto: pedidos em
+  // paralelo não passam mais do limite. Qualquer falha devolve a reserva.
+  let atomicQuota = true;
+  let usedAfter = used + 1;
+  {
+    const { data: rsv, error: rsvErr } = await admin.rpc("reserve_speech_regen", {
+      _presentation_id: presentationId, _uid: userId, _max: MAX_SPEECH_REGENS,
+    });
+    if (rsvErr && (rsvErr.code === "42883" || rsvErr.code === "PGRST202")) atomicQuota = false;
+    else if (rsvErr) return json({ error: "Falha ao gerar falas. Tente novamente." }, 500);
+    else if (!(rsv as { ok?: boolean } | null)?.ok) return json({ error: LIMIT_MESSAGE, limitReached: true }, 429);
+    else usedAfter = Number((rsv as { used?: number }).used) || usedAfter;
+  }
+  const releaseQuota = async () => {
+    if (atomicQuota) await admin.rpc("release_speech_regen", { _presentation_id: presentationId, _uid: userId });
+  };
+  const fail = async (error: string, status: number) => {
+    await releaseQuota();
+    return json({ error }, status);
+  };
+
   const tool = {
     type: "function",
     function: {
@@ -127,7 +162,7 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
             items: {
               type: "object",
               properties: {
-                position: { type: "number" },
+                position: { type: "number", description: "Número do slide exatamente como em \"SLIDE N\" (a partir de 1)." },
                 presenters: {
                   type: "array",
                   items: {
@@ -154,40 +189,45 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
   };
 
   // Modelo da etapa vem do registro único (_shared/modelRegistry.ts).
-  const resp = await fetch(AI_ENDPOINTS.gateway, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: TEXT_STAGES.speeches.gateway,
-      messages: [{ role: "user", content: prompt }],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "set_speeches" } },
-    }),
-  });
-
-  if (resp.status === 429) return json({ error: "Muitas requisições de IA. Tente em instantes." }, 429);
-  if (resp.status === 402) return json({ error: "Créditos de IA insuficientes." }, 402);
-  if (!resp.ok) {
-    console.error("regenerate-speeches: AI error", resp.status, await resp.text());
-    return json({ error: "Falha ao gerar falas. Tente novamente." }, 500);
+  let resp: Response;
+  let aiJson: any;
+  try {
+    resp = await fetch(AI_ENDPOINTS.gateway, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: TEXT_STAGES.speeches.gateway,
+        messages: [{ role: "user", content: prompt }],
+        tools: [tool],
+        tool_choice: { type: "function", function: { name: "set_speeches" } },
+      }),
+      signal: AbortSignal.timeout(SPEECH_TIMEOUT_MS),
+    });
+    if (resp.status === 429) return await fail("Muitas requisições de IA. Tente em instantes.", 429);
+    if (resp.status === 402) return await fail("Créditos de IA insuficientes.", 402);
+    if (!resp.ok) {
+      console.error("regenerate-speeches: AI error", resp.status, await resp.text());
+      return await fail("Falha ao gerar falas. Tente novamente.", 500);
+    }
+    aiJson = await resp.json();
+  } catch (e) {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    console.error("regenerate-speeches: AI request failed", e instanceof Error ? e.message : e);
+    return await fail(timedOut ? "A IA demorou demais para responder. Tente de novo." : "Falha ao gerar falas. Tente novamente.", timedOut ? 504 : 500);
   }
 
-  const aiJson = await resp.json();
   const call = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
   let parsed: any = {};
   try {
     parsed = JSON.parse(call?.function?.arguments ?? "{}");
   } catch {
-    return json({ error: "Resposta da IA inválida." }, 500);
+    return await fail("Resposta da IA inválida.", 500);
   }
-  const bySlide = new Map<number, any[]>();
-  for (const s of parsed.slides ?? []) {
-    if (Array.isArray(s?.presenters)) bySlide.set(Number(s.position), s.presenters);
-  }
+  const bySlide = speechesByPosition(parsed.slides ?? [], slideRows.length);
 
-  const updated: Array<{ position: number; presenters_data: any[] }> = [];
+  const updated: Array<{ id: string; position: number; presenters_data: any[] }> = [];
   for (const s of targets as any[]) {
-    const fromAi = bySlide.get(s.position + 1) ?? bySlide.get(s.position);
+    const fromAi = bySlide.get(s.position) as any[] | undefined;
     if (!fromAi) continue;
     const presenters_data = names.map((name, i) => {
       const src = fromAi.find((p: any) => p?.name === name) ?? fromAi[i] ?? {};
@@ -203,16 +243,19 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
       .update({ presenters_data })
       .eq("id", s.id);
     if (upErr) console.error("regenerate-speeches: update err", upErr);
-    else updated.push({ position: s.position, presenters_data });
+    else updated.push({ id: s.id, position: s.position, presenters_data });
   }
 
-  if (!updated.length) return json({ error: "A IA não retornou falas. Tente novamente." }, 500);
+  if (!updated.length) return await fail("A IA não retornou falas. Tente novamente.", 500);
 
-  const remaining = Math.max(0, MAX_SPEECH_REGENS - (used + 1));
-  await admin
-    .from("presentations")
-    .update({ speech_regen_count: used + 1 })
-    .eq("id", presentationId);
+  // Sem a migração 0010 o contador é gravado aqui, como antes.
+  if (!atomicQuota) {
+    await admin
+      .from("presentations")
+      .update({ speech_regen_count: used + 1 })
+      .eq("id", presentationId);
+  }
+  const remaining = Math.max(0, MAX_SPEECH_REGENS - usedAfter);
 
-  return json({ updated, used: used + 1, remaining, max: MAX_SPEECH_REGENS });
+  return json({ updated, used: usedAfter, remaining, max: MAX_SPEECH_REGENS });
 });

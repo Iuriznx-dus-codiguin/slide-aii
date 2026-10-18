@@ -349,8 +349,11 @@ const Editor = () => {
     if (!pres || regeneratingSpeech) return;
     setRegeneratingSpeech(scope);
     try {
+      // O servidor escreve as falas a partir dos slides GRAVADOS: com
+      // alterações pendentes (texto novo, reordenação), salva antes.
+      if (dirty) await save(true);
       const { data, error } = await supabase.functions.invoke("regenerate-speeches", {
-        body: { presentationId: pres.id, scope, slideIndex: activeIdx },
+        body: { presentationId: pres.id, scope, slideIndex: activeIdx, slideId: slides[activeIdx]?.id },
       });
       const payload: any = data ?? {};
       if (error || payload?.error) {
@@ -362,7 +365,9 @@ const Editor = () => {
       setSlides((prev) => {
         const copy = [...prev];
         for (const u of payload.updated ?? []) {
-          const i = copy.findIndex((_, idx) => idx === u.position);
+          // Pelo id do slide (a posição na tela pode ter mudado); servidor
+          // antigo devolve só a posição.
+          const i = u.id ? copy.findIndex((s) => s.id === u.id) : copy.findIndex((_, idx) => idx === u.position);
           if (i >= 0) copy[i] = { ...copy[i], presenters_data: u.presenters_data };
         }
         return copy;
@@ -569,6 +574,11 @@ const Editor = () => {
       // Aplicar updates: mantém ID e position originais por índice
       pushSnapshot();
       const updated = (data.slides as any[]).map((ns, i) => ({
+        // Colunas que não vão para a IA (falas dos apresentadores, que são
+        // pagas, e o que mais existir no slide) vêm do slide atual. Antes o
+        // objeto era montado só com o que a IA devolvia e o save gravava
+        // presenters_data = []: qualquer mensagem no chat apagava as falas.
+        ...slides[i],
         id: slides[i]?.id ?? crypto.randomUUID(),
         position: i,
         slide_type: ns.slide_type ?? slides[i]?.slide_type ?? "content",

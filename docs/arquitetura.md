@@ -80,6 +80,10 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `charge_generation` | Débito de uma geração + registro da tentativa, na mesma transação |
 | `refund_generation_credits` | Estorno idempotente por tentativa de geração (usa o débito da própria tentativa) |
 | `refund_stale_generations(_if_due)` | Estorno das tentativas sem desfecho há mais de 10 minutos (pg_cron e `record_access`) |
+| `refund_generation_shortfall` | Devolve a diferença quando a geração entrega menos slides do que os cobrados (idempotente por tentativa) |
+| `reserve_ai_edit` / `release_ai_edit` | Cota do chat de edição reservada antes da IA, numa instrução que confere o teto; devolvida em falha |
+| `reserve_speech_regen` / `release_speech_regen` | Mesma regra para a regeneração de falas (5 por apresentação) |
+| `release_presentation_asset` | Devolve uma imagem da cota da apresentação quando a geração não entrega |
 | `set_monthly_credits`, `grant_bonus_credits(_once)`, `revoke_order_credits` | Operações do webhook de pagamento |
 | `add_ai_edit_usage` | Contador do assistente de edição (servidor) |
 | `accept_legal_terms`, `record_access`, `purge_expired_data` | Conformidade legal |
