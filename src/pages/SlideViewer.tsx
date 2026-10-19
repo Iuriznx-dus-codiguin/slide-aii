@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X, Globe, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import { SlideStage } from "@/components/SlideStage";
-import { ExportMenu } from "@/components/ExportMenu";
+import { ExportMenu, type ExportDeck } from "@/components/ExportMenu";
 import { CinematicHUD, actForSlide, type NarrativeAct } from "@/components/CinematicHUD";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,7 +18,7 @@ import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAss
 import { saveResolvedAsset } from "@/lib/assetWrite";
 
 interface Pres {
-  id: string; user_id?: string; title: string; description: string | null; theme: string; font_style: string; slug: string;
+  id: string; is_published?: boolean; is_owner?: boolean; title: string; description: string | null; theme: string; font_style: string; slug: string;
   include_speeches?: boolean; presenters_names?: string[];
   dynamic_theme?: any;
   // Fase 1: brief do Creative Director Engine, consumido pelo Motion Director
@@ -47,14 +47,18 @@ const SlideViewer = () => {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const { data: p } = await supabase.from("presentations").select("id,user_id,title,description,theme,font_style,slug,include_speeches,presenters_names,dynamic_theme,creative_brief").eq("slug", slug).maybeSingle();
+      // Uma chamada devolve o deck do slug (publicado, ou privado do próprio
+      // dono). As tabelas não são mais legíveis por visitantes.
+      const { data } = await supabase.rpc("get_shared_presentation", { _slug: slug });
+      const deck = data as unknown as { presentation: Pres; slides: SlideRow[] } | null;
+      const p = deck?.presentation;
       if (!p) { setLoading(false); return; }
-      setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? (p.presenters_names as string[]) : [] } as unknown as Pres);
+      setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? p.presenters_names : [] });
       document.title = `${p.title} — SlideAI`;
-      const { data: s } = await supabase.from("slides").select("id,position,slide_type,layout_template,content,speaker_notes,presenters_data").eq("presentation_id", p.id).order("position");
-      setSlides(((s as any[]) ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })) as any);
+      setSlides((deck.slides ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })));
       setLoading(false);
-      supabase.from("slide_views").insert({ presentation_id: p.id, user_agent: navigator.userAgent }).then(() => {});
+      // O servidor só conta deck publicado, sem o dono e sem repetir o visitante.
+      if (p.is_published && !p.is_owner) supabase.rpc("record_slide_view", { _presentation_id: p.id }).then(() => {});
     })();
   }, [slug]);
 
@@ -63,7 +67,7 @@ const SlideViewer = () => {
   // compartilhado sem passar pelo Editor ficava sem fotos. Visitantes não
   // disparam buscas (custo e cota são do dono).
   const { user } = useAuth();
-  const isOwner = !!user && !!pres?.user_id && pres.user_id === user.id;
+  const isOwner = !!user && !!pres?.is_owner;
   const slidesRef = useRef(slides);
   useEffect(() => { slidesRef.current = slides; }, [slides]);
   const onAssetResolved = useCallback(async (slideId: string, patch: AssetPatch) => {
@@ -117,8 +121,27 @@ const SlideViewer = () => {
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
-    toast.success("Link copiado!");
+    toast.success(pres?.is_published === false ? "Link copiado. Publique para que outras pessoas consigam abrir." : "Link copiado!");
   };
+
+  const [publishing, setPublishing] = useState(false);
+  const togglePublished = async () => {
+    if (!pres) return;
+    setPublishing(true);
+    const next = !pres.is_published;
+    const { error } = await supabase.from("presentations").update({ is_published: next }).eq("id", pres.id);
+    setPublishing(false);
+    if (error) { toast.error("Não foi possível alterar a visibilidade."); return; }
+    setPres((cur) => (cur ? { ...cur, is_published: next } : cur));
+    toast.success(next ? "Apresentação publicada: quem tiver o link consegue abrir." : "Apresentação privada: só você abre.");
+  };
+
+  // Export a partir do que já está na tela (o visitante não lê as tabelas).
+  const getDeck = useCallback((): ExportDeck => ({
+    slides: slidesRef.current,
+    dynamicTheme: pres?.dynamic_theme ?? null,
+    creativeBrief: pres?.creative_brief ?? null,
+  }), [pres?.dynamic_theme, pres?.creative_brief]);
 
   // touch swipe
   useEffect(() => {
@@ -146,6 +169,7 @@ const SlideViewer = () => {
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="text-center">
         <h1 className="font-display text-3xl font-bold">Apresentação não encontrada</h1>
+        <p className="text-muted-foreground mt-2">O link pode estar incorreto, ou o autor deixou a apresentação privada.</p>
         <Link to="/" className="text-primary underline mt-4 inline-block">Voltar para o início</Link>
       </div>
     </div>
@@ -177,6 +201,18 @@ const SlideViewer = () => {
               </PopoverTrigger>
               <PopoverContent className="w-64">
                 <div className="space-y-2">
+                  {isOwner && (
+                    <div className="rounded-md border border-border p-2.5 space-y-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        {pres.is_published ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                        {pres.is_published ? "Publicada: quem tiver o link abre." : "Privada: só você abre."}
+                      </p>
+                      <Button size="sm" variant={pres.is_published ? "outline" : "default"} className="w-full" onClick={togglePublished} disabled={publishing}>
+                        {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {pres.is_published ? "Tornar privada" : "Publicar"}
+                      </Button>
+                    </div>
+                  )}
                   <Button variant="outline" size="sm" className="w-full justify-start" onClick={copyLink}><Copy className="h-4 w-4" /> Copiar link</Button>
                   <a href={`https://wa.me/?text=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">
                     <Button variant="outline" size="sm" className="w-full justify-start">WhatsApp</Button>
@@ -190,7 +226,7 @@ const SlideViewer = () => {
             {pres.include_speeches && (
               <PresenterNotesPopover slide={current} slideIndex={idx} presentersNames={pres.presenters_names ?? []} />
             )}
-            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
+            <ExportMenu presentationId={pres.id} getDeck={getDeck} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               <span className="hidden md:inline ml-1">Apresentar</span>

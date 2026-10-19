@@ -1360,6 +1360,7 @@ export type Database = {
           website: string
         }[]
       }
+      get_shared_presentation: { Args: { _slug: string }; Returns: Json }
       grant_bonus_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
@@ -1383,6 +1384,10 @@ export type Database = {
       purge_expired_data: { Args: never; Returns: Json }
       purge_ops_data: { Args: never; Returns: Json }
       record_access: { Args: { _event?: string }; Returns: undefined }
+      record_slide_view: {
+        Args: { _presentation_id: string }
+        Returns: undefined
+      }
       refund_generation_credits: {
         Args: {
           _credits: number
@@ -1426,6 +1431,7 @@ export type Database = {
         Args: { _days: number; _hour: number; _ts: string }
         Returns: string
       }
+      staff_content_stats: { Args: never; Returns: Json }
       subscription_is_current: {
         Args: { _plan: string; _renews_at: string; _status: string }
         Returns: boolean

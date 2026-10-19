@@ -15,6 +15,7 @@ import {
   ArrowLeft, Save, Undo2, Redo2, Plus, Trash2, ZoomIn, ZoomOut, Play,
   Type, Image as ImageIcon, Wand2, Layout as LayoutIcon, FileText, Loader2,
   GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users, Shapes,
+  Globe, Lock,
 } from "lucide-react";
 import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
 import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
@@ -84,6 +85,8 @@ interface SlideRow {
 interface Pres {
   id: string; title: string; slug: string; theme: string; font_style: string;
   include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
+  /** Publicada = quem tem o link abre em /slides/:slug. Nasce privada. */
+  is_published?: boolean;
   /** 1 = motor principal, 2 = motor de cenas (teste); selo só para devs. */
   engine_version?: number;
 }
@@ -205,8 +208,19 @@ const Editor = () => {
     if (!slug || authLoading) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version").eq("slug", slug).maybeSingle();
-      if (!p) { setLoading(false); return; }
+        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version,is_published").eq("slug", slug).maybeSingle();
+      if (!p) {
+        // Deck de outra pessoa não aparece aqui (RLS). Se estiver publicado,
+        // abre no modo apresentação.
+        const { data: shared } = await supabase.rpc("get_shared_presentation", { _slug: slug });
+        if (shared) {
+          toast.message("Esta apresentação é de outra pessoa — abrindo no modo apresentação.");
+          navigate(`/slides/${slug}`, { replace: true });
+          return;
+        }
+        setLoading(false);
+        return;
+      }
       // Só o dono edita. Uma apresentação pública de outra pessoa abria o
       // Editor (salvar falhava no RLS, mas as imagens pendentes eram buscadas
       // por conta da plataforma) — agora vai para o modo apresentação.
@@ -492,6 +506,18 @@ const Editor = () => {
     }
   }, [pres, slides, dynamicTheme]);
 
+  const [publishing, setPublishing] = useState(false);
+  const togglePublished = async () => {
+    if (!pres) return;
+    setPublishing(true);
+    const next = !pres.is_published;
+    const { error } = await supabase.from("presentations").update({ is_published: next }).eq("id", pres.id);
+    setPublishing(false);
+    if (error) { toast.error("Não foi possível alterar a visibilidade."); return; }
+    setPres((cur) => (cur ? { ...cur, is_published: next } : cur));
+    toast.success(next ? "Apresentação publicada: quem tiver o link consegue abrir." : "Apresentação privada: só você abre.");
+  };
+
   // Auto-save a cada 30s, apenas quando há mudança pendente.
   useEffect(() => {
     if (!pres) return;
@@ -705,6 +731,14 @@ const Editor = () => {
                 <Users className="h-4 w-4" /> <span className="hidden md:inline">Falas</span>
               </Button>
             )}
+            <Button
+              variant="ghost" size="sm" onClick={togglePublished} disabled={publishing}
+              title={pres.is_published ? "Publicada: quem tiver o link abre. Clique para tornar privada." : "Privada: só você abre. Clique para publicar."}
+              aria-label={pres.is_published ? "Tornar apresentação privada" : "Publicar apresentação"}
+            >
+              {pres.is_published ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+              <span className="hidden md:inline">{pres.is_published ? "Publicada" : "Privada"}</span>
+            </Button>
             <Link to={`/slides/${pres.slug}`} target="_blank">
               <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
             </Link>

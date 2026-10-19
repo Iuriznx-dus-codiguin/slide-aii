@@ -4,7 +4,7 @@ const ALLOWED = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const MAX_BYTES = 4 * 1024 * 1024;
 const TEN_YEARS = 60 * 60 * 24 * 3650;
 
-export type AvatarUploadResult = { url: string } | { error: string };
+export type AvatarUploadResult = { url: string; path: string } | { error: string };
 
 /**
  * Envia a foto de perfil para o bucket privado `avatars` e devolve uma URL assinada
@@ -24,5 +24,15 @@ export async function uploadAvatar(userId: string, file: File): Promise<AvatarUp
 
   const { data, error } = await supabase.storage.from("avatars").createSignedUrl(path, TEN_YEARS);
   if (error || !data?.signedUrl) return { error: error?.message ?? "Não foi possível gerar o link da imagem." };
-  return { url: data.signedUrl };
+  return { url: data.signedUrl, path };
+}
+
+/**
+ * Apaga as fotos da pasta do usuário, exceto `keepPath`. Cada envio cria um
+ * arquivo novo, e trocar ou remover a foto deixava os antigos no bucket.
+ */
+export async function deleteAvatarFiles(userId: string, keepPath?: string): Promise<void> {
+  const { data } = await supabase.storage.from("avatars").list(userId, { limit: 100 });
+  const paths = (data ?? []).map((f) => `${userId}/${f.name}`).filter((p) => p !== keepPath);
+  if (paths.length) await supabase.storage.from("avatars").remove(paths);
 }

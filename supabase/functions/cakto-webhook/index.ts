@@ -125,25 +125,24 @@ Deno.serve(async (req) => {
 
   // Resolve o user_id pelo e-mail.
   //
-  // Ordem: profiles.email (case-insensitive) → auth.users via
-  // `find_user_id_by_email` (SECURITY DEFINER, só service_role). O segundo
-  // passo é essencial: perfis antigos podem estar sem e-mail preenchido e,
-  // sem ele, o pagamento nunca era creditado a ninguém.
+  // Ordem: auth.users via `find_user_id_by_email` (SECURITY DEFINER, só
+  // service_role) → profiles.email (case-insensitive). A conta de login é a
+  // fonte da verdade: antes o perfil vinha primeiro, e o e-mail do perfil era
+  // editável pelo próprio cliente (fechado na migração 0011). O perfil fica
+  // como reserva para contas cujo e-mail de login mudou depois da compra.
   let userId: string | null = null;
   if (email) {
-    const { data: profile } = await admin
-      .from("profiles").select("id").ilike("email", escapeLike(email)).maybeSingle();
-    if (profile?.id) {
-      userId = profile.id;
+    const { data: foundId, error: findErr } = await admin
+      .rpc("find_user_id_by_email", { _email: email });
+    if (findErr) log.error("find_user_by_email_failed", { message: findErr.message });
+    if (typeof foundId === "string" && foundId) {
+      userId = foundId;
+      // Perfis antigos sem e-mail: preenche para os avisos da plataforma.
+      await admin.from("profiles").update({ email }).eq("id", userId).is("email", null);
     } else {
-      const { data: foundId, error: findErr } = await admin
-        .rpc("find_user_id_by_email", { _email: email });
-      if (findErr) log.error("find_user_by_email_failed", { message: findErr.message });
-      if (typeof foundId === "string" && foundId) {
-        userId = foundId;
-        // Backfill: garante que a próxima cobrança resolva no primeiro passo.
-        await admin.from("profiles").update({ email }).eq("id", userId);
-      }
+      const { data: profile } = await admin
+        .from("profiles").select("id").ilike("email", escapeLike(email)).maybeSingle();
+      if (profile?.id) userId = profile.id;
     }
   }
 

@@ -53,13 +53,13 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 
 | Tabela | Conteúdo | Acesso (RLS) |
 | --- | --- | --- |
-| `profiles` | Perfil, plano, assinatura, créditos | Dono; campos de cobrança protegidos por gatilho (`protect_billing_columns`) |
-| `presentations`, `slides` | Apresentações e slides | Dono; leitura pública se publicada e fora da lixeira |
+| `profiles` | Perfil, plano, assinatura, créditos | Dono; campos de cobrança (`protect_billing_columns`), e-mail e contadores (`protect_profile_server_columns`) só pelo servidor. O e-mail acompanha o da conta (`sync_profile_email`) |
+| `presentations`, `slides` | Apresentações e slides | Só o dono (sem inserção pelo cliente). Nascem privadas; visitantes abrem uma publicada pelo slug em `get_shared_presentation` |
 | `credit_transactions` | Extrato de créditos | Dono (leitura); escrita só por funções |
 | `payment_events` | Eventos da Cakto | Somente servidor |
 | `generation_logs` | Telemetria de geração | Somente servidor e equipe |
-| `slide_views` | Visitas a apresentações publicadas (data e navegador) | Inserção pública em apresentação publicada; leitura do dono |
-| `support_conversations`, `support_messages` | Atendimentos | Dono e equipe |
+| `slide_views` | Visitas a apresentações publicadas (data, navegador e código de deduplicação com sal diário) | Gravação só por `record_slide_view`; leitura do dono |
+| `support_conversations`, `support_messages` | Atendimentos | Criação pela edge function `support-chat` e pela equipe; o dono lê e só altera a avaliação |
 | `help_articles`, `error_catalog` | Central de Ajuda e catálogo de erros | Leitura pública; escrita da equipe |
 | `legal_acceptances` | Aceites dos Termos/Política | Dono lê os próprios; escrita só por `accept_legal_terms` |
 | `access_logs` | Registros de acesso (IP, data, hora) | Somente servidor |
@@ -87,12 +87,17 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `set_monthly_credits`, `grant_bonus_credits(_once)`, `revoke_order_credits` | Operações do webhook de pagamento |
 | `add_ai_edit_usage` | Contador do assistente de edição (servidor) |
 | `accept_legal_terms`, `record_access`, `purge_expired_data` | Conformidade legal |
+| `get_shared_presentation(_slug)` | Deck publicado (ou privado do próprio dono) para o visualizador, sem `user_id` |
+| `record_slide_view(_presentation_id)` | Conta uma visita: só publicada, sem o dono, uma por visitante a cada 30 min |
+| `staff_content_stats()` | Totais de apresentações e slides para o painel `/__dev` (só equipe) |
 
-Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `service_role`, exceto as marcadas como de cliente (`can_user_generate`, `accept_legal_terms`, `record_access`).
+Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `service_role`, exceto as marcadas como de cliente (`can_user_generate`, `accept_legal_terms`, `record_access`, `get_shared_presentation`, `record_slide_view`, `staff_content_stats`).
 
 ## Segurança
 
-- RLS em todas as tabelas; campos de cobrança e contadores de IA protegidos por gatilhos.
+- RLS em todas as tabelas; campos de cobrança, contadores e e-mail do perfil protegidos por gatilhos.
+- Nenhuma leitura pública direta de apresentações: o visualizador usa `get_shared_presentation`, que devolve um deck por slug.
+- Storage com limite de tamanho e tipo por bucket; avatares legíveis só pelo dono (as páginas usam URLs assinadas).
 - Webhook autenticado por segredo, com idempotência por evento + pedido e revisão manual em reembolsos ambíguos.
 - Limites de frequência por conta e por IP nas funções caras.
 - Captura de erros no front com allowlist de chaves e remoção de e-mails, tokens e senhas (`src/lib/errorCapture.ts`).

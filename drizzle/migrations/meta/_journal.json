@@ -78,6 +78,13 @@
       "when": 1792195260000,
       "tag": "0010_billing_safety_nets",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792195320000,
+      "tag": "0011_private_by_default_and_api_lockdown",
+      "breakpoints": true
     }
   ]
 }

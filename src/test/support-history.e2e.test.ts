@@ -69,38 +69,34 @@ describe("suporte — acesso anônimo é totalmente bloqueado", () => {
 
 const authed = creds("A") ? describe : describe.skip;
 
-authed("suporte — histórico persiste e respeita o dono", () => {
-  it("mensagens gravadas voltam na releitura, em ordem", async () => {
+// Desde a migração 0011 conversas e mensagens são criadas pela edge function
+// support-chat; o cliente só lê as próprias e avalia (rating).
+authed("suporte — escrita pelo servidor e leitura só do dono", () => {
+  it("cliente não cria conversa, não forja mensagem e não muda o estado", async () => {
     const a = await signIn("A");
     expect(a, "credenciais E2E_USER_A inválidas").toBeTruthy();
     if (!a) return;
     clients.push(a.client);
 
-    const { data: conv, error: convError } = await a.client
+    const { error: convError } = await a.client
       .from("support_conversations")
-      .insert({ user_id: a.userId, subject: "E2E histórico", state: "open" })
-      .select("id")
-      .single();
-    expect(convError).toBeNull();
-    if (!conv) return;
+      .insert({ user_id: a.userId, subject: "E2E", state: "open" });
+    expect(convError).toBeTruthy();
 
-    await a.client.from("support_messages").insert([
-      { conversation_id: conv.id, role: "user", content: "primeira" },
-      { conversation_id: conv.id, role: "assistant", content: "segunda" },
-    ]);
+    const { data: mine } = await a.client.from("support_conversations").select("id").limit(1);
+    const target = mine?.[0]?.id;
+    if (!target) return;
 
-    // releitura em cliente novo: simula reabrir /suporte/:id em outra sessão
-    const fresh = await signIn("A");
-    if (!fresh) return;
-    clients.push(fresh.client);
-    const { data: msgs } = await fresh.client
+    const { error: forged } = await a.client
       .from("support_messages")
-      .select("role,content")
-      .eq("conversation_id", conv.id)
-      .order("created_at", { ascending: true });
+      .insert({ conversation_id: target, role: "assistant", content: "forjada" });
+    expect(forged).toBeTruthy();
 
-    expect(msgs?.map((m) => m.content)).toEqual(["primeira", "segunda"]);
-    expect(msgs?.[0].role).toBe("user");
+    const { error: stateError } = await a.client
+      .from("support_conversations")
+      .update({ state: "resolved" })
+      .eq("id", target);
+    expect(stateError).toBeTruthy();
   });
 
   const cross = creds("B") ? it : it.skip;
@@ -110,36 +106,25 @@ authed("suporte — histórico persiste e respeita o dono", () => {
     if (!a || !b) return;
     clients.push(a.client, b.client);
 
-    const { data: conv } = await a.client
-      .from("support_conversations")
-      .insert({ user_id: a.userId, subject: "E2E RLS", state: "open" })
-      .select("id")
-      .single();
-    if (!conv) return;
-    await a.client
-      .from("support_messages")
-      .insert({ conversation_id: conv.id, role: "user", content: "privado" });
+    const { data: mine } = await a.client.from("support_conversations").select("id").limit(1);
+    const target = mine?.[0]?.id;
+    if (!target) return;
 
     const { data: readAsB } = await b.client
       .from("support_messages")
       .select("id")
-      .eq("conversation_id", conv.id);
+      .eq("conversation_id", target);
     expect(readAsB ?? []).toEqual([]);
 
     const { data: convAsB } = await b.client
       .from("support_conversations")
       .select("id")
-      .eq("id", conv.id);
+      .eq("id", target);
     expect(convAsB ?? []).toEqual([]);
 
     const { error: writeAsB } = await b.client
       .from("support_messages")
-      .insert({ conversation_id: conv.id, role: "user", content: "invasão" });
+      .insert({ conversation_id: target, role: "user", content: "invasão" });
     expect(writeAsB).toBeTruthy();
-
-    const { error: stealConv } = await b.client
-      .from("support_conversations")
-      .insert({ user_id: a.userId, subject: "spoof", state: "open" });
-    expect(stealConv).toBeTruthy();
   });
 });

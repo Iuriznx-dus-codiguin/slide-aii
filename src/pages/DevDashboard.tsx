@@ -37,19 +37,20 @@ const DevDashboard = () => {
   useEffect(() => {
     if (!isDeveloper) return;
     const load = async () => {
-      const since24h = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 
-      const [presTotal, slidesTotal, usersTotal, presRecent, slidesRecent, profiles, topGen, recentPres] = await Promise.all([
-        supabase.from("presentations").select("*", { count: "exact", head: true }),
-        supabase.from("slides").select("*", { count: "exact", head: true }),
+      // Totais de conteúdo por função da equipe: as tabelas só mostram ao
+      // usuário as próprias apresentações, então a contagem direta saía errada.
+      const [content, usersTotal, profiles, topGen] = await Promise.all([
+        supabase.rpc("staff_content_stats"),
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("presentations").select("*", { count: "exact", head: true }).gte("created_at", since24h),
-        supabase.from("slides").select("*", { count: "exact", head: true }).gte("created_at", since24h),
         supabase.from("profiles").select("plan, generations_count, updated_at"),
         supabase.from("profiles").select("full_name, generations_count").order("generations_count", { ascending: false }).limit(5),
-        supabase.from("presentations").select("title, created_at, slides_count").order("created_at", { ascending: false }).limit(8),
       ]);
+      const stats = (content.data ?? {}) as {
+        presentations_total?: number; presentations_24h?: number; slides_total?: number; slides_24h?: number;
+        recent?: { title: string; created_at: string; slides_count: number }[];
+      };
 
       const profileRows = (profiles.data ?? []) as any[];
       const paidUsers = profileRows.filter((p) => p.plan && p.plan !== "free").length;
@@ -58,14 +59,14 @@ const DevDashboard = () => {
       const avgSlidesPerUser = profileRows.length ? totalGen / profileRows.length : 0;
 
       setM({
-        totalPresentations: presTotal.count ?? 0,
-        totalSlides: slidesTotal.count ?? 0,
+        totalPresentations: stats.presentations_total ?? 0,
+        totalSlides: stats.slides_total ?? 0,
         totalUsers: usersTotal.count ?? 0,
         activeUsers7d, paidUsers, avgSlidesPerUser,
-        slidesLast24h: slidesRecent.count ?? 0,
-        presentationsLast24h: presRecent.count ?? 0,
+        slidesLast24h: stats.slides_24h ?? 0,
+        presentationsLast24h: stats.presentations_24h ?? 0,
         topUsers: (topGen.data ?? []).map((u: any) => ({ full_name: u.full_name, gen: u.generations_count ?? 0 })),
-        recentPresentations: (recentPres.data ?? []) as any,
+        recentPresentations: stats.recent ?? [],
       });
       setLoading(false);
     };
