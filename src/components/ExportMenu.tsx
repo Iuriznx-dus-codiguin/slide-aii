@@ -4,10 +4,10 @@ import { Download, FileDown, Loader2, FileText, ImageDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { exportPresentationToPptx } from "@/lib/exportPptx";
-import { exportPresentationToPdf } from "@/lib/exportPdf";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
+// Bibliotecas de exportação (pptxgenjs, jsPDF, html2canvas) carregam só no
+// clique: estavam no pacote inicial de todas as páginas, inclusive a home.
+import type { exportPresentationToPptx } from "@/lib/exportPptx";
 
 /** Deck já carregado na tela; o export não precisa reler o banco. */
 export type ExportDeck = Pick<Parameters<typeof exportPresentationToPptx>[0], "slides" | "dynamicTheme" | "creativeBrief">;
@@ -73,6 +73,7 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
       // slides[0].content, que as gerações novas não gravam.
       const deck = await loadDeck();
       if (!deck.slides.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      const { exportPresentationToPptx } = await import("@/lib/exportPptx");
       await exportPresentationToPptx({
         title,
         themeId,
@@ -96,6 +97,7 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
     try {
       const deck = await loadDeck();
       if (!deck.slides.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      const { exportPresentationToPdf } = await import("@/lib/exportPdf");
       await exportPresentationToPdf({
         title,
         themeId,
@@ -123,6 +125,7 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
     try {
       const target = document.querySelector<HTMLElement>("[data-export-target='slide']");
       if (target) {
+        const { default: html2canvas } = await import("html2canvas");
         const canvas = await html2canvas(target, { backgroundColor: "#000", scale: 2, useCORS: true });
         canvas.toBlob((blob) => {
           if (!blob) return;
