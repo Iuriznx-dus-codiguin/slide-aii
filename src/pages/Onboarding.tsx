@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GraduationCap, Briefcase, BookOpen, Palette, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { safeNextPath } from "@/lib/safeRedirect";
 
 const ROLES = [
   { id: "estudante", label: "Estudante", icon: BookOpen, desc: "Trabalhos escolares e acadêmicos" },
@@ -16,6 +17,7 @@ const ROLES = [
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -31,7 +33,7 @@ const Onboarding = () => {
     const { error } = await supabase.from("profiles").update({ role: selected }).eq("id", user.id);
     setSaving(false);
     if (error) toast.error(error.message);
-    else { toast.success("Tudo pronto!"); navigate("/gerar"); }
+    else { toast.success("Tudo pronto!"); navigate(safeNextPath(searchParams.get("next")) ?? "/gerar"); }
   };
 
   return (

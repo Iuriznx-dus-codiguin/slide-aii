@@ -15,6 +15,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { acceptCurrentTerms, signupConsentMetadata } from "@/lib/legalConsent";
 import { z } from "zod";
+import { safeNextPath } from "@/lib/safeRedirect";
 
 const emailSchema = z.string().trim().email("Email inválido").max(255);
 // Login aceita as senhas antigas (mínimo 6); contas novas exigem 8.
@@ -37,16 +38,17 @@ const Auth = () => {
   // Destino pós-login: usado pela tela de consentimento OAuth (integrações de
   // agentes), que precisa que o usuário volte exatamente para o pedido.
   // Só aceitamos caminhos relativos do próprio site.
-  const rawNext = searchParams.get("next");
-  const nextPath = rawNext && /^\/(?!\/)/.test(rawNext) ? rawNext : null;
+  const nextPath = safeNextPath(searchParams.get("next"));
   const afterAuth = nextPath ?? "/dashboard";
+  // Conta nova passa pelo onboarding e depois segue para o destino pedido.
+  const onboardingPath = nextPath ? `/onboarding?next=${encodeURIComponent(nextPath)}` : "/onboarding";
 
   useEffect(() => {
     document.title = "Entrar — SlideAI";
     if (user) {
       const stored = sessionStorage.getItem("auth_next");
       sessionStorage.removeItem("auth_next");
-      const safe = stored && /^\/(?!\/)/.test(stored) ? stored : null;
+      const safe = safeNextPath(stored);
       navigate(nextPath ?? safe ?? "/dashboard");
     }
   }, [user, navigate, nextPath]);
@@ -92,7 +94,7 @@ const Auth = () => {
     const { data, error } = await supabase.auth.signUp({
       email, password,
       options: {
-        emailRedirectTo: `${window.location.origin}${nextPath ?? "/onboarding"}`,
+        emailRedirectTo: `${window.location.origin}${onboardingPath}`,
         data: { full_name: fullName, ...signupConsentMetadata() },
       },
     });
@@ -109,7 +111,7 @@ const Auth = () => {
     if (data.session) {
       await acceptCurrentTerms("signup");
       toast.success("Conta criada!");
-      navigate("/onboarding");
+      navigate(onboardingPath);
     } else {
       // Confirmação por email ativa: o usuário ainda NÃO está logado.
       setAwaitingConfirmation(true);
@@ -123,7 +125,7 @@ const Auth = () => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: pendingEmail,
-      options: { emailRedirectTo: `${window.location.origin}${nextPath ?? "/onboarding"}` },
+      options: { emailRedirectTo: `${window.location.origin}${onboardingPath}` },
     });
     setLoading(false);
     if (error) toast.error(error.message);

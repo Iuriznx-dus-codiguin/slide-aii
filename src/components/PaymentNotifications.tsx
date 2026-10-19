@@ -53,17 +53,30 @@ export const PaymentNotifications = () => {
 
   const renewalDays = useMemo(() => daysUntil(ent.subscription_renews_at), [ent.subscription_renews_at]);
 
+  const lastCelebrationRef = useRef(0);
   const celebratePayment = (message: string = PAYMENT_SUCCESS_MESSAGE) => {
-    // Pagamento reconhecido: leva à página de agradecimento (que faz confetes + alerta).
-    if (pathRef.current !== "/sucesso") {
+    const path = pathRef.current;
+    // Em /gerar e no editor o usuário está no meio do trabalho (em /gerar a
+    // geração paga começa sozinha): comemora ali mesmo, sem trocar de página.
+    // No resto do site, leva à página de agradecimento.
+    const stay = path === "/sucesso" || path === "/gerar" || path.startsWith("/editor/");
+    if (!stay) {
       navigate("/sucesso", { state: { message } });
       return;
     }
-    setConfetti(createConfetti());
+    // O mesmo pagamento chega por dois caminhos (modal de pagamento e
+    // Realtime): uma chuva de confetes só, e o aviso mais recente substitui
+    // o anterior.
+    const now = Date.now();
+    const repeated = now - lastCelebrationRef.current < 15_000;
+    lastCelebrationRef.current = now;
+    if (!repeated) {
+      setConfetti(createConfetti());
+      window.setTimeout(() => setConfetti([]), 3800);
+    }
     window.setTimeout(() => {
-      toast.success(message, { duration: 8000 });
-    }, 260);
-    window.setTimeout(() => setConfetti([]), 3800);
+      toast.success(message, { id: "payment-success", duration: 8000 });
+    }, repeated ? 0 : 260);
   };
 
   useEffect(() => {

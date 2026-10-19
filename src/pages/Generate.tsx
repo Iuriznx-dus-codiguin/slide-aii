@@ -220,28 +220,42 @@ const Generate = () => {
     return () => clearInterval(id);
   }, [phase]);
 
+  // Uma geração por vez: clique duplo ou liberação repetida do pagamento não
+  // podem cobrar duas vezes.
+  const generatingRef = useRef(false);
   const handleGenerate = async () => {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
+    try {
+      await runGeneration();
+    } finally {
+      generatingRef.current = false;
+    }
+  };
+
+  const runGeneration = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
-    await ent.refresh();
-    if (!ent.allowed && !isDeveloper) {
-      if (ent.reason === "insufficient_credits") {
+    // O estado devolvido pelo refresh: o `ent` deste render ainda é o antigo.
+    const cur = await ent.refresh();
+    if (!cur.allowed && !isDeveloper) {
+      if (cur.reason === "insufficient_credits") {
         // Saldo existe mas não cobre: abre o pagamento para completar/recarregar.
         setShowPayment(true);
         return;
       }
-      if (ent.reason === "fair_use_limit") {
-        toast.error(reasonMessage("fair_use_limit", ent.next_monthly_reset), {
+      if (cur.reason === "fair_use_limit") {
+        toast.error(reasonMessage("fair_use_limit", cur.next_monthly_reset), {
           action: { label: "Comprar créditos", onClick: () => setShowPayment(true) },
         });
         return;
       }
-      if (ent.reason === "system_error") {
+      if (cur.reason === "system_error") {
         toast.error(reasonMessage("system_error"));
         return;
       }
-      if (needsRenewal(ent.reason)) {
-        toast.error(reasonMessage(ent.reason), {
+      if (needsRenewal(cur.reason)) {
+        toast.error(reasonMessage(cur.reason), {
           action: { label: "Renovar", onClick: () => navigate("/perfil?tab=assinatura") },
         });
         return;
@@ -252,13 +266,10 @@ const Generate = () => {
 
     // Saldo insuficiente para esta configuração: em vez de bloquear, leva ao
     // pagamento (o usuário pode comprar créditos/plano e voltar com tudo salvo).
-    if (!unlimitedCredits && totalCost > ent.credits_available) {
+    if (!(cur.unlimited || isDeveloper) && totalCost > cur.credits_available) {
       setShowPayment(true);
       return;
     }
-
-
-
 
     setPhase("loading");
     setStepIdx(0);
@@ -831,7 +842,13 @@ const Generate = () => {
       <PaymentGate
         open={showPayment}
         onClose={() => setShowPayment(false)}
-        onUnlocked={() => { setShowPayment(false); handleGenerate(); }}
+        onUnlocked={() => {
+          setShowPayment(false);
+          // Veio de "Ver planos" (?planos=1) sem preencher o formulário.
+          if (!title.trim()) { toast.success("Pagamento confirmado! Agora descreva a sua apresentação."); return; }
+          toast.success("Pagamento confirmado! Iniciando geração…");
+          void handleGenerate();
+        }}
       />
     </div>
   );

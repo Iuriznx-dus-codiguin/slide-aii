@@ -10,11 +10,7 @@ import { toast } from "sonner";
 import html2canvas from "html2canvas";
 
 /** Deck já carregado na tela; o export não precisa reler o banco. */
-export interface ExportDeck {
-  slides: Array<{ position: number; slide_type: string; layout_template: string; speaker_notes?: string | null; content: any }>;
-  dynamicTheme?: any;
-  creativeBrief?: any;
-}
+export type ExportDeck = Pick<Parameters<typeof exportPresentationToPptx>[0], "slides" | "dynamicTheme" | "creativeBrief">;
 
 interface Props {
   presentationId: string;
@@ -66,7 +62,7 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
   const loadDeck = async (): Promise<ExportDeck> => {
     if (getDeck) return getDeck();
     const [rows, art] = await Promise.all([fetchSlides(), fetchArtDirection()]);
-    return { slides: rows as ExportDeck["slides"], ...art };
+    return { slides: rows, ...art };
   };
 
   const handlePptx = async () => {
@@ -81,7 +77,7 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
         title,
         themeId,
         fontId,
-        slides: deck.slides as any,
+        slides: deck.slides,
         dynamicTheme: deck.dynamicTheme ?? null,
         creativeBrief: deck.creativeBrief ?? null,
       });
@@ -104,7 +100,7 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
         title,
         themeId,
         fontId,
-        slides: deck.slides as any,
+        slides: deck.slides,
         dynamicTheme: deck.dynamicTheme ?? null,
         creativeBrief: deck.creativeBrief ?? null,
         onProgress: (cur, total) => {

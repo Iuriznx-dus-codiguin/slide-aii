@@ -133,7 +133,7 @@ export const Pricing = () => {
               <Sparkles className="h-3 w-3" /> {perGen.volume}
             </div>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-primary/50 hover:bg-primary/10">
-              <Link to="/gerar">{perGen.cta}</Link>
+              <Link to="/gerar?planos=1">{perGen.cta}</Link>
             </Button>
             <ul className="mt-8 space-y-3 flex-1">
               {sharedBenefits.map((f) => (
@@ -180,7 +180,7 @@ export const Pricing = () => {
                <Sparkles className="h-3 w-3" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos + {proBonus.toLocaleString("pt-BR")} Bônus
             </div>
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
-              <Link to="/gerar">{proPrice.cta}</Link>
+              <Link to="/gerar?planos=1">{proPrice.cta}</Link>
             </Button>
             <ul className="mt-8 space-y-3 flex-1">
               {sharedBenefits.map((f) => (
@@ -232,7 +232,7 @@ export const Pricing = () => {
               5x mais uso que o Plano PRO.
             </p>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-accent/50 hover:bg-accent/10">
-              <Link to="/gerar">{maxPrice.cta}</Link>
+              <Link to="/gerar?planos=1">{maxPrice.cta}</Link>
             </Button>
             <ul className="mt-8 space-y-3 flex-1">
               {sharedBenefits.map((f) => (

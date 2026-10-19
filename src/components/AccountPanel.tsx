@@ -86,7 +86,7 @@ export const AccountPanel = () => {
           <div className="flex flex-wrap gap-2">
             {!isPaid && !isDev && (
               <Button asChild variant="hero" size="sm">
-                <a href="/gerar"><Zap className="h-4 w-4" /> Adquirir plano</a>
+                <a href="/gerar?planos=1"><Zap className="h-4 w-4" /> Adquirir plano</a>
               </Button>
             )}
             {ent.plan === "single" && (
@@ -112,7 +112,7 @@ export const AccountPanel = () => {
             )}
             {isSubscription && !ent.subscription_current && (
               <Button asChild variant="hero" size="sm">
-                <a href="/gerar"><Zap className="h-4 w-4" /> Renovar plano</a>
+                <a href="/gerar?planos=1"><Zap className="h-4 w-4" /> Renovar plano</a>
               </Button>
             )}
           </div>

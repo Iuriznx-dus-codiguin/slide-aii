@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,19 @@ interface Props {
  */
 export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   const ent = useEntitlement();
-  const [waiting, setWaiting] = useState<null | PaidPlan>(null);
+  // Checkout aberto + como o saldo estava naquele momento. Quem já tinha algum
+  // saldo (mas não o bastante para esta configuração) tinha `allowed` true
+  // desde antes, e o modal "confirmava" o pagamento na hora, sem ter pago.
+  const [waiting, setWaiting] = useState<null | { plan: PaidPlan; allowed: boolean; credits: number; unlimited: boolean }>(null);
   const [cycle, setCycle] = useState<BillingCycle>("trimestral");
+
+  // Refs: `ent` e `onUnlocked` mudam a cada render. Como dependências, o
+  // polling reiniciava sem parar (o limite de tentativas nunca chegava) e a
+  // liberação podia disparar de novo a cada render, repetindo a geração.
+  const refreshRef = useRef(ent.refresh);
+  refreshRef.current = ent.refresh;
+  const onUnlockedRef = useRef(onUnlocked);
+  onUnlockedRef.current = onUnlocked;
 
   const MAX_POLL_ATTEMPTS = 150;
   useEffect(() => {
@@ -30,22 +41,25 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
     let attempts = 0;
     const t = setInterval(async () => {
       attempts += 1;
-      await ent.refresh();
+      await refreshRef.current();
       if (attempts >= MAX_POLL_ATTEMPTS) {
         clearInterval(t);
         toast.info("Ainda não vimos a confirmação do pagamento. Clique em \"Já paguei\" quando finalizar, ou aguarde alguns minutos.");
       }
     }, 4000);
     return () => clearInterval(t);
-  }, [open, waiting, ent]);
+  }, [open, waiting]);
 
   useEffect(() => {
-    if (waiting && ent.allowed && !ent.loading) {
-      toast.success("Pagamento confirmado! Iniciando geração…");
+    if (!waiting || ent.loading || !ent.allowed) return;
+    const paid = !waiting.allowed || ent.credits_available > waiting.credits || (ent.unlimited && !waiting.unlimited);
+    if (paid) {
+      // Uma vez só por pagamento.
+      setWaiting(null);
       window.dispatchEvent(new CustomEvent("slideai:payment-success"));
-      onUnlocked();
+      onUnlockedRef.current();
     }
-  }, [waiting, ent.allowed, ent.loading, onUnlocked]);
+  }, [waiting, ent.allowed, ent.loading, ent.credits_available, ent.unlimited]);
 
   if (!open) return null;
 
@@ -58,7 +72,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
       toast.info("Checkout indisponível no momento. Fale com o suporte.");
       return;
     }
-    setWaiting(id);
+    setWaiting({ plan: id, allowed: ent.allowed, credits: ent.credits_available, unlimited: ent.unlimited });
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
