@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles, Loader2, ArrowLeft, Users, X, Globe, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,16 @@ const SlideViewer = () => {
     return () => { window.removeEventListener("touchstart", onStart); window.removeEventListener("touchend", onEnd); };
   }, [next, prev]);
 
+  // Deck de impressão montado só quando alguém imprime (antes todos os slides
+  // eram renderizados, escondidos, em toda visita). flushSync: o navegador
+  // tira o retrato da página logo depois do beforeprint.
+  const [printDeck, setPrintDeck] = useState(autoPrint);
+  useEffect(() => {
+    const onBeforePrint = () => flushSync(() => setPrintDeck(true));
+    window.addEventListener("beforeprint", onBeforePrint);
+    return () => window.removeEventListener("beforeprint", onBeforePrint);
+  }, []);
+
   // Auto-print when arrived with ?print=1
   useEffect(() => {
     if (autoPrint && !loading && slides.length > 0) {
@@ -297,20 +308,25 @@ const SlideViewer = () => {
         </div>
       )}
       {/* Hidden print-only deck — every slide becomes a printable A4-landscape page */}
-      <div className="hidden print:block" data-no-print="false">
-        {slides.map((s, i) => (
-          <div key={s.id} className="print-slide" style={{ width: 1920, height: 1080 }}>
-            <SlideRenderer
-              slide={s as any}
-              themeId={pres.theme}
-              fontId={pres.font_style}
-              dynamicTheme={s.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null}
-              index={i}
-              noAnimate
-            />
-          </div>
-        ))}
-      </div>
+      {printDeck && (
+        <div className="hidden print:block" data-no-print="false">
+          {slides.map((s, i) => (
+            <div key={s.id} className="print-slide" style={{ width: 1920, height: 1080 }}>
+              <SlideRenderer
+                slide={s as any}
+                themeId={pres.theme}
+                fontId={pres.font_style}
+                // Tema da apresentação (antes só o legado em slides[].content, e
+                // decks novos saíam impressos com o tema padrão).
+                dynamicTheme={dynamicTheme}
+                creativeBrief={pres.creative_brief}
+                index={i}
+                noAnimate
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -108,7 +108,7 @@ const Privacy = () => {
               "Execução de contrato e exercício regular de direitos (art. 7º, V e VI).",
             ],
             [
-              <><Strong>Suporte:</Strong> mensagens do chat de atendimento, número do atendimento, avaliação e códigos de erro relacionados.</>,
+              <><Strong>Suporte:</Strong> mensagens do chat de atendimento, número do atendimento, avaliação e códigos de erro relacionados. Na Central de Ajuda, o voto "Este artigo foi útil?", guardado sem identificar quem votou (só um código embaralhado que deixa de valer no dia seguinte).</>,
               "Responder suas solicitações, diagnosticar problemas e melhorar a Central de Ajuda.",
               "Execução de contrato (art. 7º, V) e legítimo interesse (art. 7º, IX).",
             ],

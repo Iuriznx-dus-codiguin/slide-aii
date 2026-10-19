@@ -39,6 +39,22 @@ export const SupportWidget = () => {
   const [helpLinks, setHelpLinks] = useState<HelpLink[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Troca de conta (ou saída) no mesmo navegador: zera a conversa. Antes a
+  // conversa do usuário anterior continuava aberta para o próximo.
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    setOpen(false);
+    setShowHistory(false);
+    setThreads([]);
+    setConversationId(null);
+    setState("open");
+    setMessages([WELCOME]);
+    setInput("");
+    setRated(false);
+    setErrorCode(null);
+    setHelpLinks([]);
+  }, [userId]);
+
   const loadThreads = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase

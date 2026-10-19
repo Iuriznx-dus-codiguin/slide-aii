@@ -509,7 +509,7 @@ const ProfilePage = () => {
               </div>
               <Button variant="hero">Alterar senha</Button>
               <hr className="border-border" />
-              <Button type="button" variant="outline" onClick={async () => { await signOut(); navigate("/"); }}>
+              <Button type="button" variant="outline" onClick={async () => { await signOut("global"); navigate("/"); }}>
                 Sair de todas as sessões
               </Button>
             </form>

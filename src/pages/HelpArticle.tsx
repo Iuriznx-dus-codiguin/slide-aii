@@ -39,6 +39,11 @@ const HelpArticle = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  // Voto anônimo (um por pessoa, artigo e dia); a equipe vê o resumo no /__dev.
+  const recordFeedback = async (helpful: boolean) => {
+    if (!article) return;
+    await supabase.rpc("record_help_feedback", { _slug: article.slug, _helpful: helpful });
+  };
 
   useEffect(() => {
     if (!slug) return;
@@ -211,13 +216,13 @@ const HelpArticle = () => {
                 <Button
                   variant={feedback === "up" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => { setFeedback("up"); toast.success("Obrigado pelo feedback!"); }}
+                  onClick={() => { setFeedback("up"); void recordFeedback(true); toast.success("Obrigado pelo feedback!"); }}
                   disabled={feedback !== null}
                 >👍 Sim</Button>
                 <Button
                   variant={feedback === "down" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => { setFeedback("down"); navigate("/suporte/nova"); }}
+                  onClick={() => { setFeedback("down"); void recordFeedback(false); navigate("/suporte/nova"); }}
                   disabled={feedback !== null}
                 >👎 Não, preciso de ajuda</Button>
               </div>

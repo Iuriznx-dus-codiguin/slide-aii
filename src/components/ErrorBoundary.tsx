@@ -31,7 +31,8 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <h1 className="font-display text-xl font-bold">Algo deu errado</h1>
           <p className="text-sm text-muted-foreground">
-            Já registramos o problema. Você pode tentar recarregar a página ou abrir um chamado no suporte.
+            {this.state.occurrenceId ? "Já registramos o problema. " : ""}
+            Você pode tentar recarregar a página ou falar com o suporte.
           </p>
           <div className="text-xs text-muted-foreground font-mono bg-muted rounded px-2 py-1">
             Código: UI-001{this.state.occurrenceId ? ` · ${this.state.occurrenceId.slice(0, 8)}` : ""}
@@ -40,8 +41,11 @@ export class ErrorBoundary extends Component<Props, State> {
             <Button onClick={() => window.location.reload()} variant="default">
               <RefreshCw className="h-4 w-4" /> Recarregar
             </Button>
-            <Button onClick={() => window.dispatchEvent(new CustomEvent("slideai:open-support", { detail: { code: "UI-001" } }))} variant="outline">
-              <LifeBuoy className="h-4 w-4" /> Abrir suporte
+            {/* Navegação completa: o widget de suporte fica dentro desta
+                fronteira e é desmontado junto com a página que falhou, então
+                o evento para abri-lo não tinha quem ouvisse. */}
+            <Button asChild variant="outline">
+              <a href="/suporte"><LifeBuoy className="h-4 w-4" /> Abrir suporte</a>
             </Button>
           </div>
         </div>

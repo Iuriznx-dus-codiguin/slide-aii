@@ -93,6 +93,8 @@ const LEGACY_NO_TEXT = " No text, letters or watermarks in the image.";
  * Tempo máximo da cadeia de modelos de imagem e de cada busca na Pexels. Sem
  * teto, um provedor lento segurava a função até o limite da plataforma.
  */
+/** Por quanto tempo o vídeo de fundo encontrado para um tema é reaproveitado. */
+const VIDEO_CACHE_TTL_MS = 30 * 24 * 3600_000;
 const IMAGE_CHAIN_BUDGET_MS = 110_000;
 const IMAGE_MODEL_TIMEOUT_MS = 60_000;
 const PEXELS_TIMEOUT_MS = 10_000;
@@ -374,6 +376,16 @@ Deno.serve(async (req) => {
     if (strategy === "none") return json({ url: null });
 
     if (strategy === "video") {
+      // Resultado guardado por tema: cada visitante de um deck publicado
+      // buscava o vídeo de cada slide na Pexels, e a cota do projeto (a mesma
+      // das fotos das gerações) podia acabar. Sem a tabela (migração 0013),
+      // segue buscando como antes.
+      const queryKey = (body.query || "abstract motion").toLowerCase();
+      const { data: cachedVideo } = await admin.from("video_search_cache")
+        .select("url, poster, fetched_at").eq("query_key", queryKey).maybeSingle();
+      if (cachedVideo && Date.now() - new Date(cachedVideo.fetched_at).getTime() < VIDEO_CACHE_TTL_MS) {
+        return json({ url: cachedVideo.url, poster: cachedVideo.poster, cached: true });
+      }
       const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
       if (!PEXELS_API_KEY) return json({ url: null, error: "PEXELS_API_KEY not configured" });
       const q = encodeURIComponent(body.query || "abstract motion");
@@ -394,6 +406,10 @@ Deno.serve(async (req) => {
         // deno-lint-ignore no-explicit-any
         ?? video?.video_files?.find((f: any) => f.file_type === "video/mp4")
         ?? video?.video_files?.[0];
+      const { error: cacheErr } = await admin.from("video_search_cache").upsert({
+        query_key: queryKey, url: file?.link ?? null, poster: video?.image ?? null, fetched_at: new Date().toISOString(),
+      });
+      if (cacheErr) console.warn("fetch-image: video cache write failed", cacheErr.message);
       return json({
         url: file?.link ?? null,
         poster: video?.image ?? null,

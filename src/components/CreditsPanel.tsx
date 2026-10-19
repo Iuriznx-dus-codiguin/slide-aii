@@ -59,9 +59,15 @@ export const CreditsPanel = () => {
     return () => { active = false; };
   }, [user]);
 
-  const spent30d = txs
-    .filter((t) => t.amount < 0 && Date.now() - new Date(t.created_at).getTime() < 30 * 864e5)
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  // Consumo líquido: gerações menos o que voltou de gerações com falha ou
+  // incompletas. Antes somava todo valor negativo (estorno de compra
+  // reembolsada, fim da cota mensal), inflando o número.
+  const recent = txs.filter((t) => Date.now() - new Date(t.created_at).getTime() < 30 * 864e5);
+  const consumed = recent.filter((t) => t.type === "consume").reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const givenBack = recent
+    .filter((t) => t.type === "generation_refund" || t.type === "generation_shortfall_refund")
+    .reduce((sum, t) => sum + Math.max(0, t.amount), 0);
+  const spent30d = Math.max(0, consumed - givenBack);
 
   // MAX vigente: uso ilimitado dentro da Política de Uso Justo.
   const unlimited = ent.unlimited;

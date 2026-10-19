@@ -7,7 +7,8 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  /** "local" (padrão): só este navegador. "global": todas as sessões da conta. */
+  signOut: (scope?: "local" | "global") => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -41,8 +42,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  // O padrão do Supabase é "global": o "Sair" do painel derrubava a conta em
+  // todos os dispositivos.
+  const signOut = async (scope: "local" | "global" = "local") => {
+    await supabase.auth.signOut({ scope });
   };
 
   return (

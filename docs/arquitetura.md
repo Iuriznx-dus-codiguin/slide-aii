@@ -61,6 +61,8 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `slide_views` | Visitas a apresentações publicadas (data, navegador e código de deduplicação com sal diário) | Gravação só por `record_slide_view`; leitura do dono |
 | `support_conversations`, `support_messages` | Atendimentos | Criação pela edge function `support-chat` e pela equipe; o dono lê e só altera a avaliação |
 | `help_articles`, `error_catalog` | Central de Ajuda e catálogo de erros | Leitura pública; escrita da equipe |
+| `help_article_feedback` | Votos "Este artigo foi útil?" (código embaralhado, um por pessoa/artigo/dia) | Gravação por `record_help_feedback`; resumo da equipe em `help_feedback_summary` |
+| `view_dedupe_salt`, `video_search_cache` | Sal diário da deduplicação (visitas e votos); vídeos de fundo por tema (30 dias) | Somente servidor |
 | `legal_acceptances` | Aceites dos Termos/Política | Dono lê os próprios; escrita só por `accept_legal_terms` |
 | `access_logs` | Registros de acesso (IP, data, hora) | Somente servidor |
 | `security_events`, `error_occurrences`, `edge_rate_limits` | Segurança, erros e limites | Servidor e equipe |
@@ -90,8 +92,9 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `get_shared_presentation(_slug)` | Deck publicado (ou privado do próprio dono) para o visualizador, sem `user_id` |
 | `record_slide_view(_presentation_id)` | Conta uma visita: só publicada, sem o dono, uma por visitante a cada 30 min |
 | `staff_content_stats()` | Totais de apresentações e slides para o painel `/__dev` (só equipe) |
+| `record_help_feedback(_slug, _helpful)` / `help_feedback_summary(_days)` | Voto da Central de Ajuda / resumo para a equipe |
 
-Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `service_role`, exceto as marcadas como de cliente (`can_user_generate`, `accept_legal_terms`, `record_access`, `get_shared_presentation`, `record_slide_view`, `staff_content_stats`).
+Funções de cobrança são `SECURITY DEFINER` e executáveis apenas pelo `service_role`, exceto as marcadas como de cliente (`can_user_generate`, `accept_legal_terms`, `record_access`, `get_shared_presentation`, `record_slide_view`, `staff_content_stats`, `record_help_feedback`, `help_feedback_summary`).
 
 ## Segurança
 

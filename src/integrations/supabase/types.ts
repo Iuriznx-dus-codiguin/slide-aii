@@ -1376,6 +1376,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      help_feedback_summary: {
+        Args: { _days?: number }
+        Returns: {
+          article_slug: string
+          helpful: number
+          not_helpful: number
+          title: string
+        }[]
+      }
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       is_internal_account: { Args: { _uid: string }; Returns: boolean }
@@ -1384,6 +1393,10 @@ export type Database = {
       purge_expired_data: { Args: never; Returns: Json }
       purge_ops_data: { Args: never; Returns: Json }
       record_access: { Args: { _event?: string }; Returns: undefined }
+      record_help_feedback: {
+        Args: { _helpful: boolean; _slug: string }
+        Returns: undefined
+      }
       record_slide_view: {
         Args: { _presentation_id: string }
         Returns: undefined

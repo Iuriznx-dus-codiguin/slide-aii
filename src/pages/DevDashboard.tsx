@@ -9,6 +9,7 @@ import { estimateGenerationCost, modeFromBudget, modeLabel } from "@/lib/devSett
 import { useDevSettings } from "@/hooks/useDevSettings";
 import SecurityEventsPanel from "@/components/SecurityEventsPanel";
 import { DevMetricsPanel } from "@/components/DevMetricsPanel";
+import { HelpFeedbackPanel } from "@/components/HelpFeedbackPanel";
 
 interface Metrics {
   totalPresentations: number;
@@ -163,6 +164,10 @@ const DevDashboard = () => {
 
             <section>
               <SecurityEventsPanel />
+            </section>
+
+            <section>
+              <HelpFeedbackPanel />
             </section>
 
 
