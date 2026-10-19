@@ -6,7 +6,7 @@ keywords: compartilhar, link, público, share, enviar, whatsapp, e-mail
 ---
 ## Pelo link
 
-1. [Publique a apresentação](/ajuda/publicar-e-despublicar) no painel.
+1. [Publique a apresentação](/ajuda/publicar-e-despublicar) no painel, no editor ou no próprio visualizador (**Compartilhar → Publicar**).
 2. Abra-a no visualizador e use **Compartilhar → Copiar link**.
 3. Envie o link por WhatsApp, e-mail ou onde quiser. Quem recebe abre no navegador, sem login.
 
@@ -18,7 +18,7 @@ Prefere enviar um arquivo? Exporte em **PDF** (leitura e impressão) ou **PowerP
 
 ## A pessoa não consegue abrir
 
-- Confira se a apresentação está **publicada** (ícone de globo no painel).
+- Confira se a apresentação está **publicada** (ícone de globo no painel ou botão **Publicada** no editor). Toda apresentação nasce privada.
 - Se você a tornou privada ou a moveu para a lixeira, o link não abre mais.
 
 ## Relacionados

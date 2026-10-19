@@ -85,6 +85,13 @@
       "when": 1792195320000,
       "tag": "0011_private_by_default_and_api_lockdown",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792368060000,
+      "tag": "0012_help_center_privacy_analytics",
+      "breakpoints": true
     }
   ]
 }

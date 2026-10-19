@@ -18,7 +18,7 @@ O SlideAI trata dados pessoais de acordo com a Lei Geral de Proteção de Dados 
 
 - Não vendemos dados pessoais.
 - Não usamos suas apresentações para treinar modelos de IA nem para publicidade.
-- Não usamos cookies de publicidade nem rastreadores de terceiros.
+- Não enviamos seu nome, seu e-mail nem suas apresentações às ferramentas de medição e de anúncios. Usamos o Google Analytics e o Google Ads só para medir o uso do site e os nossos anúncios; veja [Cookies e armazenamento](/ajuda/cookies-e-armazenamento).
 
 ## Seus direitos
 

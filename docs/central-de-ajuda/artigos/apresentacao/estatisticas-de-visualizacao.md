@@ -8,8 +8,8 @@ O painel mostra, em cada apresentação, o número de **visualizações** (ícon
 
 ## Como contamos
 
-- Cada abertura de uma apresentação publicada no visualizador conta uma visualização.
-- Registramos só a data, a hora e o tipo de navegador da visita, para o contador. **Não guardamos o IP nem identificamos quem assistiu.**
+- Cada abertura de uma apresentação publicada no visualizador conta uma visualização. As suas próprias aberturas não contam, e a mesma pessoa conta uma vez a cada 30 minutos.
+- Registramos só a data, a hora e o tipo de navegador da visita, para o contador. Para não contar a mesma pessoa duas vezes, guardamos também um código embaralhado do acesso, que não pode ser revertido e deixa de valer no dia seguinte. **Não guardamos o IP nem identificamos quem assistiu.**
 - Os registros individuais das visitas são eliminados após 12 meses; o total continua no contador.
 
 ## O que não dá para saber

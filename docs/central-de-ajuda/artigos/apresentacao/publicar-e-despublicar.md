@@ -8,7 +8,7 @@ Toda apresentação nasce **privada**: só você vê.
 
 ## Publicar
 
-No painel (Minhas apresentações), clique no ícone de **globo** da apresentação. Ela passa a mostrar "Pública" e fica acessível a qualquer pessoa com o link, sem login.
+No painel (Minhas apresentações), clique no ícone de **globo** da apresentação. Ela passa a mostrar "Pública" e fica acessível a qualquer pessoa com o link, sem login. Também dá para publicar no editor (botão **Privada**, no topo) ou no visualizador, em **Compartilhar → Publicar**.
 
 Quando publicada, a apresentação:
 
