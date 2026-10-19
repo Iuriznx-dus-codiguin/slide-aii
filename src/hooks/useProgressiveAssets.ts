@@ -11,6 +11,7 @@
 // Visuais nativos já aparecem completos; mídia pendente usa o placeholder do
 // próprio comando até a imagem chegar.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { fetchSlideAsset } from "@/lib/slideImage";
 import type { SlideAsset } from "../../supabase/functions/_shared/sceneMedia.ts";
 
@@ -24,6 +25,28 @@ export interface AssetPatch {
   asset: SlideAsset;
 }
 
+/** Identidade do pedido de mídia (sem o estado da resolução). */
+const assetKey = (a: SlideAsset | undefined) => (a ? JSON.stringify({ ...a, status: undefined, attempts: undefined }) : "");
+
+/**
+ * Uma aba por vez resolve cada slide. Editor e visualizador do dono abertos
+ * juntos buscavam as mesmas imagens em paralelo: custo de IA em dobro e cota
+ * da apresentação esgotada. Quem chega depois espera e encontra o resultado
+ * já gravado no banco.
+ */
+const withSlideLock = <T,>(slideId: string, fn: () => Promise<T>): Promise<T> => {
+  const locks = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
+  return locks ? locks.request(`slideai-asset:${slideId}`, fn) as Promise<T> : fn();
+};
+
+/** O que está gravado agora para o slide (outra aba pode já ter resolvido). */
+const storedAsset = async (slideId: string): Promise<AssetPatch | null> => {
+  const { data } = await supabase.from("slides").select("content").eq("id", slideId).maybeSingle();
+  const content = (data?.content ?? null) as { image_url?: string | null; asset?: SlideAsset } | null;
+  if (!content?.asset || content.asset.status === "pending") return null;
+  return { image_url: content.image_url ?? null, asset: content.asset };
+};
+
 const CONCURRENCY = 5;
 const MAX_ATTEMPTS = 2;
 const QUERY_SUFFIXES = ["wide angle", "close up", "different perspective", "alternative", "minimal", "cinematic"];
@@ -36,6 +59,9 @@ export function useProgressiveAssets(opts: {
 }) {
   const { presentationId, slides, enabled, onResolved } = opts;
   const queued = useRef(new Set<string>());
+  // Pedidos novos feitos nesta aba ("gerar de novo", chat): resolvem sempre,
+  // sem reaproveitar o que está gravado (que é justamente o que se quer trocar).
+  const fresh = useRef(new Set<string>());
   const inflight = useRef(0);
   const queue = useRef<string[]>([]);
   const usedUrls = useRef(new Set<string>());
@@ -67,25 +93,37 @@ export function useProgressiveAssets(opts: {
         if (usedQueries.current.has(key)) query = `${query} ${QUERY_SUFFIXES[usedQueries.current.size % QUERY_SUFFIXES.length]}`;
         usedQueries.current.add(query.toLowerCase());
       }
+      const startedImage = slide.content?.image_url ?? null;
+      const reuseStored = !fresh.current.delete(id);
       (async () => {
-        let url: string | null = null;
-        let tries = 0;
-        for (let k = 0; k < MAX_ATTEMPTS && !url; k++) {
-          tries++;
-          url = await fetchSlideAsset(asset, {
-            presentationId,
-            avoidUrls: Array.from(usedUrls.current),
-            query,
-            legacy: { ai_image_prompt: slide.content?.ai_image_prompt, image_style: slide.content?.image_style, image_query: slide.content?.image_query },
-          });
-          if (url && usedUrls.current.has(url) && asset.source === "pexels") url = null;
-        }
-        if (url) usedUrls.current.add(url);
-        // Conta as tentativas de fato feitas (antes somava 2 mesmo quando a
-        // primeira dava certo — a métrica enganava).
-        const next: SlideAsset = { ...asset, status: url ? "ready" : "failed", attempts: (asset.attempts ?? 0) + tries };
         try {
-          await onResolvedRef.current(id, { image_url: url, asset: next });
+          const patch = await withSlideLock(id, async (): Promise<AssetPatch> => {
+            const stored = reuseStored ? await storedAsset(id).catch(() => null) : null;
+            if (stored && assetKey(stored.asset) === assetKey(asset)) return stored;
+            let url: string | null = null;
+            let tries = 0;
+            for (let k = 0; k < MAX_ATTEMPTS && !url; k++) {
+              tries++;
+              url = await fetchSlideAsset(asset, {
+                presentationId,
+                avoidUrls: Array.from(usedUrls.current),
+                query,
+                legacy: { ai_image_prompt: slide.content?.ai_image_prompt, image_style: slide.content?.image_style, image_query: slide.content?.image_query },
+              });
+              if (url && usedUrls.current.has(url) && asset.source === "pexels") url = null;
+            }
+            // Conta as tentativas de fato feitas (antes somava 2 mesmo quando a
+            // primeira dava certo — a métrica enganava).
+            return { image_url: url, asset: { ...asset, status: url ? "ready" : "failed", attempts: (asset.attempts ?? 0) + tries } };
+          });
+          if (patch.image_url) usedUrls.current.add(patch.image_url);
+          // O usuário trocou a imagem ou o pedido de mídia enquanto esta busca
+          // rodava: a escolha dele vale (antes o resultado atrasado a apagava).
+          const latest = slidesRef.current.find((s) => s.id === id);
+          const superseded = !latest
+            || (latest.content?.image_url ?? null) !== startedImage
+            || assetKey(latest.content?.asset) !== assetKey(asset);
+          if (!superseded) await onResolvedRef.current(id, patch);
         } finally {
           inflight.current--;
           setRunning(inflight.current);
@@ -114,6 +152,7 @@ export function useProgressiveAssets(opts: {
   /** Recoloca um slide na fila (ex.: "gerar de novo" no painel Visual). */
   const requeue = useCallback((slideId: string) => {
     queued.current.delete(slideId);
+    fresh.current.add(slideId);
   }, []);
 
   const pending = slides.filter((s) => s.content?.asset?.status === "pending").length;

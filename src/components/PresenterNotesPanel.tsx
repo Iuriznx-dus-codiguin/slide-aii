@@ -82,7 +82,14 @@ function buildFullScript(
   return parts.join("\n");
 }
 
-function printScript(title: string, slides: Array<{ headline?: string; presenters_data?: PresenterEntry[] }>) {
+/** Texto do deck (escrito pelo usuário ou pela IA) entra como texto, nunca como HTML. */
+const esc = (v: unknown): string =>
+  String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+
+function printScript(rawTitle: string, slides: Array<{ headline?: string; presenters_data?: PresenterEntry[] }>) {
+  // A janela de impressão é da mesma origem do app: HTML vindo do conteúdo
+  // rodaria com a sessão do usuário.
+  const title = esc(rawTitle);
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) return;
   const html = `
@@ -100,12 +107,12 @@ function printScript(title: string, slides: Array<{ headline?: string; presenter
     </style></head><body>
     <h1>${title}</h1>
     ${slides.map((s, i) => `
-      <h2><span class="slide-no">Slide ${i + 1}.</span> ${s.headline ?? "(sem título)"}</h2>
+      <h2><span class="slide-no">Slide ${i + 1}.</span> ${s.headline ? esc(s.headline) : "(sem título)"}</h2>
       ${(s.presenters_data ?? []).map((p) => `
         <div class="pres">
-          <h3>${p.name || "Apresentador"}</h3>
-          ${p.transition_anchor ? `<div class="anchor">↪ ${p.transition_anchor}</div>` : ""}
-          ${p.exact_speech ? `<div class="speech"><strong>Fala:</strong><br>${p.exact_speech.replace(/\n/g, "<br>")}</div>` : ""}
+          <h3>${esc(p.name || "Apresentador")}</h3>
+          ${p.transition_anchor ? `<div class="anchor">↪ ${esc(p.transition_anchor)}</div>` : ""}
+          ${p.exact_speech ? `<div class="speech"><strong>Fala:</strong><br>${esc(p.exact_speech).replace(/\n/g, "<br>")}</div>` : ""}
         </div>
       `).join("")}
     `).join("")}
