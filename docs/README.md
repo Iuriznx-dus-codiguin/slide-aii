@@ -34,3 +34,4 @@
 | [revisao/2026-09-27-sistema-de-creditos.md](revisao/2026-09-27-sistema-de-creditos.md) | Revisão de ponta a ponta do sistema de créditos |
 | [revisao/2026-09-27-correcoes-lovable.md](revisao/2026-09-27-correcoes-lovable.md) | Aplicação das correções na Lovable Cloud |
 | [revisao/2026-09-29-analise-de-lancamento.md](revisao/2026-09-29-analise-de-lancamento.md) | Prontidão para lançamento: bloqueadores, produto, segurança, escalabilidade e custos |
+| [revisao/2026-10-17-auditoria-completa.md](revisao/2026-10-17-auditoria-completa.md) | Auditoria de ponta a ponta (75 achados) e situação de cada correção |

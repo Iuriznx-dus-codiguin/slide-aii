@@ -561,13 +561,17 @@ Deno.serve(async (req) => {
   }): Promise<Response> => {
     let refunded = 0;
     let refundFailed = false;
+    let deckDelivered = false;
     if (creditsCharged > 0) {
       const { data: refund, error: refundErr } = await admin.rpc("refund_generation_credits", {
         _uid: userId, _credits: creditsCharged, _reference: attemptRef, _reason: opts.code,
       });
       if (refundErr) console.error("refund_generation_credits falhou:", refundErr);
       else if ((refund as { refunded?: boolean } | null)?.refunded) refunded = creditsCharged;
-      refundFailed = refunded === 0;
+      // Tentativa já concluída (migração 0014): o deck foi gravado antes da
+      // exceção, então não há o que devolver nem falha de estorno a avisar.
+      deckDelivered = (refund as { reason?: string } | null)?.reason === "attempt_succeeded";
+      refundFailed = refunded === 0 && !deckDelivered;
       // Estorno feito: o próprio refund_generation_credits marca a tentativa
       // como "refunded". Se falhou, ela continua "running" de propósito, e a
       // varredura tenta de novo sozinha.
@@ -578,7 +582,9 @@ Deno.serve(async (req) => {
       : refundFailed
         ? " Não foi possível devolver os créditos automaticamente — a equipe já foi notificada."
         : "";
-    const userMessage = `${opts.message}${refundNote}`;
+    const userMessage = deckDelivered
+      ? "A apresentação foi gerada e salva, mas algo falhou ao finalizar. Abra-a em Minhas apresentações."
+      : `${opts.message}${refundNote}`;
 
     // Painel admin (DevMetricsPanel lê generation_logs em realtime).
     await admin.from("generation_logs").insert({

@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "email:preview": "node --experimental-strip-types scripts/email-preview.ts"
   },
   "dependencies": {

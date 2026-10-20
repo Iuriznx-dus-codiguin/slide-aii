@@ -384,6 +384,39 @@ export function placeSlides(
   }
 }
 
+/**
+ * Retry: coloca os slides devolvidos exatamente nas posições que faltavam.
+ * Com faltantes não contíguos (ex.: 2 e 7), o placeSlides usava o trecho de
+ * 2 a 7 e um índice errado da IA (3, já ocupado) escorregava o conteúdo do
+ * slide 3 para a posição 7. Aqui: primeiro quem veio com um índice faltante,
+ * depois o resto, na ordem, nas posições que sobraram.
+ */
+export function placeAtPositions(
+  target: (Record<string, unknown> | undefined)[],
+  returned: unknown[] | undefined,
+  positions: number[],
+): void {
+  if (!Array.isArray(returned)) return;
+  const free = new Set(positions.filter((p) => !target[p - 1]));
+  const rest: Record<string, unknown>[] = [];
+  for (const raw of returned) {
+    if (!raw || typeof raw !== "object") continue;
+    const s = raw as Record<string, unknown>;
+    const idx = Number(s.index);
+    if (Number.isInteger(idx) && free.has(idx)) {
+      target[idx - 1] = s;
+      free.delete(idx);
+    } else {
+      rest.push(s);
+    }
+  }
+  for (const pos of [...free].sort((a, b) => a - b)) {
+    const s = rest.shift();
+    if (!s) break;
+    target[pos - 1] = { ...s, index: pos };
+  }
+}
+
 export function missingIndices(target: (Record<string, unknown> | undefined)[], total: number): number[] {
   const out: number[] = [];
   for (let i = 0; i < total; i++) if (!target[i]) out.push(i + 1);
@@ -451,8 +484,8 @@ export async function generateContentV2(
 ATENÇÃO: escreva APENAS os slides ${listed} (e nenhum outro), cada um com seu "index".`;
     const r = await callContent("contentRetry", keys, system, user, buildToolV2(req, false), missing.length, req.includeSpeeches, deadline);
     retry = r.call;
-    // placeSlides só ocupa posições vazias: nada já escrito é sobrescrito.
-    placeSlides(slides, r.parsed?.slides as unknown[] | undefined, { from: missing[0], to: missing[missing.length - 1] });
+    // Só as posições que faltavam: nada já escrito é sobrescrito.
+    placeAtPositions(slides, r.parsed?.slides as unknown[] | undefined, missing);
     missing = missingIndices(slides, n);
   }
   for (const m of missing) slides[m - 1] = slideFromOutline(outline, m);

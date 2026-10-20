@@ -80,7 +80,7 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `subscription_is_current(plan, status, renews_at)` | Assinatura ativa ou cancelada dentro do período pago |
 | `consume_credits`, `ensure_monthly_credits` | Débito (cota mensal primeiro) e renovação da cota por ciclo |
 | `charge_generation` | Débito de uma geração + registro da tentativa, na mesma transação |
-| `refund_generation_credits` | Estorno idempotente por tentativa de geração (usa o débito da própria tentativa) |
+| `refund_generation_credits` | Estorno idempotente por tentativa de geração (usa o débito da própria tentativa); recusa tentativa já concluída (`attempt_succeeded`) |
 | `refund_stale_generations(_if_due)` | Estorno das tentativas sem desfecho há mais de 10 minutos (pg_cron e `record_access`) |
 | `refund_generation_shortfall` | Devolve a diferença quando a geração entrega menos slides do que os cobrados (idempotente por tentativa) |
 | `reserve_ai_edit` / `release_ai_edit` | Cota do chat de edição reservada antes da IA, numa instrução que confere o teto; devolvida em falha |
