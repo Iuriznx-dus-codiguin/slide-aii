@@ -394,7 +394,7 @@ const Generate = () => {
             >
               {STEPS[stepIdx] ?? "Finalizando..."}
             </motion.h2>
-            <p className="text-muted-foreground mt-2 text-sm">Direção de arte, roteiro e ilustração — tudo em segundos.</p>
+            <p className="text-muted-foreground mt-2 text-sm">Direção de arte, roteiro e ilustração. Leva cerca de um minuto.</p>
           </div>
 
           {/* Barra de progresso principal */}

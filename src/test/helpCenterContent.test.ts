@@ -4,6 +4,8 @@ import {
   ERROR_ARTICLE_LINKS,
   HELP_CATEGORIES,
   MIGRATION_FILES,
+  SITEMAP_FILE,
+  buildSitemap,
   buildSql,
   internalLinks,
   loadArticles,
@@ -20,6 +22,10 @@ describe("Central de Ajuda", () => {
   it("as migrações estão atualizadas com os arquivos .md", () => {
     const sql = buildSql(articles);
     for (const f of MIGRATION_FILES) expect(readFileSync(f, "utf8")).toBe(sql);
+  });
+
+  it("o sitemap lista todos os artigos (gerado pelo mesmo script)", () => {
+    expect(readFileSync(SITEMAP_FILE, "utf8")).toBe(buildSitemap(articles));
   });
 
   it("links internos /ajuda/<slug> apontam para artigos existentes", () => {

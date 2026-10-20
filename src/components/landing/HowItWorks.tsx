@@ -12,7 +12,7 @@ const steps = [
     icon: Sparkles,
     number: "02",
     title: "IA gera os slides",
-    desc: "Em segundos, nossa IA cria a estrutura, conteúdo, imagens e gráficos automaticamente.",
+    desc: "Em cerca de um minuto, nossa IA cria a estrutura, o conteúdo, as imagens e os gráficos automaticamente.",
   },
   {
     icon: Share2,

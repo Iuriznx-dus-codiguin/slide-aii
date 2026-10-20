@@ -120,7 +120,7 @@ const Dashboard = () => {
               <FileText className="h-8 w-8 text-primary" />
             </div>
             <h2 className="font-display text-xl font-bold mb-2">Nenhuma apresentação ainda</h2>
-            <p className="text-muted-foreground mb-6">Crie sua primeira apresentação com IA em segundos.</p>
+            <p className="text-muted-foreground mb-6">Crie sua primeira apresentação com IA em cerca de um minuto.</p>
             <Button variant="hero" onClick={() => navigate("/gerar")}>
               <Sparkles className="h-4 w-4" /> Criar primeira apresentação
             </Button>

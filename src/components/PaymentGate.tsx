@@ -179,14 +179,14 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
         <div className="mt-5 rounded-xl bg-muted/40 border border-border p-3">
           <p className="text-[11px] text-muted-foreground text-center">
             <Check className="h-3 w-3 text-primary inline mr-1" />
-            Todos os planos incluem geração em segundos, exportação PDF/PPTX/PNG, link público compartilhável e suporte prioritário.
+            Todos os planos incluem apresentação pronta em cerca de um minuto, exportação PDF/PPTX/PNG, link público compartilhável e suporte por chat e e-mail.
           </p>
         </div>
 
         <ContractSummary className="mt-4" />
 
         <p className="text-center text-[11px] text-muted-foreground mt-3">
-          Após o pagamento, retorne a esta janela. A geração inicia em segundos.
+          Após o pagamento, retorne a esta janela. A geração começa sozinha assim que o pagamento for confirmado.
         </p>
       </motion.div>
     </div>

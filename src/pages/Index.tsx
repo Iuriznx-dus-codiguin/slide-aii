@@ -16,9 +16,10 @@ const Index = () => {
     <MotionConfig reducedMotion="user" transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
     <div className="landing-page min-h-screen bg-background">
       <Seo
-        title="SlideAI"
-        description="Gere apresentações profissionais com inteligência artificial. Descreva o tema e receba slides editáveis com gráficos, imagens e design impecável."
+        title="SlideAI — Gerador de apresentações com IA"
+        description="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis com design, imagens e gráficos, prontos para PowerPoint e PDF."
         path="/"
+        image="https://slideai.com.br/og-image.png"
       />
       <Navbar />
       <main>

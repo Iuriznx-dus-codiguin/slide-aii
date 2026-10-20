@@ -8,7 +8,7 @@ const About = () => (
   <div className="min-h-screen flex flex-col bg-background">
     <Seo
       title="Sobre o SlideAI — quem somos e por que existimos"
-      description="Conheça o SlideAI: uma plataforma brasileira que usa inteligência artificial para transformar ideias em apresentações profissionais em segundos."
+      description="Conheça o SlideAI: uma plataforma brasileira que usa inteligência artificial para transformar ideias em apresentações profissionais em cerca de um minuto."
       path="/sobre"
       jsonLd={{
         "@context": "https://schema.org",

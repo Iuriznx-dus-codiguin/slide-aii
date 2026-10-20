@@ -3,26 +3,29 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, proPlanFor } from "@/lib/cakto";
+import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, SINGLE_PURCHASE_CREDITS, proPlanFor } from "@/lib/cakto";
 
 type Cycle = "mensal" | "trimestral" | "anual";
 
 // Benefícios IGUAIS em todos os planos — a única diferença entre eles é o
-// volume de gerações por período. "Geração em segundos" abre a lista para
-// reforçar a promessa central do produto; os demais são as capacidades que
-// realmente entregamos hoje na plataforma.
+// volume de gerações por período. Só o que a plataforma entrega hoje: a
+// geração leva cerca de um minuto (média ~47 s em 10/2026) e o suporte é o
+// mesmo em todos os planos (não há fila prioritária).
 const sharedBenefits = [
-  "Geração em segundos",
+  "Apresentação pronta em cerca de um minuto",
   "Exportar PDF, PPTX e PNG",
   "Link público compartilhável",
-  "Suporte prioritário",
+  "Suporte por chat e e-mail",
 ];
+
+/** Apresentações que a compra avulsa rende, como divulgado no card dela. */
+const SINGLE_PURCHASE_DECKS = 3;
 
 const perGen = {
   name: "Pagamento único",
   tagline: "Ideal para começar",
   price: "14,90",
-  period: "≈ 3 Apresentações ",
+  period: `≈ ${SINGLE_PURCHASE_DECKS} apresentações`,
   description: "Pague uma vez e crie suas primeiras apresentações. Sem assinatura, sem compromisso.",
   volume: "400 créditos + 100 Bônus ",
   cta: "Pagamento único",
@@ -51,8 +54,10 @@ export const Pricing = () => {
   const proId = proPlanFor(cycle);
   const proBonus = PLAN_SIGNUP_BONUS[proId] ?? 0;
   const maxPrice = max[cycle];
-  // Estimativa divulgada (≈ 3 apresentações no avulso × escala PRO).
-  const monthlyDecks = 20;
+  // Estimativa divulgada: cota mensal do PRO na mesma proporção do avulso
+  // (500 créditos ≈ 3 apresentações), sem o bônus de ativação, que é único.
+  // 3.200 × 3 ÷ 500 = 19 (antes estava fixo em 20).
+  const monthlyDecks = Math.floor((PLAN_MONTHLY_CREDITS[proId] * SINGLE_PURCHASE_DECKS) / SINGLE_PURCHASE_CREDITS);
 
   return (
     <section id="pricing" className="py-12 sm:py-16 lg:py-20 relative">

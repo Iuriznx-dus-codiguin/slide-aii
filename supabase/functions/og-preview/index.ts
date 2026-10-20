@@ -17,6 +17,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { createLogger } from "../_shared/observability.ts";
 
 const SITE = "https://slideai.com.br";
+/** Imagem padrão da marca (public/og-image.png), para links sem capa. */
+const DEFAULT_IMAGE = `${SITE}/og-image.png`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,7 +69,9 @@ ${image ? `<meta name="twitter:image" content="${esc(image)}" />` : ""}
     description,
     url,
     ...(image ? { image } : {}),
-  })}</script>
+  // O título vem do usuário: "</script>" nele fecharia o bloco e abriria
+  // espaço para HTML arbitrário. "<" escapado mantém o JSON válido.
+  }).replace(/</g, "\\u003c")}</script>
 </head>
 <body>
 <h1>${esc(title)}</h1>
@@ -108,9 +112,9 @@ Deno.serve(async (req) => {
 
   if (!slug || slug === "og-preview") {
     return html(page({
-      title: "SlideAI — Crie apresentações em segundos com IA",
+      title: "SlideAI — Crie apresentações com IA em cerca de um minuto",
       description: "Descreva o tema e receba slides editáveis com design, imagens e animações.",
-      image: null,
+      image: DEFAULT_IMAGE,
       url: `${SITE}/`,
     }), 404);
   }
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
     return html(page({
       title: "Apresentação não encontrada — SlideAI",
       description: "Este link não existe mais ou a apresentação não está publicada.",
-      image: null,
+      image: DEFAULT_IMAGE,
       url: target,
     }), 404);
   }
@@ -153,7 +157,7 @@ Deno.serve(async (req) => {
   return html(page({
     title: `${pres.title} — SlideAI`,
     description: (pres.description || `Apresentação criada com SlideAI: ${pres.title}.`).slice(0, 200),
-    image: cover,
+    image: cover ?? DEFAULT_IMAGE,
     url: target,
   }));
 });

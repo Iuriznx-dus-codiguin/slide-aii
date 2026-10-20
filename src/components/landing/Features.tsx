@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Brain, Edit3, Sparkles, Image as ImageIcon, FileDown, Link2, BarChart3, Palette } from "lucide-react";
 
 const features = [
-  { icon: Brain, title: "Geração com IA", desc: "Conteúdo, estrutura e narrativa criados em segundos a partir do seu tema." },
+  { icon: Brain, title: "Geração com IA", desc: "Conteúdo, estrutura e narrativa criados em cerca de um minuto a partir do seu tema." },
   { icon: Edit3, title: "Editor inteligente", desc: "Edite textos, imagens e layouts em uma interface visual simples e fluida." },
   { icon: Sparkles, title: "Animações cinematográficas", desc: "Transições e entradas profissionais aplicadas automaticamente." },
   { icon: ImageIcon, title: "Banco de imagens", desc: "Milhões de fotos gratuitas do Pexels, escolhidas para cada slide e trocáveis no editor." },

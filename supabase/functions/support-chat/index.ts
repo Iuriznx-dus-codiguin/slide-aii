@@ -215,7 +215,7 @@ CONTEXTO OPERACIONAL DO PRODUTO:
 - Após gerar, o usuário é levado ao editor manual; também pode visualizar, compartilhar e exportar em PDF/PPTX.
 - O dashboard organiza apresentações, edições, links, exportações, visualizações e lixeira.
 - O perfil possui dados pessoais, assinatura, segurança e portfólio público em /u/usuario com apresentações publicadas.
-- Planos atuais: geração única, PRO (20 gerações/mês) e MAX para maior volume; pagamentos aprovados atualizam a conta automaticamente.
+- Planos atuais: compra avulsa (500 créditos), PRO (3.200 créditos por mês) e MAX (uso ilimitado dentro do uso justo de 16.000 créditos por ciclo); uma apresentação de 10 slides equilibrada usa 120 créditos; pagamentos aprovados atualizam a conta automaticamente.
 - Para perguntas legítimas sobre esses fluxos que não tenham artigo exato, dê uma orientação útil baseada somente neste contexto e faça no máximo uma pergunta objetiva se faltar um dado essencial.
 
 ESCOPO ESTRITO:
