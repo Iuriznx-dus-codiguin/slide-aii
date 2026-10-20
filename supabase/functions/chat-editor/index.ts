@@ -196,11 +196,17 @@ Deno.serve(async (req) => {
         .select(`${baseCols}, ai_edit_messages, ai_edit_complex`)
         .eq("id", presentation_id)
         .maybeSingle();
-      // Tipo amplo: a segunda consulta (sem os contadores) tem menos colunas.
-      let pres: any = first.data;
+      // A segunda consulta (sem os contadores) tem menos colunas.
+      type PresentationRow = {
+        id: string; user_id: string; title: string | null; type: string | null; language: string | null;
+        theme: string | null; font_style: string | null; creative_brief: unknown;
+        dynamic_theme: Record<string, unknown> | null;
+        ai_edit_messages?: number | null; ai_edit_complex?: number | null;
+      };
+      let pres = first.data as PresentationRow | null;
       // Migração dos contadores ainda não aplicada: segue com a cota do cliente.
       if (first.error && (first.error.code === "42703" || first.error.code === "PGRST204")) {
-        pres = (await admin.from("presentations").select(baseCols).eq("id", presentation_id).maybeSingle()).data;
+        pres = (await admin.from("presentations").select(baseCols).eq("id", presentation_id).maybeSingle()).data as PresentationRow | null;
       }
       if (!pres) {
         return new Response(JSON.stringify({ error: "Apresentação não encontrada." }), {

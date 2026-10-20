@@ -567,7 +567,10 @@ Deno.serve(async (req) => {
         _uid: userId, _credits: creditsCharged, _reference: attemptRef, _reason: opts.code,
       });
       if (refundErr) console.error("refund_generation_credits falhou:", refundErr);
-      else if ((refund as { refunded?: boolean } | null)?.refunded) refunded = creditsCharged;
+      else if ((refund as { refunded?: boolean } | null)?.refunded) {
+        // O banco limita ao que a tentativa ainda guarda (migração 0014).
+        refunded = Number((refund as { amount?: number }).amount) || creditsCharged;
+      }
       // Tentativa já concluída (migração 0014): o deck foi gravado antes da
       // exceção, então não há o que devolver nem falha de estorno a avisar.
       deckDelivered = (refund as { reason?: string } | null)?.reason === "attempt_succeeded";

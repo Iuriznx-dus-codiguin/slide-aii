@@ -2,7 +2,9 @@
 --
 -- 1) refund_generation_credits não estorna tentativa já concluída: entre
 --    gravar o deck e responder ao cliente, uma exceção levava ao tratamento
---    de falha, que devolvia os créditos de uma apresentação entregue.
+--    de falha, que devolvia os créditos de uma apresentação entregue. E nunca
+--    devolve mais do que a tentativa ainda guarda (depois de um estorno da
+--    diferença de slides, o valor cheio devolveria essa diferença duas vezes).
 -- 2) Fila de e-mails: reserva abandonada 3 vezes ficava em "processing" para
 --    sempre. Agora vira "failed" (motivo abandoned_after_retries), e um índice
 --    atende a busca das reservas abandonadas.
@@ -20,6 +22,7 @@ DECLARE
   _last jsonb;
   _from_bonus integer;
   _from_monthly integer;
+  _attempt_credits integer;
 BEGIN
   IF _credits IS NULL OR _credits <= 0 THEN
     RETURN jsonb_build_object('refunded', false, 'reason', 'noop');
@@ -48,6 +51,16 @@ BEGIN
      WHERE id::text = _reference AND user_id = _uid AND status = 'succeeded'
   ) THEN
     RETURN jsonb_build_object('refunded', false, 'reason', 'attempt_succeeded');
+  END IF;
+
+  -- Nunca devolve mais do que a tentativa ainda guarda: a diferença de
+  -- slides pode já ter voltado por refund_generation_shortfall, que reduz
+  -- generation_attempts.credits.
+  SELECT credits INTO _attempt_credits
+    FROM public.generation_attempts
+   WHERE id::text = _reference AND user_id = _uid;
+  IF _attempt_credits IS NOT NULL THEN
+    _credits := LEAST(_credits, _attempt_credits);
   END IF;
 
   -- O débito desta tentativa diz de onde os créditos saíram. Débitos antigos

@@ -190,7 +190,7 @@ ${targets.map((s: any) => `--- SLIDE ${s.position + 1} ---\n${JSON.stringify(s.c
 
   // Modelo da etapa vem do registro único (_shared/modelRegistry.ts).
   let resp: Response;
-  let aiJson: any;
+  let aiJson: { choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[] } | null;
   try {
     resp = await fetch(AI_ENDPOINTS.gateway, {
       method: "POST",

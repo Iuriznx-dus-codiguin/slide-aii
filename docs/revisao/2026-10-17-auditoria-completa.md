@@ -24,6 +24,12 @@
 - o `og-preview` montava o JSON-LD com o título do usuário sem escapar;
 - o `ExportMenu` de visitantes dependia de ler as tabelas (agora usa o deck da tela).
 
+**Verificação geral antes do merge** (20/10/2026):
+- `supabase/functions/mcp/index.ts` tinha sido regenerado por um build local com `@lovable.dev/mcp-js` 2.3.0; restaurado para 2.0.4 (a do `bun.lock`), e o teste `src/test/mcpBundle.test.ts` passa a barrar essa troca;
+- `refund_generation_credits` (0014) também passa a devolver no máximo o que a tentativa ainda guarda: depois de um estorno da diferença de slides, uma falha posterior devolveria essa diferença duas vezes;
+- imagens `image/jpg` são gravadas como `image/jpeg`, o tipo aceito pelo bucket `slide-images` (0011);
+- dois `any` novos tipados; nenhum arquivo ficou com mais avisos de lint do que na base.
+
 **Não feito, com o motivo:**
 
 | Item | Motivo |
