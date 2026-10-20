@@ -4,17 +4,18 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  SortableContext, useSortable, arrayMove, verticalListSortingStrategy,
+  SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowLeft, Save, Undo2, Redo2, Plus, Trash2, ZoomIn, ZoomOut, Play,
   Type, Image as ImageIcon, Wand2, Layout as LayoutIcon, FileText, Loader2,
   GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users, Shapes,
+  Globe, Lock,
 } from "lucide-react";
 import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
 import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
@@ -28,12 +29,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
-import { ExportMenu } from "@/components/ExportMenu";
+import { ExportMenu, type ExportDeck } from "@/components/ExportMenu";
+import { mergeAiEdits } from "@/lib/aiEditMerge";
 import { THEMES, FONTS, resolveTheme, type ThemeColors } from "@/lib/slugify";
 import { toast } from "sonner";
 import React from "react";
 import type { CreativeBrief } from "@/lib/creativeBrief";
-import { aiSlideToContent } from "@/lib/aiSlide";
 import { fetchSlideImage } from "@/lib/slideImage";
 import { LEGACY_SLIDE_LAYOUTS, SLIDE_LAYOUTS } from "../../supabase/functions/_shared/slideComposition.ts";
 import { MOTION_PRESETS, MOTION_PRESET_LABELS } from "../../supabase/functions/_shared/motionPresets.ts";
@@ -84,6 +85,8 @@ interface SlideRow {
 interface Pres {
   id: string; title: string; slug: string; theme: string; font_style: string;
   include_speeches?: boolean; presenters_names?: string[]; presenters_count?: number;
+  /** Publicada = quem tem o link abre em /slides/:slug. Nasce privada. */
+  is_published?: boolean;
   /** 1 = motor principal, 2 = motor de cenas (teste); selo só para devs. */
   engine_version?: number;
 }
@@ -95,7 +98,7 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   return (
     <div ref={setNodeRef} style={style} className="group relative">
-      <button onClick={onClick}
+      <button onClick={onClick} aria-label={`Ir para o slide ${idx + 1}`} aria-current={active ? "true" : undefined}
         className={`block w-full aspect-video rounded-lg overflow-hidden border-2 transition-all relative ${
           active ? "border-primary shadow-glow" : "border-border hover:border-muted-foreground/40"
         }`}>
@@ -116,12 +119,14 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
           {idx + 1}
         </div>
       </button>
-      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Visíveis também no foco do teclado (antes só no hover do mouse). */}
+      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
         <button {...attributes} {...listeners}
+          aria-label={`Mover o slide ${idx + 1} (espaço para pegar, setas para mover)`} title="Arrastar para reordenar"
           className="h-6 w-6 rounded bg-background/90 border border-border flex items-center justify-center cursor-grab active:cursor-grabbing">
           <GripVertical className="h-3 w-3" />
         </button>
-        <button onClick={onDelete}
+        <button onClick={onDelete} aria-label={`Excluir o slide ${idx + 1}`} title="Excluir slide"
           className="h-6 w-6 rounded bg-background/90 border border-border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground">
           <Trash2 className="h-3 w-3" />
         </button>
@@ -163,6 +168,7 @@ const Editor = () => {
   // direção (ex: wipe, split).
   const prevActiveIdxRef = useRef(0);
   const [loading, setLoading] = useState(true);
+  const [trashed, setTrashed] = useState(false);
   const [zoom, setZoom] = useState(0.7);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -188,6 +194,7 @@ const Editor = () => {
   // Persistida por apresentação e reenviada ao backend, que é quem decide.
   const [aiUsage, setAiUsage] = useState({ messages: 0, complex: 0 });
   const aiUndoRef = useRef<SlideRow[] | null>(null);
+  const aiUndoThemeRef = useRef<{ theme: Partial<ThemeColors> | null } | null>(null);
   const [canUndoAi, setCanUndoAi] = useState(false);
 
   // Undo/redo stacks (snapshots of full slides array)
@@ -196,7 +203,18 @@ const Editor = () => {
   const skipNextSnapshot = useRef(false);
 
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Estado mais recente para callbacks assíncronos (save em fila, resposta da
+  // IA): a closure de quem começou a operação enxerga o deck daquele momento.
+  const slidesRef = useRef(slides);
+  slidesRef.current = slides;
+  const presRef = useRef(pres);
+  presRef.current = pres;
+
+  // Teclado: espaço pega o slide, setas movem, espaço solta (LBI, art. 63).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => { document.title = "Editor — SlideAI"; }, []);
 
@@ -205,14 +223,31 @@ const Editor = () => {
     if (!slug || authLoading) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version").eq("slug", slug).maybeSingle();
-      if (!p) { setLoading(false); return; }
+        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version,is_published,deleted_at").eq("slug", slug).maybeSingle();
+      if (!p) {
+        // Deck de outra pessoa não aparece aqui (RLS). Se estiver publicado,
+        // abre no modo apresentação.
+        const { data: shared } = await supabase.rpc("get_shared_presentation", { _slug: slug });
+        if (shared) {
+          toast.message("Esta apresentação é de outra pessoa — abrindo no modo apresentação.");
+          navigate(`/slides/${slug}`, { replace: true });
+          return;
+        }
+        setLoading(false);
+        return;
+      }
       // Só o dono edita. Uma apresentação pública de outra pessoa abria o
       // Editor (salvar falhava no RLS, mas as imagens pendentes eram buscadas
       // por conta da plataforma) — agora vai para o modo apresentação.
       if (userId && p.user_id !== userId) {
         toast.message("Esta apresentação é de outra pessoa — abrindo no modo apresentação.");
         navigate(`/slides/${slug}`, { replace: true });
+        return;
+      }
+      // Na lixeira: não abre para edição (o autosave gravaria num deck excluído).
+      if (p.deleted_at) {
+        setTrashed(true);
+        setLoading(false);
         return;
       }
       const presLoaded = {
@@ -349,8 +384,11 @@ const Editor = () => {
     if (!pres || regeneratingSpeech) return;
     setRegeneratingSpeech(scope);
     try {
+      // O servidor escreve as falas a partir dos slides GRAVADOS: com
+      // alterações pendentes (texto novo, reordenação), salva antes.
+      if (dirty) await save(true);
       const { data, error } = await supabase.functions.invoke("regenerate-speeches", {
-        body: { presentationId: pres.id, scope, slideIndex: activeIdx },
+        body: { presentationId: pres.id, scope, slideIndex: activeIdx, slideId: slides[activeIdx]?.id },
       });
       const payload: any = data ?? {};
       if (error || payload?.error) {
@@ -362,7 +400,9 @@ const Editor = () => {
       setSlides((prev) => {
         const copy = [...prev];
         for (const u of payload.updated ?? []) {
-          const i = copy.findIndex((_, idx) => idx === u.position);
+          // Pelo id do slide (a posição na tela pode ter mudado); servidor
+          // antigo devolve só a posição.
+          const i = u.id ? copy.findIndex((s) => s.id === u.id) : copy.findIndex((_, idx) => idx === u.position);
           if (i >= 0) copy[i] = { ...copy[i], presenters_data: u.presenters_data };
         }
         return copy;
@@ -433,16 +473,22 @@ const Editor = () => {
   };
 
   // Bloco 12.1: upsert por id em vez de delete+reinsert — elimina o gap temporal.
-  const save = useCallback(async (silent = false) => {
-    if (!pres) return;
+  // Um save por vez, e cada um grava o deck do momento em que roda: antes um
+  // autosave e um Ctrl+S simultâneos podiam apagar um slide recém-criado (o
+  // delete do save mais antigo não conhecia o slide novo).
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const runSave = useCallback(async (silent: boolean) => {
+    const presNow = presRef.current;
+    if (!presNow) return;
+    const deck = slidesRef.current;
     setSaving(true);
     // Assinatura do que está sendo gravado AGORA — aplicada só se o save der
     // certo, para não marcar como salvo um deck que falhou no meio.
-    const attemptedSignature = deckSignature(slides);
+    const attemptedSignature = deckSignature(deck);
     try {
-      const rows = slides.map((s, i) => ({
+      const rows = deck.map((s, i) => ({
         id: s.id,
-        presentation_id: pres.id,
+        presentation_id: presNow.id,
         position: i,
         slide_type: s.slide_type,
         layout_template: s.layout_template,
@@ -457,25 +503,28 @@ const Editor = () => {
         .upsert(rows, { onConflict: "id" });
       if (upErr) throw upErr;
 
-      // Remove slides do banco que não estão mais na lista
+      // Remove slides do banco que não estão mais na lista. Falha aqui deixava
+      // posições duplicadas e mostrava "Salvo!".
       const keepIds = rows.map((r) => r.id);
       if (keepIds.length > 0) {
-        await supabase
+        const { error: delErr } = await supabase
           .from("slides")
           .delete()
-          .eq("presentation_id", pres.id)
+          .eq("presentation_id", presNow.id)
           .not("id", "in", `(${keepIds.map((id) => `"${id}"`).join(",")})`);
+        if (delErr) throw delErr;
       }
 
       // Bloco 12.2: tema dinâmico vive em presentations.dynamic_theme
-      await supabase.from("presentations").update({
-        slides_count: slides.length,
+      const { error: presErr } = await supabase.from("presentations").update({
+        slides_count: deck.length,
         updated_at: new Date().toISOString(),
-        dynamic_theme: (pres as any).dynamic_theme ?? dynamicTheme ?? null,
-      } as any).eq("id", pres.id);
+        dynamic_theme: presNow.dynamic_theme ?? deck[0]?.content?.dynamic_theme ?? null,
+      } as any).eq("id", presNow.id);
+      if (presErr) throw presErr;
 
       savedSnapshotRef.current = attemptedSignature;
-      savedRowsRef.current = JSON.parse(JSON.stringify(slides));
+      savedRowsRef.current = JSON.parse(JSON.stringify(deck));
       setSavedMark((m) => m + 1);
       setLastSaved(new Date());
       if (!silent) toast.success("Salvo!");
@@ -485,7 +534,33 @@ const Editor = () => {
     } finally {
       setSaving(false);
     }
-  }, [pres, slides, dynamicTheme]);
+  }, []);
+
+  const save = useCallback((silent = false): Promise<void> => {
+    const run = saveChainRef.current.then(() => runSave(silent));
+    saveChainRef.current = run.catch(() => undefined);
+    return run;
+  }, [runSave]);
+
+  // Export do que está na tela, inclusive o que ainda não foi salvo (antes o
+  // arquivo saía com a versão gravada no banco).
+  const getExportDeck = useCallback((): ExportDeck => ({
+    slides: slidesRef.current,
+    dynamicTheme: presRef.current?.dynamic_theme ?? slidesRef.current[0]?.content?.dynamic_theme ?? null,
+    creativeBrief: presRef.current?.creative_brief ?? null,
+  }), []);
+
+  const [publishing, setPublishing] = useState(false);
+  const togglePublished = async () => {
+    if (!pres) return;
+    setPublishing(true);
+    const next = !pres.is_published;
+    const { error } = await supabase.from("presentations").update({ is_published: next }).eq("id", pres.id);
+    setPublishing(false);
+    if (error) { toast.error("Não foi possível alterar a visibilidade."); return; }
+    setPres((cur) => (cur ? { ...cur, is_published: next } : cur));
+    toast.success(next ? "Apresentação publicada: quem tiver o link consegue abrir." : "Apresentação privada: só você abre.");
+  };
 
   // Auto-save a cada 30s, apenas quando há mudança pendente.
   useEffect(() => {
@@ -532,6 +607,8 @@ const Editor = () => {
     setChat((c) => [...c, { role: "user", content: instruction }]);
     setChatBusy(true);
     try {
+      // Ids na ordem enviada: a resposta vem por índice.
+      const sentIds = slides.map((s) => s.id);
       // Mapear slides para o formato esperado pela edge function
       const aiSlides = slides.map((s) => ({
         slide_title: s.content?.headline || "",
@@ -562,25 +639,33 @@ const Editor = () => {
         throw new Error(data.error);
       }
 
-      // Snapshot para desfazer a edição da IA (além do undo genérico)
-      aiUndoRef.current = JSON.parse(JSON.stringify(slides));
-      setCanUndoAi(true);
+      // Só os slides que a IA mudou, sobre o deck ATUAL (ver mergeAiEdits).
+      const returned = (data.slides ?? []) as any[];
+      const changedIdx: number[] = Array.isArray(data.changed_slides) ? data.changed_slides : returned.map((_, i) => i);
+      const current = slidesRef.current;
+      const updated = mergeAiEdits(current, sentIds, returned, data.changed_slides);
 
-      // Aplicar updates: mantém ID e position originais por índice
-      pushSnapshot();
-      const updated = (data.slides as any[]).map((ns, i) => ({
-        id: slides[i]?.id ?? crypto.randomUUID(),
-        position: i,
-        slide_type: ns.slide_type ?? slides[i]?.slide_type ?? "content",
-        layout_template: ns.layout_template ?? slides[i]?.layout_template ?? "title-content",
-        animation_transition: ns.animation ?? slides[i]?.animation_transition ?? "fade",
-        speaker_notes: ns.speaker_notes ?? slides[i]?.speaker_notes ?? null,
-        // Bloco 11.3: campos "DNA" (acentos, ato narrativo, variante de capa)
-        // preservados quando a IA não os devolve — ver aiSlideToContent.
-        content: aiSlideToContent(ns, slides[i]?.content),
-      }));
-      skipNextSnapshot.current = true;
-      setSlides(updated as any);
+      // Cores pedidas no chat: o servidor devolve o tema novo. Antes era
+      // descartado (e a mensagem contava na cota).
+      const prevTheme = presRef.current?.dynamic_theme ?? null;
+      const nextTheme = data.dynamic_theme && typeof data.dynamic_theme === "object" ? data.dynamic_theme : null;
+      const themeChanged = !!nextTheme && JSON.stringify(nextTheme) !== JSON.stringify(dynamicTheme ?? null);
+
+      // Desfazer a edição da IA (além do undo genérico) volta a este estado.
+      aiUndoRef.current = JSON.parse(JSON.stringify(current));
+      aiUndoThemeRef.current = themeChanged ? { theme: prevTheme } : null;
+      setCanUndoAi(changedIdx.length > 0 || themeChanged);
+      if (changedIdx.length > 0) {
+        undoStack.current.push(JSON.parse(JSON.stringify(current)));
+        if (undoStack.current.length > 50) undoStack.current.shift();
+        redoStack.current = [];
+        setSlides(updated);
+      }
+      if (themeChanged && pres) {
+        setPres((p) => (p ? { ...p, dynamic_theme: nextTheme } : p));
+        const { error: themeErr } = await supabase.from("presentations").update({ dynamic_theme: nextTheme } as any).eq("id", pres.id);
+        if (themeErr) toast.error("As cores mudaram na tela, mas não foram salvas. Tente de novo.");
+      }
       // Bloco visual que passou a pedir mídia (ex.: "mostre a vista explodida"):
       // o ativo pendente entra na fila de resolução em segundo plano.
       for (const row of updated) {
@@ -607,7 +692,13 @@ const Editor = () => {
     if (!snap) return;
     skipNextSnapshot.current = true;
     setSlides(JSON.parse(JSON.stringify(snap)));
+    const themeUndo = aiUndoThemeRef.current;
+    if (themeUndo && pres) {
+      setPres((p) => (p ? { ...p, dynamic_theme: themeUndo.theme } : p));
+      void supabase.from("presentations").update({ dynamic_theme: themeUndo.theme } as any).eq("id", pres.id);
+    }
     aiUndoRef.current = null;
+    aiUndoThemeRef.current = null;
     setCanUndoAi(false);
     toast.success("Última edição da IA desfeita.");
   };
@@ -629,7 +720,8 @@ const Editor = () => {
   if (!pres) return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="text-center">
-        <h1 className="font-display text-2xl font-bold">Apresentação não encontrada</h1>
+        <h1 className="font-display text-2xl font-bold">{trashed ? "Esta apresentação está na lixeira" : "Apresentação não encontrada"}</h1>
+        {trashed && <p className="text-muted-foreground mt-2">Para editá-la de novo, <Link to="/suporte" className="text-primary underline">abra um atendimento</Link> e peça para restaurá-la.</p>}
         <Link to="/dashboard" className="text-primary underline mt-4 inline-block">Voltar</Link>
       </div>
     </div>
@@ -663,18 +755,18 @@ const Editor = () => {
           </div>
           <div className="h-5 w-px bg-border hidden md:block" />
           <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={undo} disabled={!undoStack.current.length} title="Desfazer (Ctrl+Z)">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={undo} disabled={!undoStack.current.length} title="Desfazer (Ctrl+Z)" aria-label="Desfazer">
               <Undo2 className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={redo} disabled={!redoStack.current.length} title="Refazer (Ctrl+Y)">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={redo} disabled={!redoStack.current.length} title="Refazer (Ctrl+Y)" aria-label="Refazer">
               <Redo2 className="h-4 w-4" />
             </Button>
           </div>
           <div className="h-5 w-px bg-border hidden md:block" />
           <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}><ZoomOut className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))} aria-label="Diminuir zoom" title="Diminuir zoom"><ZoomOut className="h-4 w-4" /></Button>
             <span className="text-xs font-medium w-10 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))}><ZoomIn className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))} aria-label="Aumentar zoom" title="Aumentar zoom"><ZoomIn className="h-4 w-4" /></Button>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <span className={`text-[11px] hidden md:inline ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
@@ -695,10 +787,18 @@ const Editor = () => {
                 <Users className="h-4 w-4" /> <span className="hidden md:inline">Falas</span>
               </Button>
             )}
+            <Button
+              variant="ghost" size="sm" onClick={togglePublished} disabled={publishing}
+              title={pres.is_published ? "Publicada: quem tiver o link abre. Clique para tornar privada." : "Privada: só você abre. Clique para publicar."}
+              aria-label={pres.is_published ? "Tornar apresentação privada" : "Publicar apresentação"}
+            >
+              {pres.is_published ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+              <span className="hidden md:inline">{pres.is_published ? "Publicada" : "Privada"}</span>
+            </Button>
             <Link to={`/slides/${pres.slug}`} target="_blank">
               <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
             </Link>
-            <ExportMenu presentationId={pres.id} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} />
+            <ExportMenu presentationId={pres.id} getDeck={getExportDeck} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} />
             <Button variant="hero" size="sm" onClick={() => save()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
             </Button>
@@ -711,7 +811,7 @@ const Editor = () => {
         <aside className="lg:w-44 xl:w-52 border-b lg:border-b-0 lg:border-r border-border bg-card/30 flex lg:flex-col flex-shrink-0">
           <div className="px-3 py-2 border-b border-border flex items-center justify-between lg:w-auto w-full">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Slides</span>
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={addSlide}><Plus className="h-3.5 w-3.5" /></Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={addSlide} aria-label="Adicionar slide" title="Adicionar slide"><Plus className="h-3.5 w-3.5" /></Button>
           </div>
           <ScrollArea className="flex-1">
             <div className="p-2 flex lg:flex-col gap-2 lg:space-y-0">
@@ -773,7 +873,7 @@ const Editor = () => {
                   <div className="absolute inset-0 flex flex-col p-4 gap-2 bg-black/50 backdrop-blur-sm">
                     <div className="flex items-center justify-between text-white text-xs mb-1">
                       <span className="flex items-center gap-1.5"><Pencil className="h-3 w-3" /> Edição inline ativa</span>
-                      <button onClick={() => setInlineEdit(false)} className="hover:bg-white/10 rounded p-1"><X className="h-3 w-3" /></button>
+                      <button onClick={() => setInlineEdit(false)} className="hover:bg-white/10 rounded p-1" aria-label="Sair da edição direta"><X className="h-3 w-3" /></button>
                     </div>
                     <input
                       value={c.headline || ""}
@@ -807,7 +907,7 @@ const Editor = () => {
               <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <MessageSquare className="h-3.5 w-3.5 text-primary" /> Assistente IA
               </span>
-              <button onClick={() => setChatOpen(false)} className="hover:bg-muted rounded p-1"><X className="h-3 w-3" /></button>
+              <button onClick={() => setChatOpen(false)} className="hover:bg-muted rounded p-1" aria-label="Fechar assistente de IA"><X className="h-3 w-3" /></button>
             </div>
             <ScrollArea className="flex-1 px-3 py-3">
               <div className="space-y-3">
@@ -846,11 +946,11 @@ const Editor = () => {
                 )}
               </div>
               <div className="flex gap-1.5">
-                <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} aria-label="Pedido para a IA"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                   placeholder="Ex: reduza o texto do slide 4" rows={2} className="resize-none text-xs"
                   disabled={chatBusy || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX} />
-                <Button size="icon" variant="hero" onClick={sendChat}
+                <Button size="icon" variant="hero" onClick={sendChat} aria-label="Enviar pedido à IA"
                   disabled={chatBusy || !chatInput.trim() || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX}
                   className="self-end h-9 w-9">
                   <Send className="h-3.5 w-3.5" />
@@ -1127,4 +1227,14 @@ const Editor = () => {
   );
 };
 
-export default Editor;
+/**
+ * Uma instância por apresentação: sem a key, trocar de /editor/A para
+ * /editor/B (ex.: uma geração que termina enquanto se edita outro deck)
+ * reaproveitava o estado — undo, fila de save e cota de A — dentro de B.
+ */
+const EditorPage = () => {
+  const { slug } = useParams();
+  return <Editor key={slug} />;
+};
+
+export default EditorPage;

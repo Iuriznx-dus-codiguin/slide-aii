@@ -34,7 +34,7 @@ export const Hero = () => {
             Crie apresentações{" "}
             <span className="text-gradient">incríveis</span>
             <br />
-            em segundos com IA
+            com IA
           </motion.h1>
 
           <motion.p
@@ -133,7 +133,7 @@ export const Hero = () => {
                     O futuro das <span className="text-gradient">apresentações</span>
                   </h3>
                   <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
-                    Conteúdo gerado por IA em segundos, com gráficos, imagens e narrativa coerente.
+                    Conteúdo gerado por IA em cerca de um minuto, com gráficos, imagens e narrativa coerente.
                   </p>
                   <div className="mt-4 sm:mt-6 flex gap-3">
                     <div className="h-2 w-16 rounded-full bg-primary" />

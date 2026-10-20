@@ -313,7 +313,7 @@ async function exportSceneSlide(pptx: any, slide: any, s: SlideRow, index: numbe
     const legend = model.spec.renderMode === "hybrid" && model.nodes.length > 0;
     const img: Rect = legend ? { ...slots.visual, w: slots.visual.w * 0.62 } : slots.visual;
     try {
-      slide.addImage({ path: c.image_url, x: img.x, y: img.y, w: img.w, h: img.h, sizing: { type: cutout ? "contain" : "cover", w: img.w, h: img.h } });
+      slide.addImage({ ...imageSource(c.image_url), x: img.x, y: img.y, w: img.w, h: img.h, sizing: { type: cutout ? "contain" : "cover", w: img.w, h: img.h } });
     } catch { /* imagem indisponível */ }
     if (legend) {
       const lx = img.x + img.w + 0.3;
@@ -353,7 +353,43 @@ async function exportSceneSlide(pptx: any, slide: any, s: SlideRow, index: numbe
   addSceneText(slide, c, slots.text, theme, { hero: !!fullBleed, showBullets, color: fullBleed ? "#FFFFFF" : undefined });
 }
 
-export async function exportPresentationToPptx({ title, themeId, slides, dynamicTheme, fontId, creativeBrief }: ExportOpts) {
+/**
+ * Baixa as imagens antes de montar o arquivo. Com `path`, o pptxgenjs só as
+ * busca no writeFile, e uma única imagem fora do ar derrubava o export
+ * inteiro; agora a imagem que falha fica de fora e o resto sai.
+ */
+async function inlineImages(slides: SlideRow[]): Promise<SlideRow[]> {
+  const urls = [...new Set(slides
+    .map((s) => s.content?.image_url)
+    .filter((u): u is string => typeof u === "string" && u.length > 0 && !u.startsWith("data:")))];
+  const loaded = new Map<string, string | null>();
+  await Promise.all(urls.map(async (url) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      loaded.set(url, await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      }));
+    } catch (e) {
+      console.warn("pptx: imagem indisponível, exportando sem ela", url, e);
+      loaded.set(url, null);
+    }
+  }));
+  return slides.map((s) => {
+    const url = s.content?.image_url;
+    if (typeof url !== "string" || !loaded.has(url)) return s;
+    return { ...s, content: { ...s.content, image_url: loaded.get(url) ?? null } };
+  });
+}
+
+const imageSource = (src: string) => (src.startsWith("data:") ? { data: src } : { path: src });
+
+export async function exportPresentationToPptx({ title, themeId, slides: inputSlides, dynamicTheme, fontId, creativeBrief }: ExportOpts) {
+  const slides = await inlineImages(inputSlides);
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE"; // 13.33 x 7.5 inches (16:9)
   pptx.title = title;
@@ -393,7 +429,7 @@ export async function exportPresentationToPptx({ title, themeId, slides, dynamic
         });
       }
       if (c.image_url && layout === "split-hero") {
-        try { slide.addImage({ path: c.image_url, x: 7, y: 0, w: 6.33, h: 7.5, sizing: { type: "cover", w: 6.33, h: 7.5 } }); } catch {}
+        try { slide.addImage({ ...imageSource(c.image_url), x: 7, y: 0, w: 6.33, h: 7.5, sizing: { type: "cover", w: 6.33, h: 7.5 } }); } catch {}
       }
       continue;
     }
@@ -421,7 +457,7 @@ export async function exportPresentationToPptx({ title, themeId, slides, dynamic
     }
 
     if (layout === "full-image" && c.image_url) {
-      try { slide.addImage({ path: c.image_url, x: 0, y: 0, w: 13.33, h: 7.5, sizing: { type: "cover", w: 13.33, h: 7.5 } }); } catch {}
+      try { slide.addImage({ ...imageSource(c.image_url), x: 0, y: 0, w: 13.33, h: 7.5, sizing: { type: "cover", w: 13.33, h: 7.5 } }); } catch {}
       slide.addShape("rect" as any, { x: 0, y: 4, w: 13.33, h: 3.5, fill: { color: hexNoHash(theme.bg), transparency: 30 }, line: { type: "none" } as any });
       slide.addText(c.headline || "", { x: 0.5, y: 4.5, w: 12.33, h: 1.5, fontSize: 40, bold: true, color: hexNoHash(theme.text) });
       if (c.subtitle) slide.addText(c.subtitle, { x: 0.5, y: 6.1, w: 12.33, h: 1, fontSize: 18, color: hexNoHash(theme.text), transparency: 15 });
@@ -461,7 +497,7 @@ export async function exportPresentationToPptx({ title, themeId, slides, dynamic
 
     if (hasSideImage) {
       const ix = imgLeft ? 0.5 : 7;
-      try { slide.addImage({ path: c.image_url, x: ix, y: 0.7, w: 5.83, h: 6.1, sizing: { type: "cover", w: 5.83, h: 6.1 } }); } catch {}
+      try { slide.addImage({ ...imageSource(c.image_url), x: ix, y: 0.7, w: 5.83, h: 6.1, sizing: { type: "cover", w: 5.83, h: 6.1 } }); } catch {}
     }
 
     // Chart (basic native chart)

@@ -89,6 +89,16 @@ const STYLE_SUFFIX: Record<NonNullable<FetchImageBody["style"]>, string> = {
 
 const LEGACY_NO_TEXT = " No text, letters or watermarks in the image.";
 
+/**
+ * Tempo máximo da cadeia de modelos de imagem e de cada busca na Pexels. Sem
+ * teto, um provedor lento segurava a função até o limite da plataforma.
+ */
+/** Por quanto tempo o vídeo de fundo encontrado para um tema é reaproveitado. */
+const VIDEO_CACHE_TTL_MS = 30 * 24 * 3600_000;
+const IMAGE_CHAIN_BUDGET_MS = 110_000;
+const IMAGE_MODEL_TIMEOUT_MS = 60_000;
+const PEXELS_TIMEOUT_MS = 10_000;
+
 interface GenerationRequest {
   prompt: string;
   chain: ImageModelId[];
@@ -116,9 +126,13 @@ async function generateAiImage(req: GenerationRequest): Promise<GenerationResult
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const prompt = req.prompt.slice(0, 3000);
   let rateLimited = false;
+  const startedAt = Date.now();
+  /** Timeout do próximo modelo, dentro do orçamento da cadeia (0 = sem tempo). */
+  const nextTimeout = () => Math.min(IMAGE_MODEL_TIMEOUT_MS, IMAGE_CHAIN_BUDGET_MS - (Date.now() - startedAt));
 
   for (const model of req.chain) {
     const spec = IMAGE_MODELS[model];
+    if (nextTimeout() < 10_000) break;
     if (spec.provider === "openai") {
       if (!OPENAI_API_KEY) continue;
       try {
@@ -135,6 +149,7 @@ async function generateAiImage(req: GenerationRequest): Promise<GenerationResult
           method: "POST",
           headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(nextTimeout()),
         });
         if (r.ok) {
           const d = await r.json();
@@ -167,6 +182,7 @@ async function generateAiImage(req: GenerationRequest): Promise<GenerationResult
           messages: [{ role: "user", content: prompt }],
           modalities: ["image", "text"],
         }),
+        signal: AbortSignal.timeout(nextTimeout()),
       });
       if (!r.ok) {
         if (r.status === 429 || r.status === 402) rateLimited = true;
@@ -201,7 +217,7 @@ async function searchPexels(
   try {
     const r = await fetch(
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=15&orientation=${orientation}`,
-      { headers: { Authorization: PEXELS_API_KEY } },
+      { headers: { Authorization: PEXELS_API_KEY }, signal: AbortSignal.timeout(PEXELS_TIMEOUT_MS) },
     );
     if (!r.ok) {
       console.error("Pexels error:", r.status, (await r.text().catch(() => "")).slice(0, 200));
@@ -306,6 +322,13 @@ Deno.serve(async (req) => {
         return false;
       }
     };
+    /** Devolve uma unidade da cota da apresentação (geração que não entregou imagem). */
+    const releaseQuota = async (kind: "ai" | "photo") => {
+      if (!userId || !presentationId) return;
+      try {
+        await admin.rpc("release_presentation_asset", { _presentation_id: presentationId, _uid: userId, _kind: kind });
+      } catch { /* sem a migração 0010: a cota fica como estava */ }
+    };
     const recordCost = async (usd: number | undefined) => {
       if (!userId || !presentationId || !usd) return;
       try {
@@ -329,16 +352,11 @@ Deno.serve(async (req) => {
     };
 
     if (strategy === "ai") {
-      // Único caminho com custo real em dólar por chamada — exige conta.
+      // Único caminho com custo real em dólar por chamada — exige conta. A
+      // cota só é consumida mais abaixo, depois da busca no cache de ativos.
       if (!userId) {
         await log.security("unauthorized", { status: 401, detail: { strategy: "ai" } });
         return json({ url: null, error: "Autenticação necessária para geração de imagem por IA." }, 401);
-      }
-      if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) {
-        if (!(await entitlement())?.allowed) {
-          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo." }, 402);
-        }
-        return json({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }, 429);
       }
     } else if (strategy !== "none") {
       // pexels/video: sem custo monetário direto, mas ainda limitado por
@@ -358,11 +376,22 @@ Deno.serve(async (req) => {
     if (strategy === "none") return json({ url: null });
 
     if (strategy === "video") {
+      // Resultado guardado por tema: cada visitante de um deck publicado
+      // buscava o vídeo de cada slide na Pexels, e a cota do projeto (a mesma
+      // das fotos das gerações) podia acabar. Sem a tabela (migração 0013),
+      // segue buscando como antes.
+      const queryKey = (body.query || "abstract motion").toLowerCase();
+      const { data: cachedVideo } = await admin.from("video_search_cache")
+        .select("url, poster, fetched_at").eq("query_key", queryKey).maybeSingle();
+      if (cachedVideo && Date.now() - new Date(cachedVideo.fetched_at).getTime() < VIDEO_CACHE_TTL_MS) {
+        return json({ url: cachedVideo.url, poster: cachedVideo.poster, cached: true });
+      }
       const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY");
       if (!PEXELS_API_KEY) return json({ url: null, error: "PEXELS_API_KEY not configured" });
       const q = encodeURIComponent(body.query || "abstract motion");
       const r = await fetch(`https://api.pexels.com/videos/search?query=${q}&per_page=8&orientation=landscape&size=medium`, {
         headers: { Authorization: PEXELS_API_KEY },
+        signal: AbortSignal.timeout(PEXELS_TIMEOUT_MS),
       });
       if (!r.ok) {
         console.error("Pexels videos error:", r.status, await r.text());
@@ -377,6 +406,10 @@ Deno.serve(async (req) => {
         // deno-lint-ignore no-explicit-any
         ?? video?.video_files?.find((f: any) => f.file_type === "video/mp4")
         ?? video?.video_files?.[0];
+      const { error: cacheErr } = await admin.from("video_search_cache").upsert({
+        query_key: queryKey, url: file?.link ?? null, poster: video?.image ?? null, fetched_at: new Date().toISOString(),
+      });
+      if (cacheErr) console.warn("fetch-image: video cache write failed", cacheErr.message);
       return json({
         url: file?.link ?? null,
         poster: video?.image ?? null,
@@ -437,7 +470,8 @@ Deno.serve(async (req) => {
         await touchAsset(admin, cachedFallback.id, cachedFallback.usage_count);
         return json({ url: cachedFallback.url, source: "asset-library" });
       }
-      if (!(await consumeQuota("ai")) && !(await withinGenericAiLimit())) return json({ url: null });
+      const fbCovered = await consumeQuota("ai");
+      if (!fbCovered && !(await withinGenericAiLimit())) return json({ url: null });
       const genFb = await generateAiImage(buildGeneration(fallbackText));
       if (genFb.url) {
         const persisted = await persistGeneratedImage(admin, userId, genFb.url);
@@ -445,6 +479,7 @@ Deno.serve(async (req) => {
         await recordCost(genFb.costUsd);
         return json({ url: persisted, source: `${genFb.source}-fallback`, model: genFb.model, cost_usd: genFb.costUsd });
       }
+      if (fbCovered) await releaseQuota("ai");
       return json({ url: null });
     }
 
@@ -460,9 +495,20 @@ Deno.serve(async (req) => {
         return json({ url: cached.url, source: "asset-library" });
       }
 
+      // Só agora consome cota: acerto de cache não gasta imagem da apresentação.
+      const covered = await consumeQuota("ai");
+      if (!covered && !(await withinGenericAiLimit())) {
+        if (!(await entitlement())?.allowed) {
+          return json({ url: null, error: "Imagens por IA fora de uma apresentação gerada exigem um plano ativo." }, 402);
+        }
+        return json({ url: null, error: "Limite de gerações de imagem por IA atingido nesta hora." }, 429);
+      }
+
       // "ai" significa IA de verdade; a Pexels só entra se a geração falhar.
       const basePrompt = body.ai_prompt || body.query || "abstract beautiful illustration";
       const gen = await generateAiImage(buildGeneration(basePrompt));
+      // Nenhuma imagem de IA entregue: a unidade da cota volta para a apresentação.
+      if (!gen.url && covered) await releaseQuota("ai");
       if (gen.url) {
         // Sobe o binário para o Storage (data-URLs base64 não são cacheáveis
         // nem devem viver dentro de slides.content) e registra na biblioteca.

@@ -71,6 +71,41 @@
       "when": 1791100540000,
       "tag": "0009_help_center_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792195260000,
+      "tag": "0010_billing_safety_nets",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792195320000,
+      "tag": "0011_private_by_default_and_api_lockdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792368060000,
+      "tag": "0012_help_center_privacy_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792368120000,
+      "tag": "0013_help_feedback_and_video_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792454520000,
+      "tag": "0014_refund_guard_and_email_queue",
+      "breakpoints": true
     }
   ]
 }

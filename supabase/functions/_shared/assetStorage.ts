@@ -32,7 +32,10 @@ const ALLOWED_CONTENT_TYPES = ["image/webp", "image/png", "image/jpeg", "image/j
 function parseDataUrl(dataUrl: string): { bytes: Uint8Array; contentType: string; ext: string } | null {
   const m = dataUrl.match(/^data:([^;,]+);base64,(.+)$/s);
   if (!m) return null;
-  const contentType = m[1].toLowerCase();
+  // "image/jpg" não é um tipo oficial: o bucket (migração 0011) aceita só
+  // image/jpeg e recusaria o upload.
+  const raw = m[1].toLowerCase();
+  const contentType = raw === "image/jpg" ? "image/jpeg" : raw;
   if (!ALLOWED_CONTENT_TYPES.includes(contentType)) return null;
   const bin = atob(m[2]);
   if (bin.length > MAX_UPLOAD_BYTES) return null;

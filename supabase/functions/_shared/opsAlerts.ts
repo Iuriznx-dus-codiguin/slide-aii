@@ -37,12 +37,22 @@ const recipients = async (admin: SupabaseClient): Promise<string[]> => {
   return [...new Set([...fromEnv, ...fromRoles])];
 };
 
+/**
+ * Por quanto tempo um alerta pendente (inclusive um cujo envio falhou) ainda é
+ * enviado. Depois disso fica só no banco (painel /__dev), sem tentar a cada
+ * execução. Folgado: alertas gravados por rotinas SQL esperam a próxima edge
+ * function que chama flushOpsAlerts.
+ */
+const RETRY_WINDOW_MS = 24 * 3600_000;
+
 /** Envia os alertas pendentes. Nunca lança. */
 export const flushOpsAlerts = async (admin: SupabaseClient, limit = 10): Promise<number> => {
   try {
     const { data: pending } = await admin.from("ops_alerts")
       .select("id, kind, severity, title, details, created_at")
-      .is("notified_at", null).order("created_at", { ascending: true }).limit(limit);
+      .is("notified_at", null)
+      .gte("created_at", new Date(Date.now() - RETRY_WINDOW_MS).toISOString())
+      .order("created_at", { ascending: true }).limit(limit);
     if (!pending?.length) return 0;
     const to = await recipients(admin);
     if (!to.length) {
@@ -56,6 +66,7 @@ export const flushOpsAlerts = async (admin: SupabaseClient, limit = 10): Promise
         .update({ notified_at: new Date().toISOString() })
         .eq("id", a.id).is("notified_at", null).select("id");
       if (!claimed?.length) continue;
+      let delivered = 0;
       for (const email of to) {
         const r = await sendPlatformEmail(admin, {
           to: email,
@@ -66,6 +77,13 @@ export const flushOpsAlerts = async (admin: SupabaseClient, limit = 10): Promise
           },
         });
         if (r === "sent") sent++;
+        // "duplicate" = já entregue a esse destinatário numa execução anterior.
+        if (r === "sent" || r === "duplicate") delivered++;
+      }
+      // Nenhum destinatário recebeu (ex.: provedor fora do ar): devolve o
+      // alerta à fila. Antes ele ficava marcado como enviado e se perdia.
+      if (!delivered) {
+        await admin.from("ops_alerts").update({ notified_at: null }).eq("id", a.id);
       }
     }
     return sent;

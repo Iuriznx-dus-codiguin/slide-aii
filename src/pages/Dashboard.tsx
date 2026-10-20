@@ -60,7 +60,8 @@ const Dashboard = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Mover esta apresentação para a lixeira?")) return;
-    await supabase.from("presentations").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("presentations").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) { toast.error("Não foi possível mover para a lixeira. Tente de novo."); return; }
     toast.success("Movido para a lixeira");
     load();
   };
@@ -119,7 +120,7 @@ const Dashboard = () => {
               <FileText className="h-8 w-8 text-primary" />
             </div>
             <h2 className="font-display text-xl font-bold mb-2">Nenhuma apresentação ainda</h2>
-            <p className="text-muted-foreground mb-6">Crie sua primeira apresentação com IA em segundos.</p>
+            <p className="text-muted-foreground mb-6">Crie sua primeira apresentação com IA em cerca de um minuto.</p>
             <Button variant="hero" onClick={() => navigate("/gerar")}>
               <Sparkles className="h-4 w-4" /> Criar primeira apresentação
             </Button>
@@ -182,7 +183,7 @@ const Dashboard = () => {
                           <span className="sr-only">Editar apresentação</span>
                         </Button>
                       </Link>
-                      <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} slug={p.slug} variant="ghost" size="icon" label={`Exportar ${p.title}`} />
+                      <ExportMenu presentationId={p.id} title={p.title} themeId={p.theme} fontId={p.font_style} slug={p.slug} variant="ghost" size="icon" label={`Exportar ${p.title}`} />
                       <Button variant="ghost" size="sm" onClick={() => togglePublished(p)} title={p.is_published ? "Tornar privada" : "Publicar"} aria-label={p.is_published ? `Tornar ${p.title} privada` : `Publicar ${p.title}`}>
                         {p.is_published ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
                       </Button>

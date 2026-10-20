@@ -4,13 +4,21 @@ import { Download, FileDown, Loader2, FileText, ImageDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { exportPresentationToPptx } from "@/lib/exportPptx";
-import { exportPresentationToPdf } from "@/lib/exportPdf";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
+// Bibliotecas de exportação (pptxgenjs, jsPDF, html2canvas) carregam só no
+// clique: estavam no pacote inicial de todas as páginas, inclusive a home.
+import type { exportPresentationToPptx } from "@/lib/exportPptx";
+
+/** Deck já carregado na tela; o export não precisa reler o banco. */
+export type ExportDeck = Pick<Parameters<typeof exportPresentationToPptx>[0], "slides" | "dynamicTheme" | "creativeBrief">;
 
 interface Props {
   presentationId: string;
+  /**
+   * Fornece o deck da tela. Necessário no visualizador público: o visitante
+   * não lê as tabelas diretamente (só pela RPC get_shared_presentation).
+   */
+  getDeck?: () => ExportDeck | Promise<ExportDeck>;
   title: string;
   themeId: string;
   fontId?: string;
@@ -20,7 +28,7 @@ interface Props {
   label?: string;
 }
 
-export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", slug, variant = "outline", size = "sm", label = "Exportar" }: Props) => {
+export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "modern", slug, variant = "outline", size = "sm", label = "Exportar" }: Props) => {
   const [busy, setBusy] = useState(false);
 
   const fetchSlides = async () => {
@@ -51,22 +59,28 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     };
   };
 
+  const loadDeck = async (): Promise<ExportDeck> => {
+    if (getDeck) return getDeck();
+    const [rows, art] = await Promise.all([fetchSlides(), fetchArtDirection()]);
+    return { slides: rows, ...art };
+  };
+
   const handlePptx = async () => {
     setBusy(true);
     const t = toast.loading("Gerando PPTX…");
     try {
-      const rows = await fetchSlides();
-      if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
       // Tema e brief da APRESENTAÇÃO — antes o PPTX lia o tema de
       // slides[0].content, que as gerações novas não gravam.
-      const art = await fetchArtDirection();
+      const deck = await loadDeck();
+      if (!deck.slides.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      const { exportPresentationToPptx } = await import("@/lib/exportPptx");
       await exportPresentationToPptx({
         title,
         themeId,
         fontId,
-        slides: rows as any,
-        dynamicTheme: art.dynamicTheme,
-        creativeBrief: art.creativeBrief,
+        slides: deck.slides,
+        dynamicTheme: deck.dynamicTheme ?? null,
+        creativeBrief: deck.creativeBrief ?? null,
       });
       toast.success("PPTX gerado!", { id: t });
     } catch (e: any) {
@@ -81,16 +95,16 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     setBusy(true);
     const t = toast.loading("Renderizando PDF (0%)…");
     try {
-      const rows = await fetchSlides();
-      if (!rows.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
-      const art = await fetchArtDirection();
+      const deck = await loadDeck();
+      if (!deck.slides.length) { toast.error("Nenhum slide encontrado", { id: t }); return; }
+      const { exportPresentationToPdf } = await import("@/lib/exportPdf");
       await exportPresentationToPdf({
         title,
         themeId,
         fontId,
-        slides: rows as any,
-        dynamicTheme: art.dynamicTheme,
-        creativeBrief: art.creativeBrief,
+        slides: deck.slides,
+        dynamicTheme: deck.dynamicTheme ?? null,
+        creativeBrief: deck.creativeBrief ?? null,
         onProgress: (cur, total) => {
           const pct = Math.round((cur / total) * 100);
           toast.loading(`Renderizando PDF (${pct}%)…`, { id: t });
@@ -111,6 +125,7 @@ export const ExportMenu = ({ presentationId, title, themeId, fontId = "modern", 
     try {
       const target = document.querySelector<HTMLElement>("[data-export-target='slide']");
       if (target) {
+        const { default: html2canvas } = await import("html2canvas");
         const canvas = await html2canvas(target, { backgroundColor: "#000", scale: 2, useCORS: true });
         canvas.toBlob((blob) => {
           if (!blob) return;

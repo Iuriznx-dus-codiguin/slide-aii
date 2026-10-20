@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AccountPanel } from "@/components/AccountPanel";
 import { CreditsPanel } from "@/components/CreditsPanel";
 
-import { uploadAvatar } from "@/lib/avatarUpload";
+import { deleteAvatarFiles, uploadAvatar } from "@/lib/avatarUpload";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { EmailPreferencesCard } from "@/components/EmailPreferencesCard";
@@ -169,17 +169,26 @@ const ProfilePage = () => {
     const result = await uploadAvatar(user.id, file);
     setUploading(false);
     if ("error" in result) { toast.error(result.error); return; }
+    const { error } = await supabase.from("profiles").update({ avatar_url: result.url }).eq("id", user.id);
+    if (error) {
+      // Perfil não mudou: descarta só o arquivo recém-enviado.
+      void supabase.storage.from("avatars").remove([result.path]);
+      toast.error("Não foi possível salvar a foto.");
+      return;
+    }
     update({ avatar_url: result.url });
-    await supabase.from("profiles").update({ avatar_url: result.url }).eq("id", user.id);
     setInitial((p) => (p ? { ...p, avatar_url: result.url } : p));
+    void deleteAvatarFiles(user.id, result.path).catch(() => {});
     toast.success("Foto de perfil atualizada");
   };
 
   const removeAvatar = async () => {
     if (!user) return;
+    const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+    if (error) { toast.error("Não foi possível remover a foto."); return; }
     update({ avatar_url: null });
-    await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
     setInitial((p) => (p ? { ...p, avatar_url: null } : p));
+    void deleteAvatarFiles(user.id).catch(() => {});
     toast.success("Foto removida");
   };
 
@@ -500,7 +509,7 @@ const ProfilePage = () => {
               </div>
               <Button variant="hero">Alterar senha</Button>
               <hr className="border-border" />
-              <Button type="button" variant="outline" onClick={async () => { await signOut(); navigate("/"); }}>
+              <Button type="button" variant="outline" onClick={async () => { await signOut("global"); navigate("/"); }}>
                 Sair de todas as sessões
               </Button>
             </form>

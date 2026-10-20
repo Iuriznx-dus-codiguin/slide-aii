@@ -109,9 +109,33 @@ export const ARTICLES_DIR = join(ROOT, "docs/central-de-ajuda/artigos");
 // publicado, crie um par novo aqui (a migração antiga já rodou e fica como
 // histórico): o upsert por slug reaplica todos os artigos.
 export const MIGRATION_FILES = [
-  join(ROOT, "supabase/migrations/20261004000400_help_center_emails.sql"),
-  join(ROOT, "drizzle/migrations/0009_help_center_emails.sql"),
+  join(ROOT, "supabase/migrations/20261019000100_help_center_privacy_analytics.sql"),
+  join(ROOT, "drizzle/migrations/0012_help_center_privacy_analytics.sql"),
 ];
+
+// Sitemap: páginas fixas + um endereço por artigo publicado. Gerado junto
+// com a migração para que um artigo novo já entre na busca do Google.
+export const SITEMAP_FILE = join(ROOT, "public/sitemap.xml");
+const SITE = "https://slideai.com.br";
+const STATIC_PAGES: [path: string, changefreq: string, priority: string][] = [
+  ["/", "weekly", "1.0"],
+  ["/templates", "weekly", "0.8"],
+  ["/ajuda", "weekly", "0.7"],
+  ["/sobre", "monthly", "0.6"],
+  ["/contato", "monthly", "0.6"],
+  ["/termos", "yearly", "0.3"],
+  ["/privacidade", "yearly", "0.3"],
+];
+
+export function buildSitemap(articles: HelpArticleSource[]): string {
+  const url = (path: string, changefreq: string, priority: string) =>
+    `  <url><loc>${SITE}${path}</loc><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`;
+  const lines = [
+    ...STATIC_PAGES.map(([path, freq, prio]) => url(path, freq, prio)),
+    ...[...articles].sort((a, b) => a.slug.localeCompare(b.slug)).map((a) => url(`/ajuda/${a.slug}`, "monthly", "0.5")),
+  ];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join("\n")}\n</urlset>\n`;
+}
 
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
@@ -220,6 +244,7 @@ if (isMain) {
   }
   const sql = buildSql(articles);
   for (const f of MIGRATION_FILES) writeFileSync(f, sql);
+  writeFileSync(SITEMAP_FILE, buildSitemap(articles));
   const byCat = HELP_CATEGORIES.map((c) => `${c}: ${articles.filter((a) => a.category === c).length}`).join(", ");
-  console.log(`${articles.length} artigos (${byCat}) → ${MIGRATION_FILES.map((f) => relative(ROOT, f)).join(", ")}`);
+  console.log(`${articles.length} artigos (${byCat}) → ${[...MIGRATION_FILES, SITEMAP_FILE].map((f) => relative(ROOT, f)).join(", ")}`);
 }

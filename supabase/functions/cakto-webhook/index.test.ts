@@ -7,7 +7,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   addMonths, classifyEvent, collectProvidedSecrets, cyclePeriodMonths,
   extractCaktoId, extractEmail, extractEventType, extractStatus,
-  hasValidSecret, resolvePlan,
+  hasValidSecret, must, mustReturn, resolvePlan,
 } from "./lib.ts";
 
 // Valor fictício: testes nunca devem conter o segredo real do webhook.
@@ -117,7 +117,12 @@ Deno.test("refund e chargeback → refund (precedência sobre canceled)", () => 
     assertEquals(authorized(p), true);
     assertEquals(classifyEvent(extractEventType(p), extractStatus(p)), "refund");
   }
-  assertEquals(classifyEvent("subscription_canceled", "refunded"), "refund");
+  // Eventos oficiais seguem o mapa explícito (CAKTO_EVENT_ACTIONS): um
+  // subscription_canceled é cancelamento mesmo com o pedido "refunded" no
+  // payload; o estorno chega no evento "refund" próprio. A precedência do
+  // estorno vale para nomes fora do mapa (heurística).
+  assertEquals(classifyEvent("subscription_canceled", "refunded"), "canceled");
+  assertEquals(classifyEvent("assinatura_cancelada", "refunded"), "refund");
 });
 
 Deno.test("evento desconhecido é ignorado sem erro", () => {
@@ -148,4 +153,13 @@ Deno.test("todos os checkouts mapeiam para o plano correto", () => {
     resolvePlan({ event: "purchase_approved", data: { product: { id: "996784" } } }),
     "max_mensal",
   );
+});
+
+Deno.test("must/mustReturn: erro de escrita ou perfil inexistente lança (vira alerta)", () => {
+  const boom = (fn: () => unknown) => { try { fn(); return null; } catch (e) { return (e as Error).message; } };
+  assertEquals(must({ data: 1, error: null }, "x"), 1);
+  assertEquals(must({ data: null, error: null }, "update"), null);
+  assertEquals(boom(() => must({ data: null, error: { message: "timeout" } }, "grant")), "grant: timeout");
+  assertEquals(mustReturn({ data: { ok: true }, error: null }, "x"), { ok: true });
+  assertEquals(boom(() => mustReturn({ data: null, error: null }, "set_monthly_credits")), "set_monthly_credits: perfil não encontrado");
 });

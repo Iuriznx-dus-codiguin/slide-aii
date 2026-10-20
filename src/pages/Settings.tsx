@@ -110,7 +110,7 @@ const Settings = () => {
               </div>
               <Button variant="hero">Alterar senha</Button>
               <hr className="border-border" />
-              <Button type="button" variant="outline" onClick={async () => { await signOut(); navigate("/"); }}>Sair de todas as sessões</Button>
+              <Button type="button" variant="outline" onClick={async () => { await signOut("global"); navigate("/"); }}>Sair de todas as sessões</Button>
             </form>
           </TabsContent>
         </Tabs>

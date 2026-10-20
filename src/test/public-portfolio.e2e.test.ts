@@ -41,42 +41,27 @@ describe("portfólio público — permissões", () => {
 });
 
 describe("apresentações compartilhadas — slugs e visibilidade", () => {
-  it("anônimo só enxerga apresentações publicadas e não excluídas", async () => {
-    const { data, error } = await anon
-      .from("presentations")
-      .select("id,slug,is_published,deleted_at")
-      .limit(50);
-    expect(error).toBeNull();
-    for (const item of data ?? []) {
-      expect(item.is_published).toBe(true);
-      expect(item.deleted_at).toBeNull();
-      expect(item.slug).toBeTruthy();
-    }
+  // Desde a migração 0011 as tabelas não são legíveis por visitantes: o
+  // visualizador lê um deck por slug em get_shared_presentation.
+  it("anônimo não lista apresentações nem slides pela API", async () => {
+    const { data: pres } = await anon.from("presentations").select("id,slug").limit(5);
+    const { data: slides } = await anon.from("slides").select("id").limit(5);
+    expect(pres ?? []).toEqual([]);
+    expect(slides ?? []).toEqual([]);
   });
 
   it("slug inexistente não retorna apresentação", async () => {
-    const { data } = await anon
-      .from("presentations")
-      .select("id")
-      .eq("slug", `slug-inexistente-${Date.now()}`)
-      .maybeSingle();
+    const { data, error } = await anon.rpc("get_shared_presentation", {
+      _slug: `slug-inexistente-${Date.now()}`,
+    });
+    expect(error).toBeNull();
     expect(data).toBeNull();
   });
 
-  it("anônimo não consegue alterar nem excluir apresentações", async () => {
-    const { data } = await anon.from("presentations").select("id").limit(1);
-    const target = data?.[0]?.id;
-    if (!target) return;
-    const { error: updateError } = await anon
-      .from("presentations")
-      .update({ title: "hackeado" })
-      .eq("id", target)
-      .select("id");
-    const { data: deleted } = await anon
-      .from("presentations")
-      .delete()
-      .eq("id", target)
-      .select("id");
-    expect(updateError ?? (deleted ?? []).length === 0).toBeTruthy();
+  it("anônimo não registra visita direto na tabela", async () => {
+    const { error } = await anon
+      .from("slide_views")
+      .insert({ presentation_id: "00000000-0000-0000-0000-000000000000" });
+    expect(error).not.toBeNull();
   });
 });

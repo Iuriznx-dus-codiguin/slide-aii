@@ -438,3 +438,19 @@ export const billingAlertFor = (eventType: string, action: EventAction): "renewa
   if (action === "paid" || action === "resumed") return null;
   return undefined; // não mexe
 };
+
+/**
+ * Escritas da cobrança: um erro (ou o perfil não encontrado) LANÇA, para cair
+ * no catch do processamento, que grava error_message e alerta a equipe. Antes
+ * o erro só ia para o log e o evento era marcado como processado: o cliente
+ * pagava, ficava sem créditos e ninguém sabia.
+ */
+export const must = <T>(r: { data: T; error: { message: string } | null }, label: string): T => {
+  if (r.error) throw new Error(`${label}: ${r.error.message}`);
+  return r.data;
+};
+export const mustReturn = <T>(r: { data: T; error: { message: string } | null }, label: string): NonNullable<T> => {
+  const data = must(r, label);
+  if (data === null || data === undefined) throw new Error(`${label}: perfil não encontrado`);
+  return data as NonNullable<T>;
+};

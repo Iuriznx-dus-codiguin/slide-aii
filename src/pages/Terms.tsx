@@ -440,7 +440,8 @@ const Terms = () => {
         </Clause>
         <Clause n="12.3">
           Ao abrir uma apresentação publicada, registramos a visita (data, hora e tipo de navegador) para mostrar ao autor o
-          número de visualizações, sem identificar o visitante.
+          número de visualizações, sem identificar o visitante. As visitas do próprio autor não contam, e a mesma visita só
+          conta uma vez a cada 30 minutos.
         </Clause>
         <Clause n="12.4">
           O perfil público e o portfólio são opcionais. Mostram apenas o que você preencher e as apresentações que você
@@ -494,7 +495,8 @@ const Terms = () => {
       <LegalSection id="integracoes" title="15. Integrações e serviços de terceiros">
         <Clause n="15.1">
           O serviço depende de terceiros, como o login do Google, a Cakto nos pagamentos, provedores de IA, o banco de imagens
-          Pexels e a infraestrutura de nuvem. O uso desses serviços pode estar sujeito também aos termos deles.
+          Pexels, a infraestrutura de nuvem e o Google Analytics e o Google Ads, que medem o uso do site e dos nossos
+          anúncios. O uso desses serviços pode estar sujeito também aos termos deles.
         </Clause>
         <Clause n="15.2">
           <Strong>Aplicativos conectados.</Strong> Você pode autorizar assistentes de IA e outros aplicativos compatíveis a
@@ -586,6 +588,10 @@ const Terms = () => {
           Se você inserir dados pessoais de terceiros nas apresentações (por exemplo, nomes de clientes ou alunos), você é o
           controlador desses dados e deve ter base legal para usá-los. O {LEGAL.brand} atua como <Strong>operador</Strong>,
           tratando esses dados só para prestar o serviço e seguindo suas instruções expressas no uso da plataforma.
+        </Clause>
+        <Clause n="19.4">
+          O site usa cookies de medição e de publicidade do Google, descritos na seção 12 da Política de Privacidade, aos
+          quais você pode se opor a qualquer momento.
         </Clause>
       </LegalSection>
 

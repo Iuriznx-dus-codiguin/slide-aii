@@ -18,11 +18,10 @@ import { ENGINE_REASON_LABEL, type EngineReason } from "../../supabase/functions
 import { useDevSettings } from "@/hooks/useDevSettings";
 import { CREDITS_PER_SLIDE, DEPTH_CREDITS, SPEECHES_CREDITS } from "@/lib/cakto";
 import { toast } from "sonner";
-import { THEMES, autoFontForContext, resolveFontPairing } from "@/lib/slugify";
+import { THEMES, autoFontForContext } from "@/lib/slugify";
 import { TEMPLATES } from "@/lib/templates";
 import { PRESENTATION_TYPES, toUiPresentationType } from "@/lib/presentationTypes";
 import { defaultsForRole } from "@/lib/personaDefaults";
-import { persistLegacyDeck, type LegacyResponse } from "@/lib/legacyPersist";
 import { PaymentGate } from "@/components/PaymentGate";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
 import { CreditCard, RefreshCw, AlertTriangle, Coins, Cpu } from "lucide-react";
@@ -221,28 +220,42 @@ const Generate = () => {
     return () => clearInterval(id);
   }, [phase]);
 
+  // Uma geração por vez: clique duplo ou liberação repetida do pagamento não
+  // podem cobrar duas vezes.
+  const generatingRef = useRef(false);
   const handleGenerate = async () => {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
+    try {
+      await runGeneration();
+    } finally {
+      generatingRef.current = false;
+    }
+  };
+
+  const runGeneration = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!title.trim()) { toast.error("Informe o título da apresentação"); return; }
-    await ent.refresh();
-    if (!ent.allowed && !isDeveloper) {
-      if (ent.reason === "insufficient_credits") {
+    // O estado devolvido pelo refresh: o `ent` deste render ainda é o antigo.
+    const cur = await ent.refresh();
+    if (!cur.allowed && !isDeveloper) {
+      if (cur.reason === "insufficient_credits") {
         // Saldo existe mas não cobre: abre o pagamento para completar/recarregar.
         setShowPayment(true);
         return;
       }
-      if (ent.reason === "fair_use_limit") {
-        toast.error(reasonMessage("fair_use_limit", ent.next_monthly_reset), {
+      if (cur.reason === "fair_use_limit") {
+        toast.error(reasonMessage("fair_use_limit", cur.next_monthly_reset), {
           action: { label: "Comprar créditos", onClick: () => setShowPayment(true) },
         });
         return;
       }
-      if (ent.reason === "system_error") {
+      if (cur.reason === "system_error") {
         toast.error(reasonMessage("system_error"));
         return;
       }
-      if (needsRenewal(ent.reason)) {
-        toast.error(reasonMessage(ent.reason), {
+      if (needsRenewal(cur.reason)) {
+        toast.error(reasonMessage(cur.reason), {
           action: { label: "Renovar", onClick: () => navigate("/perfil?tab=assinatura") },
         });
         return;
@@ -253,13 +266,10 @@ const Generate = () => {
 
     // Saldo insuficiente para esta configuração: em vez de bloquear, leva ao
     // pagamento (o usuário pode comprar créditos/plano e voltar com tudo salvo).
-    if (!unlimitedCredits && totalCost > ent.credits_available) {
+    if (!(cur.unlimited || isDeveloper) && totalCost > cur.credits_available) {
       setShowPayment(true);
       return;
     }
-
-
-
 
     setPhase("loading");
     setStepIdx(0);
@@ -302,33 +312,18 @@ const Generate = () => {
       }
       if (error) throw error;
 
-      // Caminho principal: o deck já está salvo no servidor.
-      if (data?.slug) {
-        setStepIdx(STEPS.length - 1);
-        if (isDeveloper) reportEngineToDev(devSettings.engine, data.engine_version, data.engine_reason);
-        toast.success("Apresentação criada! Abrindo editor…");
-        navigate(`/editor/${data.slug}`);
-        return;
-      }
-
-      // Servidor ainda sem persistência (janela de rollout): grava aqui, no
-      // formato antigo, já com o brief da resposta. Sempre v1.
-      if (isDeveloper) reportEngineToDev(devSettings.engine, 1, "legacy_client");
-      if (!data?.slides?.length) throw new Error("Nenhum slide gerado");
-      if (!user) throw new Error("Sessão expirada");
-      const fontId = resolveFontPairing(data.font_pairing, autoFontForContext(type, theme, title));
-      const slug = await persistLegacyDeck(
-        {
-          userId: user.id, title, description, type, language, theme, fontStyle: fontId, persona, textDepth,
-          presentersCount, presentersNames, includeSpeeches, includeImages,
-        },
-        data as LegacyResponse,
-        fontId,
-        (done, total) => { if (total > 0) setStepIdx(Math.min(STEPS.length - 2, 3 + Math.round((done / total) * 2))); },
-      );
+      // O deck é sempre gravado no servidor, que devolve o slug.
+      if (!data?.slug) throw new Error("A apresentação foi gerada, mas não conseguimos abri-la. Confira em Minhas apresentações ou fale com o suporte.");
       setStepIdx(STEPS.length - 1);
+      if (isDeveloper) reportEngineToDev(devSettings.engine, data.engine_version, data.engine_reason);
+      // A IA entregou menos slides do que o pedido: a diferença foi devolvida.
+      const shortfall = Number(data._metrics?.credits_shortfall_refunded) || 0;
+      if (shortfall > 0) {
+        toast.info(`A IA entregou menos slides do que o pedido. Devolvemos ${shortfall} créditos da diferença.`, { duration: 8000 });
+        void ent.refresh();
+      }
       toast.success("Apresentação criada! Abrindo editor…");
-      navigate(`/editor/${slug}`);
+      navigate(`/editor/${data.slug}`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Erro ao gerar. Tente reduzir o número de slides.");
@@ -399,7 +394,7 @@ const Generate = () => {
             >
               {STEPS[stepIdx] ?? "Finalizando..."}
             </motion.h2>
-            <p className="text-muted-foreground mt-2 text-sm">Direção de arte, roteiro e ilustração — tudo em segundos.</p>
+            <p className="text-muted-foreground mt-2 text-sm">Direção de arte, roteiro e ilustração. Leva cerca de um minuto.</p>
           </div>
 
           {/* Barra de progresso principal */}
@@ -847,7 +842,13 @@ const Generate = () => {
       <PaymentGate
         open={showPayment}
         onClose={() => setShowPayment(false)}
-        onUnlocked={() => { setShowPayment(false); handleGenerate(); }}
+        onUnlocked={() => {
+          setShowPayment(false);
+          // Veio de "Ver planos" (?planos=1) sem preencher o formulário.
+          if (!title.trim()) { toast.success("Pagamento confirmado! Agora descreva a sua apresentação."); return; }
+          toast.success("Pagamento confirmado! Iniciando geração…");
+          void handleGenerate();
+        }}
       />
     </div>
   );

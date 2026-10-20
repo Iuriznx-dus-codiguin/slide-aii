@@ -414,7 +414,9 @@ export function applyEdits(slides: any[], edits: any[], targets: number[]): { sl
   for (const e of edits ?? []) {
     const i = Math.trunc(Number(e?.index));
     if (!Number.isFinite(i) || !allowed.has(i) || !out[i]) continue;
-    const orig = slides[i];
+    // Parte do estado já editado: dois patches para o mesmo slide se somam
+    // (antes o segundo recomeçava do original e descartava o primeiro).
+    const orig = out[i];
     const next: any = { ...orig };
 
     for (const [k, v] of Object.entries(e)) {
@@ -443,7 +445,7 @@ export function applyEdits(slides: any[], edits: any[], targets: number[]): { sl
     for (const k of DNA) if (next[k] === undefined && orig[k] !== undefined && !(k === "visual" || k === "asset") ) next[k] = orig[k];
 
     out[i] = next;
-    changed.push(i);
+    if (!changed.includes(i)) changed.push(i);
   }
   return { slides: out, changed };
 }

@@ -41,10 +41,13 @@ O front usa o projeto Lovable Cloud configurado em `.env` (`VITE_SUPABASE_URL`, 
 ## Testes e verificações
 
 ```sh
-npm test           # vitest (unitários e paridade de catálogos)
+npm test           # vitest (unitários e paridade de catálogos; sem rede)
+npm run test:e2e   # *.e2e.test.ts contra o backend real (precisa do .env)
 npm run lint       # eslint
 npm run build      # build de produção
 ```
+
+Depois de `npm run build`, confira se `supabase/functions/mcp/index.ts` mudou: o build o regenera com a versão instalada de `@lovable.dev/mcp-js`. Se a versão local for diferente da do lockfile, descarte a alteração (`git checkout -- supabase/functions/mcp/index.ts`).
 
 Suítes que protegem regras de negócio e conformidade:
 
@@ -54,8 +57,12 @@ Suítes que protegem regras de negócio e conformidade:
 | `src/test/caktoWebhook.test.ts` | Webhook de pagamento: idempotência, escopo do reembolso, eventos ignorados |
 | `src/test/helpCenterContent.test.ts` | Central de Ajuda publicada = arquivos `.md`; nenhum link quebrado; valores de preço e custo corretos |
 | `src/test/catalogParity.test.ts` | Paridade de catálogos entre o motor (Deno) e o renderizador (Vite) |
+| `src/test/editorIntegrity.test.tsx` | Editor com Supabase simulado: saves em fila, erro de exclusão, lixeira, troca de apresentação |
+| `src/test/aiEditMerge.test.ts` | Resposta do chat de edição aplicada só nos slides alterados, sobre o deck atual |
+| `src/test/landingSeo.test.tsx` | FAQ do `index.html` igual ao da página; estimativa do PRO derivada (AGENTS.md) |
+| `src/test/safeRedirect.test.ts`, `src/test/analyticsSafePage.test.ts` | Destino pós-login só no próprio site; nada pessoal na URL enviada ao Google |
 
-Os dois `*.e2e.test.ts` dependem de variáveis de ambiente de um projeto real.
+Os dois `*.e2e.test.ts` dependem de variáveis de ambiente de um projeto real e rodam só com `npm run test:e2e`.
 
 ## Banco de dados e migrações
 
@@ -78,7 +85,20 @@ Modelo de dados, RLS e funções: [docs/arquitetura.md](docs/arquitetura.md#banc
 | `og-preview` | Prévia de links publicados para redes sociais |
 | `mcp` | Servidor MCP para aplicativos conectados via OAuth (gerado) |
 
-Segredos (configurados em Lovable Cloud → Secrets; **nunca** no repositório): `LOVABLE_API_KEY`, `OPENAI_API_KEY`, `PEXELS_API_KEY`, `CAKTO_WEBHOOK_SECRET`, `IMAGE_MODEL_PRIMARY` e `IMAGE_MODEL_ECONOMY` (opcionais), `SUPPORT_ALERT_WEBHOOK_URL` (opcional). As variáveis `SUPABASE_*` são injetadas pela plataforma.
+Segredos (configurados em Lovable Cloud → Secrets; **nunca** no repositório):
+
+| Segredo | Uso |
+| --- | --- |
+| `OPENROUTER_API_KEY` | Texto via OpenRouter: geração (`generate-presentation`) e assistente de edição (`chat-editor`). No código, a variável local às vezes se chama `OPENAI_API_KEY`, mas o segredo lido é este. |
+| `LOVABLE_API_KEY` | Gateway de IA da Lovable (Gemini): reserva da geração e do chat, falas, suporte e imagens; também usado no envio de e-mails. |
+| `OPENAI_API_KEY` | Imagens por IA em `fetch-image` (modelos de `IMAGE_MODEL_PRIMARY` / `IMAGE_MODEL_ECONOMY`, opcionais). |
+| `PEXELS_API_KEY` | Fotos e vídeos de fundo (`fetch-image`). |
+| `RESEND_API_KEY` | E-mails da plataforma (`_shared/email.ts`). |
+| `CAKTO_WEBHOOK_SECRET` | Autenticação do `cakto-webhook`. |
+| `OPS_ALERT_EMAILS` (opcional) | Destinatários extras dos alertas operacionais. |
+| `SUPPORT_ALERT_WEBHOOK_URL` (opcional) | Aviso de atendimento escalado. |
+
+As variáveis `SUPABASE_*` são injetadas pela plataforma.
 
 ## Publicação (deploy)
 

@@ -28,6 +28,13 @@ import { readUsage, textFallbackRoute, textRoute, type ProviderKeys, type TokenU
 /** Acima disto (com falas), o conteúdo vai em duas chamadas paralelas. */
 export const SPLIT_THRESHOLD = 14;
 
+const AI_TIMEOUT_MESSAGE = "A IA demorou demais para responder — tente de novo, de preferência com menos slides.";
+
+/** Timeout de uma chamada: até `cap`, sem passar do prazo da geração (−15 s de folga). */
+const signalFor = (deadline: number, cap: number) =>
+  AbortSignal.timeout(Math.max(5_000, Math.min(cap, deadline - Date.now() - 15_000)));
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+
 export interface ContentV2Request {
   title: string;
   description?: string;
@@ -273,6 +280,7 @@ async function callContent(
   tools: unknown,
   requested: number,
   speeches: boolean,
+  deadline: number,
 ): Promise<CallOutcome> {
   const t0 = Date.now();
   const primary = textRoute(stage, keys);
@@ -291,21 +299,40 @@ async function callContent(
     max_completion_tokens: tokensFor(requested, speeches),
   });
   let route = primary;
-  let res = await fetch(route.endpoint, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${route.authKey}`, "Content-Type": "application/json" },
-    body: payload(route.model),
+  const timedOut = (): CallOutcome => ({
+    call: { model: route.model, provider: route.provider, latency_ms: Date.now() - t0, usage: null, slides_requested: requested, slides_returned: 0 },
+    parsed: null,
+    failure: { ok: false, code: "ai_timeout", message: AI_TIMEOUT_MESSAGE, status: 504, detail: { provider: route.provider } },
   });
-  const alt = textFallbackRoute(stage, keys);
-  if (!res.ok && alt && ![429, 402].includes(res.status)) {
-    const errBody = await res.text().catch(() => "");
-    console.warn("contentV2: primário falhou", res.status, errBody.slice(0, 300), "— fallback", alt.model);
-    route = alt;
+  let res: Response;
+  try {
     res = await fetch(route.endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${route.authKey}`, "Content-Type": "application/json" },
       body: payload(route.model),
+      signal: signalFor(deadline, 110_000),
     });
+  } catch (e) {
+    if (isTimeout(e)) return timedOut();
+    throw e;
+  }
+  const alt = textFallbackRoute(stage, keys);
+  // Fallback só se ainda houver tempo para uma segunda chamada completa.
+  if (!res.ok && alt && ![429, 402].includes(res.status) && deadline - Date.now() > 30_000) {
+    const errBody = await res.text().catch(() => "");
+    console.warn("contentV2: primário falhou", res.status, errBody.slice(0, 300), "— fallback", alt.model);
+    route = alt;
+    try {
+      res = await fetch(route.endpoint, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${route.authKey}`, "Content-Type": "application/json" },
+        body: payload(route.model),
+        signal: signalFor(deadline, 90_000),
+      });
+    } catch (e) {
+      if (isTimeout(e)) return timedOut();
+      throw e;
+    }
   }
   const base: ContentCall = {
     model: route.model, provider: route.provider, latency_ms: 0, usage: null,
@@ -357,6 +384,39 @@ export function placeSlides(
   }
 }
 
+/**
+ * Retry: coloca os slides devolvidos exatamente nas posições que faltavam.
+ * Com faltantes não contíguos (ex.: 2 e 7), o placeSlides usava o trecho de
+ * 2 a 7 e um índice errado da IA (3, já ocupado) escorregava o conteúdo do
+ * slide 3 para a posição 7. Aqui: primeiro quem veio com um índice faltante,
+ * depois o resto, na ordem, nas posições que sobraram.
+ */
+export function placeAtPositions(
+  target: (Record<string, unknown> | undefined)[],
+  returned: unknown[] | undefined,
+  positions: number[],
+): void {
+  if (!Array.isArray(returned)) return;
+  const free = new Set(positions.filter((p) => !target[p - 1]));
+  const rest: Record<string, unknown>[] = [];
+  for (const raw of returned) {
+    if (!raw || typeof raw !== "object") continue;
+    const s = raw as Record<string, unknown>;
+    const idx = Number(s.index);
+    if (Number.isInteger(idx) && free.has(idx)) {
+      target[idx - 1] = s;
+      free.delete(idx);
+    } else {
+      rest.push(s);
+    }
+  }
+  for (const pos of [...free].sort((a, b) => a - b)) {
+    const s = rest.shift();
+    if (!s) break;
+    target[pos - 1] = { ...s, index: pos };
+  }
+}
+
 export function missingIndices(target: (Record<string, unknown> | undefined)[], total: number): number[] {
   const out: number[] = [];
   for (let i = 0; i < total; i++) if (!target[i]) out.push(i + 1);
@@ -388,6 +448,8 @@ export async function generateContentV2(
   outline: StoryOutline,
   plan: DeckPlan,
   keys: ProviderKeys,
+  /** Prazo absoluto (epoch ms) da geração inteira; padrão: 135 s a partir de agora. */
+  deadline: number = Date.now() + 135_000,
 ): Promise<ContentV2Result | ContentV2Failure> {
   const n = req.slidesCount;
   const system = buildSystemPromptV2(req, brief, outline, plan);
@@ -397,7 +459,7 @@ export async function generateContentV2(
     : [{ from: 1, to: n }];
 
   const outcomes = await Promise.all(ranges.map((r, k) =>
-    callContent("content", keys, system, userPromptV2(req, r, k === 0), buildToolV2(req, k === 0), r.to - r.from + 1, req.includeSpeeches),
+    callContent("content", keys, system, userPromptV2(req, r, k === 0), buildToolV2(req, k === 0), r.to - r.from + 1, req.includeSpeeches, deadline),
   ));
 
   const slides: (Record<string, unknown> | undefined)[] = new Array(n).fill(undefined);
@@ -414,15 +476,16 @@ export async function generateContentV2(
   // Retry SÓ dos slides que faltaram (antes: o deck inteiro era refeito).
   let retry: ContentCall | null = null;
   let missing = missingIndices(slides, n);
-  if (missing.length) {
+  // Sem tempo para o retry, os faltantes saem do roteiro (abaixo).
+  if (missing.length && deadline - Date.now() > 45_000) {
     const listed = missing.map((m) => `S${m}`).join(", ");
     const user = `${userPromptV2(req, { from: missing[0], to: missing[missing.length - 1] }, false)}
 
 ATENÇÃO: escreva APENAS os slides ${listed} (e nenhum outro), cada um com seu "index".`;
-    const r = await callContent("contentRetry", keys, system, user, buildToolV2(req, false), missing.length, req.includeSpeeches);
+    const r = await callContent("contentRetry", keys, system, user, buildToolV2(req, false), missing.length, req.includeSpeeches, deadline);
     retry = r.call;
-    // placeSlides só ocupa posições vazias: nada já escrito é sobrescrito.
-    placeSlides(slides, r.parsed?.slides as unknown[] | undefined, { from: missing[0], to: missing[missing.length - 1] });
+    // Só as posições que faltavam: nada já escrito é sobrescrito.
+    placeAtPositions(slides, r.parsed?.slides as unknown[] | undefined, missing);
     missing = missingIndices(slides, n);
   }
   for (const m of missing) slides[m - 1] = slideFromOutline(outline, m);

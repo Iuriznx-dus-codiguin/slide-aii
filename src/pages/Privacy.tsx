@@ -46,7 +46,7 @@ const Privacy = () => {
             <li>Tratamos só o necessário para criar sua conta, gerar e guardar suas apresentações, cobrar, dar suporte e manter a plataforma segura.</li>
             <li><Strong>Não vendemos dados pessoais</Strong> e não usamos suas apresentações para treinar modelos de IA ou para publicidade.</li>
             <li>O texto que você envia para gerar ou editar slides é processado por provedores de IA, em servidores fora do Brasil.</li>
-            <li>Não usamos cookies de publicidade nem ferramentas de rastreamento de terceiros.</li>
+            <li>Usamos o Google Analytics e o Google Ads para medir o uso do site e os nossos anúncios, com cookies do Google. Não enviamos a eles seu nome, e-mail nem suas apresentações, e você pode se opor (seção 12).</li>
             <li>Você pode pedir acesso, correção, portabilidade ou exclusão dos seus dados pelo e-mail {LEGAL.privacyEmail}.</li>
           </LegalList>
         </Callout>
@@ -108,7 +108,7 @@ const Privacy = () => {
               "Execução de contrato e exercício regular de direitos (art. 7º, V e VI).",
             ],
             [
-              <><Strong>Suporte:</Strong> mensagens do chat de atendimento, número do atendimento, avaliação e códigos de erro relacionados.</>,
+              <><Strong>Suporte:</Strong> mensagens do chat de atendimento, número do atendimento, avaliação e códigos de erro relacionados. Na Central de Ajuda, o voto "Este artigo foi útil?", guardado sem identificar quem votou (só um código embaralhado que deixa de valer no dia seguinte).</>,
               "Responder suas solicitações, diagnosticar problemas e melhorar a Central de Ajuda.",
               "Execução de contrato (art. 7º, V) e legítimo interesse (art. 7º, IX).",
             ],
@@ -128,9 +128,14 @@ const Privacy = () => {
               "Avisos: execução de contrato (art. 7º, V). Relacionamento: legítimo interesse (art. 7º, IX e art. 10), com descadastro em um clique em todo e-mail.",
             ],
             [
-              <><Strong>Espectadores de apresentações publicadas:</Strong> data, hora e tipo de navegador da visita. Não guardamos o IP nem identificamos quem assistiu.</>,
+              <><Strong>Espectadores de apresentações publicadas:</Strong> data, hora e tipo de navegador da visita, e um código embaralhado do acesso, calculado com uma chave secreta que é descartada no dia seguinte, só para não contar a mesma visita duas vezes. Não guardamos o IP nem identificamos quem assistiu.</>,
               "Mostrar ao autor quantas visualizações a apresentação teve.",
               "Legítimo interesse (art. 7º, IX).",
+            ],
+            [
+              <><Strong>Navegação e anúncios (Google Analytics e Google Ads):</Strong> páginas visitadas (sem os parâmetros pessoais do endereço, como códigos de acesso), origem da visita (campanha ou anúncio clicado), identificadores de cookie, dispositivo, navegador, região aproximada e IP, que o Google recebe na conexão. Não enviamos nome, e-mail, conteúdo das apresentações nem dados de pagamento.</>,
+              "Medir o uso do site e de onde vêm os visitantes, medir o resultado dos nossos anúncios e mostrar anúncios do SlideAI a quem já visitou o site.",
+              "Legítimo interesse (art. 7º, IX e art. 10), com direito de oposição (seção 12.4).",
             ],
           ]}
         />
@@ -167,6 +172,7 @@ const Privacy = () => {
             ["Cakto", "Checkout, cobrança, renovação e reembolso.", "Dados do pedido e do pagamento. A Cakto é controladora dos dados que coleta no checkout."],
             ["Resend", "Envio dos e-mails da plataforma (avisos, suporte e relacionamento).", "Nome, e-mail e o conteúdo de cada mensagem."],
             ["Google", "Login com Google (se você escolher) e fontes tipográficas (Google Fonts).", "Dados de login e, ao carregar as fontes, o seu IP e navegador."],
+            ["Google (Google Analytics e Google Ads)", "Medição de audiência do site, medição dos nossos anúncios e anúncios do SlideAI para quem já visitou o site.", "Dados de navegação e cookies descritos na seção 12. O Google atua como operador no Analytics e pode atuar como controlador independente na publicidade, conforme as políticas dele (policies.google.com)."],
             ["Aplicativos que você conectar", "Assistentes de IA e outros aplicativos que você autorizar a acessar sua conta (seção 15 dos Termos).", "Apresentações e saldo de créditos, no limite da autorização dada."],
           ]}
         />
@@ -186,10 +192,10 @@ const Privacy = () => {
 
       <LegalSection id="transferencia" title="6. Transferência internacional">
         <p>
-          Os fornecedores de infraestrutura e de IA processam dados em servidores fora do Brasil, principalmente nos Estados
-          Unidos. Essas transferências ocorrem para executar o contrato com você (LGPD, art. 33, IX) e com as garantias
-          contratuais oferecidas por esses fornecedores (art. 33, II), observada a regulamentação da Autoridade Nacional de
-          Proteção de Dados (ANPD).
+          Os fornecedores de infraestrutura, de IA e de medição (Google) processam dados em servidores fora do Brasil,
+          principalmente nos Estados Unidos. Essas transferências ocorrem para executar o contrato com você (LGPD, art. 33,
+          IX) e com as garantias contratuais oferecidas por esses fornecedores (art. 33, II), observada a regulamentação da
+          Autoridade Nacional de Proteção de Dados (ANPD).
         </p>
       </LegalSection>
 
@@ -206,6 +212,7 @@ const Privacy = () => {
             ["Extrato de créditos", "Enquanto a conta existir."],
             ["E-mails enviados (registro) e agendamentos", "12 meses para o registro dos envios e 6 meses para os agendamentos. A preferência de descadastro fica enquanto a conta existir."],
             ["Registros de aceite dos Termos e da Política", "Enquanto a conta existir e por até 5 anos após o seu encerramento."],
+            ["Dados de navegação no Google Analytics", "Até 14 meses, conforme o prazo de retenção configurado no Google Analytics. Os cookies duram o prazo indicado na seção 12."],
           ]}
         />
         <p className="text-sm">
@@ -288,8 +295,8 @@ const Privacy = () => {
 
       <LegalSection id="cookies" title="12. Cookies e armazenamento local">
         <Clause n="12.1">
-          O {LEGAL.brand} <Strong>não usa cookies de publicidade, de perfilamento nem ferramentas de análise de terceiros</Strong>.
-          Usamos apenas o armazenamento do navegador necessário para o funcionamento do site:
+          O {LEGAL.brand} usa o armazenamento do navegador necessário para o funcionamento do site e cookies de medição e
+          de publicidade do Google (Google Analytics e Google Ads):
         </Clause>
         <LegalTable
           head={["Item", "Tipo", "Para quê", "Duração"]}
@@ -299,15 +306,25 @@ const Privacy = () => {
             [<code key="c">slideai:edit-usage:…</code>, "Armazenamento local (funcional)", "Mostrar rapidamente quantas edições por IA você já usou em cada apresentação. O valor oficial fica no servidor.", "Até limpar os dados do navegador"],
             [<code key="d">slideai-renewal-…</code>, "Armazenamento local (funcional)", "Evitar repetir o aviso de renovação no mesmo dia.", "Até limpar os dados do navegador"],
             [<code key="e">slideai.devSettings</code>, "Armazenamento local (funcional)", "Preferências internas, só para contas da equipe.", "Até limpar os dados do navegador"],
+            [<code key="f">_ga, _ga_…</code>, "Cookie de medição (Google Analytics)", "Distinguir visitantes e visitas para as estatísticas de uso do site.", "Até 2 anos"],
+            [<code key="g">_gcl_au</code>, "Cookie de publicidade (Google Ads)", "Ligar a visita ao anúncio clicado e medir o resultado dos nossos anúncios.", "90 dias"],
           ]}
         />
         <Clause n="12.2">
-          Como esses itens são estritamente necessários ou apenas funcionais, não pedimos consentimento para eles. Você pode
-          apagá-los nas configurações do navegador, mas ficará desconectado.
+          Os itens necessários e funcionais não dependem de consentimento; apagá-los desconecta você. Os cookies de medição e
+          de publicidade se baseiam no nosso legítimo interesse em entender o uso do site e divulgar o {LEGAL.brand} (LGPD,
+          art. 7º, IX e art. 10), e você pode se opor a eles a qualquer momento (12.4).
         </Clause>
         <Clause n="12.3">
           Serviços de terceiros usados pelo site podem registrar dados de acesso sob suas próprias políticas: o Google Fonts
-          ao carregar as fontes e a Cakto na página de pagamento, que fica no domínio dela.
+          ao carregar as fontes, o Google Analytics e o Google Ads (que também podem usar cookies no domínio do próprio
+          Google) e a Cakto na página de pagamento, que fica no domínio dela.
+        </Clause>
+        <Clause n="12.4">
+          <Strong>Como se opor à medição e aos anúncios:</Strong> bloqueie ou apague os cookies <code>_ga</code> e{" "}
+          <code>_gcl_au</code> nas configurações do navegador; instale o complemento de desativação do Google Analytics
+          (tools.google.com/dlpage/gaoptout); e desative os anúncios personalizados na Minha Central de Anúncios do Google
+          (myadcenter.google.com). Você também pode se opor pelo canal do titular (seção 8).
         </Clause>
       </LegalSection>
 

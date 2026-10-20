@@ -94,7 +94,11 @@ export default function Support() {
       if (isNew && data.conversation_id) navigate(`/suporte/${data.conversation_id}`, { replace: true });
     } catch {
       setStatus("error");
-      toast.error("Não foi possível enviar. Sua mensagem foi preservada para tentar novamente.");
+      // A caixa é limpa no envio: devolve o texto e tira a mensagem otimista
+      // (antes o aviso dizia "preservada", mas o texto tinha sumido).
+      setMessages((current) => current.filter((m) => m.id !== optimistic.id));
+      if (textareaRef.current && !textareaRef.current.value) textareaRef.current.value = value;
+      toast.error("Não foi possível enviar. Sua mensagem voltou para a caixa de texto para tentar novamente.");
       focusComposer();
       return;
     }

@@ -5,10 +5,13 @@
 # Notas sobre a CSP:
 #  • 'unsafe-inline'/'unsafe-eval' em script-src são exigidos pelo bundle do
 #    Vite/React e por bibliotecas de animação; removê-los quebraria o app.
-#  • connect-src precisa do backend (Supabase REST/Realtime/Storage) e da API
-#    da Pexels; img-src precisa de data:/blob: por causa das imagens de IA.
+#  • connect-src precisa do backend (Supabase REST/Realtime/Storage) e da
+#    Pexels (API e imagens, que o export PPTX baixa); img-src precisa de
+#    data:/blob: por causa das imagens de IA.
 #  • frame-ancestors 'none' é a defesa real contra clickjacking (mais forte
 #    que X-Frame-Options, mantido por compatibilidade com navegadores antigos).
+#  • Google Analytics 4 e Google Ads (gtag.js): domínios da lista oficial do
+#    Google para CSP. Sem eles o navegador bloqueava o script de medição.
 
 /*
   X-Frame-Options: DENY
@@ -19,4 +22,4 @@
   Cross-Origin-Opener-Policy: same-origin-allow-popups
   Cross-Origin-Resource-Policy: same-site
   X-XSS-Protection: 0
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://pay.cakto.com.br; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.pexels.com https://*.lovable.app https://*.lovable.dev; frame-src https://pay.cakto.com.br; worker-src 'self' blob:; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://pay.cakto.com.br; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co https://*.googletagmanager.com https://www.googleadservices.com https://www.google.com https://googleads.g.doubleclick.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.pexels.com https://images.pexels.com https://*.lovable.app https://*.lovable.dev https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://*.google.com https://www.googleadservices.com https://pagead2.googlesyndication.com; frame-src https://pay.cakto.com.br https://td.doubleclick.net https://www.googletagmanager.com; worker-src 'self' blob:; upgrade-insecure-requests

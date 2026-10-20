@@ -1,6 +1,6 @@
 # SlideAI
 
-> SlideAI gera apresentações profissionais em segundos com inteligência artificial. Descreva o tema e receba slides editáveis com design, imagens e gráficos.
+> SlideAI gera apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis com design, imagens e gráficos.
 
 ## Pages
 

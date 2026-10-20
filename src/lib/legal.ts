@@ -40,10 +40,10 @@ export const LEGAL = {
   /** Prazo de resposta do atendimento (o Decreto 7.962/2013 exige até 5 dias). */
   supportResponseTime: "até 1 dia útil",
 
-  termsVersion: "2026-10-04",
-  privacyVersion: "2026-10-04",
+  termsVersion: "2026-10-19",
+  privacyVersion: "2026-10-19",
   /** Data exibida no topo dos documentos. */
-  effectiveDateLabel: "4 de outubro de 2026",
+  effectiveDateLabel: "19 de outubro de 2026",
 } as const;
 
 /** Linhas de identificação do fornecedor que estão preenchidas. */

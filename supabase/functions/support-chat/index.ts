@@ -132,6 +132,9 @@ Deno.serve(async (req) => {
     }
 
     // ─────────────── FLUXO NORMAL: mensagem de texto
+    // Estado anterior: atendimento já escalado continua com a equipe (antes a
+    // próxima mensagem do cliente o devolvia para "diagnosing").
+    let previousState: string | null = null;
     if (!conversationId) {
       const { data: ticket } = await admin.rpc("generate_ticket_id");
       const { data: conv, error: convErr } = await admin
@@ -157,6 +160,7 @@ Deno.serve(async (req) => {
       if (ownershipError || !existingConversation || existingConversation.user_id !== user.id) {
         return new Response(JSON.stringify({ error: "not_found", request_id: requestId }), { status: 404, headers: respHeaders });
       }
+      previousState = existingConversation.state ?? null;
     }
 
     const { error: userMessageError } = await admin.from("support_messages").insert({
@@ -166,7 +170,9 @@ Deno.serve(async (req) => {
 
     // Contexto
     const [{ data: history }, { data: catalog }, { data: recentOcc }, { data: articles }] = await Promise.all([
-      admin.from("support_messages").select("role, content").eq("conversation_id", conversationId).order("created_at").limit(30),
+      // As 30 mais RECENTES (antes eram as 30 primeiras: depois de umas 15
+      // trocas, a pergunta atual nem chegava ao modelo).
+      admin.from("support_messages").select("role, content").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(30),
       admin.from("error_catalog").select("code, title, user_description, resolution_steps, ai_can_resolve, severity, module"),
       admin.from("error_occurrences").select("error_code, route, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
       admin.from("help_articles").select("slug, title, category, content_md, keywords").eq("is_published", true),
@@ -209,7 +215,7 @@ CONTEXTO OPERACIONAL DO PRODUTO:
 - Após gerar, o usuário é levado ao editor manual; também pode visualizar, compartilhar e exportar em PDF/PPTX.
 - O dashboard organiza apresentações, edições, links, exportações, visualizações e lixeira.
 - O perfil possui dados pessoais, assinatura, segurança e portfólio público em /u/usuario com apresentações publicadas.
-- Planos atuais: geração única, PRO (20 gerações/mês) e MAX para maior volume; pagamentos aprovados atualizam a conta automaticamente.
+- Planos atuais: compra avulsa (500 créditos), PRO (3.200 créditos por mês) e MAX (uso ilimitado dentro do uso justo de 16.000 créditos por ciclo); uma apresentação de 10 slides equilibrada usa 120 créditos; pagamentos aprovados atualizam a conta automaticamente.
 - Para perguntas legítimas sobre esses fluxos que não tenham artigo exato, dê uma orientação útil baseada somente neste contexto e faça no máximo uma pergunta objetiva se faltar um dado essencial.
 
 ESCOPO ESTRITO:
@@ -241,6 +247,7 @@ ${recentText}`;
     // como user/assistant — assim nenhuma mensagem gravada consegue se
     // apresentar ao modelo como regra de sistema (prompt injection).
     const safeHistory = ((history ?? []) as ChatMsg[])
+      .reverse() // veio das mais recentes para as mais antigas
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role, content: String(m.content ?? "").slice(0, 4000) }));
 
@@ -320,8 +327,12 @@ ${recentText}`;
       conversation_id: conversationId, role: "assistant", content: reply, code_ref: codeRef,
     });
 
+    // Já estava com a equipe: continua escalado, sem novo alerta nem nova data.
+    const alreadyEscalated = previousState === "escalated";
+    if (alreadyEscalated) newState = "escalated";
+
     const convPatch: Record<string, unknown> = { state: newState };
-    if (newState === "escalated") {
+    if (newState === "escalated" && !alreadyEscalated) {
       convPatch.escalated_at = new Date().toISOString();
       convPatch.escalation_reason = escalationReason ?? "unspecified";
       convPatch.resolved_by_ai = false;
@@ -343,7 +354,7 @@ ${recentText}`;
   }
 });
 
-async function sendAlert(reason: string, convId: string, codeRef: string | null, userId: string) {
+async function sendAlert(reason: string, convId: string | null, codeRef: string | null, userId: string) {
   if (!SUPPORT_ALERT_WEBHOOK_URL) {
     console.log("[support-alert]", { reason, convId, codeRef, userId });
     return;
@@ -355,7 +366,7 @@ async function sendAlert(reason: string, convId: string, codeRef: string | null,
       body: JSON.stringify({
         content: `🚨 Suporte SlideAI — escalação: **${reason}**`,
         embeds: [{
-          title: `Conversa ${convId.slice(0, 8)}`,
+          title: `Conversa ${(convId ?? "?").slice(0, 8)}`,
           fields: [
             { name: "Motivo", value: reason, inline: true },
             { name: "Código", value: codeRef ?? "-", inline: true },
