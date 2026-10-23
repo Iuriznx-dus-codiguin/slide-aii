@@ -2,3 +2,10 @@
 - [x] Update badge and monthly PRO estimate; simplify MAX qualification.
 - [x] Move FAQ to the end and tighten mobile/desktop layout and motion.
 - [x] Verify pricing, navigation, FAQ and layout in the browser (360, 390, 768 and 1280px; no horizontal overflow or runtime errors; reduced-motion preference honored).
+
+# Audit continuation
+- [x] Confirm refund guard, feedback/cache/salt tables, cookie article and upload limits (Step 0).
+- [ ] Audit and update dependencies and verify MCP bundle parity (Step 2).
+- [ ] Align MCP credit balance with application entitlement and test it (Step 3).
+- [ ] Deploy the ten requested functions (Step 4).
+- [ ] Run unit tests and verify authenticated generation, sharing, editing, exports, feedback and team metrics (Step 5).
