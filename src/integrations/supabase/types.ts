@@ -507,6 +507,30 @@ export type Database = {
         }
         Relationships: []
       }
+      help_article_feedback: {
+        Row: {
+          article_slug: string
+          created_at: string
+          helpful: boolean
+          id: number
+          voter_hash: string
+        }
+        Insert: {
+          article_slug: string
+          created_at?: string
+          helpful: boolean
+          id?: number
+          voter_hash: string
+        }
+        Update: {
+          article_slug?: string
+          created_at?: string
+          helpful?: boolean
+          id?: number
+          voter_hash?: string
+        }
+        Relationships: []
+      }
       help_articles: {
         Row: {
           category: string
@@ -1230,6 +1254,42 @@ export type Database = {
         }
         Relationships: []
       }
+      video_search_cache: {
+        Row: {
+          fetched_at: string
+          poster: string | null
+          query_key: string
+          url: string | null
+        }
+        Insert: {
+          fetched_at?: string
+          poster?: string | null
+          query_key: string
+          url?: string | null
+        }
+        Update: {
+          fetched_at?: string
+          poster?: string | null
+          query_key?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      view_dedupe_salt: {
+        Row: {
+          day: string
+          salt: string
+        }
+        Insert: {
+          day: string
+          salt: string
+        }
+        Update: {
+          day?: string
+          salt?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1243,6 +1303,7 @@ export type Database = {
         }
         Returns: Json
       }
+      accepts_access_requests: { Args: { _owner: string }; Returns: boolean }
       add_ai_edit_usage: {
         Args: { _complex: boolean; _presentation_id: string; _uid: string }
         Returns: Json
@@ -1360,6 +1421,7 @@ export type Database = {
           website: string
         }[]
       }
+      get_shared_presentation: { Args: { _slug: string }; Returns: Json }
       grant_bonus_credits: {
         Args: { _amount: number; _type?: string; _uid: string }
         Returns: number
@@ -1375,6 +1437,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      help_feedback_summary: {
+        Args: { _days?: number }
+        Returns: {
+          article_slug: string
+          helpful: number
+          not_helpful: number
+          title: string
+        }[]
+      }
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       is_internal_account: { Args: { _uid: string }; Returns: boolean }
@@ -1383,6 +1454,14 @@ export type Database = {
       purge_expired_data: { Args: never; Returns: Json }
       purge_ops_data: { Args: never; Returns: Json }
       record_access: { Args: { _event?: string }; Returns: undefined }
+      record_help_feedback: {
+        Args: { _helpful: boolean; _slug: string }
+        Returns: undefined
+      }
+      record_slide_view: {
+        Args: { _presentation_id: string }
+        Returns: undefined
+      }
       refund_generation_credits: {
         Args: {
           _credits: number
@@ -1392,12 +1471,48 @@ export type Database = {
         }
         Returns: Json
       }
+      refund_generation_shortfall: {
+        Args: { _credits: number; _reference: string; _uid: string }
+        Returns: Json
+      }
       refund_stale_generations: {
         Args: { _older_than?: string }
         Returns: Json
       }
       refund_stale_generations_if_due: { Args: never; Returns: undefined }
+      release_ai_edit: {
+        Args: {
+          _complex: number
+          _messages: number
+          _presentation_id: string
+          _uid: string
+        }
+        Returns: Json
+      }
+      release_presentation_asset: {
+        Args: { _kind: string; _presentation_id: string; _uid: string }
+        Returns: Json
+      }
+      release_speech_regen: {
+        Args: { _presentation_id: string; _uid: string }
+        Returns: Json
+      }
       request_client_info: { Args: never; Returns: Json }
+      reserve_ai_edit: {
+        Args: {
+          _complex: number
+          _max_complex: number
+          _max_messages: number
+          _messages: number
+          _presentation_id: string
+          _uid: string
+        }
+        Returns: Json
+      }
+      reserve_speech_regen: {
+        Args: { _max: number; _presentation_id: string; _uid: string }
+        Returns: Json
+      }
       revoke_credits: { Args: { _type?: string; _uid: string }; Returns: Json }
       revoke_order_credits: {
         Args: {
@@ -1426,6 +1541,7 @@ export type Database = {
         Args: { _days: number; _hour: number; _ts: string }
         Returns: string
       }
+      staff_content_stats: { Args: never; Returns: Json }
       subscription_is_current: {
         Args: { _plan: string; _renews_at: string; _status: string }
         Returns: boolean
