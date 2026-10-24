@@ -123,9 +123,6 @@ export const PaymentNotifications = () => {
             case "subscription_renewal":
               celebratePayment(`🔄 Assinatura renovada! Seus ${fmt(tx.amount)} créditos do mês foram recarregados.`);
               break;
-            case "subscription_signup_bonus":
-              window.setTimeout(() => toast.success(`🎁 Bônus de boas-vindas: +${fmt(tx.amount)} créditos permanentes.`), 900);
-              break;
             case "refund_revoke":
               toast.info("Reembolso processado. Os créditos daquela compra foram retirados.");
               break;

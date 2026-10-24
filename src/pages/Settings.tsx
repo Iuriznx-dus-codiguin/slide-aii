@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { PLAN_LABELS } from "@/lib/cakto";
 import { toast } from "sonner";
 
 const Settings = () => {
@@ -95,7 +96,7 @@ const Settings = () => {
             <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
               <div>
                 <div className="text-sm text-muted-foreground">Plano atual</div>
-                <div className="font-display text-2xl font-bold capitalize">{profile?.plan ?? "free"}</div>
+                <div className="font-display text-2xl font-bold">{PLAN_LABELS[profile?.plan ?? "free"] ?? profile?.plan}</div>
               </div>
               <div className="text-sm text-muted-foreground">Apresentações geradas: <strong>{profile?.generations_count ?? 0}</strong></div>
               <Button variant="hero" onClick={() => navigate("/#pricing")}>Ver planos</Button>

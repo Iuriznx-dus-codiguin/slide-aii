@@ -169,9 +169,10 @@ Para quando qualquer compra for reconhecida. Só com consentimento.
 | `nurture_d30` | 30 | Último contato + pedido de opinião | "Ainda faz sentido pra você?" (pede resposta por e-mail) | Escolher plano |
 
 Base para "quanto rende cada opção" (`creditos-e-pagamentos.md`):
-- uma apresentação de 10 slides custa 120 créditos;
-- o avulso tem 500 créditos, ou seja, cerca de 4 apresentações;
-- o PRO mensal tem 3.200 créditos por mês mais 800 de bônus na ativação, cerca de 26 apresentações por mês.
+- uma apresentação de 10 slides custa 120 créditos (com falas, 170);
+- as estimativas de volume usam a de 170: o avulso (500 créditos) rende cerca de 3;
+- o PRO tem 1.700 créditos por mês, cerca de 10 apresentações; o MAX, até 8.500 (5x o PRO), cerca de 50;
+- assinaturas não têm bônus de ativação (desde a tabela de 10/2026).
 
 ### 6.3 Checkout e pagamento pendente
 
@@ -187,8 +188,8 @@ Base para "quanto rende cada opção" (`creditos-e-pagamentos.md`):
 | ID | E-mail | Gatilho (Cakto) | Cat. | Conteúdo-chave | Botão | Prior. |
 | --- | --- | --- | --- | --- | --- | --- |
 | `purchase_single` | "500 créditos liberados" | `purchase_approved` (avulso) | T | Saldo atual; quantas apresentações cabem; dica de tema do perfil | Criar apresentação | 1 |
-| `subscription_created` | "Boas-vindas ao PRO" (ou MAX) | `subscription_created` / primeira `purchase_approved` | T | Plano, créditos do mês, bônus de ativação, data da próxima renovação, forma de pagamento, se renova sozinho | Criar apresentação | 1 |
-| `subscription_upgraded` | "Agora você é MAX" | Troca para um plano superior | T | O que mudou (16.000 créditos por mês, uso justo); bônus não se repete | Criar apresentação | 1 |
+| `subscription_created` | "Boas-vindas ao PRO" (ou MAX) | `subscription_created` / primeira `purchase_approved` | T | Plano, créditos do mês, data da próxima renovação, forma de pagamento, se renova sozinho | Criar apresentação | 1 |
+| `subscription_upgraded` | "Agora você é MAX" | Troca para um plano superior | T | O que mudou (8.500 créditos por mês, uso justo) | Criar apresentação | 1 |
 | `subscription_downgraded` | "Seu plano foi alterado" | Troca para um plano inferior | T | Nova cota a partir de quando | Ver plano | 3 |
 | `renewal_reminder_d5` / `_d3` / `_d1` | Lembrete de renovação | `next_payment_date` (ou `subscription_renews_at`) − 5, 3 e 1 dias | A | **Automática:** data, valor, cartão final; "não precisa fazer nada". **Manual:** data, valor, link de pagamento. **Cancelada:** "seu acesso termina em X" | Automática: Ver plano. Manual: Renovar agora. Cancelada: Reativar | 1 |
 | `renewal_success` | "Renovado! Seus créditos do mês chegaram" | `subscription_renewed` / `subscription_late_recovered` | T | Créditos renovados, próxima data, resumo do mês anterior (apresentações criadas) | Criar apresentação | 1 |
@@ -214,8 +215,8 @@ Base para "quanto rende cada opção" (`creditos-e-pagamentos.md`):
 | ID | E-mail | Gatilho | Cat. | Conteúdo-chave | Prior. |
 | --- | --- | --- | --- | --- | --- |
 | `credits_low` | "Seus créditos estão acabando" | Depois de uma geração, saldo abaixo de 120 (uma apresentação de 10 slides) | A | Saldo; quanto falta. Avulso: comprar mais ou assinar. Assinante: data da renovação ou upgrade | 2 |
-| `credits_monthly_renewed` | "Seus 3.200 créditos do mês chegaram" | Novo ciclo da cota (`ensure_monthly_credits`) | A | Ideias de tema do perfil | 2 |
-| `bonus_granted` | "+800 créditos de bônus" | Bônus de ativação ou concedido pelo suporte | T | Permanentes; saldo total | 2 |
+| `credits_monthly_renewed` | "Seus 1.700 créditos do mês chegaram" | Novo ciclo da cota (`ensure_monthly_credits`) | A | Ideias de tema do perfil | 2 |
+| `bonus_granted` | "+500 créditos de bônus" | Bônus concedido pelo suporte ou em promoção | T | Permanentes; saldo total | 2 |
 | `generation_refunded` | "Tivemos um problema e seus créditos voltaram" | Estorno automático (`stale_timeout` ou falha) | T | Quanto voltou; tentar de novo | 2 |
 | `fair_use_80` | "Você já usou 80% do uso justo deste mês" | MAX com 80% da cota | A | Data da renovação | 3 |
 
@@ -252,7 +253,7 @@ Parte da base já publicada (`supabase/functions/_shared/emailTemplates.ts`): ca
 | Componente | Uso |
 | --- | --- |
 | **Saudação** | Linha antes do título, adaptada ao perfil (seção 4) |
-| **Destaque numérico** | Número grande com rótulo: "5 dias", "500 créditos", "R$ 49,90" |
+| **Destaque numérico** | Número grande com rótulo: "5 dias", "500 créditos", "R$ 34,90" |
 | **Cartão do plano** | Plano, valor, próxima data, forma de pagamento ("Visa final 4323" ou "Pix") e se renova sozinho |
 | **Medidor de créditos** | Barra com saldo e "dá para ~4 apresentações" |
 | **Ideias para você** | 2 ou 3 temas do perfil da pessoa, cada um com link para `/gerar?tema=…` (parâmetro novo, que preenche o tema no formulário) |
@@ -274,8 +275,8 @@ Todos continuam com versão em texto puro, pré-visualização (`npm run email:p
 > Que bom ter você aqui. A partir de um tema, o SlideAI monta o roteiro, escreve os slides, escolhe imagens e ainda prepara as falas. Sua próxima aula pode ficar pronta em cerca de um minuto.
 >
 > **Para começar, escolha como quer usar:**
-> - **Avulso, R$ 14,90:** 500 créditos, cerca de 4 apresentações, sem assinatura.
-> - **PRO, R$ 49,90/mês:** 3.200 créditos por mês + 800 de bônus na ativação.
+> - **Avulso, R$ 14,90:** 500 créditos, cerca de 3 apresentações, sem assinatura.
+> - **PRO, R$ 34,90/mês:** 1.700 créditos por mês, cerca de 10 apresentações.
 >
 > [Escolher meu plano]
 >
@@ -289,9 +290,9 @@ Todos continuam com versão em texto puro, pré-visualização (`npm run email:p
 >
 > Passando para lembrar que seu **PRO Mensal vence em 5 dias (12/11)**. Como o último pagamento foi por Pix, a renovação não é automática.
 >
-> **[ 5 dias ]** · PRO Mensal · R$ 49,90 · Pix
+> **[ 5 dias ]** · PRO Mensal · R$ 34,90 · Pix
 >
-> Renovando até 12/11, os 3.200 créditos do próximo mês chegam na hora, e seu bônus continua guardado.
+> Renovando até 12/11, os 1.700 créditos do próximo mês chegam na hora, e seu bônus continua guardado.
 >
 > [Renovar com Pix]
 
@@ -301,7 +302,7 @@ Todos continuam com versão em texto puro, pré-visualização (`npm run email:p
 >
 > Olá, Carla, tudo bem?
 >
-> Seu **PRO Anual** renova sozinho em **15/11**, no **Visa final 4323**, no valor de R$ 397,90. Não precisa fazer nada.
+> Seu **PRO Anual** renova sozinho em **15/11**, no **Visa final 4323**, no valor de R$ 276,90. Não precisa fazer nada.
 >
 > Mudou de cartão? Atualize antes da data para não perder o ritmo.
 >
@@ -321,12 +322,12 @@ Todos continuam com versão em texto puro, pré-visualização (`npm run email:p
 
 > Assunto: Quantas apresentações cabem no seu bolso?
 >
-> Oi, Ana! Fizemos as contas: uma apresentação de 10 slides usa 120 créditos.
+> Oi, Ana! Fizemos as contas: uma apresentação de 10 slides usa 120 créditos (com falas, 170).
 >
 > | Opção | Preço | Rende |
 > | --- | --- | --- |
-> | Avulso | R$ 14,90 | ~4 apresentações |
-> | PRO Mensal | R$ 49,90/mês | ~26 por mês + bônus |
+> | Avulso | R$ 14,90 | ~3 apresentações |
+> | PRO Mensal | R$ 34,90/mês | ~10 por mês |
 >
 > Seminário, TCC ou trabalho em grupo: tem opção para cada fase do semestre.
 >

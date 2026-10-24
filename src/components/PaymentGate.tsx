@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CHECKOUT_URLS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, SINGLE_PURCHASE_CREDITS, type PaidPlan, type BillingCycle } from "@/lib/cakto";
+import {
+  CHECKOUT_URLS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, SINGLE_PURCHASE_CREDITS,
+  MAX_USAGE_MULTIPLIER, cycleDiscountPct, formatBRL, previousPriceDiscountPct, type PaidPlan, type BillingCycle,
+} from "@/lib/cakto";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { toast } from "sonner";
 import { ContractSummary } from "@/components/legal/ContractSummary";
@@ -66,6 +69,18 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   const proId = proPlanFor(cycle);
   const maxId = maxPlanFor(cycle);
 
+  /** Preço anterior riscado; o percentual só aparece quando a redução é relevante (o MAX caiu ~1%). */
+  const previousPrice = (id: PaidPlan) => {
+    const before = PLAN_PREVIOUS_PRICE_CENTS[id];
+    if (!before) return null;
+    const cut = previousPriceDiscountPct(id);
+    return (
+      <div className="text-[11px] text-muted-foreground mt-1">
+        de <s aria-label={`Preço anterior: R$ ${formatBRL(before)}`}>R$ {formatBRL(before)}</s> por{cut >= 5 && <span className="ml-1 font-bold text-primary">-{cut}%</span>}
+      </div>
+    );
+  };
+
   const startCheckout = (id: PaidPlan) => {
     const url = CHECKOUT_URLS[id];
     if (!url) {
@@ -113,8 +128,8 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
         <div className="flex justify-center mb-5">
           <div className="inline-flex items-center gap-1 p-1 rounded-full bg-muted border border-border">
             {cycleButton("mensal", "Mensal")}
-            {cycleButton("trimestral", "Trimestral", "-15%")}
-            {cycleButton("anual", "Anual", "-33%")}
+            {cycleButton("trimestral", "Trimestral", `-${cycleDiscountPct("trimestral", "trimestral")}%`)}
+            {cycleButton("anual", "Anual", `-${cycleDiscountPct("anual", "anual")}%`)}
           </div>
         </div>
 
@@ -151,9 +166,10 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
               <Sparkles className="h-2.5 w-2.5" /> Mais popular
             </div>
             <div className="font-display font-bold mt-1">Plano PRO</div>
-            <div className="text-lg font-semibold mt-1">{PLAN_PRICES[proId]}</div>
+            {previousPrice(proId)}
+            <div className="text-lg font-semibold">{PLAN_PRICES[proId]}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-gradient-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-glow">
-              <Sparkles className="h-2.5 w-2.5" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos/mês + {PLAN_SIGNUP_BONUS[proId].toLocaleString("pt-BR")} bônus
+              <Sparkles className="h-2.5 w-2.5" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos/mês
             </div>
             <Button size="sm" variant="hero" className="w-full mt-4 gap-1.5" onClick={() => startCheckout(proId)}>
               Pagar agora <ExternalLink className="h-3 w-3" />
@@ -166,10 +182,14 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
               <Crown className="h-2.5 w-2.5" /> Uso ilimitado*
             </div>
             <div className="font-display font-bold mt-1">Plano MAX</div>
-            <div className="text-lg font-semibold mt-1">{PLAN_PRICES[maxId]}</div>
+            {previousPrice(maxId)}
+            <div className="text-lg font-semibold">{PLAN_PRICES[maxId]}</div>
             <div className="mt-2 inline-flex items-center gap-1 self-start rounded-full bg-gradient-to-r from-amber-500 to-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-glow">
               <Crown className="h-2.5 w-2.5" /> Gerações ilimitadas*
             </div>
+            <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+              *Uso justo: até {MAX_USAGE_MULTIPLIER}x o PRO ({PLAN_MONTHLY_CREDITS[maxId].toLocaleString("pt-BR")} créditos/mês).
+            </p>
             <Button size="sm" variant="outline" className="w-full mt-4 gap-1.5 border-amber-500/50 hover:bg-amber-500/10" onClick={() => startCheckout(maxId)}>
               Pagar agora <ExternalLink className="h-3 w-3" />
             </Button>

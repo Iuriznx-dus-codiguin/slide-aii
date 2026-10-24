@@ -29,7 +29,7 @@ Texto em Markdown (tabelas, listas e links são suportados).
 node --experimental-strip-types scripts/help-center.ts
 ```
 
-O script valida os arquivos (slug, categoria, links internos, links do catálogo de erros) e regenera as migrações listadas em `MIGRATION_FILES` (`scripts/help-center.ts`; hoje `supabase/migrations/20261019000100_help_center_privacy_analytics.sql` e `drizzle/migrations/0012_help_center_privacy_analytics.sql`). Quando um artigo muda depois de publicado, crie um par novo de migrações nessa lista (e a entrada no journal do Drizzle): a migração antiga já rodou e fica como histórico. O teste `src/test/helpCenterContent.test.ts` falha se a migração estiver desatualizada.
+O script valida os arquivos (slug, categoria, links internos, links do catálogo de erros) e regenera as migrações listadas em `MIGRATION_FILES` (`scripts/help-center.ts`; hoje `supabase/migrations/20261024000200_help_center_pricing_2026_10.sql` e `drizzle/migrations/0018_help_center_pricing_2026_10.sql`). Quando um artigo muda depois de publicado, crie um par novo de migrações nessa lista (e a entrada no journal do Drizzle): a migração antiga já rodou e fica como histórico. O teste `src/test/helpCenterContent.test.ts` falha se a migração estiver desatualizada.
 
 ## Guia de estilo
 

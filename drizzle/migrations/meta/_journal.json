@@ -120,6 +120,20 @@
       "when": 1792793863008,
       "tag": "0016_email_log_idempotent_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792869375440,
+      "tag": "0017_plan_pricing_2026_10",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792869435440,
+      "tag": "0018_help_center_pricing_2026_10",
+      "breakpoints": true
     }
   ]
 }

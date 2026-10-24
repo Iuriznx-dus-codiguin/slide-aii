@@ -9,7 +9,7 @@ Uma assinatura termina quando você cancela e o período pago acaba, ou quando a
 ## Você continua com
 
 - **Todas as apresentações:** para ver, editar, exportar e publicar.
-- **O bônus permanente:** créditos avulsos e o bônus de ativação continuam valendo e podem ser usados em novas gerações.
+- **O bônus permanente:** créditos de compras avulsas e promoções continuam valendo e podem ser usados em novas gerações.
 - **A conta e o perfil**, com todos os dados.
 
 ## O que deixa de valer

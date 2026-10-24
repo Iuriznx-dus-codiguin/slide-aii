@@ -65,10 +65,12 @@ import { generateContentV2 } from "./contentV2.ts";
 import { fillSpeakerNotes, normalizeSpeeches } from "./speeches.ts";
 import { persistPresentation, type PersistResult, type PersistSlide } from "./persist.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
+// Faixa de slides e custo em créditos: _shared/plans.ts, que espelha
+// src/lib/cakto.ts (src/test/plansParity.test.ts confere os dois).
+import { CREDITS_PER_SLIDE, MAX_SLIDES, MIN_SLIDES, computeCreditsCost } from "../_shared/plans.ts";
 
-// ───────────── Faixa de slides e custo em créditos ─────────────
-export const MIN_SLIDES = 5;
-export const MAX_SLIDES = 20;
+export { MAX_SLIDES, MIN_SLIDES, computeCreditsCost };
+
 /** Mesmo teto do slider da tela de geração. */
 export const MAX_PRESENTERS = 8;
 /**
@@ -79,20 +81,6 @@ export const MAX_PRESENTERS = 8;
  */
 const DEFAULT_IMAGE_BUDGET_USD = 0.3;
 const MAX_DEV_IMAGE_BUDGET_USD = 2;
-const CREDITS_PER_SLIDE = 10;
-const DEPTH_CREDITS: Record<string, number> = { short: 10, balanced: 20, long: 30 };
-const SPEECHES_CREDITS = 50;
-
-export function computeCreditsCost(input: {
-  slidesCount: number;
-  textDepth?: string | null;
-  includeSpeeches?: boolean;
-}): number {
-  const slides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(input.slidesCount || 8)));
-  return slides * CREDITS_PER_SLIDE
-    + (DEPTH_CREDITS[input.textDepth ?? "balanced"] ?? DEPTH_CREDITS.balanced)
-    + (input.includeSpeeches ? SPEECHES_CREDITS : 0);
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

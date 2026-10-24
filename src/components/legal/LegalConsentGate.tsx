@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { LEGAL } from "@/lib/legal";
+import { MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PRICES } from "@/lib/cakto";
 import { acceptCurrentTerms, fetchLatestAcceptance, isCurrentAcceptance, recordAccess } from "@/lib/legalConsent";
 import { toast } from "sonner";
 
@@ -110,19 +111,18 @@ export const LegalConsentGate = () => {
             <ShieldCheck className="h-5 w-5 text-primary" />
           </div>
           <AlertDialogTitle>
-            {isUpdate ? "Atualizamos os Termos de Uso e a Política de Privacidade" : "Antes de continuar"}
+            {isUpdate ? "Atualizamos os Termos de Uso" : "Antes de continuar"}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
               {isUpdate ? (
                 <>
-                  <p>Os documentos agora deixam mais claros os seus direitos. Os principais pontos:</p>
+                  <p>Os Termos agora trazem a nova tabela de planos. O que mudou:</p>
                   <ul className="list-disc pl-5 space-y-1">
-                    <li>ao cancelar, o acesso continua até o fim do período já pago;</li>
-                    <li>créditos bônus são permanentes, mesmo depois que a assinatura termina;</li>
-                    <li>direito de arrependimento de 7 dias, com reembolso integral;</li>
-                    <li>a Política de Uso Justo do plano MAX, com os limites divulgados;</li>
-                    <li>quais dados tratamos, por quanto tempo e como pedir exclusão.</li>
+                    <li>PRO por {PLAN_PRICES.mensal}, com {PLAN_MONTHLY_CREDITS.mensal.toLocaleString("pt-BR")} créditos por mês;</li>
+                    <li>MAX com uso justo de até {PLAN_MONTHLY_CREDITS.max_mensal.toLocaleString("pt-BR")} créditos por mês ({MAX_USAGE_MULTIPLIER}x o PRO);</li>
+                    <li>as assinaturas não têm mais bônus de ativação: o trimestral e o anual têm desconto no preço;</li>
+                    <li>a compra avulsa, o custo de cada apresentação, o cancelamento e o arrependimento de 7 dias não mudaram.</li>
                   </ul>
                 </>
               ) : (

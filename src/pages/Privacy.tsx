@@ -29,7 +29,7 @@ const Privacy = () => {
       description="Como o SlideAI coleta, usa, compartilha, guarda e protege dados pessoais, com bases legais, prazos de retenção, fornecedores e como exercer seus direitos pela LGPD."
       path="/privacidade"
       version={LEGAL.privacyVersion}
-      effectiveDate={LEGAL.effectiveDateLabel}
+      effectiveDate={LEGAL.privacyEffectiveDateLabel}
       toc={TOC}
       intro={
         <p>

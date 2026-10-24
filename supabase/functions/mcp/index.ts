@@ -132,14 +132,42 @@ import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z as z3 } from "npm:zod@^3.25.76";
 
 // src/lib/cakto.ts
-var PLAN_MONTHLY_CREDITS = {
-  mensal: 3200,
-  trimestral: 3200,
-  anual: 3200,
-  max_mensal: 16e3,
-  max_trimestral: 16e3,
-  max_anual: 16e3
+var PLAN_PRICE_CENTS = {
+  single: 1490,
+  mensal: 3490,
+  trimestral: 8890,
+  anual: 27690,
+  max_mensal: 14700,
+  max_trimestral: 37500,
+  max_anual: 116400
 };
+var formatBRL = (cents) => (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+var PRICE_SUFFIX = {
+  single: "",
+  mensal: "/m\xEAs",
+  trimestral: "/trimestre",
+  anual: "/ano",
+  max_mensal: "/m\xEAs",
+  max_trimestral: "/trimestre",
+  max_anual: "/ano"
+};
+var PLAN_PRICES = Object.fromEntries(
+  Object.keys(PLAN_PRICE_CENTS).map((p) => [p, `R$ ${formatBRL(PLAN_PRICE_CENTS[p])}${PRICE_SUFFIX[p]}`])
+);
+var PLAN_MONTHLY_CREDITS = {
+  mensal: 1700,
+  trimestral: 1700,
+  anual: 1700,
+  max_mensal: 8500,
+  max_trimestral: 8500,
+  max_anual: 8500
+};
+var MAX_USAGE_MULTIPLIER = PLAN_MONTHLY_CREDITS.max_mensal / PLAN_MONTHLY_CREDITS.mensal;
+var CREDITS_PER_SLIDE = 10;
+var DEPTH_CREDITS = { short: 10, balanced: 20, long: 30 };
+var SPEECHES_CREDITS = 50;
+var estimateCreditsCost = (slidesCount, textDepth = "balanced", includeSpeeches = false) => Math.max(5, Math.min(20, Math.round(slidesCount || 8))) * CREDITS_PER_SLIDE + (DEPTH_CREDITS[textDepth] ?? DEPTH_CREDITS.balanced) + (includeSpeeches ? SPEECHES_CREDITS : 0);
+var REFERENCE_DECK_CREDITS = estimateCreditsCost(10, "balanced", true);
 var isProPlan = (p) => p === "mensal" || p === "trimestral" || p === "anual";
 var isMaxPlan = (p) => p === "max_mensal" || p === "max_trimestral" || p === "max_anual";
 var isSubscriptionPlan = (p) => isProPlan(p) || isMaxPlan(p);

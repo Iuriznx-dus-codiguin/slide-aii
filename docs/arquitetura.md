@@ -36,7 +36,7 @@ Navegador (React + Vite)
 
 1. O `PaymentGate` mostra os planos e o **resumo do contrato** (`ContractSummary`) e abre o checkout da Cakto.
 2. A Cakto chama `cakto-webhook` com o segredo compartilhado. O evento é registrado em `payment_events`, com idempotência por evento + pedido.
-3. Compra aprovada: plano/assinatura ativados, cota mensal definida, bônus creditado. Reembolso: estorno só do que o pedido concedeu (`revoke_order_credits`). Cancelamento: `subscription_status = canceled`, com o acesso mantido até `subscription_renews_at`.
+3. Compra aprovada: avulso credita bônus permanente; assinatura ativa o plano e define a cota mensal (sem bônus de ativação). Reembolso: estorno só do que o pedido concedeu (`revoke_order_credits`). Cancelamento: `subscription_status = canceled`, com o acesso mantido até `subscription_renews_at`.
 4. O front recebe a mudança via Realtime e libera a geração.
 
 Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
@@ -86,7 +86,7 @@ Regras completas: [creditos-e-pagamentos.md](creditos-e-pagamentos.md).
 | `reserve_ai_edit` / `release_ai_edit` | Cota do chat de edição reservada antes da IA, numa instrução que confere o teto; devolvida em falha |
 | `reserve_speech_regen` / `release_speech_regen` | Mesma regra para a regeneração de falas (5 por apresentação) |
 | `release_presentation_asset` | Devolve uma imagem da cota da apresentação quando a geração não entrega |
-| `set_monthly_credits`, `grant_bonus_credits(_once)`, `revoke_order_credits` | Operações do webhook de pagamento |
+| `set_monthly_credits`, `grant_bonus_credits`, `revoke_order_credits` | Operações do webhook de pagamento (`grant_bonus_credits_once` ficou do bônus de ativação, sem uso desde 10/2026) |
 | `add_ai_edit_usage` | Contador do assistente de edição (servidor) |
 | `accept_legal_terms`, `record_access`, `purge_expired_data` | Conformidade legal |
 | `get_shared_presentation(_slug)` | Deck publicado (ou privado do próprio dono) para o visualizador, sem `user_id` |

@@ -9,7 +9,7 @@ Os limites existem para manter a plataforma estável e disponível para todos. E
 | Recurso | Limite |
 | --- | --- |
 | Novas gerações | 12 por hora, por conta (todos os planos) |
-| Plano MAX | Até 16.000 créditos por ciclo mensal — cerca de 130 apresentações de 10 slides |
+| Plano MAX | Até 8.500 créditos por ciclo mensal — cerca de 50 apresentações de 10 slides com falas |
 | Assistente de edição por IA | 10 mensagens e 3 edições complexas por apresentação |
 | Regenerar falas | 5 vezes por apresentação (só com falas contratadas) |
 | Imagens por IA no editor | 15 por hora, por conta |
@@ -17,7 +17,7 @@ Os limites existem para manter a plataforma estável e disponível para todos. E
 
 ## O plano MAX é ilimitado?
 
-É de **uso ilimitado para uma pessoa**, dentro do teto de uso justo acima — dez vezes a cota do PRO, suficiente para uso profissional intenso. Se o teto for atingido, novas gerações ficam pausadas até a próxima renovação da cota, e a plataforma mostra a data. Nesse intervalo, você pode usar créditos avulsos. Nunca cobramos valor extra automaticamente.
+É de **uso ilimitado para uma pessoa**, dentro do teto de uso justo acima — 5 vezes a cota do PRO, suficiente para uso profissional frequente. Se o teto for atingido, novas gerações ficam pausadas até a próxima renovação da cota, e a plataforma mostra a data. Nesse intervalo, você pode usar créditos avulsos. Nunca cobramos valor extra automaticamente.
 
 ## O que não é permitido
 

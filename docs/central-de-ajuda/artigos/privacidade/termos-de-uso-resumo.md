@@ -17,8 +17,9 @@ Um resumo dos [Termos de Uso](/termos). Em caso de dúvida, vale o texto complet
 - Assinaturas renovam automaticamente. Reajustes são avisados com 30 dias de antecedência.
 - **Cancele quando quiser, sem multa.** O acesso continua até o fim do período pago.
 - **Arrependimento:** até 7 dias após a compra, com reembolso integral.
-- O plano MAX é de uso ilimitado dentro da **Política de Uso Justo** (16.000 créditos por ciclo mensal).
-- O bônus é permanente; a cota mensal não acumula.
+- O plano MAX é de uso ilimitado dentro da **Política de Uso Justo** (8.500 créditos por ciclo mensal).
+- Assinaturas não têm bônus de ativação; o trimestral e o anual têm desconto no preço.
+- O bônus (compras avulsas e promoções) é permanente; a cota mensal não acumula.
 
 ## Suas responsabilidades
 

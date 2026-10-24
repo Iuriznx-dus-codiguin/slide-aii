@@ -10,15 +10,32 @@ Referência do comportamento atual. Os textos para o cliente estão nos [Termos 
 | Profundidade | curto 10 · equilibrado 20 · longo 30 | idem |
 | Falas dos apresentadores | 50 | idem |
 | Compra avulsa | R$ 14,90 → 500 créditos de bônus | `cakto-webhook/lib.ts` |
-| Cota PRO | 3.200 por ciclo mensal | `plan_monthly_credits` |
-| Teto MAX (uso justo) | 16.000 por ciclo mensal | `plan_monthly_credits` |
-| Bônus de ativação PRO | 800 / 1.200 / 2.000 (mensal/trimestral/anual), uma vez por conta | `grant_bonus_credits_once` |
+| Cota PRO | 1.700 por ciclo mensal (≈ 10 apresentações de 10 slides com falas) | `plan_monthly_credits` |
+| Teto MAX (uso justo) | 8.500 por ciclo mensal (5x o PRO, ≈ 50 apresentações) | `plan_monthly_credits` |
+| Bônus de ativação | Não há (removido na tabela de 10/2026) | — |
+| Apresentação de referência das estimativas | 170 (10 slides, equilibrada, com falas) | `REFERENCE_DECK_CREDITS` |
 | Gerações por hora | 12 (dev: 5/h e 5/dia) | `generate-presentation` |
 | Assistente de edição | 10 mensagens e 3 edições complexas por apresentação | `chat-editor` |
 | Regenerar falas | 5 por apresentação | `regenerate-speeches` |
 | Imagens por IA no editor | 15/h | `fetch-image` |
 
-`src/lib/fairUse.ts` reúne os limites citados nos Termos. Os testes de paridade conferem as constantes de preço entre o front e o webhook.
+`src/lib/fairUse.ts` reúne os limites citados nos Termos. Os testes de paridade (`src/test/plansParity.test.ts`) conferem preços, créditos e custo da geração entre o front, as edge functions, o webhook e a função `plan_monthly_credits` da migração mais recente.
+
+## Tabela de preços (10/2026)
+
+Fonte: `PLAN_PRICE_CENTS` em `src/lib/cakto.ts` (espelhado em `supabase/functions/_shared/plans.ts`). **O valor cobrado é o da oferta no painel da Cakto**: mudar um preço aqui exige mudar a oferta lá.
+
+| Plano | Preço | Equivale a | Desconto sobre o mensal | Antes (exibido riscado) | Créditos |
+| --- | --- | --- | --- | --- | --- |
+| Avulso | R$ 14,90 | — | — | — | 500 permanentes |
+| PRO mensal | R$ 34,90/mês | — | — | R$ 49,90 | 1.700/mês |
+| PRO trimestral | R$ 88,90/trimestre | R$ 29,63/mês | 15% | R$ 127,90 | 1.700/mês |
+| PRO anual | R$ 276,90/ano | R$ 23,08/mês | 34% | R$ 397,90 | 1.700/mês |
+| MAX mensal | R$ 147,00/mês | — | — | R$ 147,90 | 8.500/mês (uso justo) |
+| MAX trimestral | R$ 375,00/trimestre | R$ 125,00/mês | 15% | R$ 377,90 | 8.500/mês (uso justo) |
+| MAX anual | R$ 1.164,00/ano | R$ 97,00/mês | 34% | R$ 1.175,00 | 8.500/mês (uso justo) |
+
+O anual tem 34% (e não 33%) para que o MAX anual fique abaixo do preço anterior. Os cards só mostram o selo de redução sobre o preço anterior a partir de 5% (o MAX caiu cerca de 1%; ele aparece só riscado).
 
 ## Acesso (`can_user_generate` / `decideEntitlement`)
 
@@ -36,9 +53,9 @@ Com a assinatura encerrada, a sobra da cota mensal não vale mais (`consume_cred
 | Evento | Efeito |
 | --- | --- |
 | Compra avulsa | +500 de bônus. Sem assinatura vigente: plano vira `single` e a sobra mensal é zerada |
-| Assinatura criada ou renovada | Plano ativo, `renews_at` = agora + período, cota redefinida (reancora o ciclo), bônus de ativação uma vez por conta |
+| Assinatura criada ou renovada | Plano ativo, `renews_at` = agora + período, cota redefinida (reancora o ciclo). Sem bônus de ativação |
 | Cancelamento | `subscription_status = canceled`; acesso e cota até `renews_at` |
-| Reembolso / chargeback | Estorna só o que o pedido concedeu (idempotente por pedido). Assinatura: encerra na hora (`plan = free`) e zera a cota. Caso ambíguo: vai para revisão manual (`webhook_refund_review`) |
+| Reembolso / chargeback | Estorna só o que o pedido concedeu (idempotente por pedido): avulso, até 500 de bônus. Assinatura: encerra na hora (`plan = free`) e zera a cota. Caso ambíguo: vai para revisão manual (`webhook_refund_review`) |
 | Recusa, Pix/boleto gerado, abandono | Ignorado |
 
 ## Ciclo mensal

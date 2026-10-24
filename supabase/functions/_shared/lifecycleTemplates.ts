@@ -7,8 +7,9 @@
 // scripts/email-preview.ts. O envio e a reavaliação ficam em lifecycle.ts.
 import { type Block, type EmailContent, type EmailKind, SITE_URL } from "./emailTemplates.ts";
 import {
-  CHECKOUT_URLS, isMaxPlan, isSubscriptionPlan, maxPlanFor, type PaidPlan, PLAN_LABELS, PLAN_MONTHLY_CREDITS,
-  PLAN_PRICES, SINGLE_PURCHASE_CREDITS, TYPICAL_DECK_CREDITS,
+  CHECKOUT_URLS, cycleDiscountPct, estimatedDecks, isMaxPlan, isSubscriptionPlan, MAX_USAGE_MULTIPLIER, maxPlanFor,
+  type PaidPlan, PLAN_LABELS, PLAN_MONTHLY_CREDITS, PLAN_PRICES, REFERENCE_DECK_CREDITS, SINGLE_PURCHASE_CREDITS,
+  TYPICAL_DECK_CREDITS,
 } from "./plans.ts";
 
 // ───────────── Configuração ─────────────
@@ -273,9 +274,9 @@ const compareBlock: Block = {
   compare: {
     head: ["Opção", "Preço", "Rende"],
     rows: [
-      ["Avulso", PLAN_PRICES.single, `${fmtInt(SINGLE_PURCHASE_CREDITS)} créditos · ~${decks(SINGLE_PURCHASE_CREDITS)} apresentações`],
-      ["PRO", PLAN_PRICES.mensal, `${fmtInt(PLAN_MONTHLY_CREDITS.mensal)} créditos/mês · ~${decks(PLAN_MONTHLY_CREDITS.mensal)} por mês`],
-      ["MAX", PLAN_PRICES.max_mensal, `até ${fmtInt(PLAN_MONTHLY_CREDITS.max_mensal)} créditos/mês (uso justo)`],
+      ["Avulso", PLAN_PRICES.single, `${fmtInt(SINGLE_PURCHASE_CREDITS)} créditos · ~${estimatedDecks(SINGLE_PURCHASE_CREDITS)} apresentações`],
+      ["PRO", PLAN_PRICES.mensal, `${fmtInt(PLAN_MONTHLY_CREDITS.mensal)} créditos/mês · ~${estimatedDecks(PLAN_MONTHLY_CREDITS.mensal)} por mês`],
+      ["MAX", PLAN_PRICES.max_mensal, `até ${fmtInt(PLAN_MONTHLY_CREDITS.max_mensal)} créditos/mês (uso justo, ${MAX_USAGE_MULTIPLIER}x o PRO)`],
     ],
     highlight: 1,
   },
@@ -370,7 +371,7 @@ const B: Record<LifecycleTemplate, Builder> = {
           blocks: [
             { p: `Passando para mostrar como é simples: você escreve o tema, e o SlideAI cuida do resto — roteiro, texto, imagens, gráficos e até o que falar em cada slide. Pensei em algumas ideias para ${v.next}:` },
             ideasBlock(ctx, l, "Escolha uma e veja acontecer"),
-            { p: `Com o **avulso** (${PLAN_PRICES.single}) você recebe ${fmtInt(SINGLE_PURCHASE_CREDITS)} créditos, o suficiente para umas ${decks(SINGLE_PURCHASE_CREDITS)} apresentações, sem assinatura.` },
+            { p: `Com o **avulso** (${PLAN_PRICES.single}) você recebe ${fmtInt(SINGLE_PURCHASE_CREDITS)} créditos, o suficiente para umas ${estimatedDecks(SINGLE_PURCHASE_CREDITS)} apresentações, sem assinatura.` },
             sameEmailNote(ctx),
           ],
           cta: { label: `Começar com o avulso (${PLAN_PRICES.single})`, url: l.checkout("single") },
@@ -380,12 +381,12 @@ const B: Record<LifecycleTemplate, Builder> = {
         return {
           ...base,
           subject: "Quantas apresentações cabem no seu bolso?",
-          preheader: "Fiz as contas: uma apresentação de 10 slides usa 120 créditos.",
+          preheader: `Fiz as contas: uma apresentação de 10 slides usa ${TYPICAL_DECK_CREDITS} créditos.`,
           title: "Quanto rende cada opção",
           blocks: [
-            { p: `Fiz as contas para você: uma apresentação de 10 slides usa **${TYPICAL_DECK_CREDITS} créditos** (com falas do apresentador, 170).` },
+            { p: `Fiz as contas para você: uma apresentação de 10 slides usa **${TYPICAL_DECK_CREDITS} créditos** (com falas do apresentador, ${REFERENCE_DECK_CREDITS}). As estimativas abaixo contam apresentações com falas.` },
             compareBlock,
-            { p: `No PRO, a primeira ativação ainda vem com **bônus de 800 créditos** que não expiram. Para quem cria toda semana, é o que mais compensa.` },
+            { p: `No PRO, o trimestral sai **${cycleDiscountPct("trimestral")}%** e o anual **${cycleDiscountPct("anual")}%** mais barato que o mensal. Para quem cria toda semana, é o que mais compensa.` },
             { guarantee: true },
           ],
           cta: { label: "Comparar e escolher", url: l.plans() },
@@ -486,9 +487,8 @@ const B: Record<LifecycleTemplate, Builder> = {
     };
   },
 
-  subscription_created: (ctx, data) => {
+  subscription_created: (ctx) => {
     const l = links("subscription_created");
-    const bonus = Number(data.bonus ?? 0);
     return {
       subject: `Boas-vindas ao ${planLabel(ctx.plan)}! 🚀`,
       preheader: "Seu plano está ativo e os créditos do mês já chegaram.",
@@ -497,8 +497,8 @@ const B: Record<LifecycleTemplate, Builder> = {
       tone: "success",
       blocks: [
         { stat: `${fmtInt(ctx.balance)} créditos`, label: "disponíveis agora" },
-        planCard(ctx, bonus > 0 ? [["Bônus de ativação", `+${fmtInt(bonus)} créditos (não expiram)`]] : []),
-        { p: "A cota do plano renova a cada mês, e os créditos de bônus ficam guardados: são usados depois da cota." },
+        planCard(ctx),
+        { p: "A cota do plano renova a cada mês. Créditos avulsos que você tiver ficam guardados e são usados depois da cota." },
         ...(ctx.autoRenew ? [] : [{ p: `Como o pagamento foi por **${paymentLabel(ctx)}**, a renovação não é automática. Sem preocupação: avisamos 5, 3 e 1 dia antes, com o link para renovar.` } as Block]),
         ideasBlock(ctx, l),
       ],
@@ -521,7 +521,6 @@ const B: Record<LifecycleTemplate, Builder> = {
         { p: isMaxPlan(ctx.plan)
           ? "No MAX você gera sem contar créditos, dentro do uso justo. Ideal para quem cria toda semana."
           : "Sua cota mensal foi atualizada para o novo plano." },
-        { note: "O bônus de ativação é um por conta e não se repete na troca de plano." },
       ],
       cta: { label: "Criar apresentação", url: l.generate() },
       signoff: TEAM_SIGNOFF,
@@ -940,7 +939,7 @@ const B: Record<LifecycleTemplate, Builder> = {
         { meter: ctx.balance, max: TYPICAL_DECK_CREDITS, label: `Restam ${fmtInt(ctx.balance)} créditos · uma apresentação de 10 slides usa ${TYPICAL_DECK_CREDITS}` },
         subscriber
           ? { p: `Sua cota renova${due ? ` em **${fmtDateLong(due)}**` : " no próximo ciclo"}. Precisa de mais antes disso? Dá para comprar créditos avulsos ou passar para o MAX.` }
-          : { p: `Para não parar no meio de ${voice(ctx).next}, garanta mais créditos. No PRO são ${fmtInt(PLAN_MONTHLY_CREDITS.mensal)} por mês, mais bônus na primeira ativação.` },
+          : { p: `Para não parar no meio de ${voice(ctx).next}, garanta mais créditos. No PRO são ${fmtInt(PLAN_MONTHLY_CREDITS.mensal)} por mês, cerca de ${estimatedDecks(PLAN_MONTHLY_CREDITS.mensal)} apresentações com falas.` },
         sameEmailNote(ctx),
       ],
       cta: subscriber

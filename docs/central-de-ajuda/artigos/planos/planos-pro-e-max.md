@@ -9,17 +9,18 @@ Todos os planos dão acesso aos mesmos recursos. A diferença é o volume e a fo
 | | Geração única | PRO | MAX |
 | --- | --- | --- | --- |
 | Pagamento | Uma vez | Assinatura | Assinatura |
-| Créditos | 500 permanentes | 3.200 por mês + bônus de ativação | Uso ilimitado* |
+| Créditos | 500 permanentes | 1.700 por mês | Uso ilimitado* |
+| Rende cerca de | 3 apresentações | 10 apresentações por mês | 50 apresentações por mês |
 | Ideal para | Uma ou poucas apresentações | Uso frequente | Alto volume (agências, criadores, professores com muitas turmas) |
 | Renovação | Não tem | Automática | Automática |
 
-\* Dentro da Política de Uso Justo: 16.000 créditos por ciclo mensal e 12 gerações por hora.
+\* Dentro da Política de Uso Justo: 8.500 créditos por ciclo mensal (5 vezes o PRO) e 12 gerações por hora. As estimativas contam apresentações de 10 slides com falas (170 créditos).
 
 ## Como escolher
 
 - **Até 3 ou 4 apresentações, de vez em quando:** geração única.
-- **Algumas apresentações por semana:** PRO. O trimestral e o anual saem mais baratos por mês.
-- **Várias apresentações por dia:** MAX.
+- **Até 10 apresentações por mês (duas ou três por semana):** PRO. O trimestral e o anual saem até 34% mais baratos por mês.
+- **Mais de 10 por mês, quase todo dia:** MAX.
 
 ## Posso combinar?
 
