@@ -2,6 +2,7 @@ import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { supabaseForUser } from "../supabase";
 import { asJson } from "../json";
+import { decideEntitlement } from "../../entitlement";
 
 export default defineTool({
   name: "get_credit_balance",
@@ -23,16 +24,25 @@ export default defineTool({
     const { data: profile, error } = await supabase
       .from("profiles")
       .select(
-        "plan, subscription_status, subscription_renews_at, credits_bonus, credits_monthly, generations_count, total_views",
+        "plan, subscription_status, subscription_renews_at, credits_cycle_anchor, credits_bonus, credits_monthly, generations_count, total_views",
       )
       .eq("id", ctx.getUserId())
       .maybeSingle();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     if (!profile) return { content: [{ type: "text", text: "Profile not found." }], isError: true };
 
+    // Mesma regra do app: cota mensal só conta com assinatura vigente e o
+    // MAX é ilimitado dentro do uso justo.
+    const decision = decideEntitlement(profile, { cost: 1, isDeveloper: false });
     const payload: Record<string, unknown> = {
       ...profile,
-      credits_available: (profile.credits_bonus ?? 0) + (profile.credits_monthly ?? 0),
+      allowed: decision.allowed,
+      reason: decision.reason,
+      credits_available: decision.credits_available,
+      credits_monthly: decision.credits_monthly,
+      credits_bonus: decision.credits_bonus,
+      unlimited: decision.unlimited,
+      access_until: decision.access_until,
     };
 
     if (include_history) {

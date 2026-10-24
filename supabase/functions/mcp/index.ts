@@ -130,6 +130,98 @@ var get_presentation_default = defineTool2({
 // src/lib/mcp/tools/get-credit-balance.ts
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@2.0.4";
 import { z as z3 } from "npm:zod@^3.25.76";
+
+// src/lib/cakto.ts
+var PLAN_MONTHLY_CREDITS = {
+  mensal: 3200,
+  trimestral: 3200,
+  anual: 3200,
+  max_mensal: 16e3,
+  max_trimestral: 16e3,
+  max_anual: 16e3
+};
+var isProPlan = (p) => p === "mensal" || p === "trimestral" || p === "anual";
+var isMaxPlan = (p) => p === "max_mensal" || p === "max_trimestral" || p === "max_anual";
+var isSubscriptionPlan = (p) => isProPlan(p) || isMaxPlan(p);
+var isMonthlyCycleDue = (anchor, now = /* @__PURE__ */ new Date()) => {
+  if (!anchor) return true;
+  const [y, m, d] = anchor.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return true;
+  const lastDayNext = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const due = Date.UTC(y, m, Math.min(d, lastDayNext));
+  return now.getTime() >= due;
+};
+
+// src/lib/entitlement.ts
+var toTime = (iso) => {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? null : t;
+};
+var isSubscriptionCurrent = (profile, now = /* @__PURE__ */ new Date()) => {
+  if (!profile || !isSubscriptionPlan(profile.plan)) return false;
+  const status = profile.subscription_status ?? null;
+  const renews = toTime(profile.subscription_renews_at);
+  const periodOpen = renews === null || renews > now.getTime();
+  if (status === null || status === "active" || status === "trialing") return periodOpen;
+  if (status === "canceled") return renews !== null && renews > now.getTime();
+  return false;
+};
+var decideEntitlement = (profile, { cost = 0, now = /* @__PURE__ */ new Date(), isDeveloper = false } = {}) => {
+  const plan = profile?.plan ?? "free";
+  const bonus = Math.max(0, profile?.credits_bonus ?? 0);
+  const storedMonthly = Math.max(0, profile?.credits_monthly ?? 0);
+  const allowance = PLAN_MONTHLY_CREDITS[plan] ?? 0;
+  const isSub = isSubscriptionPlan(plan);
+  const current = isSubscriptionCurrent(profile, now);
+  const need = Math.max(0, cost);
+  const base = (over) => ({
+    allowed: false,
+    reason: "no_plan",
+    credits_bonus: bonus,
+    credits_monthly: 0,
+    credits_available: bonus,
+    // Sem assinatura vigente não há cota mensal (mesmo que o plano ainda
+    // conste no perfil até o próximo pagamento).
+    monthly_allowance: 0,
+    subscription_current: false,
+    unlimited: false,
+    access_until: null,
+    ...over
+  });
+  if (isSub && current) {
+    const monthly = allowance > 0 && isMonthlyCycleDue(profile?.credits_cycle_anchor, now) ? allowance : storedMonthly;
+    const available = bonus + monthly;
+    const accessUntil = profile?.subscription_status === "canceled" ? profile?.subscription_renews_at ?? null : null;
+    const common = {
+      credits_monthly: monthly,
+      credits_available: available,
+      monthly_allowance: allowance,
+      subscription_current: true,
+      unlimited: isMaxPlan(plan),
+      access_until: accessUntil
+    };
+    if (isDeveloper) return base({ ...common, allowed: true, reason: "dev" });
+    if (available >= need) return base({ ...common, allowed: true, reason: "subscription" });
+    return base({ ...common, reason: isMaxPlan(plan) ? "fair_use_limit" : "insufficient_credits" });
+  }
+  if (plan === "single") {
+    const available = bonus + storedMonthly;
+    const common = { credits_monthly: storedMonthly, credits_available: available };
+    if (isDeveloper) return base({ ...common, allowed: true, reason: "dev" });
+    if (available >= need) return base({ ...common, allowed: true, reason: "single" });
+    return base({ ...common, reason: "insufficient_credits" });
+  }
+  if (isDeveloper) return base({ allowed: true, reason: "dev" });
+  if (bonus > 0 && bonus >= need) return base({ allowed: true, reason: "bonus_only" });
+  if (isSub) {
+    return base({ reason: profile?.subscription_status === "canceled" ? "subscription_canceled" : "subscription_expired" });
+  }
+  if (bonus > 0) return base({ reason: "insufficient_credits" });
+  return base({ reason: "no_plan" });
+};
+
+// src/lib/mcp/tools/get-credit-balance.ts
 var get_credit_balance_default = defineTool3({
   name: "get_credit_balance",
   title: "Get credit balance",
@@ -144,13 +236,20 @@ var get_credit_balance_default = defineTool3({
     }
     const supabase = supabaseForUser(ctx);
     const { data: profile, error } = await supabase.from("profiles").select(
-      "plan, subscription_status, subscription_renews_at, credits_bonus, credits_monthly, generations_count, total_views"
+      "plan, subscription_status, subscription_renews_at, credits_cycle_anchor, credits_bonus, credits_monthly, generations_count, total_views"
     ).eq("id", ctx.getUserId()).maybeSingle();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     if (!profile) return { content: [{ type: "text", text: "Profile not found." }], isError: true };
+    const decision = decideEntitlement(profile, { cost: 1, isDeveloper: false });
     const payload = {
       ...profile,
-      credits_available: (profile.credits_bonus ?? 0) + (profile.credits_monthly ?? 0)
+      allowed: decision.allowed,
+      reason: decision.reason,
+      credits_available: decision.credits_available,
+      credits_monthly: decision.credits_monthly,
+      credits_bonus: decision.credits_bonus,
+      unlimited: decision.unlimited,
+      access_until: decision.access_until
     };
     if (include_history) {
       const { data: history } = await supabase.from("credit_transactions").select("type, amount, created_at").order("created_at", { ascending: false }).limit(10);
