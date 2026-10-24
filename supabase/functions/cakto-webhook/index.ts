@@ -16,7 +16,7 @@ import {
   addMonths, classifyEvent, collectProvidedSecrets, cyclePeriodMonths, dig,
   escapeLike, extractCaktoId, extractEmail, extractEventType, extractStatus,
   extractSubscriptionId, hasValidSecret, isActiveSubscriber, normalizeSecret, parseExpectedSecrets,
-  PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, refundScopeFor, resolvePlan,
+  PLAN_MONTHLY_CREDITS, refundScopeFor, resolvePlan,
   SINGLE_PURCHASE_CREDITS, SUBSCRIPTION_PLANS, isRenewalEvent, type Plan,
   billingAlertFor, billingSnapshotFrom, must, mustReturn, pendingChargeFrom,
 } from "./lib.ts";
@@ -215,7 +215,6 @@ Deno.serve(async (req) => {
   // Para os avisos por e-mail (depois do processamento).
   let prevPlan: string | null = null;
   let prevWasSubscriber = false;
-  let bonusForEmail = 0;
 
   try {
     if (action === "paid" && plan) {
@@ -235,7 +234,7 @@ Deno.serve(async (req) => {
 
       if (plan === "single") {
         // Compra avulsa NÃO rebaixa o plano de quem já é assinante ativo:
-        // apenas credita o bônus permanente (500 = 400 + 100 de vitrine).
+        // apenas credita os créditos permanentes (500 = 400 + 100 de vitrine).
         const patch: Record<string, unknown> = {
           cakto_customer_id: customerId ?? before?.cakto_customer_id ?? null,
         };
@@ -268,34 +267,16 @@ Deno.serve(async (req) => {
         must(await admin.from("profiles").update(patch).eq("id", userId), "profiles.update(subscription)");
 
         // Cota mensal SEMPRE redefinida (ativação ou renovação). O tipo da
-        // transação diferencia as duas para a animação no app.
+        // transação diferencia as duas para a animação no app. Assinaturas
+        // não têm bônus de ativação (tabela de 10/2026): o pedido concede só
+        // a cota do plano.
         const isRenewal = isRenewalEvent(event_type)
           || (!!subscriptionId && before?.cakto_subscription_id === subscriptionId);
         const monthly = PLAN_MONTHLY_CREDITS[plan] ?? 0;
         mustReturn(await admin.rpc("set_monthly_credits", {
           _uid: userId, _amount: monthly, _type: isRenewal ? "subscription_renewal" : "subscription_monthly",
         }), "set_monthly_credits");
-
-        // Bônus permanente: UMA VEZ POR CONTA, nunca em renovação.
-        //
-        // Antes, "primeira ativação" era deduzida comparando o
-        // cakto_subscription_id anterior com o do evento. Como cancelar e
-        // reembolsar limpam esse campo — e uma reassinatura sempre traz um id
-        // novo —, bastava cancelar e assinar de novo para ganhar o bônus
-        // outra vez. Quem decide agora é o histórico do usuário em
-        // credit_transactions, checado atomicamente no banco
-        // (grant_bonus_credits_once); o webhook só informa a intenção.
-        const signupBonus = PLAN_SIGNUP_BONUS[plan] ?? 0;
-        let bonusGranted = false;
-        if (!isRenewal && signupBonus > 0) {
-          const bonusResult = mustReturn(await admin.rpc("grant_bonus_credits_once", {
-            _uid: userId, _amount: signupBonus, _type: "subscription_signup_bonus",
-          }), "grant_bonus_credits_once") as { granted?: boolean; reason?: string };
-          if (bonusResult.reason === "no_profile") throw new Error("grant_bonus_credits_once: perfil não encontrado");
-          bonusGranted = bonusResult.granted === true;
-        }
-        if (bonusGranted) bonusForEmail = signupBonus;
-        log.info("subscription_credits", { plan, monthly, isRenewal, signupBonus, bonusGranted });
+        log.info("subscription_credits", { plan, monthly, isRenewal });
       }
     } else if (action === "refund") {
       // Reembolso/chargeback desfaz SÓ o que aquele pedido concedeu (ver
@@ -395,7 +376,7 @@ Deno.serve(async (req) => {
     await notifyLifecycle({
       admin, userId, eventType: event_type, action, plan: plan ?? null, payload, eventRowId,
       orderId: cakto_id ?? null, subscriptionId: subscriptionId ?? null,
-      prevPlan, prevWasSubscriber, bonus: bonusForEmail,
+      prevPlan, prevWasSubscriber,
     });
   } catch (e) {
     log.error("lifecycle_email_failed", { message: e instanceof Error ? e.message : String(e) });
@@ -413,7 +394,7 @@ const spDate = (d = new Date()) => d.toLocaleDateString("en-CA", { timeZone: "Am
 async function notifyLifecycle(o: {
   admin: any; userId: string; eventType: string; action: string; plan: string | null; payload: any;
   eventRowId: string; orderId: string | null; subscriptionId: string | null;
-  prevPlan: string | null; prevWasSubscriber: boolean; bonus: number;
+  prevPlan: string | null; prevWasSubscriber: boolean;
 }) {
   const { admin, userId, payload } = o;
   const ev = (o.eventType ?? "").toLowerCase();
@@ -467,7 +448,7 @@ async function notifyLifecycle(o: {
       // conta + plano + dia garante um e-mail só.
       const upgraded = o.prevWasSubscriber && planRank(o.prevPlan) < planRank(o.plan);
       await send(upgraded ? "subscription_upgraded" : "subscription_created",
-        `subscription_start:${userId}:${o.plan}:${spDate()}`, { bonus: o.bonus });
+        `subscription_start:${userId}:${o.plan}:${spDate()}`);
     }
   } else if (o.action === "canceled") {
     await send("subscription_canceled", `canceled:${userId}:${o.subscriptionId ?? spDate()}`);

@@ -5,6 +5,18 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { sendPlatformEmail } from "../_shared/email.ts";
+import {
+  MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PRICES, REFERENCE_DECK_CREDITS, SINGLE_PURCHASE_CREDITS,
+  TYPICAL_DECK_CREDITS, cycleDiscountPct, estimatedDecks,
+} from "../_shared/plans.ts";
+
+const fmtInt = (n: number) => n.toLocaleString("pt-BR");
+/** Planos para o contexto do assistente: mesmos números do app e da cobrança. */
+const PLANS_CONTEXT = [
+  `compra avulsa ${PLAN_PRICES.single} (${fmtInt(SINGLE_PURCHASE_CREDITS)} créditos permanentes, ~${estimatedDecks(SINGLE_PURCHASE_CREDITS)} apresentações)`,
+  `PRO ${PLAN_PRICES.mensal}, ${PLAN_PRICES.trimestral} ou ${PLAN_PRICES.anual} (${fmtInt(PLAN_MONTHLY_CREDITS.mensal)} créditos por mês, ~${estimatedDecks(PLAN_MONTHLY_CREDITS.mensal)} apresentações)`,
+  `MAX ${PLAN_PRICES.max_mensal}, ${PLAN_PRICES.max_trimestral} ou ${PLAN_PRICES.max_anual} (uso ilimitado dentro do uso justo de ${fmtInt(PLAN_MONTHLY_CREDITS.max_mensal)} créditos por ciclo, ${MAX_USAGE_MULTIPLIER}x o PRO)`,
+].join("; ");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -215,7 +227,7 @@ CONTEXTO OPERACIONAL DO PRODUTO:
 - Após gerar, o usuário é levado ao editor manual; também pode visualizar, compartilhar e exportar em PDF/PPTX.
 - O dashboard organiza apresentações, edições, links, exportações, visualizações e lixeira.
 - O perfil possui dados pessoais, assinatura, segurança e portfólio público em /u/usuario com apresentações publicadas.
-- Planos atuais: compra avulsa (500 créditos), PRO (3.200 créditos por mês) e MAX (uso ilimitado dentro do uso justo de 16.000 créditos por ciclo); uma apresentação de 10 slides equilibrada usa 120 créditos; pagamentos aprovados atualizam a conta automaticamente.
+- Planos atuais: ${PLANS_CONTEXT}. O trimestral e o anual saem ${cycleDiscountPct("trimestral")}% e ${cycleDiscountPct("anual")}% mais baratos que o mensal. Assinaturas não têm bônus de ativação. Uma apresentação de 10 slides equilibrada usa ${TYPICAL_DECK_CREDITS} créditos (com falas, ${REFERENCE_DECK_CREDITS}); as estimativas de "apresentações" usam a de ${REFERENCE_DECK_CREDITS}. Pagamentos aprovados atualizam a conta automaticamente.
 - Para perguntas legítimas sobre esses fluxos que não tenham artigo exato, dê uma orientação útil baseada somente neste contexto e faça no máximo uma pergunta objetiva se faltar um dado essencial.
 
 ESCOPO ESTRITO:

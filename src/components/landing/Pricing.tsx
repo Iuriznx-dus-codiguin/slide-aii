@@ -3,9 +3,13 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { PLAN_MONTHLY_CREDITS, PLAN_SIGNUP_BONUS, SINGLE_PURCHASE_CREDITS, proPlanFor } from "@/lib/cakto";
+import {
+  MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICE_CENTS, SINGLE_PURCHASE_CREDITS,
+  cycleDiscountPct, estimatedDecks, formatBRL, maxPlanFor, monthlyEquivalent, previousPriceDiscountPct, proPlanFor,
+  type BillingCycle, type PaidPlan,
+} from "@/lib/cakto";
 
-type Cycle = "mensal" | "trimestral" | "anual";
+type Cycle = BillingCycle;
 
 // Benefícios IGUAIS em todos os planos — a única diferença entre eles é o
 // volume de gerações por período. Só o que a plataforma entrega hoje: a
@@ -18,46 +22,66 @@ const sharedBenefits = [
   "Suporte por chat e e-mail",
 ];
 
-/** Apresentações que a compra avulsa rende, como divulgado no card dela. */
-const SINGLE_PURCHASE_DECKS = 3;
+/** Apresentações que a compra avulsa rende, como divulgado no card dela (500 ≈ 3). */
+const SINGLE_PURCHASE_DECKS = estimatedDecks(SINGLE_PURCHASE_CREDITS);
 
 const perGen = {
   name: "Pagamento único",
   tagline: "Ideal para começar",
-  price: "14,90",
+  price: formatBRL(PLAN_PRICE_CENTS.single),
   period: `≈ ${SINGLE_PURCHASE_DECKS} apresentações`,
   description: "Pague uma vez e crie suas primeiras apresentações. Sem assinatura, sem compromisso.",
   volume: "400 créditos + 100 Bônus ",
   cta: "Pagamento único",
 };
 
-// PRO — 3.200 créditos/mês em qualquer ciclo (+ bônus permanente na 1ª ativação).
-// Trimestral: 15% off vs mensal (49,90 × 3 × 0,85 ≈ 127,90).
-const pro = {
-  mensal:     { price: "49,90",  period: "por mês",       cta: "Assinar PRO mensal" },
-  trimestral: { price: "127,90", period: "por trimestre", cta: "Assinar PRO trimestral", monthlyEquivalent: "42,63" },
-  anual:      { price: "397,90", period: "por ano",       cta: "Assinar PRO anual",      monthlyEquivalent: "33,16" },
-};
+const PERIOD: Record<Cycle, string> = { mensal: "por mês", trimestral: "por trimestre", anual: "por ano" };
+const CYCLE_CTA: Record<Cycle, string> = { mensal: "mensal", trimestral: "trimestral", anual: "anual" };
 
-// MAX — uso ilimitado dentro da Política de Uso Justo (16.000 créditos por
-// ciclo mensal), divulgada no card e nos Termos (/termos#uso-justo).
-const max = {
-  mensal:     { price: "147,90",   period: "por mês",       cta: "Assinar MAX mensal" },
-  trimestral: { price: "377,90",   period: "por trimestre", cta: "Assinar MAX trimestral", monthlyEquivalent: "125,97" },
-  anual:      { price: "1.175,00", period: "por ano",       cta: "Assinar MAX anual",      monthlyEquivalent: "97,92" },
+/**
+ * Redução do preço anterior para o atual abaixo deste valor fica só no preço
+ * riscado: um selo de "-1%" (MAX) mais confunde do que informa.
+ */
+const MIN_PREVIOUS_DISCOUNT_BADGE = 5;
+
+/** Preço anterior riscado (com o selo da redução, quando relevante) e o preço atual. */
+const PlanPrice = ({ plan, cycle, tone }: { plan: PaidPlan; cycle: Cycle; tone: "primary" | "accent" }) => {
+  const before = PLAN_PREVIOUS_PRICE_CENTS[plan];
+  const cut = previousPriceDiscountPct(plan);
+  return (
+    <>
+      {before && (
+        <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            de <s aria-label={`Preço anterior: R$ ${formatBRL(before)}`}>R$ {formatBRL(before)}</s> por
+          </span>
+          {cut >= MIN_PREVIOUS_DISCOUNT_BADGE && (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tone === "accent" ? "bg-accent/15 text-accent" : "bg-primary/15 text-primary"}`}>
+              -{cut}%
+            </span>
+          )}
+        </div>
+      )}
+      <div className={`${before ? "mt-1" : "mt-5"} flex flex-wrap items-baseline gap-x-2 gap-y-1`}>
+        <span className="text-sm text-muted-foreground">R$</span>
+        <span className="font-display text-4xl xl:text-5xl font-extrabold tracking-tight">{formatBRL(PLAN_PRICE_CENTS[plan])}</span>
+        <span className="text-sm text-muted-foreground">/ {PERIOD[cycle]}</span>
+      </div>
+    </>
+  );
 };
 
 export const Pricing = () => {
   // Trimestral é o predefinido — melhor equilíbrio de compromisso/desconto.
   const [cycle, setCycle] = useState<Cycle>("trimestral");
-  const proPrice = pro[cycle];
   const proId = proPlanFor(cycle);
-  const proBonus = PLAN_SIGNUP_BONUS[proId] ?? 0;
-  const maxPrice = max[cycle];
+  const maxId = maxPlanFor(cycle);
   // Estimativa divulgada: cota mensal do PRO na mesma proporção do avulso
-  // (500 créditos ≈ 3 apresentações), sem o bônus de ativação, que é único.
-  // 3.200 × 3 ÷ 500 = 19 (antes estava fixo em 20).
+  // (500 créditos ≈ 3 apresentações). 1.700 × 3 ÷ 500 = 10.
   const monthlyDecks = Math.floor((PLAN_MONTHLY_CREDITS[proId] * SINGLE_PURCHASE_DECKS) / SINGLE_PURCHASE_CREDITS);
+  // PRO e MAX têm o mesmo desconto por ciclo (src/test/plansParity.test.ts).
+  const quarterlyOff = cycleDiscountPct("trimestral", "trimestral");
+  const yearlyOff = cycleDiscountPct("anual", "anual");
 
   return (
     <section id="pricing" className="py-12 sm:py-16 lg:py-20 relative">
@@ -95,7 +119,7 @@ export const Pricing = () => {
             >
               Trimestral
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cycle === "trimestral" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/15 text-primary"} font-bold`}>
-                -15%
+                -{quarterlyOff}%
               </span>
             </Button>
             <Button variant="ghost" aria-pressed={cycle === "anual"}
@@ -106,7 +130,7 @@ export const Pricing = () => {
             >
               Anual
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cycle === "anual" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/15 text-primary"} font-bold`}>
-                -33%
+                -{yearlyOff}%
               </span>
             </Button>
           </div>
@@ -170,22 +194,18 @@ export const Pricing = () => {
             <p className="mt-2 text-sm text-muted-foreground lg:min-h-[60px]">
               Para quem cria apresentações com frequência. Cancele quando quiser.
             </p>
-            <div className="mt-5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-sm text-muted-foreground">R$</span>
-              <span className="font-display text-4xl xl:text-5xl font-extrabold tracking-tight">{proPrice.price}</span>
-              <span className="text-sm text-muted-foreground">/ {proPrice.period}</span>
-            </div>
+            <PlanPrice plan={proId} cycle={cycle} tone="primary" />
             <p className="mt-2 text-sm font-medium text-muted-foreground">≈ {monthlyDecks} apresentações por mês</p>
-            {"monthlyEquivalent" in proPrice && (
+            {cycle !== "mensal" && (
               <p className="mt-1 text-xs text-primary font-medium">
-                Equivalente a R$ {proPrice.monthlyEquivalent}/mês
+                Equivalente a R$ {monthlyEquivalent(proId, cycle)}/mês
               </p>
             )}
             <div className="mt-3 inline-flex flex-wrap items-center gap-1.5 self-start rounded-full bg-gradient-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-glow">
-               <Sparkles className="h-3 w-3" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos + {proBonus.toLocaleString("pt-BR")} Bônus
+               <Sparkles className="h-3 w-3" /> {PLAN_MONTHLY_CREDITS[proId].toLocaleString("pt-BR")} créditos por mês
             </div>
             <Button asChild variant="hero" size="lg" className="w-full mt-6">
-              <Link to="/gerar?planos=1">{proPrice.cta}</Link>
+              <Link to="/gerar?planos=1">Assinar PRO {CYCLE_CTA[cycle]}</Link>
             </Button>
             <ul className="mt-8 space-y-3 flex-1">
               {sharedBenefits.map((f) => (
@@ -217,14 +237,10 @@ export const Pricing = () => {
             <p className="mt-2 text-sm text-muted-foreground lg:min-h-[60px]">
               Para agências e criadores de alto volume. Gere sem contar créditos, dentro do uso justo.
             </p>
-            <div className="mt-5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-sm text-muted-foreground">R$</span>
-              <span className="font-display text-4xl xl:text-5xl font-extrabold tracking-tight">{maxPrice.price}</span>
-              <span className="text-sm text-muted-foreground">/ {maxPrice.period}</span>
-            </div>
-            {"monthlyEquivalent" in maxPrice && (
+            <PlanPrice plan={maxId} cycle={cycle} tone="accent" />
+            {cycle !== "mensal" && (
               <p className="mt-1 text-xs text-accent font-medium">
-                Equivalente a R$ {maxPrice.monthlyEquivalent}/mês
+                Equivalente a R$ {monthlyEquivalent(maxId, cycle)}/mês
               </p>
             )}
             <div className="mt-3 inline-flex flex-wrap items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-accent to-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-glow">
@@ -234,10 +250,10 @@ export const Pricing = () => {
             <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
               *Dentro do{" "}
               <Link to="/termos#uso-justo" className="underline underline-offset-2 hover:text-foreground">uso justo</Link>: até{" "}
-              5x mais uso que o Plano PRO.
+              {MAX_USAGE_MULTIPLIER}x mais uso que o Plano PRO ({PLAN_MONTHLY_CREDITS[maxId].toLocaleString("pt-BR")} créditos por mês).
             </p>
             <Button asChild variant="outline" size="lg" className="w-full mt-6 border-accent/50 hover:bg-accent/10">
-              <Link to="/gerar?planos=1">{maxPrice.cta}</Link>
+              <Link to="/gerar?planos=1">Assinar MAX {CYCLE_CTA[cycle]}</Link>
             </Button>
             <ul className="mt-8 space-y-3 flex-1">
               {sharedBenefits.map((f) => (

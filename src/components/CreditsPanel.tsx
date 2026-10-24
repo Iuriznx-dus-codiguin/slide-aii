@@ -27,9 +27,11 @@ const TYPE_LABELS: Record<string, string> = {
   subscription_ended: "Fim da assinatura — cota mensal encerrada",
   bonus_grant: "Créditos bônus",
   single_purchase: "Compra avulsa",
+  // Legado: assinaturas tinham bônus de ativação até a tabela de 10/2026.
   signup_bonus: "Bônus de ativação",
   subscription_signup_bonus: "Bônus de ativação da assinatura",
   refund_revoke: "Estorno de compra reembolsada",
+  plan_quota_adjustment: "Ajuste à nova cota do plano",
 };
 
 const fmt = (n: number) => n.toLocaleString("pt-BR");

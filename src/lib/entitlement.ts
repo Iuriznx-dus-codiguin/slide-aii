@@ -8,7 +8,7 @@
 // Regras que refletem os Termos de Uso:
 // • Cancelar a assinatura NÃO corta o acesso na hora: o período já pago vale
 //   até `subscription_renews_at` (Termos, "Cancelamento").
-// • O bônus (créditos avulsos e bônus de ativação) é permanente: continua
+// • O bônus (créditos de compras avulsas e promoções) é permanente: continua
 //   utilizável depois que a assinatura termina (Termos, "Créditos").
 // • O plano MAX é de uso ilimitado dentro da Política de Uso Justo; ao atingir
 //   o teto do ciclo, o motivo é `fair_use_limit` — nunca um erro técnico falso.
@@ -39,7 +39,7 @@ export interface BillingProfile {
 export interface EntitlementDecision {
   allowed: boolean;
   reason: EntitlementReason;
-  /** Bônus permanente (avulsos + bônus de ativação). */
+  /** Bônus permanente (compras avulsas e promoções). */
   credits_bonus: number;
   /** Cota mensal utilizável agora (0 quando a assinatura não está vigente). */
   credits_monthly: number;

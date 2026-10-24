@@ -21,7 +21,7 @@ const ctx = (over: Partial<LifecycleContext> = {}): LifecycleContext => ({
   firstName: "Fernando", persona: "professor", email: "f@escola.com.br",
   plan: "mensal", subscriptionStatus: "active", renewsAt: "2026-11-12T12:00:00Z", autoRenew: false,
   paymentMethod: "pix", cardBrand: null, cardLast4: null, nextPaymentDate: null,
-  balance: 3200, hasPurchased: true, generations: 3,
+  balance: 1700, hasPurchased: true, generations: 3,
   unsubscribeUrl: "https://slideai.com.br/emails/preferencias?t=x&sair=1",
   preferencesUrl: "https://slideai.com.br/emails/preferencias?t=x",
   ...over,
@@ -117,6 +117,15 @@ describe("todos os modelos", () => {
     }
     expect(r.text).not.toMatch(/<[a-z][^>]*>/i);
     if (r.e.cta) expect(r.e.cta.url).toMatch(/^https:\/\//);
+  });
+
+  it("nenhum e-mail promete bônus de ativação nem cita a tabela antiga", () => {
+    const stale = /bônus de ativação|bônus na primeira|3\.200|16\.000|49,90|147,90|\b800\b/i;
+    expect(rendered.filter((r) => stale.test(`${r.e.subject} ${r.e.preheader} ${r.text}`)).map((r) => r.name)).toEqual([]);
+    const d3 = rendered.find((r) => r.name === "ciclo-nutricao-d3-profissional")!.text;
+    expect(d3).toContain("1.700 créditos/mês · ~10 por mês");
+    expect(d3).toContain("500 créditos · ~3 apresentações");
+    expect(d3).toContain("até 8.500 créditos/mês (uso justo, 5x o PRO)");
   });
 
   it("cupons só nos últimos contatos (nutrição D30 e reconquista D30)", () => {

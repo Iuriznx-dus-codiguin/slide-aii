@@ -33,9 +33,13 @@ O formulário de geração mostra o cálculo antes de você confirmar.
 
 ## Quantas apresentações cabem no meu plano?
 
-- **Compra avulsa (500 créditos):** de 3 a 4 apresentações de 10 slides equilibrados (com falas, 2 a 3), ou 1 de 20 slides com falas e ainda sobra saldo.
-- **PRO (3.200 por mês):** cerca de 26 apresentações de 10 slides equilibrados por mês.
-- **MAX:** uso ilimitado dentro do uso justo (16.000 créditos por ciclo mensal, cerca de 130 apresentações de 10 slides).
+As estimativas dos planos contam apresentações de 10 slides, equilibradas, **com falas** (170 créditos). Sem falas (120 créditos), cabem mais.
+
+| Plano | Créditos | Com falas | Sem falas |
+| --- | --- | --- | --- |
+| Compra avulsa | 500 | cerca de 3 | 4 |
+| PRO | 1.700 por mês | 10 por mês | 14 por mês |
+| MAX (uso justo) | 8.500 por mês | 50 por mês | 70 por mês |
 
 ## O que não é cobrado
 

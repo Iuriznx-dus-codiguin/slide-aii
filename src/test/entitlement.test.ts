@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decideEntitlement, isSubscriptionCurrent, nextMonthlyReset } from "../lib/entitlement";
+import { PLAN_MONTHLY_CREDITS } from "../lib/cakto";
 
 // Mesmos cenários do teste SQL de can_user_generate (migração 0003): a
 // interface precisa decidir igual ao banco, que é quem autoriza e cobra.
@@ -84,7 +85,7 @@ describe("decideEntitlement — espelho de can_user_generate", () => {
       { plan: "trimestral", subscription_status: "canceled", subscription_renews_at: "2026-11-06T00:00:00Z", credits_bonus: 100, credits_monthly: 5, credits_cycle_anchor: "2026-07-27" },
       { cost: 120, now },
     );
-    expect(d).toMatchObject({ allowed: true, credits_available: 3300 });
+    expect(d).toMatchObject({ allowed: true, credits_available: 100 + PLAN_MONTHLY_CREDITS.trimestral, monthly_allowance: PLAN_MONTHLY_CREDITS.trimestral });
   });
 
   it("inadimplente não usa a cota", () => {

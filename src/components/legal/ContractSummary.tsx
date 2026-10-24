@@ -32,7 +32,7 @@ export const ContractSummary = ({ className, defaultOpen = false }: { className?
     ],
     [
       "Assinaturas PRO e MAX",
-      `Renovação automática ao fim de cada período (mensal, trimestral ou anual), pelo mesmo meio de pagamento. A cota mensal (${fmt(PLAN_MONTHLY_CREDITS.mensal)} no PRO) renova a cada mês e não acumula; o bônus de ativação vale uma vez por conta e não expira.`,
+      `Renovação automática ao fim de cada período (mensal, trimestral ou anual), pelo mesmo meio de pagamento. A cota mensal (${fmt(PLAN_MONTHLY_CREDITS.mensal)} no PRO) renova a cada mês e não acumula. Assinaturas não têm bônus de ativação; o trimestral e o anual têm desconto no preço.`,
     ],
     [
       "Plano MAX — uso justo",

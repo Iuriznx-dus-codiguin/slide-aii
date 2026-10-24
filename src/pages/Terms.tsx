@@ -4,11 +4,12 @@ import { LEGAL, operatorName, supplierLines } from "@/lib/legal";
 import {
   CREDITS_PER_SLIDE,
   DEPTH_CREDITS,
+  MAX_USAGE_MULTIPLIER,
   PLAN_MONTHLY_CREDITS,
   PLAN_PRICES,
-  PLAN_SIGNUP_BONUS,
   SINGLE_PURCHASE_CREDITS,
   SPEECHES_CREDITS,
+  estimatedDecks,
 } from "@/lib/cakto";
 import {
   AI_IMAGES_PER_HOUR,
@@ -51,7 +52,8 @@ const TOC: TocItem[] = [
 
 const Terms = () => {
   const supplier = supplierLines();
-  const maxDecksAtFairUse = Math.floor(FAIR_USE_MAX_MONTHLY_CREDITS / (10 * CREDITS_PER_SLIDE + DEPTH_CREDITS.balanced));
+  // Mesma referência das estimativas divulgadas: 10 slides, equilibrada, com falas.
+  const maxDecksAtFairUse = estimatedDecks(FAIR_USE_MAX_MONTHLY_CREDITS);
 
   return (
     <LegalLayout
@@ -60,7 +62,7 @@ const Terms = () => {
       description="Condições de uso do SlideAI: créditos, planos, renovação, cancelamento, direito de arrependimento, uso justo, conteúdo gerado por IA, propriedade intelectual e responsabilidades."
       path="/termos"
       version={LEGAL.termsVersion}
-      effectiveDate={LEGAL.effectiveDateLabel}
+      effectiveDate={LEGAL.termsEffectiveDateLabel}
       toc={TOC}
       intro={
         <>
@@ -135,7 +137,7 @@ const Terms = () => {
           <li><Strong>Resultado:</Strong> o que o serviço gera a partir do Conteúdo do Usuário, como textos, estrutura, falas, imagens e layout.</li>
           <li><Strong>Créditos:</Strong> unidades de uso consumidas nas gerações, conforme a seção 5.</li>
           <li><Strong>Cota mensal:</Strong> créditos que um plano de assinatura concede a cada ciclo mensal.</li>
-          <li><Strong>Bônus:</Strong> créditos permanentes, vindos de compras avulsas, do bônus de ativação ou de promoções.</li>
+          <li><Strong>Bônus:</Strong> créditos permanentes, vindos de compras avulsas ou de promoções.</li>
           <li><Strong>Período pago:</Strong> o intervalo coberto pelo último pagamento de uma assinatura (um mês, um trimestre ou um ano).</li>
         </LegalList>
       </LegalSection>
@@ -215,7 +217,7 @@ const Terms = () => {
           trimestral e anual, a cota também renova todo mês.
         </Clause>
         <Clause n="5.6">
-          <Strong>O bônus é permanente.</Strong> Créditos de compras avulsas, o bônus de ativação e créditos promocionais não
+          <Strong>O bônus é permanente.</Strong> Créditos de compras avulsas e créditos promocionais não
           expiram enquanto a Conta existir. Eles continuam utilizáveis depois do fim de uma assinatura. São perdidos com a
           exclusão da Conta, e os de um pedido reembolsado são cancelados (seção 8).
         </Clause>
@@ -234,12 +236,12 @@ const Terms = () => {
           head={["Plano", "Preço", "Créditos"]}
           rows={[
             ["Geração única (avulso)", PLAN_PRICES.single, `${fmt(SINGLE_PURCHASE_CREDITS)} créditos permanentes, sem renovação`],
-            ["PRO mensal", PLAN_PRICES.mensal, `${fmt(PLAN_MONTHLY_CREDITS.mensal)} por mês + bônus de ativação de ${fmt(PLAN_SIGNUP_BONUS.mensal)}`],
-            ["PRO trimestral", PLAN_PRICES.trimestral, `${fmt(PLAN_MONTHLY_CREDITS.trimestral)} por mês + bônus de ativação de ${fmt(PLAN_SIGNUP_BONUS.trimestral)}`],
-            ["PRO anual", PLAN_PRICES.anual, `${fmt(PLAN_MONTHLY_CREDITS.anual)} por mês + bônus de ativação de ${fmt(PLAN_SIGNUP_BONUS.anual)}`],
-            ["MAX mensal", PLAN_PRICES.max_mensal, "Uso ilimitado dentro do uso justo (seção 9)"],
-            ["MAX trimestral", PLAN_PRICES.max_trimestral, "Uso ilimitado dentro do uso justo (seção 9)"],
-            ["MAX anual", PLAN_PRICES.max_anual, "Uso ilimitado dentro do uso justo (seção 9)"],
+            ["PRO mensal", PLAN_PRICES.mensal, `${fmt(PLAN_MONTHLY_CREDITS.mensal)} por mês`],
+            ["PRO trimestral", PLAN_PRICES.trimestral, `${fmt(PLAN_MONTHLY_CREDITS.trimestral)} por mês`],
+            ["PRO anual", PLAN_PRICES.anual, `${fmt(PLAN_MONTHLY_CREDITS.anual)} por mês`],
+            ["MAX mensal", PLAN_PRICES.max_mensal, `Uso ilimitado dentro do uso justo: até ${fmt(PLAN_MONTHLY_CREDITS.max_mensal)} por mês (seção 9)`],
+            ["MAX trimestral", PLAN_PRICES.max_trimestral, `Uso ilimitado dentro do uso justo: até ${fmt(PLAN_MONTHLY_CREDITS.max_trimestral)} por mês (seção 9)`],
+            ["MAX anual", PLAN_PRICES.max_anual, `Uso ilimitado dentro do uso justo: até ${fmt(PLAN_MONTHLY_CREDITS.max_anual)} por mês (seção 9)`],
           ]}
         />
         <Clause n="6.2">
@@ -264,8 +266,8 @@ const Terms = () => {
           período pago. Seu bônus e suas apresentações continuam na Conta.
         </Clause>
         <Clause n="6.7">
-          <Strong>Bônus de ativação.</Strong> O bônus de ativação das assinaturas PRO é concedido uma única vez por Conta,
-          na primeira assinatura. Renovações, trocas de plano e novas assinaturas não geram um novo bônus.
+          <Strong>Sem bônus de ativação.</Strong> As assinaturas concedem apenas a cota mensal do plano. Os planos
+          trimestral e anual têm desconto no preço em relação ao mensal.
         </Clause>
         <Clause n="6.8">
           <Strong>Troca de plano.</Strong> Ao contratar outro plano, a cota passa a ser a do novo plano a partir da
@@ -337,15 +339,15 @@ const Terms = () => {
           head={["Recurso", "Limite"]}
           rows={[
             ["Novas gerações", `${FAIR_USE_HOURLY_GENERATIONS} por hora, por Conta`],
-            ["Plano MAX (uso ilimitado)", `Até ${fmt(FAIR_USE_MAX_MONTHLY_CREDITS)} créditos por ciclo mensal, cerca de ${fmt(maxDecksAtFairUse)} apresentações de 10 slides`],
+            ["Plano MAX (uso ilimitado)", `Até ${fmt(FAIR_USE_MAX_MONTHLY_CREDITS)} créditos por ciclo mensal, cerca de ${fmt(maxDecksAtFairUse)} apresentações de 10 slides com falas`],
             ["Assistente de edição por IA", `${CHAT_EDIT_MESSAGES_PER_PRESENTATION} mensagens e ${CHAT_COMPLEX_EDITS_PER_PRESENTATION} edições complexas por apresentação`],
             ["Regenerar falas", `${SPEECH_REGENS_PER_PRESENTATION} vezes por apresentação, só em apresentações com falas contratadas`],
             ["Imagens por IA sob demanda, no editor", `${AI_IMAGES_PER_HOUR} por hora, por Conta`],
           ]}
         />
         <Clause n="9.2">
-          <Strong>O plano MAX é de uso ilimitado para uma pessoa</Strong>, dentro do limite de uso justo acima. Ele é dez
-          vezes maior que a cota do PRO e cobre com folga o uso profissional intenso. Atingido o limite, novas gerações ficam
+          <Strong>O plano MAX é de uso ilimitado para uma pessoa</Strong>, dentro do limite de uso justo acima. Ele é{" "}
+          {MAX_USAGE_MULTIPLIER} vezes a cota do PRO e atende o uso profissional frequente. Atingido o limite, novas gerações ficam
           pausadas até a próxima renovação da cota, e a plataforma mostra a data. Você pode continuar usando créditos
           avulsos, se tiver. Nunca cobramos valor extra automaticamente.
         </Clause>

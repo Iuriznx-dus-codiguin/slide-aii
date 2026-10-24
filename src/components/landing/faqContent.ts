@@ -1,6 +1,16 @@
 // Perguntas frequentes da home. O index.html repete estas perguntas no
 // JSON-LD (FAQPage) para buscadores que não executam JavaScript; o teste
-// src/test/landingSeo.test.ts garante que os dois textos sejam iguais.
+// src/test/landingSeo.test.ts garante que os dois textos sejam iguais — e,
+// como os números vêm das constantes de cobrança, falha se um preço ou limite
+// mudar sem o index.html acompanhar.
+import {
+  CREDITS_PER_SLIDE, DEPTH_CREDITS, MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, SPEECHES_CREDITS, estimatedDecks,
+} from "@/lib/cakto";
+import { FAIR_USE_HOURLY_GENERATIONS } from "@/lib/fairUse";
+
+const fmt = (n: number) => n.toLocaleString("pt-BR");
+const MAX_CREDITS = PLAN_MONTHLY_CREDITS.max_mensal;
+
 export const LANDING_FAQS: { q: string; a: string }[] = [
   {
     q: "Como a IA gera as apresentações?",
@@ -16,7 +26,7 @@ export const LANDING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Como funcionam os créditos?",
-    a: "Cada apresentação custa 10 créditos por slide, mais a profundidade do texto (curto 10, equilibrado 20, longo 30) e 50 se você ativar as falas dos apresentadores. O custo aparece antes de gerar, e se a geração falhar por um problema nosso os créditos voltam automaticamente.",
+    a: `Cada apresentação custa ${CREDITS_PER_SLIDE} créditos por slide, mais a profundidade do texto (curto ${DEPTH_CREDITS.short}, equilibrado ${DEPTH_CREDITS.balanced}, longo ${DEPTH_CREDITS.long}) e ${SPEECHES_CREDITS} se você ativar as falas dos apresentadores. O custo aparece antes de gerar, e se a geração falhar por um problema nosso os créditos voltam automaticamente.`,
   },
   {
     q: "Posso cancelar a assinatura quando quiser?",
@@ -28,7 +38,7 @@ export const LANDING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "O plano MAX é mesmo ilimitado?",
-    a: "É de uso ilimitado para uma pessoa, dentro da Política de Uso Justo: até 16.000 créditos por ciclo mensal (cerca de 130 apresentações de 10 slides) e 12 gerações por hora. Os detalhes estão nos Termos de Uso.",
+    a: `É de uso ilimitado para uma pessoa, dentro da Política de Uso Justo: até ${fmt(MAX_CREDITS)} créditos por ciclo mensal (${MAX_USAGE_MULTIPLIER}x o PRO, cerca de ${estimatedDecks(MAX_CREDITS)} apresentações de 10 slides com falas) e ${FAIR_USE_HOURLY_GENERATIONS} gerações por hora. Os detalhes estão nos Termos de Uso.`,
   },
   {
     q: "De quem é o conteúdo das apresentações?",

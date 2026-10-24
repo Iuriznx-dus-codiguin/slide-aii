@@ -16,9 +16,9 @@ keywords: upgrade, downgrade, trocar plano, mudar plano, pro para max, mensal pa
 - **MAX → PRO (downgrade):** cancele o MAX; quando o período pago terminar, contrate o PRO.
 - **Mensal → anual:** contrate o anual e cancele o mensal. O anual tem o menor preço por mês.
 
-## Bônus de ativação
+## E os créditos que eu já tenho?
 
-O bônus de ativação do PRO é concedido **uma vez por conta**, na primeira assinatura. Trocas de plano não geram um novo bônus. O bônus que você já tem continua valendo.
+As assinaturas não têm bônus de ativação, então a troca não gera créditos extras. A cota passa a ser a do novo plano, e o bônus permanente que você já tem (de compras avulsas) continua valendo.
 
 ## Relacionados
 

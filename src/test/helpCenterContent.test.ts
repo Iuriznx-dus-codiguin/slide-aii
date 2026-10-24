@@ -11,6 +11,12 @@ import {
   loadArticles,
 } from "../../scripts/help-center.ts";
 import { HELP_CATEGORY_META } from "../lib/helpCategories";
+import {
+  MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PRICES, SINGLE_PURCHASE_CREDITS, cycleDiscountPct, estimatedDecks,
+  monthlyEquivalent, type PaidPlan,
+} from "../lib/cakto";
+
+const fmt = (n: number) => n.toLocaleString("pt-BR");
 
 // A Central de Ajuda é publicada por migração gerada a partir dos .md em
 // docs/central-de-ajuda. Estes testes impedem que o conteúdo publicado e os
@@ -50,7 +56,24 @@ describe("Central de Ajuda", () => {
     expect(custo).toContain("| 10 slides, equilibrado | 120 |");
     expect(custo).toContain("| 20 slides, longo, com falas | 280 (o máximo) |");
     const planos = articles.find((a) => a.slug === "planos-e-precos")!.content;
-    expect(planos).toContain("R$ 14,90");
-    expect(planos).toContain("16.000 créditos por ciclo mensal");
+    expect(planos).toContain(`| Geração única | ${PLAN_PRICES.single} | ${fmt(SINGLE_PURCHASE_CREDITS)} créditos permanentes`);
+    expect(planos).toContain(`## PRO — ${fmt(PLAN_MONTHLY_CREDITS.mensal)} créditos por mês`);
+    const rows: [string, PaidPlan, PaidPlan][] = [["Trimestral", "trimestral", "max_trimestral"], ["Anual", "anual", "max_anual"]];
+    expect(planos).toContain(`| Mensal | ${PLAN_PRICES.mensal} | — | — |`);
+    expect(planos).toContain(`| Mensal | ${PLAN_PRICES.max_mensal} | — | — |`);
+    for (const [label, pro, max] of rows) {
+      const cycle = pro as "trimestral" | "anual";
+      expect(planos).toContain(`| ${label} | ${PLAN_PRICES[pro]} | R$ ${monthlyEquivalent(pro, cycle)}/mês | ${cycleDiscountPct(pro, cycle)}% |`);
+      expect(planos).toContain(`| ${label} | ${PLAN_PRICES[max]} | R$ ${monthlyEquivalent(max, cycle)}/mês | ${cycleDiscountPct(max, cycle)}% |`);
+    }
+    expect(planos).toContain(`${fmt(PLAN_MONTHLY_CREDITS.max_mensal)} créditos por ciclo mensal (${MAX_USAGE_MULTIPLIER} vezes o PRO, cerca de ${estimatedDecks(PLAN_MONTHLY_CREDITS.max_mensal)} apresentações`);
+    expect(custo).toContain(`| PRO | ${fmt(PLAN_MONTHLY_CREDITS.mensal)} por mês | ${estimatedDecks(PLAN_MONTHLY_CREDITS.mensal)} por mês |`);
+    expect(custo).toContain(`| MAX (uso justo) | ${fmt(PLAN_MONTHLY_CREDITS.max_mensal)} por mês | ${estimatedDecks(PLAN_MONTHLY_CREDITS.max_mensal)} por mês |`);
+  });
+
+  it("nenhum artigo cita valores da tabela antiga nem o bônus de ativação como vigente", () => {
+    const stale = /3\.200|16\.000|49,90|127,90|397,90|147,90|377,90|1\.175|dez vezes|bônus de ativação (do|de \d|vale)/;
+    const hits = articles.filter((a) => stale.test(a.content)).map((a) => `${a.slug}: ${a.content.match(stale)?.[0]}`);
+    expect(hits).toEqual([]);
   });
 });

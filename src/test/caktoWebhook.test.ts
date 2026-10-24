@@ -3,6 +3,7 @@
 // supabase/functions/cakto-webhook/index.test.ts cobrem segredo, plano e
 // classificação; estes rodam no vitest junto com o resto da suíte.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   classifyEvent,
@@ -10,15 +11,15 @@ import {
   extractCaktoId,
   isActiveSubscriber,
   extractEventType,
-  PLAN_SIGNUP_BONUS,
   refundScopeFor,
   SINGLE_PURCHASE_CREDITS,
 } from "../../supabase/functions/cakto-webhook/lib.ts";
+import * as client from "../lib/cakto";
 import {
   PLAN_MONTHLY_CREDITS as CLIENT_MONTHLY,
-  PLAN_SIGNUP_BONUS as CLIENT_BONUS,
   SINGLE_PURCHASE_CREDITS as CLIENT_SINGLE,
 } from "../lib/cakto";
+import * as webhook from "../../supabase/functions/cakto-webhook/lib.ts";
 import { PLAN_MONTHLY_CREDITS } from "../../supabase/functions/cakto-webhook/lib.ts";
 import { isMonthlyCycleDue } from "../lib/cakto";
 
@@ -32,12 +33,15 @@ describe("refundScopeFor — reembolso desfaz só o que o pedido concedeu", () =
     expect(s.cancelSubscription).toBe(false);
   });
 
-  it("assinatura vigente: cancela, zera a cota mensal e retira só o bônus daquele plano", () => {
-    const s = refundScopeFor({ plan: "anual", payloadSubscriptionId: "sub_1", profileSubscriptionId: "sub_1" });
-    expect(s.kind).toBe("subscription");
-    expect(s.cancelSubscription).toBe(true);
-    expect(s.zeroMonthly).toBe(true);
-    expect(s.revokeBonus).toBe(PLAN_SIGNUP_BONUS.anual);
+  it("assinatura vigente: cancela e zera a cota mensal; não há bônus de ativação a retirar", () => {
+    for (const plan of ["mensal", "anual", "max_trimestral"] as const) {
+      const s = refundScopeFor({ plan, payloadSubscriptionId: "sub_1", profileSubscriptionId: "sub_1" });
+      expect(s.kind, plan).toBe("subscription");
+      expect(s.cancelSubscription, plan).toBe(true);
+      expect(s.zeroMonthly, plan).toBe(true);
+      // Um bônus permanente que a pessoa tenha (de avulsos) não é tocado.
+      expect(s.revokeBonus, plan).toBe(0);
+    }
   });
 
   it("assinatura vigente sem id registrado no perfil também é tratada como a vigente", () => {
@@ -81,12 +85,21 @@ describe("escapeLike — e-mail não vira padrão curinga", () => {
 });
 
 describe("paridade de créditos: webhook × tela de planos", () => {
-  it("mesmos valores de cota mensal, bônus de ativação e compra avulsa", () => {
+  it("mesmos valores de cota mensal e compra avulsa", () => {
     expect(CLIENT_SINGLE).toBe(SINGLE_PURCHASE_CREDITS);
+    expect(Object.keys(PLAN_MONTHLY_CREDITS).sort()).toEqual(Object.keys(CLIENT_MONTHLY).sort());
     for (const plan of Object.keys(PLAN_MONTHLY_CREDITS)) {
       expect(CLIENT_MONTHLY[plan], plan).toBe(PLAN_MONTHLY_CREDITS[plan]);
-      expect(CLIENT_BONUS[plan], plan).toBe(PLAN_SIGNUP_BONUS[plan]);
     }
+  });
+
+  it("o bônus de ativação das assinaturas foi removido de ponta a ponta", () => {
+    expect("PLAN_SIGNUP_BONUS" in client).toBe(false);
+    expect("PLAN_SIGNUP_BONUS" in webhook).toBe(false);
+    // O webhook concede só a cota; o bônus permanente vem só do avulso.
+    const handler = readFileSync("supabase/functions/cakto-webhook/index.ts", "utf8");
+    expect(handler).not.toContain("grant_bonus_credits_once");
+    expect(handler).not.toContain("subscription_signup_bonus");
   });
 });
 

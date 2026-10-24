@@ -229,7 +229,7 @@ export const classifyEvent = (eventType: string, status?: string): EventAction =
   return "ignored";
 };
 
-/** Renovação (não concede bônus de ativação e anima como "renovada"). */
+/** Renovação (anima como "renovada" e não como nova assinatura). */
 export const isRenewalEvent = (eventType: string): boolean =>
   /renew|recovered/.test((eventType ?? "").toLowerCase());
 
@@ -256,15 +256,13 @@ export const SINGLE_PURCHASE_CREDITS = 500;
 export const SUBSCRIPTION_PLANS: readonly Plan[] = [
   "mensal", "trimestral", "anual", "max_mensal", "max_trimestral", "max_anual",
 ];
-/** Cota mensal renovável (redefinida a cada ciclo). */
+/**
+ * Cota mensal renovável (redefinida a cada ciclo). Assinaturas não têm bônus
+ * de ativação desde a tabela de 10/2026: o pedido concede só a cota.
+ */
 export const PLAN_MONTHLY_CREDITS: Record<string, number> = {
-  mensal: 3200, trimestral: 3200, anual: 3200,
-  max_mensal: 16000, max_trimestral: 16000, max_anual: 16000,
-};
-/** Bônus permanente concedido só na PRIMEIRA ativação da assinatura. */
-export const PLAN_SIGNUP_BONUS: Record<string, number> = {
-  mensal: 800, trimestral: 1200, anual: 2000,
-  max_mensal: 0, max_trimestral: 0, max_anual: 0,
+  mensal: 1700, trimestral: 1700, anual: 1700,
+  max_mensal: 8500, max_trimestral: 8500, max_anual: 8500,
 };
 
 /**
@@ -297,8 +295,8 @@ export interface RefundScope {
  * reembolsar uma compra avulsa derrubava a assinatura ativa e apagava
  * créditos de outras compras. Agora:
  *   • avulso → retira até os 500 créditos daquela compra; plano intacto;
- *   • assinatura vigente (mesmo id, ou perfil sem id registrado) → cancela,
- *     zera a cota mensal e retira até o bônus de ativação daquele plano;
+ *   • assinatura vigente (mesmo id, ou perfil sem id registrado) → cancela
+ *     e zera a cota mensal (assinaturas não concedem bônus permanente);
  *   • assinatura diferente da vigente ou plano não identificado → nada é
  *     estornado automaticamente; o evento fica marcado para revisão.
  */
@@ -320,7 +318,7 @@ export const refundScopeFor = (input: {
     }
     return {
       kind: "subscription",
-      revokeBonus: PLAN_SIGNUP_BONUS[plan] ?? 0,
+      revokeBonus: 0,
       zeroMonthly: true,
       cancelSubscription: true,
       reason: "subscription_refund",

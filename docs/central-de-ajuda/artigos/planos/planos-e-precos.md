@@ -10,23 +10,25 @@ keywords: plano, preço, assinatura, mensal, trimestral, anual, avulso, pagar, c
 | --- | --- | --- |
 | Geração única | R$ 14,90 | 500 créditos permanentes, sem renovação |
 
-## PRO — 3.200 créditos por mês
+## PRO — 1.700 créditos por mês
 
-| Ciclo | Preço | Equivale a | Bônus de ativação |
+Cerca de 10 apresentações de 10 slides com falas por mês (ou 14 sem falas).
+
+| Ciclo | Preço | Equivale a | Desconto |
 | --- | --- | --- | --- |
-| Mensal | R$ 49,90/mês | — | 800 |
-| Trimestral | R$ 127,90/trimestre | R$ 42,63/mês | 1.200 |
-| Anual | R$ 397,90/ano | R$ 33,16/mês | 2.000 |
+| Mensal | R$ 34,90/mês | — | — |
+| Trimestral | R$ 88,90/trimestre | R$ 29,63/mês | 15% |
+| Anual | R$ 276,90/ano | R$ 23,08/mês | 34% |
 
 ## MAX — uso ilimitado*
 
-| Ciclo | Preço | Equivale a |
-| --- | --- | --- |
-| Mensal | R$ 147,90/mês | — |
-| Trimestral | R$ 377,90/trimestre | R$ 125,97/mês |
-| Anual | R$ 1.175,00/ano | R$ 97,92/mês |
+| Ciclo | Preço | Equivale a | Desconto |
+| --- | --- | --- | --- |
+| Mensal | R$ 147,00/mês | — | — |
+| Trimestral | R$ 375,00/trimestre | R$ 125,00/mês | 15% |
+| Anual | R$ 1.164,00/ano | R$ 97,00/mês | 34% |
 
-\* Uso ilimitado para uma pessoa, dentro da Política de Uso Justo: até 16.000 créditos por ciclo mensal e 12 gerações por hora. Veja [Limites de uso](/ajuda/limites-de-uso).
+\* Uso ilimitado para uma pessoa, dentro da Política de Uso Justo: até 8.500 créditos por ciclo mensal (5 vezes o PRO, cerca de 50 apresentações de 10 slides com falas) e 12 gerações por hora. Veja [Limites de uso](/ajuda/limites-de-uso).
 
 ## Todos os planos incluem
 
@@ -37,7 +39,7 @@ Editor completo, assistente de edição por IA, exportação em PowerPoint, PDF 
 - Assinaturas renovam automaticamente ao fim de cada período.
 - Você pode cancelar quando quiser e mantém o acesso até o fim do período pago.
 - Direito de arrependimento: 7 dias após a compra, com reembolso integral.
-- O bônus de ativação vale uma vez por conta.
+- Assinaturas não têm bônus de ativação: o trimestral e o anual têm desconto no preço.
 
 Condições completas nos [Termos de Uso](/termos#planos).
 

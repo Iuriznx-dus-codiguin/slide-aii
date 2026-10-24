@@ -11,9 +11,8 @@ Créditos são as unidades de uso do SlideAI: cada apresentação gerada consome
 | Origem | Quantidade | Validade |
 | --- | --- | --- |
 | Compra avulsa (R$ 14,90) | 500 créditos | Permanentes |
-| Cota mensal do PRO | 3.200 por ciclo mensal | Renova a cada mês, não acumula |
-| Bônus de ativação do PRO | 800 (mensal), 1.200 (trimestral) ou 2.000 (anual) | Permanentes, uma vez por conta |
-| Plano MAX | Uso ilimitado dentro da Política de Uso Justo | Enquanto a assinatura estiver vigente |
+| Cota mensal do PRO | 1.700 por ciclo mensal | Renova a cada mês, não acumula |
+| Plano MAX | Uso ilimitado dentro da Política de Uso Justo (até 8.500 por ciclo mensal) | Enquanto a assinatura estiver vigente |
 
 ## Como são gastos
 

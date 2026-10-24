@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { EntitlementReason } from "@/lib/entitlement";
+import { FAIR_USE_MAX_MONTHLY_CREDITS } from "@/lib/fairUse";
 
 export interface Entitlement {
   allowed: boolean;
@@ -9,7 +10,7 @@ export interface Entitlement {
     | "mensal" | "trimestral" | "anual"
     | "max_mensal" | "max_trimestral" | "max_anual"
     | "dev";
-  /** Créditos permanentes (avulsos + bônus de ativação) — nunca expiram. */
+  /** Créditos permanentes (compras avulsas e promoções) — nunca expiram. */
   credits_bonus: number;
   /** Cota mensal utilizável agora (0 quando a assinatura não está vigente). */
   credits_monthly: number;
@@ -44,7 +45,7 @@ export const reasonMessage = (reason: Entitlement["reason"], resetDate?: string 
     case "insufficient_credits":
       return "Seus créditos acabaram. A cota mensal renova um mês depois da última renovação — ou adquira uma geração avulsa.";
     case "fair_use_limit":
-      return `Você atingiu o limite da Política de Uso Justo do plano MAX neste ciclo (16.000 créditos). A cota renova ${resetDate ? `em ${resetDate}` : "um mês depois da última renovação"} — até lá, você pode usar créditos avulsos.`;
+      return `Você atingiu o limite da Política de Uso Justo do plano MAX neste ciclo (${FAIR_USE_MAX_MONTHLY_CREDITS.toLocaleString("pt-BR")} créditos). A cota renova ${resetDate ? `em ${resetDate}` : "um mês depois da última renovação"} — até lá, você pode usar créditos avulsos.`;
     case "system_error":
       return "Não foi possível verificar seu saldo agora. Tente novamente em alguns minutos.";
     case "subscription_canceled":
