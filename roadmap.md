@@ -5,7 +5,7 @@
 
 # Audit continuation
 - [x] Confirm refund guard, feedback/cache/salt tables, cookie article and upload limits (Step 0).
-- [ ] Audit and update dependencies and verify MCP bundle parity (Step 2).
-- [ ] Align MCP credit balance with application entitlement and test it (Step 3).
-- [ ] Deploy the ten requested functions (Step 4).
-- [ ] Run unit tests and verify authenticated generation, sharing, editing, exports, feedback and team metrics (Step 5).
+- [x] Audit and update dependencies and verify MCP bundle parity (Step 2; bun.lockb removed per user request).
+- [x] Align MCP credit balance with application entitlement and test it (Step 3).
+- [x] Deploy the ten requested functions (Step 4; mcp withheld until next publish, platform behavior).
+- [x] Run unit tests and verify authenticated generation, sharing, editing, exports, feedback and team metrics (Step 5).
