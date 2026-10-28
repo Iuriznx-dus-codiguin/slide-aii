@@ -9,3 +9,8 @@
 - [x] Align MCP credit balance with application entitlement and test it (Step 3).
 - [x] Deploy the ten requested functions (Step 4; mcp withheld until next publish, platform behavior).
 - [x] Run unit tests and verify authenticated generation, sharing, editing, exports, feedback and team metrics (Step 5).
+
+# Prepared pricing updates
+- [x] Check live quotas and balance impact (8 accounts, all balances zero).
+- [x] Apply prepared updates 0017 then 0018 unchanged; verify recorded hashes and live quotas.
+- [x] Compare all 84 published help articles with prepared content and run 64 pricing/payment/entitlement tests.
