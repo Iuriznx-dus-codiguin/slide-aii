@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { PenLine, Sparkles, Share2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const steps = [
   {
@@ -12,7 +14,7 @@ const steps = [
     icon: Sparkles,
     number: "02",
     title: "IA gera os slides",
-    desc: "Em cerca de um minuto, nossa IA cria a estrutura, o conteúdo, as imagens e os gráficos automaticamente.",
+    desc: "Confira o custo em créditos, escolha um plano se precisar de saldo e receba a estrutura, os textos e os recursos visuais.",
   },
   {
     icon: Share2,
@@ -34,7 +36,7 @@ export const HowItWorks = () => {
             Da ideia ao slide em <span className="text-gradient">3 passos</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Sem templates engessados. Sem horas perdidas. Apenas resultado.
+            Crie slides com IA a partir do seu tema, revise o conteúdo e leve a apresentação para onde precisar.
           </p>
         </div>
 
@@ -63,6 +65,10 @@ export const HowItWorks = () => {
               </div>
             </motion.div>
           ))}
+        </div>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Button asChild variant="outline"><Link to="/ajuda/como-gerar-apresentacao">Guia de criação de slides com IA</Link></Button>
+          <Button asChild variant="ghost"><Link to="/templates">Exemplos para aulas, TCC e negócios</Link></Button>
         </div>
       </div>
     </section>
