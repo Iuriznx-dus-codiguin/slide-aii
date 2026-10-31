@@ -1,3 +1,4 @@
 # Project rules
 - Keep landing-only layout and motion rules scoped under `.landing-page` in the landing stylesheet, and use a user-preference-aware MotionConfig for its animations; this prevents marketing changes from affecting presentation rendering.
 - Derive landing PRO presentation estimates from the monthly quota and single-purchase comparison, excluding activation bonuses; this keeps recurring volume estimates aligned without changing credit accounting.
+- Keep help article text in the published article store and reference app screenshots through asset pointers in the article view; this avoids duplicate guide content and repository binaries.

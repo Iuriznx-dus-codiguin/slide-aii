@@ -147,6 +147,11 @@ const Templates = () => {
                 <div className="rounded-xl bg-muted/50 px-3 py-2"><span className="text-muted-foreground">Gráficos:</span> <span className="font-semibold">{preview.seed.includeCharts ? "Sim" : "Não"}</span></div>
                 <div className="rounded-xl bg-muted/50 px-3 py-2"><span className="text-muted-foreground">Imagens:</span> <span className="font-semibold">{preview.seed.includeImages ? "Sim" : "Não"}</span></div>
               </div>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Este modelo pré-preenche a configuração; não é uma apresentação já gerada. Substitua os campos entre colchetes e acrescente suas fontes e dados na descrição.</p>
+                <p>Revise textos, referências e gráficos antes de apresentar. O PowerPoint exportado permite edição, mas as animações avançadas ficam estáticas.</p>
+                <Link to={preview.category === "Educação" ? "/ajuda/gerar-para-aula" : "/ajuda/gerar-para-negocios"} className="text-primary underline underline-offset-2" onClick={() => setPreview(null)}>Ver orientações para este uso</Link>
+              </div>
               <Button variant="hero" size="lg" onClick={() => useTemplate(preview.id)} className="w-full mt-2">
                 <Wand2 className="h-4 w-4" /> Usar este template
               </Button>

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Seo } from "@/components/Seo";
 import { helpCategoryLabel } from "@/lib/helpCategories";
+import creationFormAsset from "@/assets/guide-creation-form.png.asset.json";
 
 interface Article {
   id: string;
@@ -168,6 +169,12 @@ const HelpArticle = () => {
             </div>
 
             {/* Corpo do artigo */}
+            {article.slug === "como-gerar-apresentacao" && (
+              <figure className="mb-8">
+                <img src={creationFormAsset.url} alt="Formulário real do SlideAI preenchido com o tema Ciclo da água para o 6º ano, descrição da aula e 8 slides" width={684} height={350} loading="lazy" className="w-full h-auto rounded-lg border border-border" />
+                <figcaption className="mt-2 text-sm text-muted-foreground">Exemplo de configuração antes de gerar; nenhuma apresentação foi criada para esta ilustração.</figcaption>
+              </figure>
+            )}
             <article className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-headings:font-display prose-headings:font-bold prose-a:text-primary prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
