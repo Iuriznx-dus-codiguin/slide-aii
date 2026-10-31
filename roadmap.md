@@ -14,3 +14,11 @@
 - [x] Check live quotas and balance impact (8 accounts, all balances zero).
 - [x] Apply prepared updates 0017 then 0018 unchanged; verify recorded hashes and live quotas.
 - [x] Compare all 84 published help articles with prepared content and run 64 pricing/payment/entitlement tests.
+
+# Search plan execution and credit validation
+- [ ] Associate existing favicon and preserve the chosen homepage title.
+- [ ] Improve the existing creation guide and its homepage link.
+- [ ] Enrich academic and business template examples with review/export guidance.
+- [ ] Prepare directory outreach without sending; check advertising connection availability.
+- [ ] Validate current prices, live credit rules, payments/refunds and authenticated payment entry; run all tests.
+- [ ] Update the saved marketing plan with verified outcomes and external blockers.
