@@ -16,9 +16,13 @@
 - [x] Compare all 84 published help articles with prepared content and run 64 pricing/payment/entitlement tests.
 
 # Search plan execution and credit validation
-- [ ] Associate existing favicon and preserve the chosen homepage title.
-- [ ] Improve the existing creation guide and its homepage link.
-- [ ] Enrich academic and business template examples with review/export guidance.
-- [ ] Prepare directory outreach without sending; check advertising connection availability.
-- [ ] Validate current prices, live credit rules, payments/refunds and authenticated payment entry; run all tests.
-- [ ] Update the saved marketing plan with verified outcomes and external blockers.
+- [x] Associate existing favicon and preserve the chosen homepage title.
+- [x] Improve the existing creation guide and its homepage link.
+- [x] Enrich academic and business template examples with review/export guidance.
+- [x] Prepare directory outreach without sending; check advertising connection availability.
+- [x] Validate code/live credit rules and authenticated modal; 456 unit tests and 11 integration checks passed, 2 skipped.
+- [x] Update the saved marketing plan with verified outcomes and external blockers.
+- [ ] Align five Cakto offers and confirm service fee (blocked: external Cakto offer management access).
+- [ ] Verify real customer payment, debit, renewal and refund (blocked: corrected offers and authorized transaction/test account).
+- [ ] Publish frontend and request guide indexing (blocked: publishing approval and manual Search Console indexing request).
+- [ ] Send editorial pitch / review ads (blocked: sending approval / advertising account connection).
