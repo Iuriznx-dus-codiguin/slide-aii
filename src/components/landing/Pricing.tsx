@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { proCycleDiscountLabel } from "@/lib/planDiscounts";
 import {
   MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICE_CENTS, SINGLE_PURCHASE_CREDITS,
-  cycleDiscountPct, estimatedDecks, formatBRL, maxPlanFor, monthlyEquivalent, previousPriceDiscountPct, proPlanFor,
+  estimatedDecks, formatBRL, maxPlanFor, monthlyEquivalent, previousPriceDiscountPct, proPlanFor,
   type BillingCycle, type PaidPlan,
 } from "@/lib/cakto";
 
@@ -80,9 +80,6 @@ export const Pricing = () => {
   // Estimativa divulgada: cota mensal do PRO na mesma proporção do avulso
   // (500 créditos ≈ 3 apresentações). 1.700 × 3 ÷ 500 = 10.
   const monthlyDecks = Math.floor((PLAN_MONTHLY_CREDITS[proId] * SINGLE_PURCHASE_DECKS) / SINGLE_PURCHASE_CREDITS);
-  // PRO e MAX têm o mesmo desconto por ciclo (src/test/plansParity.test.ts).
-  const quarterlyOff = cycleDiscountPct("trimestral", "trimestral");
-  const yearlyOff = cycleDiscountPct("anual", "anual");
 
   return (
     <section id="pricing" className="py-12 sm:py-16 lg:py-20 relative">

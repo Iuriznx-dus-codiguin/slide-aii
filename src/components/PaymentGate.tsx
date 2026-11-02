@@ -4,7 +4,7 @@ import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } fr
 import { Button } from "@/components/ui/button";
 import {
   CHECKOUT_URLS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, SINGLE_PURCHASE_CREDITS,
-  MAX_USAGE_MULTIPLIER, cycleDiscountPct, formatBRL, previousPriceDiscountPct, type PaidPlan, type BillingCycle,
+  MAX_USAGE_MULTIPLIER, formatBRL, previousPriceDiscountPct, type PaidPlan, type BillingCycle,
 } from "@/lib/cakto";
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { toast } from "sonner";
