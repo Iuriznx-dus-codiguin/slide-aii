@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, Crown, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { proCycleDiscountLabel } from "@/lib/planDiscounts";
 import {
   MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICE_CENTS, SINGLE_PURCHASE_CREDITS,
   cycleDiscountPct, estimatedDecks, formatBRL, maxPlanFor, monthlyEquivalent, previousPriceDiscountPct, proPlanFor,
@@ -101,39 +102,41 @@ export const Pricing = () => {
         </div>
 
         {/* Toggle mensal / trimestral / anual */}
-        <div className="flex justify-center mb-10">
-          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card border border-border">
+        <div className="flex flex-col items-center mb-10 gap-3">
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-card border border-border w-full max-w-xl">
             <Button variant="ghost" aria-pressed={cycle === "mensal"}
               onClick={() => setCycle("mensal")}
-              className={`h-11 px-2.5 sm:px-5 py-2 rounded-full text-sm font-semibold transition-colors ${
+              className={`h-auto min-h-16 px-1 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex flex-col gap-1 ${
                 cycle === "mensal" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Mensal
+              <span className="text-[10px] sm:text-xs font-bold">{proCycleDiscountLabel("mensal")}</span>
             </Button>
             <Button variant="ghost" aria-pressed={cycle === "trimestral"}
               onClick={() => setCycle("trimestral")}
-              className={`h-11 px-2.5 sm:px-5 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 ${
+              className={`h-auto min-h-16 px-1 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex flex-col gap-1 ${
                 cycle === "trimestral" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Trimestral
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cycle === "trimestral" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/15 text-primary"} font-bold`}>
-                -{quarterlyOff}%
+                {proCycleDiscountLabel("trimestral").split(" · ").map((part) => <span key={part} className="block">{part}</span>)}
               </span>
             </Button>
             <Button variant="ghost" aria-pressed={cycle === "anual"}
               onClick={() => setCycle("anual")}
-              className={`h-11 px-2.5 sm:px-5 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 ${
+              className={`h-auto min-h-16 px-1 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex flex-col gap-1 ${
                 cycle === "anual" ? "bg-gradient-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Anual
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cycle === "anual" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/15 text-primary"} font-bold`}>
-                -{yearlyOff}%
+                {proCycleDiscountLabel("anual").split(" · ").map((part) => <span key={part} className="block">{part}</span>)}
               </span>
             </Button>
           </div>
+          <p className="max-w-lg text-center text-xs text-muted-foreground">PRO: redução sobre o preço anterior. Ciclo: economia sobre o mensal atual (PRO e MAX). Descontos não somáveis.</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 max-w-6xl mx-auto items-stretch">

@@ -9,6 +9,7 @@ import {
 import { useEntitlement } from "@/hooks/useEntitlement";
 import { toast } from "sonner";
 import { ContractSummary } from "@/components/legal/ContractSummary";
+import { maximumProDiscountPct, proCycleDiscountLabel } from "@/lib/planDiscounts";
 
 interface Props {
   open: boolean;
@@ -92,15 +93,15 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   };
 
   const cycleButton = (id: BillingCycle, label: string, badge?: string) => (
-    <button
+    <Button variant="ghost" aria-pressed={cycle === id}
       onClick={() => setCycle(id)}
-      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${cycle === id ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+      className={`h-auto min-h-16 px-1 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-colors flex flex-col items-center gap-1 ${cycle === id ? "bg-background shadow-sm" : "text-muted-foreground"}`}
     >
       {label}
       {badge && (
-        <span className="text-[9px] px-1 py-0.5 rounded-full bg-primary/15 text-primary font-bold">{badge}</span>
+        <span className="text-[9px] sm:text-[10px] px-1 py-0.5 rounded-full bg-primary/15 text-primary font-bold">{badge.split(" · ").map(part => <span className="block" key={part}>{part}</span>)}</span>
       )}
-    </button>
+    </Button>
   );
 
   return (
@@ -119,18 +120,20 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
             <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro · Cakto
           </div>
           <h2 className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</h2>
+          <p className="mt-2 text-sm font-bold text-primary">Descontos de até {maximumProDiscountPct()}%</p>
           <p className="text-sm text-muted-foreground mt-2">
             Sua configuração está salva. Após pagar, a geração inicia automaticamente.
           </p>
         </div>
 
         {/* Toggle para assinaturas — trimestral é o predefinido */}
-        <div className="flex justify-center mb-5">
-          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-muted border border-border">
-            {cycleButton("mensal", "Mensal")}
-            {cycleButton("trimestral", "Trimestral", `-${cycleDiscountPct("trimestral", "trimestral")}%`)}
-            {cycleButton("anual", "Anual", `-${cycleDiscountPct("anual", "anual")}%`)}
+        <div className="flex flex-col items-center gap-2 mb-5">
+          <div className="grid grid-cols-3 w-full max-w-xl gap-1 p-1 rounded-2xl bg-muted border border-border">
+            {cycleButton("mensal", "Mensal", proCycleDiscountLabel("mensal"))}
+            {cycleButton("trimestral", "Trimestral", proCycleDiscountLabel("trimestral"))}
+            {cycleButton("anual", "Anual", proCycleDiscountLabel("anual"))}
           </div>
+          <p className="text-center text-[11px] text-muted-foreground">PRO: redução sobre o preço anterior. Ciclo: economia sobre o mensal atual (PRO e MAX). Descontos não somáveis.</p>
         </div>
 
         {waiting && (
