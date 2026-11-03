@@ -1,35 +1,47 @@
-// Deterministic music bed for the SlideAI ad. No samples, no network: every
-// sound is synthesised here, so the track can be regenerated after a timing
-// change in src/timeline.ts.
+// Deterministic music bed for the SlideAI commercial. No samples and no
+// network: every sound is synthesised here from the shared timeline, so the
+// track can be regenerated after any timing change.
 //
 //   node scripts/make-music.mjs        -> public/audio/music.mp3
 //
-// 120 BPM, bars aligned so the downbeat lands on the brand slam (frame 90).
+// 120 BPM. Hook hits on every cut, drop + sonic logo on the brand reveal,
+// four-on-the-floor through the demo, a breakdown on the tagline and the same
+// sonic logo on the end card (audio mnemonic).
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DURATION_IN_FRAMES, FPS, MOMENTS, SCENE_START } from "../src/timeline.ts";
+import { BEAT as BEAT_FRAMES, DURATION_IN_FRAMES, FPS, MOMENTS, SCENE_START } from "../src/timeline.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SR = 44100;
 const LEN = DURATION_IN_FRAMES / FPS;
 const N = Math.ceil(LEN * SR);
-const BEAT = 0.5;
-const T_SLAM = SCENE_START.brand / FPS; // 3.0 s
-const T_PROMPT = SCENE_START.prompt / FPS;
-const T_CLICK = (SCENE_START.prompt + MOMENTS.promptClick) / FPS;
-const T_GROOVE = Math.round(((SCENE_START.reveal + MOMENTS.revealCardsStart) / FPS - T_SLAM) / BEAT) * BEAT + T_SLAM;
-const T_CTA = Math.round(((SCENE_START.cta) / FPS - T_SLAM) / (BEAT * 4)) * BEAT * 4 + T_SLAM;
+const BEAT = BEAT_FRAMES / FPS; // 0.5 s
+const sec = (f) => f / FPS;
+
+const T = {
+  brand: sec(SCENE_START.brand),
+  prompt: sec(SCENE_START.prompt),
+  click: sec(SCENE_START.prompt + MOMENTS.promptClick),
+  burst: sec(SCENE_START.prompt + MOMENTS.promptBurst),
+  demo: sec(SCENE_START.demo),
+  audience: sec(SCENE_START.audience),
+  features: sec(SCENE_START.features),
+  exportBurst: sec(SCENE_START.features + MOMENTS.featureExportBurst),
+  tagline: sec(SCENE_START.tagline),
+  endcard: sec(SCENE_START.endcard),
+  click2: sec(SCENE_START.endcard + MOMENTS.endClick),
+};
 
 const L = new Float32Array(N);
 const R = new Float32Array(N);
-const sendL = new Float32Array(N); // reverb send
+const sendL = new Float32Array(N);
 const sendR = new Float32Array(N);
-const duck = new Float32Array(N).fill(1); // sidechain gain from the kick
+const duck = new Float32Array(N).fill(1);
 
-let seed = 1337;
+let seed = 20261103;
 const rnd = () => {
   seed |= 0;
   seed = (seed + 0x6d2b79f5) | 0;
@@ -51,7 +63,6 @@ const add = (i, l, r, send = 0) => {
   }
 };
 
-// PolyBLEP saw, band-limited enough once it goes through the low-pass.
 const polyblep = (t, dt) => {
   if (t < dt) {
     t /= dt;
@@ -67,111 +78,124 @@ const polyblep = (t, dt) => {
 // ---------- Instruments ----------
 
 function kick(t0, gain = 1) {
-  const len = 0.45;
   let ph = 0;
-  for (let k = 0; k < len * SR; k++) {
+  for (let k = 0; k < 0.45 * SR; k++) {
     const t = k / SR;
-    const f = 48 + 110 * Math.exp(-t * 28);
+    const f = 46 + 120 * Math.exp(-t * 30);
     ph += (2 * Math.PI * f) / SR;
-    const env = Math.exp(-t * 7.5);
-    const click = k < 90 ? noise() * 0.25 * (1 - k / 90) : 0;
-    const s = (Math.sin(ph) * env + click) * 0.85 * gain;
+    const click = k < 80 ? noise() * 0.3 * (1 - k / 80) : 0;
+    const s = Math.tanh((Math.sin(ph) * Math.exp(-t * 7) + click) * 1.6) * 0.8 * gain;
     add(idx(t0) + k, s, s);
   }
-  // Sidechain: duck pad/bass after each kick.
-  for (let k = 0; k < 0.28 * SR; k++) {
+  for (let k = 0; k < 0.3 * SR; k++) {
     const i = idx(t0) + k;
     if (i >= N) break;
-    const g = 1 - 0.55 * gain * Math.exp(-(k / SR) * 9);
-    duck[i] = Math.min(duck[i], g);
+    duck[i] = Math.min(duck[i], 1 - 0.6 * gain * Math.exp(-(k / SR) * 8));
   }
 }
 
 function hat(t0, gain = 0.12, decay = 45, pan = 0.25) {
   let prev = 0;
-  for (let k = 0; k < 0.12 * SR; k++) {
+  for (let k = 0; k < 0.3 * SR; k++) {
     const n = noise();
-    const hp = n - prev; // crude high-pass
+    const hp = n - prev;
     prev = n;
     const s = hp * Math.exp(-(k / SR) * decay) * gain;
     add(idx(t0) + k, s * (1 - pan), s * (1 + pan));
   }
 }
 
-function clap(t0, gain = 0.28) {
-  let bp1 = 0, bp2 = 0;
-  for (let k = 0; k < 0.3 * SR; k++) {
+function clap(t0, gain = 0.3) {
+  let a = 0, b = 0;
+  for (let k = 0; k < 0.32 * SR; k++) {
     const t = k / SR;
-    // three quick bursts then a tail
-    const bursts = (t < 0.01 ? 1 : t < 0.02 ? 0.4 : t < 0.03 ? 1 : 0.8) * Math.exp(-t * 18);
+    const env = (t < 0.008 ? 1 : t < 0.016 ? 0.35 : t < 0.024 ? 1 : 0.85) * Math.exp(-t * 16);
     const n = noise();
-    bp1 += 0.35 * (n - bp1);
-    bp2 += 0.35 * (bp1 - bp2);
-    const s = (bp1 - bp2) * bursts * gain * 3;
-    add(idx(t0) + k, s, s, 0.5);
+    a += 0.38 * (n - a);
+    b += 0.38 * (a - b);
+    const s = (a - b) * env * gain * 3.2;
+    add(idx(t0) + k, s, s, 0.45);
   }
 }
 
-function tick(t0, freq, gain = 0.22) {
-  for (let k = 0; k < 0.05 * SR; k++) {
+function snare(t0, gain = 0.25) {
+  let ph = 0, a = 0;
+  for (let k = 0; k < 0.2 * SR; k++) {
     const t = k / SR;
-    const s = (Math.sin(2 * Math.PI * freq * t) * 0.7 + noise() * 0.3) * Math.exp(-t * 140) * gain;
-    add(idx(t0) + k, s * 0.8, s, 0.3);
+    ph += (2 * Math.PI * (190 - t * 300)) / SR;
+    const n = noise();
+    a += 0.5 * (n - a);
+    const s = (Math.sin(ph) * 0.5 * Math.exp(-t * 30) + (n - a) * Math.exp(-t * 22)) * gain;
+    add(idx(t0) + k, s, s, 0.3);
   }
 }
 
-function impact(t0) {
-  let ph = 0;
-  let lp = 0;
-  for (let k = 0; k < 1.8 * SR; k++) {
+function impact(t0, gain = 1) {
+  let ph = 0, lp = 0;
+  for (let k = 0; k < 2.2 * SR; k++) {
     const t = k / SR;
-    const f = 30 + 42 * Math.exp(-t * 4);
+    const f = 28 + 46 * Math.exp(-t * 4);
     ph += (2 * Math.PI * f) / SR;
-    lp += 0.08 * (noise() - lp);
-    const s = Math.sin(ph) * Math.exp(-t * 2.2) * 0.9 + lp * Math.exp(-t * 6) * 1.6;
-    add(idx(t0) + k, s, s, 0.25);
+    lp += 0.06 * (noise() - lp);
+    const s = (Math.sin(ph) * Math.exp(-t * 1.8) * 0.95 + lp * Math.exp(-t * 5) * 1.8) * gain;
+    add(idx(t0) + k, s, s, 0.3);
   }
 }
 
-function riser(t0, t1) {
+function crash(t0, gain = 0.18, len = 1.6) {
+  let prev = 0;
+  for (let k = 0; k < len * SR; k++) {
+    const t = k / SR;
+    const n = noise();
+    const hp = n - prev * 0.6;
+    prev = n;
+    const s = hp * Math.exp(-t * 2.6) * gain;
+    add(idx(t0) + k, s * (0.8 + 0.2 * noise()), s * (0.8 + 0.2 * noise()), 0.5);
+  }
+}
+
+// Noise sweep. dir 1 = rising (into a cut), -1 = falling.
+function whoosh(tCenter, len = 0.5, gain = 0.5, dir = 1) {
+  const t0 = tCenter - len * 0.7;
+  const n = len * SR;
+  let low = 0, band = 0;
+  for (let k = 0; k < n; k++) {
+    const x = k / n;
+    const f = dir > 0 ? 200 + 5000 * x * x : 5200 - 5000 * x;
+    const q = 0.35;
+    const fc = 2 * Math.sin((Math.PI * Math.min(f, 8000)) / SR);
+    const inp = noise();
+    low += fc * band;
+    const high = inp - low - q * band;
+    band += fc * high;
+    const env = Math.sin(Math.PI * Math.min(1, x * 1.15)) ** 2;
+    const pan = (x - 0.5) * 0.8 * dir;
+    const s = band * env * gain;
+    add(idx(t0) + k, s * (1 - pan), s * (1 + pan), 0.35);
+  }
+}
+
+function riser(t0, t1, gain = 0.8) {
   let lp = 0, ph = 0;
   const n = (t1 - t0) * SR;
   for (let k = 0; k < n; k++) {
     const x = k / n;
-    const cutoff = 0.02 + 0.5 * x * x;
-    lp += cutoff * (noise() - lp);
-    const f = 180 + 700 * x * x;
-    ph += (2 * Math.PI * f) / SR;
-    const s = (lp * 0.5 + Math.sin(ph) * 0.12) * x * x * 0.9;
+    lp += (0.02 + 0.55 * x * x) * (noise() - lp);
+    ph += (2 * Math.PI * (160 + 900 * x * x)) / SR;
+    const s = (lp * 0.5 + Math.sin(ph) * 0.14) * x * x * gain;
     add(idx(t0) + k, s * 0.9, s, 0.4);
   }
 }
 
-function drone(t0, t1) {
-  let ph1 = 0, ph2 = 0, lp = 0;
-  const n = (t1 - t0) * SR;
-  for (let k = 0; k < n; k++) {
-    const x = k / n;
-    ph1 += (2 * Math.PI * 55) / SR;
-    ph2 = (ph2 + 110 / SR) % 1;
-    const saw = 2 * ph2 - 1 - polyblep(ph2, 110 / SR);
-    lp += 0.03 * (saw - lp);
-    const env = Math.min(1, x * 3) * (1 - Math.pow(x, 8));
-    const s = (Math.sin(ph1) * 0.5 + lp * 0.5) * env * 0.32;
-    add(idx(t0) + k, s, s);
-  }
-}
-
-// Pad: 3 detuned saws per note through a one-pole low-pass, sidechained.
-function pad(t0, dur, notes, cutoffHz, gain = 0.07) {
-  const n = Math.floor((dur + 0.6) * SR);
+function pad(t0, dur, notes, cutoffHz, gain = 0.055) {
+  const n = Math.floor((dur + 0.7) * SR);
   const voices = [];
-  for (const m of notes) for (const det of [-0.11, 0, 0.12]) voices.push({ f: mtof(m + det), ph: rnd(), pan: det * 4 });
+  for (const m of notes) for (const det of [-0.12, 0, 0.13]) voices.push({ f: mtof(m + det), ph: rnd(), pan: det * 4 });
   let lpL = 0, lpR = 0;
   const a = 1 - Math.exp((-2 * Math.PI * cutoffHz) / SR);
   for (let k = 0; k < n; k++) {
     const t = k / SR;
-    const env = Math.min(1, t / 0.12) * (t > dur ? Math.exp(-(t - dur) * 7) : 1);
+    const env = Math.min(1, t / 0.08) * (t > dur ? Math.exp(-(t - dur) * 6) : 1);
     let sl = 0, sr = 0;
     for (const v of voices) {
       const dt = v.f / SR;
@@ -188,7 +212,7 @@ function pad(t0, dur, notes, cutoffHz, gain = 0.07) {
   }
 }
 
-function bass(t0, dur, midi, gain = 0.32) {
+function bass(t0, dur, midi, gain = 0.3) {
   const f = mtof(midi);
   let ph = 0, lp = 0;
   const n = Math.floor(dur * SR);
@@ -196,95 +220,151 @@ function bass(t0, dur, midi, gain = 0.32) {
     const t = k / SR;
     ph = (ph + f / SR) % 1;
     const saw = 2 * ph - 1 - polyblep(ph, f / SR);
-    lp += 0.06 * (saw - lp);
-    const env = Math.min(1, t / 0.005) * Math.exp(-t * 3.5) * Math.min(1, (dur - t) / 0.01);
+    lp += 0.07 * (saw - lp);
+    const env = Math.min(1, t / 0.004) * Math.exp(-t * 3) * Math.min(1, (dur - t) / 0.01);
     const i = idx(t0) + k;
-    const s = Math.tanh((lp * 0.8 + Math.sin(2 * Math.PI * f * t) * 0.6) * 1.4) * env * gain * (i < N ? duck[i] : 1);
+    const s = Math.tanh((lp * 0.8 + Math.sin(2 * Math.PI * f * t) * 0.7) * 1.5) * env * gain * (i < N ? duck[i] : 1);
     add(i, s, s);
   }
 }
 
-function pluck(t0, midi, gain = 0.09, pan = 0) {
+function pluck(t0, midi, gain = 0.08, pan = 0, decay = 16) {
   const f = mtof(midi);
-  for (let k = 0; k < 0.35 * SR; k++) {
+  for (let k = 0; k < 0.4 * SR; k++) {
     const t = k / SR;
     const tri = (2 / Math.PI) * Math.asin(Math.sin(2 * Math.PI * f * t));
-    const s = (Math.sin(2 * Math.PI * f * t) * 0.6 + tri * 0.4) * Math.exp(-t * 16) * gain;
+    const s = (Math.sin(2 * Math.PI * f * t) * 0.6 + tri * 0.4) * Math.exp(-t * decay) * gain;
     add(idx(t0) + k, s * (1 - pan), s * (1 + pan), 0.6);
   }
+}
+
+// FM bell: the sonic logo.
+function bell(t0, midi, gain = 0.12, pan = 0) {
+  const f = mtof(midi);
+  for (let k = 0; k < 2.4 * SR; k++) {
+    const t = k / SR;
+    const mod = Math.sin(2 * Math.PI * f * 3.5 * t) * 2.2 * Math.exp(-t * 3);
+    const s = Math.sin(2 * Math.PI * f * t + mod) * Math.exp(-t * 1.6) * Math.min(1, t / 0.003) * gain;
+    add(idx(t0) + k, s * (1 - pan), s * (1 + pan), 0.7);
+  }
+}
+
+function sonicLogo(t0, gain = 1) {
+  [79, 84, 88, 91].forEach((m, i) => bell(t0 + i * 0.09, m, 0.11 * gain, (i - 1.5) * 0.35));
+  bell(t0 + 0.36, 96, 0.06 * gain, 0);
 }
 
 // ---------- Arrangement ----------
 
 const CH = {
-  F: { notes: [53, 57, 60, 64], root: 41 },
-  G: { notes: [55, 59, 62, 66 - 2], root: 43 }, // G6 (E on top)
   Am: { notes: [57, 60, 64, 67], root: 45 },
-  Em: { notes: [52, 55, 59, 62], root: 40 },
-  C: { notes: [55, 60, 64, 71], root: 36 }, // Cmaj7, open voicing
-  Csus: { notes: [55, 60, 62, 67], root: 36 },
+  F: { notes: [53, 57, 60, 64], root: 41 },
+  G: { notes: [55, 59, 62, 64], root: 43 },
+  C: { notes: [55, 60, 64, 71], root: 36 },
+  Cadd9: { notes: [60, 64, 67, 74], root: 36 },
+  Gsus: { notes: [55, 60, 62, 67], root: 43 },
 };
-const PROG = ["F", "G", "Am", "C", "F", "G", "Em", "Am", "F", "G", "G"];
 
-// Hook: drone, clock ticks, riser, 2 frames of silence, slam.
-drone(0, T_SLAM - 0.05);
-for (let i = 0; i < 6; i++) tick(8 / FPS + i * BEAT, i % 2 === 0 ? 1900 : 1450);
-riser(1.7, T_SLAM - 2 / FPS);
-impact(T_SLAM);
+// 1) Hook: tense pulse, a hit on every cut, roll + riser into the drop.
+for (let b = 0; b < 8; b++) {
+  const tb = b * BEAT;
+  if (b % 2 === 0) {
+    kick(tb, 1);
+    impact(tb, 0.35);
+    clap(tb, 0.22);
+  }
+  for (let s = 0; s < 4; s++) hat(tb + s * (BEAT / 4), s === 0 ? 0.1 : 0.05, 70, 0.3);
+}
+for (let e = 0; e < 16; e++) {
+  const te = e * (BEAT / 2);
+  if (te >= T.brand - 0.06) break;
+  bass(te, BEAT / 2 - 0.03, 33 + (e % 4 === 3 ? 3 : 0), 0.28);
+}
+pad(0, T.brand - 0.1, CH.Am.notes.map((m) => m - 12), 600, 0.045);
+for (let k = 0; k < 16; k++) {
+  const t = 2.95 + k * (1.0 / 16) * (k < 8 ? 1 : 0.8);
+  if (t < T.brand - 0.07) snare(t, 0.06 + k * 0.012);
+}
+riser(2.4, T.brand - 0.06, 0.9);
 
-const bars = Math.ceil((LEN - T_SLAM) / 2);
-for (let b = 0; b < bars; b++) {
-  const t0 = T_SLAM + b * 2;
-  const inCta = t0 >= T_CTA - 0.01;
-  const name = inCta ? (t0 >= LEN - 2.1 ? "C" : b % 2 === 0 ? "C" : "Csus") : PROG[b % PROG.length];
-  const chord = CH[name];
-  const grooveOn = t0 + 2 > T_GROOVE && !inCta;
+// 2) Drop + sonic logo, open pad, swell into the light world.
+impact(T.brand, 1.15);
+kick(T.brand, 1);
+crash(T.brand, 0.22, 2.2);
+sonicLogo(T.brand + 0.02);
+pad(T.brand, 2.0, CH.Cadd9.notes, 1800, 0.06);
+pad(T.brand + 2.0, 1.0, CH.G.notes, 1800, 0.055);
+bass(T.brand, 1.9, CH.C.root, 0.25);
+bass(T.brand + 2.0, 0.95, CH.G.root, 0.25);
+riser(T.prompt - 0.7, T.prompt - 0.02, 0.6);
 
-  // Kicks first so the sidechain exists before pad/bass are written.
+// 3) Groove from the light world to the features.
+const PROG = ["F", "G", "Am", "F", "C", "G", "Am", "F", "G"];
+for (let b = 0; ; b++) {
+  const t0 = T.prompt + b * 2;
+  if (t0 >= T.tagline - 0.01) break;
+  const chord = CH[PROG[b % PROG.length]];
+  const energy = t0 >= T.features ? 2 : t0 >= T.demo ? 1 : 0;
   for (let beat = 0; beat < 4; beat++) {
     const tb = t0 + beat * BEAT;
-    if (tb >= LEN) break;
-    if (inCta) {
-      if (beat === 0) kick(tb, 0.6);
-    } else if (tb >= T_GROOVE) {
-      kick(tb, 1);
-      if (beat % 2 === 1) clap(tb);
-      hat(tb + BEAT / 2, 0.16, 30, 0.3);
-    } else if (tb >= T_PROMPT) {
-      if (beat % 2 === 0) kick(tb, 0.75);
-      hat(tb + BEAT / 2, 0.08);
-    } else if (beat === 0 && b > 0) {
-      kick(tb, 0.6);
+    if (tb >= T.tagline - 0.2) break;
+    kick(tb, 1);
+    if (beat % 2 === 1) clap(tb, energy >= 1 ? 0.32 : 0.24);
+    hat(tb + BEAT / 2, energy === 2 ? 0.2 : 0.14, energy === 2 ? 18 : 32, 0.3);
+    if (energy >= 1) {
+      hat(tb + BEAT / 4, 0.05, 80, -0.3);
+      hat(tb + (3 * BEAT) / 4, 0.05, 80, -0.3);
     }
   }
-
-  // Filter opens as the story builds.
-  const cutoff = inCta ? 1600 : t0 < T_PROMPT ? 900 : t0 < T_GROOVE ? 1300 : 2400;
-  pad(t0, 2, chord.notes, cutoff, inCta ? 0.06 : 0.055);
-
-  // Bass
-  if (t0 < T_PROMPT || inCta) {
-    bass(t0, 1.9, chord.root, 0.26);
-  } else {
-    for (let e = 0; e < 8; e++) {
-      const te = t0 + e * (BEAT / 2);
-      if (te >= LEN) break;
-      bass(te, BEAT / 2 - 0.02, chord.root + (e === 7 ? 7 : 0), grooveOn ? 0.3 : 0.22);
-    }
+  const len = Math.min(2, T.tagline - t0);
+  pad(t0, len, chord.notes, energy === 0 ? 1400 : 2600, 0.05);
+  for (let e = 0; e < 8; e++) {
+    const te = t0 + e * (BEAT / 2);
+    if (te >= T.tagline - 0.2) break;
+    bass(te, BEAT / 2 - 0.02, chord.root + (e === 7 ? 7 : e === 3 ? 12 : 0), 0.3);
   }
-
-  // Arp: "computing" plucks from the Generate click until the CTA.
   for (let s = 0; s < 16; s++) {
     const ts = t0 + s * (BEAT / 4);
-    if (ts < T_CLICK - 0.05 || ts >= T_CTA || ts >= LEN) continue;
+    if (ts < T.click - 0.02 || ts >= T.tagline - 0.25) continue;
     const tones = chord.notes.map((m) => m + 12);
-    const m = tones[[0, 1, 2, 3, 2, 1, 3, 2][s % 8]];
-    pluck(ts, m, ts >= T_GROOVE ? 0.07 : 0.085, s % 2 === 0 ? -0.35 : 0.35);
+    pluck(ts, tones[[0, 1, 2, 3, 2, 1, 3, 2][s % 8]], 0.065, s % 2 === 0 ? -0.35 : 0.35);
   }
 }
+// Accents on the cuts and events of the groove section
+pluck(T.click, 84, 0.12, 0, 9);
+whoosh(T.burst + 0.3, 0.6, 0.55, 1);
+impact(T.demo, 0.6);
+crash(T.demo, 0.14);
+whoosh(T.demo + 2.0, 0.35, 0.35, -1);
+whoosh(T.audience, 0.55, 0.6, 1);
+crash(T.audience, 0.12);
+for (let i = 1; i < 4; i++) pluck(T.audience + i * 1.0 - 0.05, [88, 91, 95][i - 1], 0.08, 0.3, 12);
+whoosh(T.features, 0.55, 0.6, 1);
+impact(T.features, 0.5);
+whoosh(T.features + 1.5, 0.35, 0.45, 1);
+whoosh(T.features + 3.0, 0.35, 0.45, 1);
+impact(T.exportBurst, 0.5);
+crash(T.exportBurst, 0.14);
 
-// Final shimmer on the end card.
-for (let i = 0; i < 4; i++) pluck(T_CTA + 0.02 + i * 0.12, [72, 76, 79, 84][i], 0.08, (i - 1.5) * 0.3);
+// 4) Tagline breakdown: drums out, reverse swell, sparse bells.
+pad(T.tagline, 1.0, CH.F.notes, 1200, 0.06);
+pad(T.tagline + 1.0, 0.95, CH.Gsus.notes, 1500, 0.06);
+bell(T.tagline + 0.05, 77, 0.07, -0.3);
+bell(T.tagline + 1.05, 79, 0.07, 0.3);
+riser(T.tagline + 0.8, T.endcard - 0.03, 0.7);
+
+// 5) End card: same sonic logo, light groove, final chord rings out.
+impact(T.endcard, 0.9);
+crash(T.endcard, 0.18, 2.4);
+sonicLogo(T.endcard + 0.02, 1.1);
+for (let beat = 0; beat < 8; beat++) {
+  const tb = T.endcard + beat * BEAT;
+  kick(tb, beat % 4 === 0 ? 0.9 : 0.6);
+  hat(tb + BEAT / 2, 0.1, 30, 0.3);
+}
+pad(T.endcard, LEN - T.endcard - 0.4, CH.C.notes, 2200, 0.06);
+bass(T.endcard, 3.5, CH.C.root, 0.24);
+pluck(T.click2, 91, 0.1, 0, 8);
 
 // ---------- Reverb (Schroeder) ----------
 function reverb(input, offset) {
@@ -323,9 +403,9 @@ let peak = 0;
 const mixL = new Float32Array(N);
 const mixR = new Float32Array(N);
 for (let k = 0; k < N; k++) {
-  const fadeOut = Math.min(1, (N - k) / (0.6 * SR));
-  mixL[k] = Math.tanh((L[k] + rvL[k] * 0.35) * 1.1) * fadeOut;
-  mixR[k] = Math.tanh((R[k] + rvR[k] * 0.35) * 1.1) * fadeOut;
+  const fadeOut = Math.min(1, (N - k) / (0.5 * SR));
+  mixL[k] = Math.tanh((L[k] + rvL[k] * 0.32) * 1.15) * fadeOut;
+  mixR[k] = Math.tanh((R[k] + rvR[k] * 0.32) * 1.15) * fadeOut;
   peak = Math.max(peak, Math.abs(mixL[k]), Math.abs(mixR[k]));
 }
 const norm = 0.89 / peak;
@@ -356,4 +436,4 @@ const mp3Path = join(outDir, "music.mp3");
 writeFileSync(wavPath, wav);
 execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", wavPath, "-codec:a", "libmp3lame", "-b:a", "192k", mp3Path]);
 rmSync(wavPath);
-console.log(`music.mp3 written (${LEN}s, slam ${T_SLAM}s, groove ${T_GROOVE}s, CTA ${T_CTA}s)`);
+console.log(`music.mp3 written (${LEN}s; drop ${T.brand}s, groove ${T.prompt}s, breakdown ${T.tagline}s, end card ${T.endcard}s)`);

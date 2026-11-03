@@ -40,10 +40,23 @@ export const C = {
   uiSecondaryFg: "hsl(250 40% 25%)",
 };
 
+// Light world: the site's main theme (white canvas, violet elements).
+export const L = {
+  bg: "hsl(0 0% 100%)",
+  bgSoft: "hsl(252 100% 99%)",
+  ink: "hsl(240 20% 12%)",
+  muted: "hsl(240 8% 46%)",
+  line: "hsl(240 15% 90%)",
+  soft: "hsl(252 30% 96%)",
+  softInk: "hsl(250 40% 25%)",
+  lavender: "hsl(252 100% 94%)",
+};
+
 export const GRADIENT = {
   primary: "linear-gradient(135deg, hsl(252 100% 64%), hsl(280 95% 65%))",
   primaryBright: "linear-gradient(135deg, hsl(252 100% 72%), hsl(280 95% 72%))",
   hero: "linear-gradient(135deg, hsl(252 100% 64%) 0%, hsl(270 95% 60%) 50%, hsl(290 90% 65%) 100%)",
+  ink: "linear-gradient(135deg, hsl(252 100% 58%), hsl(280 90% 56%))",
 };
 
 export const SHADOW = {

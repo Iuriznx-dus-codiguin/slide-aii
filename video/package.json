@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "remotion studio",
-    "still": "remotion still SlideAIYouTubeAd --scale=0.5",
-    "render": "remotion render SlideAIYouTubeAd out/slideai-anuncio-youtube-16x9.mp4 --codec=h264 --crf=18",
-    "typecheck": "tsc --noEmit",
-    "music": "node scripts/make-music.mjs"
+    "still": "remotion still SlideAIComercial30s --scale=0.5",
+    "render": "remotion render SlideAIComercial30s out/slideai-comercial-30s-16x9.mp4 --codec=h264 --crf=17",
+    "music": "node scripts/make-music.mjs",
+    "textures": "remotion still NebulaTexture public/textures/nebula-a.jpg --props='{\"seed\":3}' --image-format=jpeg --jpeg-quality=88 && remotion still NebulaTexture public/textures/nebula-b.jpg --props='{\"seed\":17}' --image-format=jpeg --jpeg-quality=88",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@remotion/cli": "4.0.540",

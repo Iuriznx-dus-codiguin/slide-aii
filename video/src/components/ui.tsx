@@ -124,7 +124,7 @@ export const StepLabel = ({ n, children, style }: { n: string; children: ReactNo
 
 // Honesty tag for the product demo (product-proof-saas: never fake speed
 // without saying so).
-export const SimTag = ({ opacity = 1 }: { opacity?: number }) => (
+export const SimTag = ({ opacity = 1, tone = "dark" }: { opacity?: number; tone?: "dark" | "light" }) => (
   <div
     style={{
       position: "absolute",
@@ -135,12 +135,12 @@ export const SimTag = ({ opacity = 1 }: { opacity?: number }) => (
       gap: 12,
       fontFamily: FONT.mono,
       fontSize: 22,
-      color: C.fgMuted,
-      opacity: opacity * 0.85,
+      color: tone === "dark" ? C.fgMuted : "hsl(240 8% 40%)",
+      opacity: opacity * 0.9,
       letterSpacing: 1,
     }}
   >
-    <div style={{ width: 10, height: 10, borderRadius: 99, background: C.primaryGlow }} />
+    <div style={{ width: 10, height: 10, borderRadius: 99, background: tone === "dark" ? C.primaryGlow : C.primary }} />
     Simulação de uso · tempo acelerado
   </div>
 );

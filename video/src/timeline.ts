@@ -1,45 +1,38 @@
-// Single source of truth for scene timing. The video (TransitionSeries), the
-// sound-effect cues and the music generator (scripts/make-music.mjs) all read
-// these numbers, so a change here keeps picture and sound in sync.
+// Single source of truth for timing. Scenes are laid end to end (no overlap)
+// and every boundary falls on a beat of the 120 BPM track, so the video, the
+// sound effects and the music generator (scripts/make-music.mjs) stay locked.
 
 export const FPS = 30;
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
+export const BPM = 120;
+export const BEAT = (FPS * 60) / BPM; // 15 frames
+export const BAR = BEAT * 4; // 60 frames
 
-type SceneId = "hook" | "brand" | "prompt" | "reveal" | "chat" | "export" | "cta";
+export type SceneId = "hook" | "brand" | "prompt" | "demo" | "audience" | "features" | "tagline" | "endcard";
 
-type SceneSpec = {
-  id: SceneId;
-  duration: number;
-  // Overlap with the next scene (0 = hard cut).
-  transitionOut: number;
-};
-
-export const SCENES: readonly SceneSpec[] = [
-  { id: "hook", duration: 90, transitionOut: 0 },
-  { id: "brand", duration: 90, transitionOut: 12 },
-  { id: "prompt", duration: 186, transitionOut: 14 },
-  { id: "reveal", duration: 190, transitionOut: 12 },
-  { id: "chat", duration: 150, transitionOut: 10 },
-  { id: "export", duration: 100, transitionOut: 14 },
-  { id: "cta", duration: 156, transitionOut: 0 },
+export const SCENES: readonly { id: SceneId; duration: number }[] = [
+  { id: "hook", duration: 120 },
+  { id: "brand", duration: 90 },
+  { id: "prompt", duration: 120 },
+  { id: "demo", duration: 120 },
+  { id: "audience", duration: 120 },
+  { id: "features", duration: 150 },
+  { id: "tagline", duration: 60 },
+  { id: "endcard", duration: 120 },
 ];
 
-const starts: Record<SceneId, number> = {} as Record<SceneId, number>;
-{
+export const SCENE_START = (() => {
+  const out = {} as Record<SceneId, number>;
   let cursor = 0;
   for (const s of SCENES) {
-    starts[s.id] = cursor;
-    cursor += s.duration - s.transitionOut;
+    out[s.id] = cursor;
+    cursor += s.duration;
   }
-}
+  return out;
+})();
 
-export const SCENE_START = starts;
-
-export const DURATION_IN_FRAMES = SCENES.reduce(
-  (acc, s) => acc + s.duration - s.transitionOut,
-  0,
-);
+export const DURATION_IN_FRAMES = SCENES.reduce((acc, s) => acc + s.duration, 0);
 
 export const sceneDuration = (id: SceneId): number => {
   const s = SCENES.find((x) => x.id === id);
@@ -47,18 +40,26 @@ export const sceneDuration = (id: SceneId): number => {
   return s.duration;
 };
 
-// Scene-local moments that other layers (SFX) need to hit.
+// Scene-local moments shared by picture, SFX and music.
 export const MOMENTS = {
-  hookTicks: [8, 38, 68],
-  promptTypeStart: 20,
-  promptTypeEnd: 80,
-  promptClick: 94,
-  promptSteps: [112, 128, 144, 160],
-  revealCardsStart: 6,
-  revealCardStagger: 5,
-  chatUserMsg: 14,
-  chatReply: 64,
-  chatMorph: 70,
-  exportTiles: [17, 25, 32, 40],
-  ctaButton: 40,
+  hookCuts: [0, 30, 60, 90],
+  brandHit: 0,
+  brandIris: 74,
+  promptTypeStart: 16,
+  promptTypeEnd: 52,
+  promptClick: 60,
+  promptStages: [70, 82, 94],
+  promptBurst: 108,
+  demoCards: 4,
+  demoCardStagger: 4,
+  demoShot2: 60,
+  demoCallouts: [66, 74, 82, 90],
+  audienceSwaps: [0, 30, 60, 90],
+  featureHits: [0, 45, 90],
+  featureChatMsg: 8,
+  featureChatMorph: 22,
+  featureExportBurst: 104,
+  taglineIris: 48,
+  endButton: 24,
+  endClick: 72,
 } as const;
