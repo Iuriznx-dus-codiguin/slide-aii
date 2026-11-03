@@ -50,7 +50,7 @@ export const MOMENTS = {
   promptClick: 60,
   promptStages: [70, 82, 94],
   promptBurst: 108,
-  demoCards: 4,
+  demoCards: 0,
   demoCardStagger: 4,
   demoShot2: 60,
   demoCallouts: [66, 74, 82, 90],

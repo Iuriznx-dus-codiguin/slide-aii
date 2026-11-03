@@ -22,9 +22,9 @@ export const Brand = () => {
   const starX = 960 + (TILE.x + TILE.s * 0.36 - 960) * fly;
   const starY = 430 + (TILE.y - TILE.s * 0.36 - 430) * fly;
   const starS = 300 - 240 * fly;
-  const irisR = tw(frame, [MOMENTS.brandIris, 90], [0, 2400], EASE.inExpo);
+  const irisR = tw(frame, [MOMENTS.brandIris, 90], [0, 2300], EASE.inOut);
   const push = tw(frame, [0, 90], [0, 1]);
-  const exitText = tw(frame, [MOMENTS.brandIris - 4, MOMENTS.brandIris + 4], [1, 0]);
+  const exitText = 1;
 
   return (
     <AbsoluteFill>

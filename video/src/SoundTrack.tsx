@@ -45,7 +45,7 @@ export const SoundTrack = () => (
   <>
     <Audio
       src={staticFile("audio/music.mp3")}
-      volume={(f) => interpolate(f, [0, 3, DURATION_IN_FRAMES - 12, DURATION_IN_FRAMES], [0, 0.8, 0.8, 0], { extrapolateRight: "clamp" })}
+      volume={(f) => interpolate(f, [0, 3, DURATION_IN_FRAMES - 12, DURATION_IN_FRAMES], [0, 0.68, 0.68, 0], { extrapolateRight: "clamp" })}
     />
     {cues.map((c) => (
       <Sequence key={c.name} from={c.at} durationInFrames={45} name={c.name} layout="none">

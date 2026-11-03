@@ -143,7 +143,10 @@ const Stopwatch = ({ at }: { at: number }) => {
         <rect x="180" y="18" width="40" height="22" rx="6" fill="hsl(262 100% 72%)" />
       </svg>
       <div style={{ position: "absolute", left: 0, right: 0, top: 150, textAlign: "center", fontFamily: FONT.mono, fontWeight: 700, fontSize: 84, color: C.fg }}>
-        <Counter from={0} to={60} at={at + 4} dur={18} format={(n) => `00:${String(Math.round(n)).padStart(2, "0")}`} />
+        <Counter from={0} to={60} at={at + 4} dur={18} format={(n) => {
+          const s = Math.round(n);
+          return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+        }} />
       </div>
       <div style={{ position: "absolute", left: 152, top: 120, opacity: tw(frame, [at + 21, at + 23], [0, 1]), scale: String(enter(frame, at + 21, 8, EASE.outBack)) }}>
         <Sparkle size={96} color="hsl(262 100% 82%)" />
