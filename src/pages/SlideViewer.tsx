@@ -88,12 +88,18 @@ const SlideViewer = () => {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
-      else if (e.key === "ArrowLeft" || e.key === "PageUp") prev();
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      // Digitando, num menu/diálogo (falas, compartilhar) ou num botão com
+      // foco (espaço/enter ativam o botão): as teclas não trocam de slide.
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu'], [data-radix-popper-content-wrapper]")) return;
+      const onControl = !!el?.closest("button, a, [role='tab']");
+      if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !onControl)) { e.preventDefault(); next(); }
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
       else if (e.key === "Escape" && document.fullscreenElement) document.exitFullscreen();
       else if (e.key === "f" || e.key === "F") toggleFullscreen();
-      else if (e.key === "Home") setIdx(0);
-      else if (e.key === "End") setIdx(slides.length - 1);
+      else if (e.key === "Home") { e.preventDefault(); setIdx(0); }
+      else if (e.key === "End") { e.preventDefault(); setIdx(slides.length - 1); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -115,9 +121,16 @@ const SlideViewer = () => {
       t = setTimeout(() => setHideUI(true), 2500);
     };
     reset();
-    window.addEventListener("mousemove", reset);
-    window.addEventListener("touchstart", reset);
-    return () => { clearTimeout(t); window.removeEventListener("mousemove", reset); window.removeEventListener("touchstart", reset); };
+    // Teclado também revela os controles (quem navega sem mouse precisa vê-los).
+    window.addEventListener("mousemove", reset, { passive: true });
+    window.addEventListener("touchstart", reset, { passive: true });
+    window.addEventListener("keydown", reset);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("mousemove", reset);
+      window.removeEventListener("touchstart", reset);
+      window.removeEventListener("keydown", reset);
+    };
   }, [fullscreen]);
 
   const copyLink = () => {
@@ -144,18 +157,39 @@ const SlideViewer = () => {
     creativeBrief: pres?.creative_brief ?? null,
   }), [pres?.dynamic_theme, pres?.creative_brief]);
 
-  // touch swipe
+  // Gesto de arrastar só sobre o palco (antes valia na janela inteira: rolar
+  // as falas no celular trocava de slide). Horizontal e com distância mínima.
+  const stageRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
     let startX = 0;
-    const onStart = (e: TouchEvent) => { startX = e.touches[0].clientX; };
+    let startY = 0;
+    const onStart = (e: TouchEvent) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; };
     const onEnd = (e: TouchEvent) => {
       const dx = e.changedTouches[0].clientX - startX;
-      if (Math.abs(dx) > 50) (dx < 0 ? next() : prev());
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) <= 50 || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
+      if (dx < 0) next();
+      else prev();
     };
-    window.addEventListener("touchstart", onStart);
-    window.addEventListener("touchend", onEnd);
-    return () => { window.removeEventListener("touchstart", onStart); window.removeEventListener("touchend", onEnd); };
-  }, [next, prev]);
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => { el.removeEventListener("touchstart", onStart); el.removeEventListener("touchend", onEnd); };
+  }, [next, prev, loading]);
+
+  // Fluidez: a imagem do PRÓXIMO slide (e a do anterior) já fica no cache do
+  // navegador — a transição não espera o download. Só os vizinhos: memória baixa.
+  useEffect(() => {
+    const urls = [slides[idx + 1], slides[idx - 1]]
+      .map((s) => (s?.content?.image_url as string | undefined) ?? null)
+      .filter((u): u is string => !!u);
+    for (const u of urls) {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = u;
+    }
+  }, [idx, slides]);
 
   // Deck de impressão montado só quando alguém imprime (antes todos os slides
   // eram renderizados, escondidos, em toda visita). flushSync: o navegador
@@ -194,21 +228,33 @@ const SlideViewer = () => {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col select-none">
       {/* Progress bar */}
-      <div className={`fixed top-0 left-0 right-0 h-1 bg-white/10 z-50 transition-opacity ${hideUI ? "opacity-0" : "opacity-100"}`}>
-        <div className="h-full bg-gradient-primary transition-all duration-500" style={{ width: `${progress}%` }} />
+      <div
+        className={`fixed top-0 left-0 right-0 h-1 bg-white/10 z-50 transition-opacity ${hideUI ? "opacity-0" : "opacity-100"}`}
+        role="progressbar"
+        aria-label="Progresso da apresentação"
+        aria-valuemin={1}
+        aria-valuemax={Math.max(1, slides.length)}
+        aria-valuenow={idx + 1}
+        aria-valuetext={`Slide ${idx + 1} de ${slides.length}`}
+      >
+        <div className="h-full bg-gradient-primary transition-[width] duration-500" style={{ width: `${progress}%` }} />
+      </div>
+      {/* Leitores de tela ouvem o slide atual a cada troca. */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {current ? `Slide ${idx + 1} de ${slides.length}${current.content?.headline ? `: ${current.content.headline}` : ""}` : ""}
       </div>
 
       {/* Top bar */}
       {!fullscreen && (
         <header className="relative z-40 flex items-center justify-between px-4 md:px-6 py-3 border-b border-white/10 flex-shrink-0">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-white/70 hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Voltar</span>
+          <button type="button" onClick={() => navigate(-1)} aria-label="Voltar" className="flex items-center gap-2 text-sm text-white/70 hover:text-white">
+            <ArrowLeft className="h-4 w-4" aria-hidden /> <span className="hidden sm:inline">Voltar</span>
           </button>
           <div className="text-sm font-medium truncate max-w-[40%] md:max-w-md">{pres.title}</div>
           <div className="flex items-center gap-1 md:gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-white hover:bg-white/10"><Share2 className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" aria-label="Compartilhar"><Share2 className="h-4 w-4" aria-hidden /></Button>
               </PopoverTrigger>
               <PopoverContent className="w-64">
                 <div className="space-y-2">
@@ -238,8 +284,8 @@ const SlideViewer = () => {
               <PresenterNotesPopover slide={current} slideIndex={idx} presentersNames={pres.presenters_names ?? []} />
             )}
             <ExportMenu presentationId={pres.id} getDeck={getDeck} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen}>
-              {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen} aria-label={fullscreen ? "Sair da tela cheia" : "Apresentar em tela cheia"}>
+              {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden /> : <Maximize2 className="h-4 w-4" aria-hidden />}
               <span className="hidden md:inline ml-1">Apresentar</span>
             </Button>
           </div>
@@ -254,9 +300,12 @@ const SlideViewer = () => {
       )}
 
       {/* Slide canvas — fullscreen: 100vw/100vh com letterbox 16:9 */}
-      <main className={`flex-1 flex items-center justify-center relative ${fullscreen ? "p-0" : "p-2 md:p-6"}`}>
+      <main ref={stageRef} className={`flex-1 flex items-center justify-center relative ${fullscreen ? "p-0" : "p-2 md:p-6"}`}>
         <div
           data-export-target="slide"
+          role="region"
+          aria-roledescription="slide"
+          aria-label={`Slide ${idx + 1} de ${slides.length}`}
           className={`relative ${fullscreen ? "shadow-none rounded-none" : "shadow-elegant rounded-2xl"} overflow-hidden bg-black`}
           style={fullscreen
             ? { width: "min(100vw, calc(100vh * 16 / 9))", height: "min(100vh, calc(100vw * 9 / 16))" }
@@ -283,13 +332,13 @@ const SlideViewer = () => {
         </div>
 
         {/* Nav arrows */}
-        <button onClick={prev} disabled={idx === 0}
-          className={`absolute left-2 md:left-6 top-1/2 -translate-y-1/2 h-10 w-10 md:h-12 md:w-12 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 flex items-center justify-center backdrop-blur transition-opacity ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
-          <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" />
+        <button type="button" onClick={prev} disabled={idx === 0} aria-label="Slide anterior" title="Slide anterior (←)"
+          className={`absolute left-2 md:left-6 top-1/2 -translate-y-1/2 h-10 w-10 md:h-12 md:w-12 rounded-full bg-black/40 hover:bg-black/60 disabled:opacity-30 flex items-center justify-center transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+          <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" aria-hidden />
         </button>
-        <button onClick={next} disabled={idx === slides.length - 1}
-          className={`absolute right-2 md:right-6 top-1/2 -translate-y-1/2 h-10 w-10 md:h-12 md:w-12 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 flex items-center justify-center backdrop-blur transition-opacity ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
-          <ChevronRight className="h-5 w-5 md:h-6 md:w-6" />
+        <button type="button" onClick={next} disabled={idx === slides.length - 1} aria-label="Próximo slide" title="Próximo slide (→)"
+          className={`absolute right-2 md:right-6 top-1/2 -translate-y-1/2 h-10 w-10 md:h-12 md:w-12 rounded-full bg-black/40 hover:bg-black/60 disabled:opacity-30 flex items-center justify-center transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+          <ChevronRight className="h-5 w-5 md:h-6 md:w-6" aria-hidden />
         </button>
       </main>
 
@@ -368,8 +417,8 @@ const PresenterNotesPopover = ({
     <Popover>
       <PopoverTrigger asChild>
         {floating ? (
-          <button className={triggerCls} title="Consultar falas e notas">
-            <Users className="h-4 w-4" />
+          <button type="button" className={triggerCls} title="Consultar falas e notas" aria-label="Consultar falas e notas">
+            <Users className="h-4 w-4" aria-hidden />
           </button>
         ) : (
           <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" title="Consultar falas e notas">
