@@ -76,7 +76,7 @@ Modelo de dados, RLS e funções: [docs/arquitetura.md](docs/arquitetura.md#banc
 
 | Função | Papel |
 | --- | --- |
-| `generate-presentation` | Gera a apresentação (motor v2), cobra e estorna créditos, persiste o deck |
+| `generate-presentation` | Gera a apresentação (motor principal v1; v2 em teste no Dev Mode), cobra e estorna créditos, persiste o deck |
 | `fetch-image` | Busca fotos (Pexels) e gera imagens por IA sob cota |
 | `chat-editor` | Assistente de edição (limite por apresentação) |
 | `regenerate-speeches` | Regera as falas dos apresentadores (só com falas pagas) |
