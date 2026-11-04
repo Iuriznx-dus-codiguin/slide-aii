@@ -41,9 +41,11 @@ export function typeScaleFor(fontId: string | undefined): TypeScale {
     headlineHero: cqw(3.6 * f),
     subtitle: cqw(1.42),
     body: cqw(1.2),
-    itemLabel: cqw(1.12),
-    itemDetail: cqw(0.9),
+    // Itens na faixa em que o Quality Gate mede a capacidade (≈1,05 do slide):
+    // 0,9 ficava pequeno demais para projetor.
+    itemLabel: cqw(1.22),
+    itemDetail: cqw(1.02),
     value: cqw(2.4 * f),
-    caption: cqw(0.8),
+    caption: cqw(0.85),
   };
 }

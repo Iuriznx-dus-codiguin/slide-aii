@@ -25,6 +25,7 @@ import { formatValue } from "@/lib/scene/visualModel";
 import { mix, readableOn } from "@/lib/scene/color";
 import { rasterizeSceneSlot, SLIDE_W, SLIDE_H } from "@/lib/exportRaster";
 import { isSceneContent, isCoverSlide } from "../../supabase/functions/_shared/sceneMedia.ts";
+import { sanitizeChart } from "../../supabase/functions/_shared/chartSpec.ts";
 
 interface SlideRow {
   position: number;
@@ -500,24 +501,34 @@ export async function exportPresentationToPptx({ title, themeId, slides: inputSl
       try { slide.addImage({ ...imageSource(c.image_url), x: ix, y: 0.7, w: 5.83, h: 6.1, sizing: { type: "cover", w: 5.83, h: 6.1 } }); } catch {}
     }
 
-    // Chart (basic native chart)
-    if (c.chart && (s.slide_type === "data_chart" || layout === "data-chart")) {
-      const data = [{
-        name: c.chart.title || "Dados",
-        labels: c.chart.labels || [],
-        values: c.chart.values || [],
-      }];
-      const chartType = c.chart.type === "line" ? pptx.ChartType.line
-        : c.chart.type === "pie" || c.chart.type === "donut" ? pptx.ChartType.pie
-        : c.chart.type === "area" ? pptx.ChartType.area
+    // Gráfico nativo (editável no PowerPoint), com o mesmo saneamento da tela.
+    const chart = sanitizeChart(c.chart);
+    if (chart && (s.slide_type === "data_chart" || layout === "data-chart")) {
+      const data = [{ name: chart.title || "Dados", labels: chart.labels, values: chart.values }];
+      const horizontal = chart.type === "horizontal-bar";
+      const chartType = chart.type === "line" ? pptx.ChartType.line
+        : chart.type === "pie" ? pptx.ChartType.pie
+        : chart.type === "donut" ? pptx.ChartType.doughnut
+        : chart.type === "area" ? pptx.ChartType.area
         : pptx.ChartType.bar;
+      const round = chart.type === "pie" || chart.type === "donut";
       try {
         slide.addChart(chartType, data, {
-          x: 0.5, y: 2.5, w: 12.33, h: 4.5,
-          chartColors: [hexNoHash(theme.accent), hexNoHash(theme.accent2 || "#F59E0B")],
-          showLegend: false,
+          x: 0.5, y: 2.5, w: 12.33, h: chart.source ? 4.1 : 4.5,
+          ...(horizontal ? { barDir: "bar" as const } : {}),
+          chartColors: round
+            ? chart.labels.map((_, i) => hexNoHash(i % 2 === 0 ? theme.accent : theme.accent2 || "#F59E0B"))
+            : [hexNoHash(theme.accent), hexNoHash(theme.accent2 || "#F59E0B")],
+          showLegend: round,
+          showValue: true,
+          dataLabelColor: hexNoHash(theme.text),
+          catAxisLabelColor: hexNoHash(theme.text),
+          valAxisLabelColor: hexNoHash(theme.text),
         });
       } catch (e) { console.warn("chart add failed", e); }
+      if (chart.source) {
+        slide.addText(`Fonte: ${chart.source}`, { x: 0.5, y: 6.75, w: 12.33, h: 0.35, fontSize: 11, color: hexNoHash(theme.text), transparency: 35 });
+      }
     }
   }
 

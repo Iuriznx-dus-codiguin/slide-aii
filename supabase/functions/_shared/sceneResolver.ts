@@ -98,14 +98,14 @@ export interface ResolveReport {
 // Saneamento do texto vindo da IA
 // ────────────────────────────────────────────────────────────────
 
-const str = (v: unknown, max: number): string | undefined => {
+export const str = (v: unknown, max: number): string | undefined => {
   if (typeof v !== "string" && typeof v !== "number") return undefined;
   // eslint-disable-next-line no-control-regex -- remove caracteres de controle de propósito
   const s = String(v).replace(/[\u0000-\u0008\u000b-\u001f]+/g, " ").replace(/[ \t]{2,}/g, " ").trim();
   return s ? s.slice(0, max) : undefined;
 };
 
-const strList = (v: unknown, maxItems: number, maxLen: number): string[] | undefined => {
+export const strList = (v: unknown, maxItems: number, maxLen: number): string[] | undefined => {
   if (!Array.isArray(v)) return undefined;
   const out = v.map((x) => str(x, maxLen)).filter((x): x is string => !!x).slice(0, maxItems);
   return out.length ? out : undefined;
@@ -166,7 +166,7 @@ export function deriveAnimationIntent(
 
 // Alternativas equivalentes quando o mesmo intent se repetiria em sequência
 // (o modo clássico escolhe a transição por intent: repetir = monotonia).
-const INTENT_ALTERNATIVE: Record<string, string> = {
+export const INTENT_ALTERNATIVE: Record<string, string> = {
   "narrative-build": "calm-fade",
   "calm-fade": "narrative-build",
   "data-reveal": "emphasis-stat",
@@ -234,7 +234,7 @@ export function pickBackground(
 }
 
 /** Variante sem imagem equivalente a cada capa com imagem. */
-const NO_IMAGE_COVER: Record<string, string> = {
+export const NO_IMAGE_COVER: Record<string, string> = {
   "split-hero": "asymmetric-grid",
   "full-bleed-image": "gradient-mesh",
 };

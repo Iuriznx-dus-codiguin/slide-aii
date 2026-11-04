@@ -74,6 +74,36 @@ const FitText = ({ base, children, style, className = "" }: { base: string; chil
   );
 };
 
+/**
+ * Slot do visual com a proporção MEDIDA. A geometria dos diagramas usava a
+ * proporção estimada do layout (SLOT_ASPECT); quando o texto ocupava mais ou
+ * menos espaço, o SVG (preserveAspectRatio="none") esticava conectores e
+ * pinos e os cartões ficavam baixos para o texto. Medido antes da pintura
+ * (useLayoutEffect) — o export rasterizado já sai com a proporção certa — e
+ * acompanhado por ResizeObserver, arredondado para não redesenhar à toa.
+ */
+const MeasuredSlot = ({ fallback, children }: { fallback: number; children: (aspect: number) => ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [aspect, setAspect] = useState(fallback);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      const next = Math.round((w / h) * 20) / 20;
+      setAspect((prev) => (Math.abs(prev - next) >= 0.05 ? next : prev));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return <div ref={ref} className="absolute inset-0">{children(aspect)}</div>;
+};
+
 const ACCENTS: Record<string, (p: { theme: ThemeColors; noAnimate: boolean; intensity: number }) => ReactNode> = {
   "orbital-rings": (p) => <OrbitalRings {...p} position="right" />,
   "dot-grid": (p) => <DotGrid {...p} />,
@@ -211,23 +241,27 @@ export const SceneSlide = ({ slide, theme, fontId, bodyFont, displayFont, index,
   const scrim = insight ? scrimAlphaForAA("#FFFFFF", "#000000", insight.textHalfLuminance, 0.35) : 0.55;
 
   const visualNode = model && visual ? (
-    <VisualBlock
-      model={model}
-      visual={visual}
-      theme={theme}
-      type={type}
-      displayFont={displayFont}
-      aspect={aspect}
-      ctrl={ctrl}
-      noAnimate={noAnimate}
-      staticEffects={staticEffects}
-      imageUrl={imageUrl}
-      assetStatus={assetStatus}
-      dynamicMode={dynamicMode}
-      anchorKey={c.anchor_key}
-      listToFlow={c.motion?.preset === "list-to-flow"}
-      bleed={fullBleed}
-    />
+    <MeasuredSlot fallback={aspect}>
+      {(measured) => (
+        <VisualBlock
+          model={model}
+          visual={visual}
+          theme={theme}
+          type={type}
+          displayFont={displayFont}
+          aspect={measured}
+          ctrl={ctrl}
+          noAnimate={noAnimate}
+          staticEffects={staticEffects}
+          imageUrl={imageUrl}
+          assetStatus={assetStatus}
+          dynamicMode={dynamicMode}
+          anchorKey={c.anchor_key}
+          listToFlow={c.motion?.preset === "list-to-flow"}
+          bleed={fullBleed}
+        />
+      )}
+    </MeasuredSlot>
   ) : null;
 
   const framed = (node: ReactNode, withFrame = true) => (
