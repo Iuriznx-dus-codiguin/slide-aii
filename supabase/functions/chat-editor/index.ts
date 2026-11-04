@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
       presentation_id,
       history,
       usage,
+      active_index,
     } = parsedBody ?? {};
     if (!instruction || !Array.isArray(slides)) {
       return new Response(JSON.stringify({ error: "Faltam campos: slides[] e instruction" }), {
@@ -173,6 +174,9 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Slide aberto no editor: alvo padrão de pedidos sem número ("troque a imagem").
+    const activeIndex = Number.isInteger(active_index) && active_index >= 0 && active_index < slides.length ? Number(active_index) : null;
 
     // Contadores informados pelo cliente: só servem para ser MAIS restritivo
     // (o valor que vale é o do banco — ver cota abaixo).
@@ -303,7 +307,7 @@ Deno.serve(async (req) => {
     const keys = { openaiKey: OPENAI_API_KEY ?? undefined, lovableKey: LOVABLE_API_KEY ?? undefined, useOpenAI };
 
     // ── Fase 1: intenção + escopo ──
-    const plan = await classifyEditIntent(safeInstruction, summarizeDeck(slides), safeHistory, keys, slides.length);
+    const plan = await classifyEditIntent(safeInstruction, summarizeDeck(slides), safeHistory, keys, slides.length, activeIndex);
 
     // A cota de "edições complexas" é cobrada ANTES de gastar a chamada cara:
     // se este comando é complexo e já estouraria o teto, recusamos agora.
@@ -325,6 +329,7 @@ Deno.serve(async (req) => {
       dynamicTheme: theme,
       creativeBrief,
       presentation,
+      activeIndex,
     });
 
     // Nenhum slide identificado no pedido: pergunta antes de gastar a chamada
@@ -374,7 +379,8 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       ],
       tools: EDIT_TOOL,
       tool_choice: { type: "function", function: { name: "apply_slide_edits" } },
-      max_completion_tokens: 16384,
+      // Patches só dos campos que mudam: o teto acompanha o escopo.
+      max_completion_tokens: Math.min(12000, 1500 + 700 * targets.length),
     };
 
     let aiResponse = await fetch(endpoint, {
@@ -420,6 +426,7 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
     // ── Fase 3: patch aplicado no servidor sobre o deck original ──
     const applied = applyEdits(slides, parsed.edits ?? [], targets);
     const changed = applied.changed;
+    const deleted = applied.deleted;
     // Mudança de cores também é alteração (antes contava como "nada mudou").
     const themeChanged = !!parsed.dynamic_theme && typeof parsed.dynamic_theme === "object"
       && Object.keys(parsed.dynamic_theme).length > 0;
@@ -434,7 +441,7 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       brief: creativeBrief,
     });
 
-    const nothingChanged = changed.length === 0 && !themeChanged;
+    const nothingChanged = changed.length === 0 && deleted.length === 0 && !themeChanged;
     if (atomicQuota) {
       // Nada mudou: a mensagem não conta.
       if (nothingChanged) await release();
@@ -464,6 +471,8 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
         : String(parsed.assistant_message ?? plan.summary).slice(0, 600),
       plan: { intent: plan.intent, scope: plan.scope, indices: targets, complex: plan.complex, source: plan.source },
       changed_slides: changed,
+      // Slides excluídos a pedido (índices do deck enviado).
+      deleted_slides: deleted,
       usage: usageOf(usedMessages, usedComplex),
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
