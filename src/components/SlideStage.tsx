@@ -14,7 +14,7 @@
 // essa lógica aqui garante que as 3 telas mostrem exatamente a mesma coisa —
 // e que uma futura mudança no motor de transição não precise ser replicada
 // em 3 lugares (que é exatamente como o bug anterior aconteceu).
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { SlideRenderer, type SlideData } from "@/components/SlideRenderer";
 import { ChoreographyProvider, useSlideChoreography, type ChoreographyName, type AnimationIntent } from "@/lib/slideChoreography";
@@ -81,6 +81,26 @@ export const SlideStage = ({
   const key = slideId ?? idx;
   const overlayKey = `${key}-${slideTransition}`;
 
+  // Overlay da transição só DURANTE a troca: antes ficava montado para sempre
+  // (o mosaico deixava 40 camadas na tela) e tocava também ao abrir a página.
+  const hasOverlay = !!Overlay;
+  const overlayMs = Math.ceil((cfg.duration ?? 1) * 1000) + 120;
+  const lastKey = useRef(key);
+  const [overlayOn, setOverlayOn] = useState(false);
+  useEffect(() => {
+    // Primeira montagem (e re-renderizações sem troca de slide): nada a tocar.
+    if (lastKey.current === key) return;
+    lastKey.current = key;
+    if (!hasOverlay) { setOverlayOn(false); return; }
+    setOverlayOn(true);
+    const t = setTimeout(() => setOverlayOn(false), overlayMs);
+    return () => clearTimeout(t);
+  }, [key, hasOverlay, overlayMs]);
+
+  // 3D (perspective/preserve-3d) só nas transições que giram o slide: no resto
+  // é uma camada de composição a mais sem ganho visual.
+  const uses3d = /rotate[XY]/.test(JSON.stringify([cfg.enter.initial, cfg.exit.exit]));
+
   return (
     <LayoutGroup id={`stage-${layoutGroupId}`}>
       <AnimatePresence mode={cfg.mode ?? "sync"} initial={false}>
@@ -91,19 +111,21 @@ export const SlideStage = ({
           exit={cfg.exit.exit}
           transition={cfg.enter.transition}
           className="absolute inset-0"
-          style={{ willChange: "opacity, transform, filter, clip-path", perspective: 1600, transformStyle: "preserve-3d" }}
+          // will-change só do que toda transição anima (filter e clip-path
+          // reservavam memória de GPU extra em todos os slides).
+          style={uses3d ? { willChange: "opacity, transform", perspective: 1600, transformStyle: "preserve-3d" } : { willChange: "opacity, transform" }}
         >
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0.35, 0], transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } }}
-            exit={{ opacity: 0 }}
-            style={{
-              background: `radial-gradient(circle at 50% 50%, ${accent}33 0%, transparent 65%)`,
-              mixBlendMode: "screen",
-            }}
-          />
+          {!prefersReducedMotion && (
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10"
+              initial={{ opacity: 0 }}
+              // Brilho de entrada que sai da árvore de pintura ao terminar.
+              animate={{ opacity: [0.35, 0], transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] }, transitionEnd: { display: "none" } }}
+              exit={{ opacity: 0 }}
+              style={{ background: `radial-gradient(circle at 50% 50%, ${accent}33 0%, transparent 65%)` }}
+            />
+          )}
           <ChoreographyProvider value={choreo}>
             {slide && (
               <SlideRenderer
@@ -113,14 +135,17 @@ export const SlideStage = ({
                 dynamicTheme={dynamicTheme}
                 index={idx}
                 dynamicMode={dynamicMode}
-                enableVideo={enableVideo}
+                // Menos movimento pedido pelo sistema: o slide já entra no
+                // quadro final (sem cascatas, contagens nem loops ambientes).
+                noAnimate={prefersReducedMotion}
+                enableVideo={enableVideo && !prefersReducedMotion}
                 creativeBrief={creativeBrief}
               />
             )}
           </ChoreographyProvider>
         </motion.div>
       </AnimatePresence>
-      {Overlay && (
+      {Overlay && overlayOn && !prefersReducedMotion && (
         <motion.div
           key={overlayKey}
           initial={{ opacity: 1 }}

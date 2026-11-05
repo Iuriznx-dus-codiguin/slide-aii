@@ -84,10 +84,15 @@ export const CinematicHUD = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: hidden ? 0 : 1, y: hidden ? 20 : 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      // Só opacidade/posição: o blur animado no elemento fixo era recalculado
+      // sobre o slide em movimento a cada quadro.
       className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
-      style={{ filter: hidden ? "blur(8px)" : "blur(0px)" }}
+      aria-hidden={hidden || undefined}
     >
-      <div className="pointer-events-auto flex items-center gap-4 rounded-full bg-black/50 backdrop-blur-xl px-5 py-3 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+      <nav
+        aria-label="Navegação dos slides"
+        className={`${hidden ? "pointer-events-none" : "pointer-events-auto"} flex items-center gap-4 rounded-full bg-black/70 backdrop-blur-md px-5 py-3 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]`}
+      >
         {/* Anel rotativo + número */}
         <div className="relative h-10 w-10 flex items-center justify-center">
           <svg className="absolute inset-0 -rotate-90" viewBox="0 0 40 40">
@@ -128,9 +133,12 @@ export const CinematicHUD = ({
             return (
               <button
                 key={d.idx}
+                type="button"
                 onClick={() => onJump(d.idx)}
-                aria-label={`Ir para slide ${d.idx + 1}`}
-                className="group relative flex items-center justify-center"
+                aria-label={`Ir para o slide ${d.idx + 1}${ACT_LABEL[d.act] ? ` (${ACT_LABEL[d.act]})` : ""}`}
+                aria-current={isActive ? "step" : undefined}
+                tabIndex={hidden ? -1 : 0}
+                className="group relative flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 style={{ width: 18, height: 18 }}
               >
                 <motion.span
@@ -149,7 +157,8 @@ export const CinematicHUD = ({
                   }}
                 />
                 {/* Tooltip pequeno */}
-                <span className="absolute -top-7 left-1/2 -translate-x-1/2 text-[9px] font-medium uppercase tracking-wider text-white/0 group-hover:text-white/80 transition-opacity whitespace-nowrap pointer-events-none bg-black/60 backdrop-blur px-1.5 py-0.5 rounded">
+                {/* Antes só o TEXTO sumia: o fundo preto ficava visível sobre cada ponto. */}
+                <span aria-hidden className="absolute -top-7 left-1/2 -translate-x-1/2 text-[9px] font-medium uppercase tracking-wider text-white/85 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-black/70 px-1.5 py-0.5 rounded">
                   {d.idx + 1}
                 </span>
               </button>
@@ -180,7 +189,7 @@ export const CinematicHUD = ({
             </motion.span>
           </AnimatePresence>
         </div>
-      </div>
+      </nav>
     </motion.div>
   );
 };

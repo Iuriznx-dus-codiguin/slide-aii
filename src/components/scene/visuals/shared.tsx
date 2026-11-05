@@ -53,13 +53,15 @@ interface NodeCardProps {
   trackId?: string;
   /** Anima mudança de posição (lista → diagrama). */
   layout?: boolean;
+  /** Cor do rótulo (ex.: a data de um evento na linha do tempo). */
+  labelColor?: string;
   children?: ReactNode;
   style?: CSSProperties;
 }
 
 export const NodeCard = ({
   box, geo, item, index, ctrl, theme, type, displayFont, number, tone = "surface", align = "left",
-  showDetail = true, trackId, layout = false, children, style,
+  showDetail = true, trackId, layout = false, labelColor, children, style,
 }: NodeCardProps) => {
   const Icon = sceneIcon(item.icon);
   const mp = track(ctrl, trackId ?? `node-${index}`);
@@ -107,7 +109,7 @@ export const NodeCard = ({
           {Icon && <Icon style={{ width: "1.7cqw", height: "1.7cqw", color: tone === "accent" ? theme.bg : theme.accent }} strokeWidth={1.8} />}
         </div>
       )}
-      <div className="font-semibold leading-tight" style={{ fontSize: type.itemLabel, fontFamily: displayFont }}>{item.label}</div>
+      <div className="font-semibold leading-tight" style={{ fontSize: type.itemLabel, fontFamily: displayFont, ...(labelColor ? { color: labelColor } : {}) }}>{item.label}</div>
       {value && <div className="font-bold tabular-nums leading-none" style={{ fontSize: type.itemLabel, color: tone === "accent" ? theme.bg : theme.accent }}>{value}</div>}
       {showDetail && item.detail && (
         <div

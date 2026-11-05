@@ -42,6 +42,9 @@ import { SceneSlide } from "@/components/scene/SceneSlide";
 import { SceneBackground } from "@/components/scene/SceneBackground";
 import { isSceneContent, type SceneContentFields } from "../../supabase/functions/_shared/sceneMedia.ts";
 import { INTENT_FOR_MOTION, LEGACY_PRESET_FOR_MOTION, type MotionSpec } from "../../supabase/functions/_shared/motionPresets.ts";
+import {
+  chartHighlight, chartSummary, formatChartValue, sanitizeChart, type ChartSpec,
+} from "../../supabase/functions/_shared/chartSpec.ts";
 
 /** Espelha o enum image_style da tool create_presentation (generate-presentation). */
 export type ImageStyle =
@@ -76,7 +79,8 @@ export interface SlideContent {
   cover_variant?: CoverVariant;
   /** IA: elementos visuais decorativos sugeridos. */
   visual_accents?: VisualAccent[];
-  chart?: { type: string; labels: string[]; values: number[]; title?: string };
+  /** Gráfico (tipos e saneamento em _shared/chartSpec.ts). */
+  chart?: { type: string; labels: string[]; values: number[]; title?: string; unit?: string; source?: string };
   /** Dica de transição de slide inteiro (dynamic, fade, slide, ...). Consumida pelo SlideStage. */
   transition?: import("@/lib/slideTransitions").SlideTransition;
   /** Dica de coreografia per-element. Consumida pelo SlideStage. */
@@ -175,7 +179,7 @@ const AnimatedStat = ({ value, color, enabled }: { value: string; color: string;
   return (
     <span style={{ color }}>
       {parsed.prefix}
-      {formatAnimatedNumber(animated, parsed.num)}
+      {formatAnimatedNumber(animated, parsed.num, parsed.decimalSep)}
       {parsed.suffix}
     </span>
   );
@@ -239,8 +243,31 @@ const StatSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuer
   );
 };
 
-interface ChartSlideProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; displayFont: string; dynamicMode?: boolean; }
-const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayFont, dynamicMode }: ChartSlideProps) => {
+/** Número em destaque do gráfico (série: último + variação; ranking: maior; pizza: maior fatia). */
+const ChartKpi = ({ chart, theme, displayFont, enabled }: { chart: ChartSpec; theme: ThemeColors; displayFont: string; enabled: boolean }) => {
+  const h = chartHighlight(chart);
+  const animated = useAnimatedNumber(h?.share ?? h?.value ?? 0, 1400, enabled && !!h);
+  if (!h) return null;
+  const shown = h.share !== undefined
+    ? `${formatChartValue(enabled ? animated : h.share, "%")}`
+    : formatChartValue(enabled ? animated : h.value, chart.unit);
+  return (
+    <div className="flex items-end gap-3 px-2 pt-1" aria-hidden>
+      <span className="text-[2.6vw] font-black leading-none tabular-nums" style={{ color: theme.accent, fontFamily: displayFont }}>{shown}</span>
+      <span className="text-[1vw] opacity-75 pb-[0.2vw]">
+        {h.label}
+        {h.delta !== undefined && (
+          <span className="ml-2 font-semibold" style={{ color: h.delta >= 0 ? theme.accent : theme.text }}>
+            {h.delta >= 0 ? "▲" : "▼"} {Math.abs(h.delta).toFixed(0)}%
+          </span>
+        )}
+      </span>
+    </div>
+  );
+};
+
+interface ChartSlideProps { c: SlideContent; chart: ChartSpec; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; renderChart: () => React.ReactNode; displayFont: string; dynamicMode?: boolean; }
+const ChartSlide = ({ c, chart, theme, containerStyle, noAnimate, renderChart, displayFont, dynamicMode }: ChartSlideProps) => {
   const tl = useMemo(
     () => applyIntent(buildChartScenario(c.bullets?.length ?? 0), c.animation_intent ?? "data-reveal"),
     [c.bullets?.length, c.animation_intent]
@@ -266,18 +293,22 @@ const ChartSlide = ({ c, theme, containerStyle, noAnimate, renderChart, displayF
       </div>
       <div className="grid grid-cols-12 gap-[3%] flex-1 mt-6 relative z-10">
         <div className="col-span-7 min-h-0">
-          <motion.div
+          <motion.figure
             {...ctrl.motionProps("chart")}
             exit={choreo.exitFor("chart")}
-            className="h-full rounded-2xl p-3"
+            className="h-full rounded-2xl p-3 flex flex-col m-0"
+            role="img"
+            aria-label={chartSummary(chart)}
             style={{
-              background: `linear-gradient(135deg, ${theme.bg}99 0%, ${theme.accent}10 100%)`,
-              backdropFilter: "blur(8px)",
+              // Preenchimento translúcido sólido (sem backdrop-filter: mais leve e igual no export).
+              background: `linear-gradient(135deg, ${theme.bg}cc 0%, ${theme.accent}12 100%)`,
               border: `1px solid ${theme.accent}20`,
             }}
           >
-            {renderChart()}
-          </motion.div>
+            <ChartKpi chart={chart} theme={theme} displayFont={displayFont} enabled={!noAnimate} />
+            <div className="flex-1 min-h-0">{renderChart()}</div>
+            {chart.source && <figcaption className="px-2 pt-1 text-[0.85vw] opacity-60">Fonte: {chart.source}</figcaption>}
+          </motion.figure>
         </div>
         <div className="col-span-5 flex flex-col justify-center">
           {c.body_text && <p className="text-[1.25vw] leading-relaxed opacity-90 mb-5">{c.body_text}</p>}
@@ -402,8 +433,8 @@ const DefaultSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQ
 };
 
 /* ---------- Two Columns Slide (Bloco 2) ---------- */
-interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; dynamicMode?: boolean; enableVideo?: boolean; noBackdrop?: boolean; }
-const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart, dynamicMode, enableVideo, noBackdrop }: TwoColProps) => {
+interface TwoColProps { c: SlideContent; theme: ThemeColors; containerStyle: React.CSSProperties; noAnimate: boolean; displayFont: string; videoQuery: string | null; renderChart: () => React.ReactNode; dynamicMode?: boolean; enableVideo?: boolean; noBackdrop?: boolean; hasChart?: boolean; }
+const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, videoQuery, renderChart, dynamicMode, enableVideo, noBackdrop, hasChart: hasChartProp }: TwoColProps) => {
   const bullets = c.bullets ?? [];
   const leftBullets = bullets.slice(0, 3);
   const rightBullets = bullets.slice(3);
@@ -415,7 +446,7 @@ const TwoColumnsSlide = ({ c, theme, containerStyle, noAnimate, displayFont, vid
   const choreo = useChoreo();
   const titleActive = !!dynamicMode && !noAnimate;
   const hasStat = !!(c.stat_value && c.stat_label);
-  const hasChart = !!c.chart;
+  const hasChart = hasChartProp ?? !!c.chart;
   return (
     <div className="w-full h-full grid grid-cols-12 gap-[3%] p-[5%] relative overflow-hidden" style={containerStyle}>
       {!noBackdrop && <AmbientBackdrop theme={theme} videoQuery={videoQuery} noVideo={noAnimate} enableVideo={enableVideo} glassOpacity={0.35} orbCount={2} />}
@@ -640,45 +671,72 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, index = 0,
 
   const COLORS = [theme.accent, theme.accent2 || "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4"];
 
-  const chartData = c.chart ? c.chart.labels.map((l, i) => ({ name: l, value: c.chart!.values[i] ?? 0 })) : [];
+  // Gráfico saneado na leitura: decks antigos (tipo desconhecido, listas de
+  // tamanhos diferentes, valores em texto) também desenham sem quebrar.
+  const chartKey = c.chart ? JSON.stringify(c.chart) : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const chart = useMemo(() => sanitizeChart(c.chart), [chartKey]);
+  const chartData = chart ? chart.labels.map((l, i) => ({ name: l, value: chart.values[i] ?? 0 })) : [];
 
   const renderChart = () => {
-    if (!c.chart) return null;
-    const t = c.chart.type;
+    if (!chart) return null;
+    const t = chart.type;
     const gridColor = hexToRgba(theme.text, 0.1);
     const tickStyle = { fill: theme.text, fontSize: 14, opacity: 0.7 };
     const animationDuration = noAnimate ? 0 : 1400;
+    const fmt = (v: number) => formatChartValue(Number(v), chart.unit);
+    const tooltip = (
+      <Tooltip
+        formatter={(v: number) => fmt(v)}
+        cursor={{ fill: hexToRgba(theme.accent, 0.1) }}
+        contentStyle={{ background: theme.bg, border: `1px solid ${hexToRgba(theme.text, 0.2)}`, borderRadius: 12, color: theme.text }}
+      />
+    );
+    // Rótulo mais longo decide a largura do eixo do ranking (sem cortar o texto).
+    const longest = chartData.reduce((m, d) => Math.max(m, d.name.length), 0);
     return (
       <ResponsiveContainer width="100%" height="100%">
         {t === "bar" ? (
           <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 10, left: -10 }}>
             <CartesianGrid stroke={gridColor} vertical={false} />
             <XAxis dataKey="name" stroke={theme.text} tick={tickStyle} />
-            <YAxis stroke={theme.text} tick={tickStyle} />
-            <Tooltip cursor={{ fill: hexToRgba(theme.accent, 0.1) }} contentStyle={{ background: theme.bg, border: `1px solid ${hexToRgba(theme.text, 0.2)}`, borderRadius: 12, color: theme.text }} />
+            <YAxis stroke={theme.text} tick={tickStyle} tickFormatter={fmt} />
+            {tooltip}
             <Bar dataKey="value" fill={theme.accent} radius={[10, 10, 0, 0]} animationDuration={animationDuration} animationEasing="ease-out" />
+          </BarChart>
+        ) : t === "horizontal-bar" ? (
+          <BarChart data={chartData} layout="vertical" margin={{ top: 6, right: 24, bottom: 6, left: 6 }}>
+            <CartesianGrid stroke={gridColor} horizontal={false} />
+            <XAxis type="number" stroke={theme.text} tick={tickStyle} tickFormatter={fmt} />
+            <YAxis type="category" dataKey="name" stroke={theme.text} tick={tickStyle} width={Math.min(220, 24 + longest * 8)} />
+            {tooltip}
+            <Bar dataKey="value" radius={[0, 10, 10, 0]} animationDuration={animationDuration} animationEasing="ease-out">
+              {chartData.map((d, i) => (
+                <Cell key={i} fill={d.value === Math.max(...chart.values) ? theme.accent : hexToRgba(theme.accent, 0.5)} />
+              ))}
+            </Bar>
           </BarChart>
         ) : t === "line" ? (
           <LineChart data={chartData} margin={{ top: 10, right: 10, bottom: 10, left: -10 }}>
             <CartesianGrid stroke={gridColor} vertical={false} />
             <XAxis dataKey="name" stroke={theme.text} tick={tickStyle} />
-            <YAxis stroke={theme.text} tick={tickStyle} />
-            <Tooltip contentStyle={{ background: theme.bg, border: `1px solid ${hexToRgba(theme.text, 0.2)}`, borderRadius: 12, color: theme.text }} />
+            <YAxis stroke={theme.text} tick={tickStyle} tickFormatter={fmt} />
+            {tooltip}
             <Line type="monotone" dataKey="value" stroke={theme.accent} strokeWidth={3} dot={{ fill: theme.accent, r: 5 }} animationDuration={animationDuration} />
           </LineChart>
         ) : t === "area" ? (
           <AreaChart data={chartData} margin={{ top: 10, right: 10, bottom: 10, left: -10 }}>
             <defs>
-              <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={`areaFill-${index}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={theme.accent} stopOpacity={0.6} />
                 <stop offset="100%" stopColor={theme.accent} stopOpacity={0.05} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke={gridColor} vertical={false} />
             <XAxis dataKey="name" stroke={theme.text} tick={tickStyle} />
-            <YAxis stroke={theme.text} tick={tickStyle} />
-            <Tooltip contentStyle={{ background: theme.bg, border: `1px solid ${hexToRgba(theme.text, 0.2)}`, borderRadius: 12, color: theme.text }} />
-            <Area type="monotone" dataKey="value" stroke={theme.accent} fill="url(#areaFill)" strokeWidth={3} animationDuration={animationDuration} />
+            <YAxis stroke={theme.text} tick={tickStyle} tickFormatter={fmt} />
+            {tooltip}
+            <Area type="monotone" dataKey="value" stroke={theme.accent} fill={`url(#areaFill-${index})`} strokeWidth={3} animationDuration={animationDuration} />
           </AreaChart>
         ) : (
           <PieChart>
@@ -686,7 +744,7 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, index = 0,
               {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke={theme.bg} strokeWidth={3} />)}
             </Pie>
             <Legend wrapperStyle={{ color: theme.text, fontSize: 14 }} />
-            <Tooltip contentStyle={{ background: theme.bg, border: `1px solid ${hexToRgba(theme.text, 0.2)}`, borderRadius: 12, color: theme.text }} />
+            {tooltip}
           </PieChart>
         )}
       </ResponsiveContainer>
@@ -699,7 +757,7 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, index = 0,
   const isQuote = slide.slide_type === "quote" || layout === "quote";
   const isChart =
     slide.slide_type === "data_chart" || layout === "data-chart" ||
-    (!!c.chart && layout !== "image-right" && layout !== "image-left");
+    (!!chart && layout !== "image-right" && layout !== "image-left");
   const isStat = layout === "stat-highlight" && c.stat_value;
   const isCentered = layout === "centered" || slide.slide_type === "section_divider";
   const hasImage = !!c.image_url && (layout === "image-right" || layout === "image-left" || layout === "full-image");
@@ -719,7 +777,7 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, index = 0,
   // — style inline tem precedência sobre a classe Tailwind, então nenhuma
   // dessas 7 JSX precisou ser tocada para a substituição ter efeito.
   const compositionSpec = computeCompositionSpec(
-    { headline: c.headline, subtitle: c.subtitle, bodyText: c.body_text, bullets: c.bullets, hasChart: !!c.chart },
+    { headline: c.headline, subtitle: c.subtitle, bodyText: c.body_text, bullets: c.bullets, hasChart: !!chart },
     creativeBrief,
   );
   containerStyle.padding = compositionSpec.padding;
@@ -819,13 +877,13 @@ export const SlideRenderer = ({ slide, themeId, fontId, dynamicTheme, index = 0,
   }
 
   /* ---------- DATA CHART ---------- */
-  if (isChart && c.chart) {
-    return withSceneBg(<ChartSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} dynamicMode={dynamicMode} />);
+  if (isChart && chart) {
+    return withSceneBg(<ChartSlide c={c} chart={chart} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} renderChart={renderChart} displayFont={displayFont} dynamicMode={dynamicMode} />);
   }
 
   /* ---------- TWO COLUMNS (Bloco 2) ---------- */
   if (layout === "two-columns") {
-    return withSceneBg(<TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} dynamicMode={dynamicMode} enableVideo={enableVideo} noBackdrop={scene} />);
+    return withSceneBg(<TwoColumnsSlide c={c} theme={theme} containerStyle={containerStyle} noAnimate={noAnimate} displayFont={displayFont} videoQuery={videoQuery} renderChart={renderChart} dynamicMode={dynamicMode} enableVideo={enableVideo} noBackdrop={scene} hasChart={!!chart} />);
   }
 
   /* ---------- DEFAULT ---------- */

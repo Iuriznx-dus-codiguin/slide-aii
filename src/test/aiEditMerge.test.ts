@@ -40,3 +40,30 @@ describe("mergeAiEdits — resposta do chat de edição sobre o deck atual", () 
     expect(mergeAiEdits(current, ["a"], [{ headline: "X" }], [])).toEqual(current);
   });
 });
+
+describe("mergeAiEdits — remoções e exclusões pelo chat", () => {
+  it("null explícito apaga (imagem, subtítulo, nota); ausente mantém", () => {
+    const current = [slide("a", "A", { speaker_notes: "nota", content: { headline: "A", subtitle: "Sub", image_url: "https://x/old.jpg", image_query: "q", visual_accents: ["dot-grid"] } })];
+    const returned = [{ headline: "A", subtitle: null, image_url: null, image_query: null, asset: null, speaker_notes: null } as never];
+    const out = mergeAiEdits(current, ["a"], returned, [0]);
+    expect(out[0].content.image_url).toBeNull();
+    expect(out[0].content).not.toHaveProperty("subtitle");
+    expect(out[0].content).not.toHaveProperty("image_query");
+    expect(out[0].content.visual_accents).toEqual(["dot-grid"]);
+    expect(out[0].speaker_notes).toBeNull();
+  });
+
+  it("ativo pendente da troca de imagem chega ao conteúdo", () => {
+    const current = [slide("a", "A", { content: { headline: "A", image_url: "https://x/old.jpg" } })];
+    const asset = { status: "pending", source: "pexels", kind: "photo", aspect: "16:9", query: "castle" };
+    const out = mergeAiEdits(current, ["a"], [{ headline: "A", image_url: null, asset } as never], [0]);
+    expect(out[0].content.image_url).toBeNull();
+    expect(out[0].content.asset).toEqual(asset);
+  });
+
+  it("exclui pelo id os slides que o usuário pediu, nunca todos", () => {
+    const current = [slide("a", "A"), slide("b", "B"), slide("c", "C")];
+    expect(mergeAiEdits(current, ["a", "b", "c"], [], [], [1]).map((s) => s.id)).toEqual(["a", "c"]);
+    expect(mergeAiEdits(current, ["a", "b", "c"], [], [], [0, 1, 2]).map((s) => s.id)).toEqual(["a", "b", "c"]);
+  });
+});

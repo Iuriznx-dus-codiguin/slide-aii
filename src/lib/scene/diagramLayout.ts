@@ -180,7 +180,10 @@ export function layoutTimeline(n: number, aspect: number): DiagramGeometry {
   const margin = 40;
   const axisY = H / 2;
   const step = (W - 2 * margin) / count;
-  const nodeW = Math.min(step - 16, 260);
+  // Eventos vizinhos ficam em lados opostos do eixo: cada cartão pode ocupar
+  // quase dois passos sem encostar no próximo do mesmo lado. Antes o cartão
+  // tinha UM passo (≈115 de 1000 com 7 eventos) e o texto ficava espremido.
+  const nodeW = Math.min(count > 1 ? step * 1.8 - 16 : W - 2 * margin, 300);
   const nodeH = Math.min(axisY - 36, 170);
   const nodes: Box[] = [];
   const shapes: DiagramGeometry["shapes"] = [{ d: line({ x: margin / 2, y: axisY }, { x: W - margin / 2, y: axisY }), kind: "axis" }];
@@ -188,7 +191,9 @@ export function layoutTimeline(n: number, aspect: number): DiagramGeometry {
     const x = margin + step * (i + 0.5);
     const above = i % 2 === 0;
     const y = above ? axisY - 24 - nodeH : axisY + 24;
-    nodes.push({ x: r1(x - nodeW / 2), y: r1(y), w: r1(nodeW), h: r1(nodeH) });
+    // Cartões das pontas não saem do slot (o pino continua sobre o cartão).
+    const left = Math.max(4, Math.min(W - 4 - nodeW, x - nodeW / 2));
+    nodes.push({ x: r1(left), y: r1(y), w: r1(nodeW), h: r1(nodeH) });
     shapes.push({ d: line({ x, y: axisY - 10 }, { x, y: axisY + 10 }), kind: "tick", index: i });
     shapes.push({ d: line({ x, y: above ? axisY - 12 : axisY + 12 }, { x, y: above ? y + nodeH : y }), kind: "stem", index: i });
   }

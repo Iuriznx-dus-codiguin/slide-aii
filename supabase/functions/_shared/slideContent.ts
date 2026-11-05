@@ -13,8 +13,13 @@
 
 type Json = Record<string, unknown>;
 
-const keep = <T,>(next: T | undefined | null, before: T | undefined | null): T | undefined =>
-  (next ?? before ?? undefined) as T | undefined;
+/**
+ * Campo ausente (undefined) mantém o valor anterior; `null` explícito APAGA.
+ * Antes os dois eram iguais (`next ?? before`): "remova a imagem" pelo chat
+ * chegava como image_url null e a URL antiga voltava no merge.
+ */
+const keep = <T,>(next: T | undefined | null, before: T | undefined | null): T | null | undefined =>
+  (next === null ? null : next ?? before ?? undefined) as T | null | undefined;
 
 export function aiSlideToContentCore(ai: Json, previous?: Json | null): Json {
   const prev = previous ?? {};
@@ -48,8 +53,12 @@ export function aiSlideToContentCore(ai: Json, previous?: Json | null): Json {
   // com exatamente as mesmas chaves de antes).
   for (const k of ["engine_version", "visual", "background", "motion", "anchor_key", "asset"] as const) {
     const v = keep(ai[k], prev[k]);
-    if (v !== undefined) out[k] = v;
+    if (v !== undefined && v !== null) out[k] = v;
     else delete out[k];
+  }
+  // Campo removido (null) não fica no jsonb; image_url continua explícito.
+  for (const k of Object.keys(out)) {
+    if (k !== "image_url" && (out[k] === null || out[k] === undefined)) delete out[k];
   }
   return out;
 }

@@ -59,7 +59,7 @@ export const MorphingNumberToBar = ({
   const d = useMorphPath(fromPath, toPath, noAnimate ? 1 : progress);
 
   const formatVal = (v: number) =>
-    parsed ? `${parsed.prefix}${formatAnimatedNumber(v, numTarget)}${parsed.suffix}` : value;
+    parsed ? `${parsed.prefix}${formatAnimatedNumber(v, numTarget, parsed.decimalSep)}${parsed.suffix}` : value;
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">

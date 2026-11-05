@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import heroImg from "@/assets/hero-slides.jpg";
-import { maximumProDiscountPct } from "@/lib/planDiscounts";
 
 export const Hero = () => {
   const reducedMotion = usePrefersReducedMotion();
@@ -25,10 +24,6 @@ export const Hero = () => {
             <Sparkles className="h-3.5 w-3.5" />
             Powered By GPT-6 Astra
           </motion.div>
-
-          <a href="#pricing" className="mb-5 flex items-center justify-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">
-            <Zap className="h-4 w-4" /> Descontos de até {maximumProDiscountPct()}%
-          </a>
 
           <motion.h1
             initial={reducedMotion ? false : { opacity: 0, y: 24 }}

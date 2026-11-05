@@ -130,27 +130,32 @@ export const ComparisonDiagram = (p: VisualProps) => {
         const before = variant === "before-after" && i === 0;
         // Painéis NÃO idênticos: cada lado com sua cor; "antes" esmaecido.
         const color = i === 0 ? theme.accent : theme.accent2 || mix(theme.accent, theme.text, 0.35);
+        // O cartão tem a altura do conteúdo, centrado na coluna: antes esticava
+        // até o slot inteiro e o texto curto ficava num cartão quase vazio.
         return (
-          <motion.div
-            key={i}
-            {...track(ctrl, `node-${i}`)}
-            className="absolute flex flex-col"
-            style={{
-              ...boxToPercent(geo.nodes[i], geo),
-              padding: "1.4cqw",
-              borderRadius: "1.1cqw",
-              gap: "0.7cqw",
-              background: after ? rgba(color, 0.14) : rgba(theme.text, before ? 0.03 : 0.05),
-              border: `1px solid ${rgba(color, after ? 0.6 : 0.28)}`,
-              opacity: before ? 0.82 : 1,
-            }}
-          >
-            <div className="h-[0.35cqw] w-[4cqw] rounded-full" style={{ background: color }} />
-            {Icon && <Icon style={{ width: "2.2cqw", height: "2.2cqw", color }} strokeWidth={1.6} />}
-            <div className="font-bold leading-tight" style={{ fontSize: `calc(${type.itemLabel} * 1.35)`, fontFamily: displayFont }}>{item.label}</div>
-            {typeof item.value === "number" && <div className="font-black tabular-nums" style={{ fontSize: type.value, color }}>{formatValue(item.value, item.unit)}</div>}
-            {item.detail && <div className="leading-snug" style={{ fontSize: `calc(${type.itemDetail} * 1.12)`, opacity: 0.8 }}>{item.detail}</div>}
-          </motion.div>
+          <div key={i} className="absolute flex items-center" style={boxToPercent(geo.nodes[i], geo)}>
+            <motion.div
+              {...track(ctrl, `node-${i}`)}
+              className="w-full flex flex-col overflow-hidden"
+              style={{
+                maxHeight: "100%",
+                minHeight: "55%",
+                padding: "1.6cqw",
+                borderRadius: "1.1cqw",
+                gap: "0.8cqw",
+                justifyContent: "center",
+                background: after ? rgba(color, 0.14) : rgba(theme.text, before ? 0.03 : 0.05),
+                border: `1px solid ${rgba(color, after ? 0.6 : 0.28)}`,
+                opacity: before ? 0.82 : 1,
+              }}
+            >
+              <div className="h-[0.35cqw] w-[4cqw] rounded-full shrink-0" style={{ background: color }} />
+              {Icon && <Icon style={{ width: "2.4cqw", height: "2.4cqw", color, flexShrink: 0 }} strokeWidth={1.6} />}
+              <div className="font-bold leading-tight" style={{ fontSize: `calc(${type.itemLabel} * 1.4)`, fontFamily: displayFont }}>{item.label}</div>
+              {typeof item.value === "number" && <div className="font-black tabular-nums" style={{ fontSize: type.value, color }}>{formatValue(item.value, item.unit)}</div>}
+              {item.detail && <div className="leading-snug" style={{ fontSize: `calc(${type.itemDetail} * 1.25)`, opacity: 0.85 }}>{item.detail}</div>}
+            </motion.div>
+          </div>
         );
       })}
       {sides.length === 2 && (
