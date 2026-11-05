@@ -101,28 +101,6 @@ export const Burst = ({
   );
 };
 
-// Rotating light rays.
-export const Rays = ({ x, y, size = 2200, opacity = 0.35, color = "hsl(262 100% 75%)" }: { x: number; y: number; size?: number; opacity?: number; color?: string }) => {
-  const frame = useCurrentFrame();
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: x - size / 2,
-        top: y - size / 2,
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: `repeating-conic-gradient(from ${frame * 0.6}deg, ${color} 0deg 4deg, transparent 4deg 18deg)`,
-        maskImage: "radial-gradient(circle, black 0%, transparent 62%)",
-        WebkitMaskImage: "radial-gradient(circle, black 0%, transparent 62%)",
-        opacity,
-        mixBlendMode: "screen",
-      }}
-    />
-  );
-};
-
 // Full-frame flash.
 export const Flash = ({ at, color = "#fff", dur = 10, peak = 1 }: { at: number; color?: string; dur?: number; peak?: number }) => {
   const frame = useCurrentFrame();

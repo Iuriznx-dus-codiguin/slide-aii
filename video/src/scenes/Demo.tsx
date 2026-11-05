@@ -8,7 +8,7 @@ import { Words } from "../mg/Text";
 import { EASE, FONT, L } from "../theme";
 import { MOMENTS } from "../timeline";
 
-// 11–15s, light world. Shot 1: the 8 generated slides drop onto an
+// 15.6–22.8 s, light world. Shot 1: the 8 generated slides drop onto an
 // isometric canvas while the camera drifts. Shot 2: one slide up close with
 // callouts that draw themselves to each thing the AI made.
 
@@ -18,7 +18,7 @@ const GAP = 56;
 
 const Plane = () => {
   const frame = useCurrentFrame();
-  const pan = tw(frame, [0, 60], [0, 1], EASE.outQuart);
+  const pan = tw(frame, [0, 108], [0, 1], EASE.outQuart);
   return (
     <AbsoluteFill style={{ perspective: 2200, perspectiveOrigin: "50% 40%" }}>
       <div
@@ -36,7 +36,7 @@ const Plane = () => {
           const col = i % 4;
           const row = Math.floor(i / 4);
           const at = MOMENTS.demoCards + i * MOMENTS.demoCardStagger;
-          const p = enter(frame, at, 16, EASE.outExpo);
+          const p = enter(frame, at, 22, EASE.outExpo);
           return (
             <div
               key={i}
@@ -69,15 +69,17 @@ const Shot1 = () => {
       <div style={{ position: "absolute", left: 140, bottom: 120 }}>
         <Words
           tokens={[{ t: "8", look: "gradientInk" }, { t: "slides", look: "gradientInk" }, "prontos."]}
-          at={14}
-          stagger={4}
+          at={26}
+          stagger={5}
+          dur={18}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 150, letterSpacing: -5, color: L.ink, lineHeight: 1 }}
         />
         <Words
           tokens={["Em", "cerca", "de", { t: "1", look: "marker" }, { t: "minuto.", look: "marker" }]}
-          at={24}
-          stagger={3}
+          at={42}
+          stagger={4}
+          dur={18}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 700, fontSize: 64, letterSpacing: -1.5, color: L.ink, marginTop: 10 }}
         />
@@ -92,9 +94,9 @@ const SIDE = { x: 1310, y: 540, w: 460 };
 
 const Shot2 = ({ at }: { at: number }) => {
   const frame = useCurrentFrame();
-  const main = enter(frame, at, 14, EASE.outExpo);
-  const side = enter(frame, at + 5, 14, EASE.outBack);
-  const chart = tw(frame, [at + 8, at + 40], [0, 1], EASE.outQuart);
+  const main = enter(frame, at, 22, EASE.outExpo);
+  const side = enter(frame, at + 8, 20, EASE.outBack);
+  const chart = tw(frame, [at + 10, at + 60], [0, 1], EASE.outQuart);
   const [c1, c2, c3, c4] = MOMENTS.demoCallouts;
   return (
     <AbsoluteFill>
@@ -103,7 +105,8 @@ const Shot2 = ({ at }: { at: number }) => {
         <Words
           tokens={["Roteiro,", "design,", "imagens", "e", { t: "gráficos.", look: "gradientInk" }]}
           at={at + 2}
-          stagger={3}
+          stagger={4}
+          dur={18}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 104, letterSpacing: -3.5, color: L.ink }}
         />
@@ -155,7 +158,7 @@ export const Demo = () => {
   return (
     <AbsoluteFill>
       {frame < shot2 ? <Shot1 /> : <Shot2 at={shot2} />}
-      <Flash at={shot2} color="#fff" dur={6} peak={0.8} />
+      <Flash at={shot2} color="#fff" dur={9} peak={0.7} />
     </AbsoluteFill>
   );
 };

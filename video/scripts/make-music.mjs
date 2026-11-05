@@ -4,7 +4,7 @@
 //
 //   node scripts/make-music.mjs        -> public/audio/music.mp3
 //
-// 120 BPM. Hook hits on every cut, drop + sonic logo on the brand reveal,
+// 100 BPM. Hook hits on every cut, drop + sonic logo on the brand reveal,
 // four-on-the-floor through the demo, a breakdown on the tagline and the same
 // sonic logo on the end card (audio mnemonic).
 
@@ -30,6 +30,7 @@ const T = {
   audience: sec(SCENE_START.audience),
   features: sec(SCENE_START.features),
   exportBurst: sec(SCENE_START.features + MOMENTS.featureExportBurst),
+  demoShot2: sec(SCENE_START.demo + MOMENTS.demoShot2),
   tagline: sec(SCENE_START.tagline),
   endcard: sec(SCENE_START.endcard),
   click2: sec(SCENE_START.endcard + MOMENTS.endClick),
@@ -265,43 +266,44 @@ const CH = {
   Gsus: { notes: [55, 60, 62, 67], root: 43 },
 };
 
-// 1) Hook: tense pulse, a hit on every cut, roll + riser into the drop.
-for (let b = 0; b < 8; b++) {
+// 1) Hook: tense pulse, a hit on each of the two lines, roll + riser into
+// the drop.
+for (const cut of MOMENTS.hookCuts) {
+  impact(sec(cut), 0.45);
+  crash(sec(cut), 0.08, 1.2);
+}
+for (let b = 0; b * BEAT < T.brand - 0.05; b++) {
   const tb = b * BEAT;
-  if (b % 2 === 0) {
-    kick(tb, 1);
-    impact(tb, 0.35);
-    clap(tb, 0.22);
-  }
-  for (let s = 0; s < 4; s++) hat(tb + s * (BEAT / 4), s === 0 ? 0.1 : 0.05, 70, 0.3);
+  kick(tb, b % 4 === 0 ? 1 : 0.55);
+  for (let s = 0; s < 2; s++) hat(tb + s * (BEAT / 2), s === 0 ? 0.07 : 0.05, 60, 0.3);
 }
-for (let e = 0; e < 16; e++) {
-  const te = e * (BEAT / 2);
-  if (te >= T.brand - 0.06) break;
-  bass(te, BEAT / 2 - 0.03, 33 + (e % 4 === 3 ? 3 : 0), 0.28);
+for (let e = 0; e * (BEAT / 2) < T.brand - 0.06; e++) {
+  bass(e * (BEAT / 2), BEAT / 2 - 0.03, 33 + (e % 4 === 3 ? 3 : 0), 0.24);
 }
-pad(0, T.brand - 0.1, CH.Am.notes.map((m) => m - 12), 600, 0.045);
-for (let k = 0; k < 16; k++) {
-  const t = 2.95 + k * (1.0 / 16) * (k < 8 ? 1 : 0.8);
-  if (t < T.brand - 0.07) snare(t, 0.06 + k * 0.012);
+pad(0, T.brand - 0.1, CH.Am.notes.map((m) => m - 12), 700, 0.05);
+for (let k = 0; k < 12; k++) {
+  const t = T.brand - 1.2 + k * 0.1;
+  snare(t, 0.05 + k * 0.012);
 }
-riser(2.4, T.brand - 0.06, 0.9);
+riser(T.brand - 2.0, T.brand - 0.06, 0.85);
 
 // 2) Drop + sonic logo, open pad, swell into the light world.
 impact(T.brand, 1.15);
 kick(T.brand, 1);
 crash(T.brand, 0.22, 2.2);
 sonicLogo(T.brand + 0.02);
-pad(T.brand, 2.0, CH.Cadd9.notes, 1800, 0.06);
-pad(T.brand + 2.0, 1.0, CH.G.notes, 1800, 0.055);
-bass(T.brand, 1.9, CH.C.root, 0.25);
-bass(T.brand + 2.0, 0.95, CH.G.root, 0.25);
-riser(T.prompt - 0.7, T.prompt - 0.02, 0.6);
+const brandSplit = T.brand + BEAT * 4;
+pad(T.brand, brandSplit - T.brand, CH.Cadd9.notes, 1800, 0.06);
+pad(brandSplit, T.prompt - brandSplit, CH.G.notes, 1800, 0.055);
+bass(T.brand, brandSplit - T.brand - 0.1, CH.C.root, 0.25);
+bass(brandSplit, T.prompt - brandSplit - 0.05, CH.G.root, 0.25);
+riser(T.prompt - 0.9, T.prompt - 0.02, 0.6);
 
 // 3) Groove from the light world to the features.
 const PROG = ["F", "G", "Am", "F", "C", "G", "Am", "F", "G"];
+const BAR_S = BEAT * 4;
 for (let b = 0; ; b++) {
-  const t0 = T.prompt + b * 2;
+  const t0 = T.prompt + b * BAR_S;
   if (t0 >= T.tagline - 0.01) break;
   const chord = CH[PROG[b % PROG.length]];
   const energy = t0 >= T.features ? 2 : t0 >= T.demo ? 1 : 0;
@@ -316,7 +318,7 @@ for (let b = 0; ; b++) {
       hat(tb + (3 * BEAT) / 4, 0.05, 80, -0.3);
     }
   }
-  const len = Math.min(2, T.tagline - t0);
+  const len = Math.min(BAR_S, T.tagline - t0);
   pad(t0, len, chord.notes, energy === 0 ? 1400 : 2600, 0.05);
   for (let e = 0; e < 8; e++) {
     const te = t0 + e * (BEAT / 2);
@@ -335,35 +337,35 @@ pluck(T.click, 84, 0.12, 0, 9);
 whoosh(T.burst + 0.3, 0.6, 0.55, 1);
 impact(T.demo, 0.6);
 crash(T.demo, 0.14);
-whoosh(T.demo + 2.0, 0.35, 0.35, -1);
-whoosh(T.audience, 0.55, 0.6, 1);
+whoosh(T.demoShot2, 0.45, 0.4, 1);
+whoosh(T.audience, 0.6, 0.6, 1);
 crash(T.audience, 0.12);
-for (let i = 1; i < 4; i++) pluck(T.audience + i * 1.0 - 0.05, [88, 91, 95][i - 1], 0.08, 0.3, 12);
-whoosh(T.features, 0.55, 0.6, 1);
+MOMENTS.audienceSwaps.slice(1).forEach((f, i) => pluck(T.audience + sec(f) - 0.05, [88, 91, 95][i], 0.08, 0.3, 12));
+whoosh(T.features, 0.6, 0.6, 1);
 impact(T.features, 0.5);
-whoosh(T.features + 1.5, 0.35, 0.45, 1);
-whoosh(T.features + 3.0, 0.35, 0.45, 1);
+MOMENTS.featureHits.slice(1).forEach((f) => whoosh(T.features + sec(f), 0.45, 0.45, 1));
 impact(T.exportBurst, 0.5);
 crash(T.exportBurst, 0.14);
 
 // 4) Tagline breakdown: drums out, reverse swell, sparse bells.
-pad(T.tagline, 1.0, CH.F.notes, 1200, 0.06);
-pad(T.tagline + 1.0, 0.95, CH.Gsus.notes, 1500, 0.06);
+const tagSplit = T.tagline + (T.endcard - T.tagline) / 2;
+pad(T.tagline, tagSplit - T.tagline, CH.F.notes, 1200, 0.06);
+pad(tagSplit, T.endcard - tagSplit - 0.05, CH.Gsus.notes, 1500, 0.06);
 bell(T.tagline + 0.05, 77, 0.07, -0.3);
-bell(T.tagline + 1.05, 79, 0.07, 0.3);
-riser(T.tagline + 0.8, T.endcard - 0.03, 0.7);
+bell(tagSplit + 0.05, 79, 0.07, 0.3);
+riser(tagSplit - 0.3, T.endcard - 0.03, 0.7);
 
 // 5) End card: same sonic logo, light groove, final chord rings out.
 impact(T.endcard, 0.9);
 crash(T.endcard, 0.18, 2.4);
 sonicLogo(T.endcard + 0.02, 1.1);
-for (let beat = 0; beat < 8; beat++) {
+for (let beat = 0; T.endcard + beat * BEAT < LEN - 0.6; beat++) {
   const tb = T.endcard + beat * BEAT;
   kick(tb, beat % 4 === 0 ? 0.9 : 0.6);
   hat(tb + BEAT / 2, 0.1, 30, 0.3);
 }
 pad(T.endcard, LEN - T.endcard - 0.4, CH.C.notes, 2200, 0.06);
-bass(T.endcard, 3.5, CH.C.root, 0.24);
+bass(T.endcard, LEN - T.endcard - 0.8, CH.C.root, 0.24);
 pluck(T.click2, 91, 0.1, 0, 8);
 
 // ---------- Reverb (Schroeder) ----------

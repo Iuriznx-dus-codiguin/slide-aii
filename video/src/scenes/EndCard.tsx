@@ -9,8 +9,8 @@ import { Words } from "../mg/Text";
 import { C, EASE, FONT, GRADIENT, L } from "../theme";
 import { MOMENTS } from "../timeline";
 
-// 26–30s, light world. Direct: promise restated, one button, URL, entry
-// price and the current PRO discount, trust line from the site. Holds 4 s.
+// 40.2–45 s, light world. Direct: promise restated, one button, URL, entry
+// price and the current PRO discount, trust line from the site. Holds 4.8 s.
 
 type Props = { price: string; discount: string; url: string };
 
@@ -19,19 +19,19 @@ const BTN = { x: 140, y: 600, w: 760, h: 124 };
 export const EndCard = ({ price, discount, url }: Props) => {
   const frame = useCurrentFrame();
   const pulse = beatPulse(frame, 6);
-  const logo = enter(frame, 0, 12, EASE.outExpo);
-  const btn = enter(frame, MOMENTS.endButton, 12, EASE.outBack);
-  const urlP = enter(frame, MOMENTS.endButton + 6, 12, EASE.outExpo);
-  const offer = enter(frame, MOMENTS.endButton + 12, 12, EASE.outBack);
-  const trust = enter(frame, MOMENTS.endButton + 18, 12, EASE.outExpo);
+  const logo = enter(frame, 0, 18, EASE.outExpo);
+  const btn = enter(frame, MOMENTS.endButton, 16, EASE.outBack);
+  const urlP = enter(frame, MOMENTS.endButton + 8, 16, EASE.outExpo);
+  const offer = enter(frame, MOMENTS.endButton + 18, 16, EASE.outBack);
+  const trust = enter(frame, MOMENTS.endButton + 28, 16, EASE.outExpo);
   const click = MOMENTS.endClick;
   const pMove = tw(frame, [click - 20, click - 1], [0, 1], EASE.inOut);
   const px = 1100 + (BTN.x + BTN.w * 0.7 - 1100) * pMove;
   const py = 1020 + (BTN.y + BTN.h * 0.6 - 1020) * pMove;
   const pressed = tw(frame, [click - 2, click, click + 6], [0, 1, 0]);
   const pointerO = tw(frame, [click - 22, click - 16], [0, 1]) * (1 - tw(frame, [click + 14, click + 20], [0, 1]));
-  const shine = tw(frame, [click + 2, click + 22], [-20, 120], EASE.inOut);
-  const collage = enter(frame, 6, 18, EASE.outExpo);
+  const shine = tw(frame, [click + 2, click + 26], [-20, 120], EASE.inOut);
+  const collage = enter(frame, 10, 24, EASE.outExpo);
   const t = frame / 30;
 
   return (
@@ -65,8 +65,8 @@ export const EndCard = ({ price, discount, url }: Props) => {
           fontSize: 28,
           fontWeight: 700,
           color: L.softInk,
-          opacity: enter(frame, 20, 10),
-          scale: String(enter(frame, 20, 12, EASE.outBack)),
+          opacity: enter(frame, 40, 14),
+          scale: String(enter(frame, 40, 16, EASE.outBack)),
           translate: `0 ${Math.sin(t * 1.6) * 8}px`,
         }}
       >
@@ -84,11 +84,12 @@ export const EndCard = ({ price, discount, url }: Props) => {
 
       {/* Promise */}
       <div style={{ position: "absolute", left: 140, top: 270 }}>
-        <Words tokens={["Sua", "apresentação", "pronta"]} at={4} stagger={3} mode="rise" style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 92, letterSpacing: -3.5, color: L.ink, lineHeight: 1.06 }} />
+        <Words tokens={["Sua", "apresentação", "pronta"]} at={6} stagger={4} dur={18} mode="rise" style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 92, letterSpacing: -3.5, color: L.ink, lineHeight: 1.06 }} />
         <Words
           tokens={["em", "cerca", "de", { t: "1", look: "marker" }, { t: "minuto.", look: "marker" }]}
-          at={12}
-          stagger={3}
+          at={18}
+          stagger={4}
+          dur={18}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 92, letterSpacing: -3.5, color: L.ink, lineHeight: 1.06 }}
         />

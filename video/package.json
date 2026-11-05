@@ -2,14 +2,13 @@
   "name": "slideai-youtube-ad",
   "private": true,
   "version": "1.0.0",
-  "description": "Anúncio de 30s (16:9) do SlideAI para o YouTube, feito em Remotion.",
+  "description": "Comercial de 45s (16:9) do SlideAI para o YouTube, feito em Remotion.",
   "type": "module",
   "scripts": {
     "dev": "remotion studio",
-    "still": "remotion still SlideAIComercial30s --scale=0.5",
-    "render": "remotion render SlideAIComercial30s out/slideai-comercial-30s-16x9.mp4 --codec=h264 --crf=17",
+    "still": "remotion still SlideAIComercial --scale=0.5",
+    "render": "remotion render SlideAIComercial out/slideai-comercial-45s-16x9.mp4 --codec=h264 --crf=17",
     "music": "node scripts/make-music.mjs",
-    "textures": "remotion still NebulaTexture public/textures/nebula-a.jpg --props='{\"seed\":3}' --image-format=jpeg --jpeg-quality=88 && remotion still NebulaTexture public/textures/nebula-b.jpg --props='{\"seed\":17}' --image-format=jpeg --jpeg-quality=88",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

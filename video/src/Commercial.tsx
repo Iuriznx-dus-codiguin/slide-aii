@@ -31,7 +31,7 @@ export const Commercial = ({ price, discount, url, withAudio }: CommercialProps)
       <TransitionSeries.Sequence name="1 Hook (grade)" durationInFrames={sceneDuration("hook")}>
         <Hook />
       </TransitionSeries.Sequence>
-      <TransitionSeries.Sequence name="2 Marca (nebulosa)" durationInFrames={sceneDuration("brand")}>
+      <TransitionSeries.Sequence name="2 Marca (brilho roxo)" durationInFrames={sceneDuration("brand")}>
         <Brand />
       </TransitionSeries.Sequence>
       <TransitionSeries.Sequence name="3 Prompt (claro)" durationInFrames={sceneDuration("prompt")}>
@@ -40,22 +40,22 @@ export const Commercial = ({ price, discount, url, withAudio }: CommercialProps)
       <TransitionSeries.Sequence name="4 Slides prontos (claro)" durationInFrames={sceneDuration("demo")}>
         <Demo />
       </TransitionSeries.Sequence>
-      <TransitionSeries.Overlay durationInFrames={20}>
+      <TransitionSeries.Overlay durationInFrames={24}>
         <BlockWipe colors={PURPLE_WIPE} />
       </TransitionSeries.Overlay>
       <TransitionSeries.Sequence name="5 Públicos" durationInFrames={sceneDuration("audience")}>
         <Audience />
       </TransitionSeries.Sequence>
-      <TransitionSeries.Overlay durationInFrames={20}>
+      <TransitionSeries.Overlay durationInFrames={24}>
         <BlockWipe colors={DARK_WIPE} />
       </TransitionSeries.Overlay>
       <TransitionSeries.Sequence name="6 Recursos (grade)" durationInFrames={sceneDuration("features")}>
         <Features />
       </TransitionSeries.Sequence>
-      <TransitionSeries.Sequence name="7 Assinatura (nebulosa)" durationInFrames={sceneDuration("tagline")}>
+      <TransitionSeries.Sequence name="7 Assinatura (brilho roxo)" durationInFrames={sceneDuration("tagline")}>
         <Tagline />
       </TransitionSeries.Sequence>
-      <TransitionSeries.Overlay durationInFrames={20}>
+      <TransitionSeries.Overlay durationInFrames={24}>
         <IrisWipe color="#fff" x={960} y={560} />
       </TransitionSeries.Overlay>
       <TransitionSeries.Sequence name="8 Cartela final (claro)" durationInFrames={sceneDuration("endcard")}>
