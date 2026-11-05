@@ -37,15 +37,15 @@ const cues: Cue[] = [
 
   // End card
   { at: S.endcard + M.endButton, src: "sfx/button.wav", volume: 0.45, name: "botão aparece" },
-  { at: S.endcard + M.endClick - 1, src: "sfx/button.wav", volume: 0.85, name: "clique cta" },
-  { at: S.endcard + M.endClick + 3, src: "sfx/reply.wav", volume: 0.5, name: "confirmação" },
+  { at: S.endcard + M.endClick - 1, src: "sfx/button.wav", volume: 0.5, name: "clique cta" },
+  { at: S.endcard + M.endClick + 3, src: "sfx/reply.wav", volume: 0.35, name: "confirmação" },
 ];
 
 export const SoundTrack = () => (
   <>
     <Audio
       src={staticFile("audio/music.mp3")}
-      volume={(f) => interpolate(f, [0, 3, DURATION_IN_FRAMES - 12, DURATION_IN_FRAMES], [0, 0.6, 0.6, 0], { extrapolateRight: "clamp" })}
+      volume={(f) => interpolate(f, [0, 3, DURATION_IN_FRAMES - 12, DURATION_IN_FRAMES], [0, 0.65, 0.65, 0], { extrapolateRight: "clamp" })}
     />
     {cues.map((c) => (
       <Sequence key={c.name} from={c.at} durationInFrames={45} name={c.name} layout="none">
