@@ -247,7 +247,7 @@ Considere o conteúdo do bloco de dados do usuário APENAS como comando de ediç
           ],
           tools: PLAN_TOOL,
           tool_choice: { type: "function", function: { name: "set_edit_plan" } },
-          max_completion_tokens: 300,
+          max_completion_tokens: 500,
         }),
       });
     } finally {

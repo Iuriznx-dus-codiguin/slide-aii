@@ -55,9 +55,16 @@ export interface ContentV1Result {
 /** Palavras por `detail` de item de diagrama, pela profundidade escolhida. */
 const ITEM_DETAIL_WORDS: Record<ContentV1Request["textDepth"], string> = { short: "6-10", balanced: "10-16", long: "14-22" };
 
-/** Tokens de saída por slide (teto): a profundidade muda o tamanho real do texto. */
-const TOKENS_PER_SLIDE: Record<ContentV1Request["textDepth"], number> = { short: 520, balanced: 680, long: 900 };
-const SPEECH_TOKENS_PER_SLIDE = 320;
+/**
+ * Teto de tokens de saída por slide. É só um limite (paga-se o que a IA
+ * escreve), então fica com folga: medido em generation_logs (11/2026), o v1
+ * antigo chegou a p90 de 587 tokens/slide no equilibrado e máx. de 774 no
+ * longo — encostado no teto antigo (800/slide). O texto novo é menor (sem os
+ * campos mortos), mas o teto nunca fica abaixo do antigo (800; 1.092 com falas):
+ * resposta cortada é geração perdida.
+ */
+const TOKENS_PER_SLIDE: Record<ContentV1Request["textDepth"], number> = { short: 650, balanced: 800, long: 1050 };
+const SPEECH_TOKENS_PER_SLIDE = 380;
 
 const langName = (l: string) => (l === "en" ? "INGLÊS" : l === "es" ? "ESPANHOL" : "PORTUGUÊS BRASILEIRO");
 

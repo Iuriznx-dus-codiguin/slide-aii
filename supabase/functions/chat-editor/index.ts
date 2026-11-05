@@ -379,8 +379,9 @@ Devolva SOMENTE os patches dos slides realmente alterados (índices permitidos: 
       ],
       tools: EDIT_TOOL,
       tool_choice: { type: "function", function: { name: "apply_slide_edits" } },
-      // Patches só dos campos que mudam: o teto acompanha o escopo.
-      max_completion_tokens: Math.min(12000, 1500 + 700 * targets.length),
+      // Patches só dos campos que mudam: o teto acompanha o escopo, com folga
+      // (é só limite; o fallback do gateway conta o raciocínio na saída).
+      max_completion_tokens: Math.min(16384, 4000 + 900 * targets.length),
     };
 
     let aiResponse = await fetch(endpoint, {
