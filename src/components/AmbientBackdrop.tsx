@@ -44,6 +44,22 @@ interface Props {
 
 const cache = new Map<string, { url: string | null; poster: string | null }>();
 
+/**
+ * Vídeo de fundo só onde ele não pesa: sem economia de dados, sem rede lenta,
+ * com memória e núcleos razoáveis e fora de celular/tablet (bateria e dados).
+ * Nos demais, o fundo é o mesmo degradê com orbes — sem download de vídeo.
+ */
+function canAffordAmbientVideo(): boolean {
+  if (typeof navigator === "undefined" || typeof window === "undefined") return false;
+  const nav = navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string }; deviceMemory?: number };
+  if (nav.connection?.saveData) return false;
+  if (nav.connection?.effectiveType && /2g|3g/.test(nav.connection.effectiveType)) return false;
+  if (typeof nav.deviceMemory === "number" && nav.deviceMemory < 4) return false;
+  if ((nav.hardwareConcurrency ?? 8) < 4) return false;
+  if (window.matchMedia?.("(pointer: coarse)").matches) return false;
+  return true;
+}
+
 async function fetchVideo(query: string): Promise<{ url: string | null; poster: string | null }> {
   if (cache.has(query)) return cache.get(query)!;
   try {
@@ -89,7 +105,7 @@ export const AmbientBackdrop = ({
   const staticOrbs = noVideo || prefersReducedMotion;
 
   useEffect(() => {
-    if (noVideo || !enableVideo || !videoQuery || prefersReducedMotion) return;
+    if (noVideo || !enableVideo || !videoQuery || prefersReducedMotion || !canAffordAmbientVideo()) return;
     let cancelled = false;
     fetchVideo(videoQuery).then((r) => {
       if (!cancelled) {
@@ -99,6 +115,19 @@ export const AmbientBackdrop = ({
     });
     return () => { cancelled = true; };
   }, [videoQuery, noVideo, enableVideo, prefersReducedMotion]);
+
+  // Aba em segundo plano: o vídeo pausa (antes seguia decodificando).
+  useEffect(() => {
+    if (!videoSrc) return;
+    const onVisibility = () => {
+      const v = videoRef.current;
+      if (!v) return;
+      if (document.hidden) v.pause();
+      else void v.play().catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [videoSrc]);
 
   const accent = theme.accent;
   const accent2 = theme.accent2 || theme.accent;
@@ -116,55 +145,53 @@ export const AmbientBackdrop = ({
           muted
           loop
           playsInline
+          preload="metadata"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.35 }}
+          animate={{ opacity: 0.3 }}
           transition={{ duration: 2.4, ease: [0.16, 1, 0.3, 1] }}
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: "blur(2px) saturate(115%)" }}
         />
       )}
 
       {/* Camada 2 — Glass tint usando o accent + bg */}
+      {/* Sem backdrop-filter: sobre um vídeo ele era recalculado a cada quadro. */}
       <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(135deg, ${hexToRgba(bg, glassOpacity)} 0%, ${hexToRgba(accent, 0.18)} 50%, ${hexToRgba(bg, glassOpacity + 0.15)} 100%)`,
-          backdropFilter: videoSrc ? "blur(10px) saturate(140%)" : undefined,
-          WebkitBackdropFilter: videoSrc ? "blur(10px) saturate(140%)" : undefined,
         }}
       />
 
-      {/* Camada 3 — Orbs flutuantes (gradient mesh animado) */}
+      {/* Camada 3 — Orbes: o degradê radial já é o desfoque (sem filter: blur
+          nem mix-blend-mode) e o movimento é CSS só de transform, no
+          compositor. Também saem certos no export (html2canvas ignora blur). */}
       {Array.from({ length: orbCount }).map((_, i) => {
-        const colors = [accent, accent2, accent];
+        const color = i % 2 === 0 ? accent : accent2;
         const size = 35 + (i % 3) * 18;
         const top = [-15, 55, 25][i % 3];
         const left = [-10, 60, 30][i % 3];
-        const dur = 22 + i * 4;
         return (
-          <motion.div
+          <div
             key={i}
-            animate={staticOrbs ? undefined : {
-              x: [0, 40, -30, 0],
-              y: [0, -30, 50, 0],
-              scale: [1, 1.1, 0.95, 1],
-            }}
-            transition={staticOrbs ? undefined : { duration: dur, repeat: Infinity, ease: "easeInOut", delay: i * 1.5 }}
-            className="absolute rounded-full"
+            className={staticOrbs ? "absolute" : "absolute slideai-orb"}
             style={{
               top: `${top}%`, left: `${left}%`,
               width: `${size}%`, height: `${size}%`,
-              background: colors[i % colors.length],
-              filter: "blur(110px)",
-              opacity: 0.32,
-              mixBlendMode: "screen",
+              // closest-side: o degradê chega a transparente exatamente na borda
+              // do elemento (sem borda dura quando o orbe sai do slide).
+              background: `radial-gradient(closest-side, ${hexToRgba(color, 0.4)} 0%, ${hexToRgba(color, 0.16)} 45%, transparent 100%)`,
+              ...(staticOrbs ? {} : {
+                animationName: i % 2 === 0 ? "slideai-orb-a" : "slideai-orb-b",
+                animationDuration: `${22 + i * 4}s`,
+                animationDelay: `${-i * 3}s`,
+              }),
             }}
           />
         );
       })}
 
       {/* Camada 4 — Grain SVG sutil (textura editorial) */}
-      <svg className="absolute inset-0 w-full h-full opacity-[0.06] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
+      <svg className="absolute inset-0 w-full h-full opacity-[0.05]" xmlns="http://www.w3.org/2000/svg">
         <filter id={grainId}>
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
           <feColorMatrix type="saturate" values="0" />

@@ -259,14 +259,15 @@ export function pickCameraDirection(prevIdx: number, nextIdx: number): CameraDir
    Detecta números em strings tipo "78%" e anima de 0 ao alvo.
 --------------------------------------------- */
 
-export function parseNumberFromString(value?: string): { num: number; prefix: string; suffix: string } | null {
+export function parseNumberFromString(value?: string): { num: number; prefix: string; suffix: string; decimalSep: "," | "." } | null {
   if (!value) return null;
   const match = value.match(/^([^\d-]*)(-?\d+(?:[.,]\d+)?)([^\d]*)$/);
   if (!match) return null;
   const [, prefix, numStr, suffix] = match;
   const num = parseFloat(numStr.replace(",", "."));
   if (isNaN(num)) return null;
-  return { num, prefix, suffix };
+  // O separador que o texto usa volta na contagem ("1,46 tri" não vira "1.46 tri").
+  return { num, prefix, suffix, decimalSep: numStr.includes(",") ? "," : "." };
 }
 
 /** Hook que anima de 0 ao valor alvo com easing inertia. */
@@ -297,9 +298,10 @@ export function useAnimatedNumber(target: number, durationMs = 1400, enabled = t
 }
 
 /** Formata número animado preservando casas decimais do alvo. */
-export function formatAnimatedNumber(value: number, target: number): string {
+export function formatAnimatedNumber(value: number, target: number, decimalSep: "," | "." = "."): string {
   const decimals = (target.toString().split(".")[1]?.length) ?? 0;
-  return value.toFixed(decimals);
+  const s = value.toFixed(decimals);
+  return decimalSep === "," ? s.replace(".", ",") : s;
 }
 
 /* ---------- Ken Burns para fundos ---------- */

@@ -28,7 +28,7 @@ Navegador (React + Vite)
 
 1. O formulário (`src/pages/Generate.tsx`) calcula o custo com `estimateCreditsCost` e consulta o acesso com `useEntitlement` (espelho de `can_user_generate`).
 2. `generate-presentation` valida a entrada, chama `can_user_generate(_uid, custo)`, aplica o limite de frequência (12/h) e **debita** com `charge_generation` antes de chamar a IA. O débito e a tentativa (`generation_attempts`) são gravados na mesma transação.
-3. O motor v2 planeja a narrativa e as cenas, gera o conteúdo, grava a apresentação e os slides no servidor e devolve o `slug`.
+3. O motor principal (v1) define a direção e o roteiro, gera o conteúdo (`contentV1.ts`), compõe cada slide pelo conteúdo (`_shared/deckComposer.ts`: título do usuário corrigido na capa, diagramas nativos, gráficos e fotos só onde aparecem), grava a apresentação e os slides no servidor e devolve o `slug`. O motor de cenas (v2) segue em teste pelo Dev Mode. Detalhes: [motor-principal/2026-11-motor-principal.md](motor-principal/2026-11-motor-principal.md).
 4. Qualquer falha depois do débito passa por `failGeneration`, que estorna com `refund_generation_credits` (idempotente por tentativa) e registra em `generation_logs`. Se a função cair sem responder, `refund_stale_generations` estorna a tentativa depois de 10 minutos.
 5. As imagens são resolvidas aos poucos no editor (`useProgressiveAssets` + `fetch-image`).
 

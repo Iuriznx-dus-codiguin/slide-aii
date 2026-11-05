@@ -22,10 +22,16 @@ export function mergeAiEdits<T extends EditableSlide>(
   sentIds: string[],
   returned: AiSlide[],
   changed: number[] | undefined,
+  /** Slides que o usuário pediu para excluir pelo chat (índices do deck enviado). */
+  deleted: number[] = [],
 ): T[] {
   // Servidor antigo, sem `changed_slides`: trata todos como alterados.
   const changedIdx = Array.isArray(changed) ? changed : returned.map((_, i) => i);
-  return current.map((row) => {
+  const deletedIds = new Set(deleted.map((i) => sentIds[i]).filter(Boolean));
+  const kept = current.filter((row) => !deletedIds.has(row.id));
+  // Nunca deixa a apresentação sem slides.
+  const base = kept.length ? kept : current;
+  return base.map((row) => {
     const sentAt = sentIds.indexOf(row.id);
     const ns = sentAt >= 0 && changedIdx.includes(sentAt) ? returned[sentAt] : undefined;
     if (!ns) return row;
@@ -36,9 +42,10 @@ export function mergeAiEdits<T extends EditableSlide>(
       slide_type: ns.slide_type ?? row.slide_type ?? "content",
       layout_template: ns.layout_template ?? row.layout_template ?? "title-content",
       animation_transition: ns.animation ?? row.animation_transition ?? "fade",
-      speaker_notes: ns.speaker_notes ?? row.speaker_notes ?? null,
-      // Bloco 11.3: campos "DNA" (acentos, ato narrativo, variante de capa)
-      // preservados quando a IA não os devolve — ver aiSlideToContent.
+      // `null` = a nota foi apagada a pedido; ausente = fica a atual.
+      speaker_notes: "speaker_notes" in ns ? (ns.speaker_notes ?? null) : row.speaker_notes ?? null,
+      // Campos "DNA" (acentos, ato narrativo, variante de capa) preservados
+      // quando a IA não os devolve; `null` explícito apaga — ver aiSlideToContent.
       content: aiSlideToContent(ns, row.content),
     };
   });

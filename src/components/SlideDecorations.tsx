@@ -341,7 +341,11 @@ export const PulseGrid = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
   );
 };
 
-/** Partículas flutuantes que sobem lentamente — sensação de profundidade. */
+/**
+ * Partículas flutuantes que sobem lentamente — sensação de profundidade.
+ * Movimento por CSS (só transform/opacity, no compositor): antes eram 22
+ * animações JavaScript por slide rodando para sempre.
+ */
 export const ParticleField = ({ theme, noAnimate, intensity = 1 }: BaseProps) => {
   const reduce = useReducedMotion();
   const skip = noAnimate || reduce;
@@ -350,6 +354,8 @@ export const ParticleField = ({ theme, noAnimate, intensity = 1 }: BaseProps) =>
     delay: (i * 0.31) % 6,
     size: 1 + ((i * 7) % 4),
     dur: 8 + ((i * 3) % 6),
+    // Posição de repouso (sem animação): espalhadas na altura, não todas no rodapé.
+    rest: (i * 23) % 90,
   }));
   return (
     <div
@@ -358,21 +364,18 @@ export const ParticleField = ({ theme, noAnimate, intensity = 1 }: BaseProps) =>
       aria-hidden
     >
       {particles.map((p, i) => (
-        <motion.div
+        <div
           key={i}
-          className="absolute rounded-full"
+          className={skip ? "absolute rounded-full" : "absolute rounded-full slideai-particle"}
           style={{
             left: `${p.x}%`,
-            bottom: "-5%",
+            bottom: skip ? `${p.rest}%` : "-5%",
             width: p.size * 3,
             height: p.size * 3,
             background: theme.accent,
             boxShadow: `0 0 ${p.size * 6}px ${theme.accent}`,
-          }}
-          initial={skip ? false : { y: 0, opacity: 0 }}
-          animate={skip ? {} : { y: ["0vh", "-110vh"], opacity: [0, 0.7, 0.7, 0] }}
-          transition={{
-            duration: p.dur, repeat: Infinity, delay: p.delay, ease: "linear",
+            opacity: skip ? 0.5 : undefined,
+            ...(skip ? {} : { animationDuration: `${p.dur}s`, animationDelay: `${p.delay}s` }),
           }}
         />
       ))}
@@ -435,19 +438,25 @@ export const GradientMeshDrift = ({ theme, noAnimate, intensity = 1 }: BaseProps
   const reduce = useReducedMotion();
   const skip = noAnimate || reduce;
   const accent2 = theme.accent2 || theme.accent;
+  // Campos de cor como degradês radiais (sem filter: blur(140px)) e deriva por
+  // CSS no compositor — o mesmo visual, uma fração do custo de GPU.
+  // closest-side: transparente na borda do campo (sem corte visível).
+  const field = (color: string) => `radial-gradient(closest-side, ${color}cc 0%, ${color}55 45%, transparent 100%)`;
   return (
     <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden" style={{ opacity: 0.5 * intensity }} aria-hidden>
-      <motion.div
-        className="absolute rounded-full"
-        style={{ width: "70%", height: "70%", top: "-20%", left: "-15%", background: theme.accent, filter: "blur(140px)" }}
-        animate={skip ? undefined : { x: [0, 60, -20, 0], y: [0, 40, -30, 0] }}
-        transition={skip ? undefined : { duration: 34, repeat: Infinity, ease: "easeInOut" }}
+      <div
+        className={skip ? "absolute" : "absolute slideai-orb"}
+        style={{
+          width: "90%", height: "90%", top: "-30%", left: "-25%", background: field(theme.accent),
+          ...(skip ? {} : { animationName: "slideai-orb-a", animationDuration: "34s" }),
+        }}
       />
-      <motion.div
-        className="absolute rounded-full"
-        style={{ width: "60%", height: "60%", bottom: "-20%", right: "-10%", background: accent2, filter: "blur(140px)" }}
-        animate={skip ? undefined : { x: [0, -50, 30, 0], y: [0, -35, 25, 0] }}
-        transition={skip ? undefined : { duration: 40, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+      <div
+        className={skip ? "absolute" : "absolute slideai-orb"}
+        style={{
+          width: "80%", height: "80%", bottom: "-30%", right: "-20%", background: field(accent2),
+          ...(skip ? {} : { animationName: "slideai-orb-b", animationDuration: "40s", animationDelay: "-2s" }),
+        }}
       />
     </div>
   );

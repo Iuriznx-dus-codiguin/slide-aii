@@ -94,13 +94,24 @@ export const TimelineDiagram = (p: VisualProps) => {
           {stems.map((s, i) => <path key={i} d={s.d} stroke={rgba(theme.text, 0.3)} strokeWidth={1.4} />)}
         </svg>
       </motion.div>
-      <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${geo.W} ${geo.H}`} preserveAspectRatio="none" aria-hidden>
-        {ticks.map((t, i) => {
-          const m = /M([\d.]+),([\d.]+)/.exec(t.d);
-          const cx = m ? Number(m[1]) : 0;
-          return <motion.circle key={i} cx={cx} cy={geo.H / 2} r={9} fill={theme.accent} stroke={theme.bg} strokeWidth={3} {...track(ctrl, `shape-${i}`)} />;
-        })}
-      </svg>
+      {/* Pinos em HTML (não SVG esticado): continuam redondos em qualquer proporção do slot. */}
+      {ticks.map((t, i) => {
+        const m = /M([\d.]+),([\d.]+)/.exec(t.d);
+        const cx = m ? Number(m[1]) : 0;
+        return (
+          <motion.span
+            key={i}
+            aria-hidden
+            className="absolute rounded-full"
+            style={{
+              // Centralizado por margem (o framer-motion reescreve `transform` ao animar).
+              left: `${(cx / geo.W) * 100}%`, top: "50%", width: "1.15cqw", height: "1.15cqw",
+              marginLeft: "-0.575cqw", marginTop: "-0.575cqw", background: theme.accent, boxShadow: `0 0 0 0.3cqw ${theme.bg}`,
+            }}
+            {...track(ctrl, `shape-${i}`)}
+          />
+        );
+      })}
       {model.nodes.map((item, i) => (
         <NodeCard
           key={i}
@@ -114,6 +125,8 @@ export const TimelineDiagram = (p: VisualProps) => {
           displayFont={displayFont}
           tone="plain"
           align="center"
+          // A data/período em destaque: é a âncora de leitura da linha do tempo.
+          labelColor={theme.accent}
           style={{ justifyContent: i % 2 === 0 ? "flex-end" : "flex-start" }}
         />
       ))}

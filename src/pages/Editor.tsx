@@ -624,6 +624,8 @@ const Editor = () => {
           dynamic_theme: dynamicTheme,
           instruction,
           presentation_id: pres?.id,
+          // Slide aberto: alvo dos pedidos sem número ("troque a imagem", "remova o subtítulo").
+          active_index: activeIdx,
           history: chat.slice(-8),
           usage: { messages: aiUsage.messages, complex_edits: aiUsage.complex },
         },
@@ -642,8 +644,10 @@ const Editor = () => {
       // Só os slides que a IA mudou, sobre o deck ATUAL (ver mergeAiEdits).
       const returned = (data.slides ?? []) as any[];
       const changedIdx: number[] = Array.isArray(data.changed_slides) ? data.changed_slides : returned.map((_, i) => i);
+      const deletedIdx: number[] = Array.isArray(data.deleted_slides) ? data.deleted_slides : [];
       const current = slidesRef.current;
-      const updated = mergeAiEdits(current, sentIds, returned, data.changed_slides);
+      const updated = mergeAiEdits(current, sentIds, returned, data.changed_slides, deletedIdx);
+      const structural = changedIdx.length > 0 || deletedIdx.length > 0;
 
       // Cores pedidas no chat: o servidor devolve o tema novo. Antes era
       // descartado (e a mensagem contava na cota).
@@ -654,12 +658,16 @@ const Editor = () => {
       // Desfazer a edição da IA (além do undo genérico) volta a este estado.
       aiUndoRef.current = JSON.parse(JSON.stringify(current));
       aiUndoThemeRef.current = themeChanged ? { theme: prevTheme } : null;
-      setCanUndoAi(changedIdx.length > 0 || themeChanged);
-      if (changedIdx.length > 0) {
+      setCanUndoAi(structural || themeChanged);
+      if (structural) {
         undoStack.current.push(JSON.parse(JSON.stringify(current)));
         if (undoStack.current.length > 50) undoStack.current.shift();
         redoStack.current = [];
+        // Atualiza a referência já: o save abaixo grava o deck editado.
+        slidesRef.current = updated;
         setSlides(updated);
+        // Slide aberto foi excluído: fica no vizinho.
+        if (deletedIdx.length) setActiveIdx((i) => Math.max(0, Math.min(updated.length - 1, i)));
       }
       if (themeChanged && pres) {
         setPres((p) => (p ? { ...p, dynamic_theme: nextTheme } : p));
@@ -677,6 +685,8 @@ const Editor = () => {
           complex: Number(data.usage.complex_edits) || aiUsage.complex,
         });
       }
+      // A alteração vai direto para a apresentação: grava agora, sem esperar o autosave.
+      if (structural) void save(true);
       setChat((c) => [...c, { role: "assistant", content: data.assistant_message || "Pronto, atualizei!" }]);
     } catch (e: any) {
       console.error(e);
@@ -910,12 +920,15 @@ const Editor = () => {
               <button onClick={() => setChatOpen(false)} className="hover:bg-muted rounded p-1" aria-label="Fechar assistente de IA"><X className="h-3 w-3" /></button>
             </div>
             <ScrollArea className="flex-1 px-3 py-3">
-              <div className="space-y-3">
+              {/* Respostas da IA anunciadas por leitores de tela. */}
+              <div className="space-y-3" role="log" aria-live="polite" aria-label="Conversa com o assistente de IA">
                 {chat.length === 0 && (
                   <div className="text-xs text-muted-foreground text-center py-6">
-                    Peça mudanças em linguagem natural — a IA aplica direto nos slides.<br />
-                    Ex: <em>"reduza o texto dos slides"</em>, <em>"não gostei da página 3, regere ela"</em>,{" "}
-                    <em>"troque o gráfico por uma imagem"</em>.
+                    Peça mudanças em linguagem natural — a IA aplica direto na apresentação e salva.<br />
+                    Sem número de slide, vale o slide aberto (agora: {activeIdx + 1}).<br />
+                    Ex: <em>"troque a imagem por uma foto de um castelo"</em>, <em>"remova o subtítulo"</em>,{" "}
+                    <em>"mude o título para Reconquista"</em>, <em>"transforme os tópicos em linha do tempo"</em>,{" "}
+                    <em>"exclua o slide 5"</em>.
                   </div>
                 )}
                 {chat.map((m, i) => (
@@ -948,7 +961,7 @@ const Editor = () => {
               <div className="flex gap-1.5">
                 <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} aria-label="Pedido para a IA"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                  placeholder="Ex: reduza o texto do slide 4" rows={2} className="resize-none text-xs"
+                  placeholder={`Ex: troque a imagem deste slide (${activeIdx + 1})`} rows={2} className="resize-none text-xs"
                   disabled={chatBusy || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX} />
                 <Button size="icon" variant="hero" onClick={sendChat} aria-label="Enviar pedido à IA"
                   disabled={chatBusy || !chatInput.trim() || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX}

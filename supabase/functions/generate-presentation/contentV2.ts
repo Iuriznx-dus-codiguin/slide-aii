@@ -23,17 +23,19 @@ import { SCENE_ICONS } from "../_shared/sceneIcons.ts";
 import { VISUAL_INTENTS } from "../_shared/sceneCatalog.ts";
 import { FONT_PAIRING_IDS } from "../_shared/typography.ts";
 import { COVER_VARIANTS, SLIDE_TYPES } from "../_shared/sceneResolver.ts";
-import { readUsage, textFallbackRoute, textRoute, type ProviderKeys, type TokenUsage } from "../_shared/modelRegistry.ts";
+import type { ProviderKeys } from "../_shared/modelRegistry.ts";
+import { generateSlides, type ContentCall, type ContentFailure } from "./contentCall.ts";
 
-/** Acima disto (com falas), o conteúdo vai em duas chamadas paralelas. */
-export const SPLIT_THRESHOLD = 14;
-
-const AI_TIMEOUT_MESSAGE = "A IA demorou demais para responder — tente de novo, de preferência com menos slides.";
-
-/** Timeout de uma chamada: até `cap`, sem passar do prazo da geração (−15 s de folga). */
-const signalFor = (deadline: number, cap: number) =>
-  AbortSignal.timeout(Math.max(5_000, Math.min(cap, deadline - Date.now() - 15_000)));
-const isTimeout = (e: unknown) => e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+// A mecânica de chamada (divisão, fallback de provedor, retry só dos
+// faltantes) é comum aos dois motores: ./contentCall.ts.
+export {
+  missingIndices,
+  placeAtPositions,
+  placeSlides,
+  slideFromOutline,
+  SPLIT_THRESHOLD,
+  type ContentCall,
+} from "./contentCall.ts";
 
 export interface ContentV2Request {
   title: string;
@@ -51,17 +53,6 @@ export interface ContentV2Request {
   presenterNames: string[];
 }
 
-export interface ContentCall {
-  model: string;
-  provider: string;
-  latency_ms: number;
-  usage: TokenUsage | null;
-  slides_requested: number;
-  slides_returned: number;
-  finish_reason?: string | null;
-  status?: number;
-}
-
 export interface ContentV2Result {
   ok: true;
   /** Slides da IA, indexados pela posição (0-based). Buracos = faltaram. */
@@ -72,21 +63,17 @@ export interface ContentV2Result {
   retry: ContentCall | null;
   /** Slides que continuaram faltando e foram preenchidos a partir do roteiro. */
   filled_from_outline: number[];
+  /** Título do usuário com correção ortográfica (validado em _shared/deckTitle.ts). */
+  deck_title: string | null;
 }
 
-export interface ContentV2Failure {
-  ok: false;
-  code: string;
-  message: string;
-  status: number;
-  detail?: Record<string, unknown>;
-}
+export type ContentV2Failure = ContentFailure;
 
 // ────────────────────────────────────────────────────────────────
 // Prompt
 // ────────────────────────────────────────────────────────────────
 
-function briefLine(b: CreativeBrief): string {
+export function briefLine(b: CreativeBrief): string {
   return `Objetivo: ${b.objective}
 Público: ${b.audience} (nível ${b.technical_level}) · Formalidade: ${b.formality} · Tom: ${b.emotional_identity}
 Estilo: ${b.visual_style} · Domínio: ${b.domain ?? "general"} · Densidade: ${b.visual_density} · Abstração: ${b.abstraction_degree.toFixed(1)} · Narrativa: ${b.narrative_type}`;
@@ -158,7 +145,7 @@ DESCRIÇÃO: ${req.description || "(não detalhada — interprete o título da f
 TIPO: ${req.type} · IDIOMA: ${req.language} · TOTAL: ${req.slidesCount} slides
 ESCREVA AGORA: ${partial ? `SOMENTE os slides S${range.from} a S${range.to}` : `os ${req.slidesCount} slides`} — cada um com "index" (número do slide, começando em 1).
 GRÁFICOS/DADOS: ${req.includeCharts ? "permitidos quando houver dado real" : "não"} · IMAGENS: ${req.includeImages ? "conforme o plano" : "não"}
-${withTheme ? (req.isAutoTheme ? "Inclua dynamic_theme e font_pairing." : "Inclua font_pairing.") : "NÃO inclua dynamic_theme nem font_pairing."}
+${withTheme ? `Inclua deck_title (o título acima só com correção de ortografia, acentos e maiúsculas — mesmas palavras, mesma ordem)${req.isAutoTheme ? ", dynamic_theme" : ""} e font_pairing.` : "NÃO inclua deck_title, dynamic_theme nem font_pairing."}
 FALAS: ${req.includeSpeeches ? "ATIVADAS" : "desativadas"}.`;
 }
 
@@ -238,6 +225,7 @@ export function buildToolV2(req: ContentV2Request, withTheme: boolean) {
     },
   };
   if (withTheme) {
+    props.deck_title = { type: "string", description: "Título do usuário só com correção de ortografia, acentos e maiúsculas." };
     props.font_pairing = { type: "string", enum: FONT_PAIRING_IDS };
     if (req.isAutoTheme) {
       props.dynamic_theme = {
@@ -263,184 +251,10 @@ export function buildToolV2(req: ContentV2Request, withTheme: boolean) {
 // Chamadas
 // ────────────────────────────────────────────────────────────────
 
-const tokensFor = (count: number, speeches: boolean) =>
-  Math.min(32000, Math.max(4000, Math.round(count * (speeches ? 860 : 600))));
-
-interface CallOutcome {
-  call: ContentCall;
-  parsed: { slides?: unknown[]; dynamic_theme?: unknown; font_pairing?: unknown } | null;
-  failure?: ContentV2Failure;
-}
-
-async function callContent(
-  stage: "content" | "contentRetry",
-  keys: ProviderKeys,
-  system: string,
-  user: string,
-  tools: unknown,
-  requested: number,
-  speeches: boolean,
-  deadline: number,
-): Promise<CallOutcome> {
-  const t0 = Date.now();
-  const primary = textRoute(stage, keys);
-  if (!primary) {
-    return {
-      call: { model: "-", provider: "-", latency_ms: 0, usage: null, slides_requested: requested, slides_returned: 0 },
-      parsed: null,
-      failure: { ok: false, code: "no_ai_provider", message: "Nenhum provedor de IA está configurado no momento. A equipe já foi avisada.", status: 503 },
-    };
-  }
-  const payload = (model: string) => JSON.stringify({
-    model,
-    messages: [{ role: "system", content: system }, { role: "user", content: user }],
-    tools,
-    tool_choice: { type: "function", function: { name: "create_presentation" } },
-    max_completion_tokens: tokensFor(requested, speeches),
-  });
-  let route = primary;
-  const timedOut = (): CallOutcome => ({
-    call: { model: route.model, provider: route.provider, latency_ms: Date.now() - t0, usage: null, slides_requested: requested, slides_returned: 0 },
-    parsed: null,
-    failure: { ok: false, code: "ai_timeout", message: AI_TIMEOUT_MESSAGE, status: 504, detail: { provider: route.provider } },
-  });
-  let res: Response;
-  try {
-    res = await fetch(route.endpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${route.authKey}`, "Content-Type": "application/json" },
-      body: payload(route.model),
-      signal: signalFor(deadline, 110_000),
-    });
-  } catch (e) {
-    if (isTimeout(e)) return timedOut();
-    throw e;
-  }
-  const alt = textFallbackRoute(stage, keys);
-  // Fallback só se ainda houver tempo para uma segunda chamada completa.
-  if (!res.ok && alt && ![429, 402].includes(res.status) && deadline - Date.now() > 30_000) {
-    const errBody = await res.text().catch(() => "");
-    console.warn("contentV2: primário falhou", res.status, errBody.slice(0, 300), "— fallback", alt.model);
-    route = alt;
-    try {
-      res = await fetch(route.endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${route.authKey}`, "Content-Type": "application/json" },
-        body: payload(route.model),
-        signal: signalFor(deadline, 90_000),
-      });
-    } catch (e) {
-      if (isTimeout(e)) return timedOut();
-      throw e;
-    }
-  }
-  const base: ContentCall = {
-    model: route.model, provider: route.provider, latency_ms: 0, usage: null,
-    slides_requested: requested, slides_returned: 0, status: res.status,
-  };
-  if (!res.ok) {
-    base.latency_ms = Date.now() - t0;
-    const provider = { provider: route.provider };
-    if (res.status === 429) return { call: base, parsed: null, failure: { ok: false, code: "ai_rate_limited", message: "O provedor de IA está sobrecarregado agora — tente novamente em alguns instantes.", status: 429, detail: provider } };
-    if (res.status === 402) return { call: base, parsed: null, failure: { ok: false, code: "ai_quota_exhausted", message: "A cota de IA da plataforma se esgotou. A equipe já foi avisada.", status: 503, detail: provider } };
-    const t = await res.text().catch(() => "");
-    return { call: base, parsed: null, failure: { ok: false, code: "ai_gateway_error", message: "A IA respondeu com erro durante a geração. O problema foi registrado para a equipe.", status: 502, detail: { provider_status: res.status, provider_body: t.slice(0, 500) } } };
-  }
-  const data = await res.json();
-  base.latency_ms = Date.now() - t0;
-  base.usage = readUsage(data);
-  base.finish_reason = data.choices?.[0]?.finish_reason ?? null;
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall) {
-    return { call: base, parsed: null, failure: { ok: false, code: "ai_no_structure", message: "A IA não devolveu uma estrutura de slides válida — tente reduzir o número de slides ou desativar imagens/falas.", status: 502, detail: { finish_reason: base.finish_reason } } };
-  }
-  try {
-    const parsed = JSON.parse(toolCall.function.arguments);
-    base.slides_returned = Array.isArray(parsed?.slides) ? parsed.slides.length : 0;
-    return { call: base, parsed };
-  } catch {
-    return { call: base, parsed: null, failure: { ok: false, code: "ai_truncated", message: "A resposta da IA foi cortada antes de terminar — reduza o número de slides ou desative as falas.", status: 502, detail: { finish_reason: base.finish_reason, args_length: toolCall.function.arguments?.length ?? 0 } } };
-  }
-}
-
-/** Coloca cada slide devolvido na sua posição (index 1-based; sem index, pela ordem no trecho). */
-export function placeSlides(
-  target: (Record<string, unknown> | undefined)[],
-  returned: unknown[] | undefined,
-  range: { from: number; to: number },
-): void {
-  if (!Array.isArray(returned)) return;
-  let cursor = range.from;
-  for (const raw of returned) {
-    if (!raw || typeof raw !== "object") continue;
-    const s = raw as Record<string, unknown>;
-    const idx = Number(s.index);
-    let pos = Number.isInteger(idx) && idx >= range.from && idx <= range.to ? idx : cursor;
-    // Índice já ocupado: próxima posição livre dentro do trecho.
-    while (pos <= range.to && target[pos - 1]) pos++;
-    if (pos > range.to) continue;
-    target[pos - 1] = s;
-    cursor = pos + 1;
-  }
-}
-
 /**
- * Retry: coloca os slides devolvidos exatamente nas posições que faltavam.
- * Com faltantes não contíguos (ex.: 2 e 7), o placeSlides usava o trecho de
- * 2 a 7 e um índice errado da IA (3, já ocupado) escorregava o conteúdo do
- * slide 3 para a posição 7. Aqui: primeiro quem veio com um índice faltante,
- * depois o resto, na ordem, nas posições que sobraram.
- */
-export function placeAtPositions(
-  target: (Record<string, unknown> | undefined)[],
-  returned: unknown[] | undefined,
-  positions: number[],
-): void {
-  if (!Array.isArray(returned)) return;
-  const free = new Set(positions.filter((p) => !target[p - 1]));
-  const rest: Record<string, unknown>[] = [];
-  for (const raw of returned) {
-    if (!raw || typeof raw !== "object") continue;
-    const s = raw as Record<string, unknown>;
-    const idx = Number(s.index);
-    if (Number.isInteger(idx) && free.has(idx)) {
-      target[idx - 1] = s;
-      free.delete(idx);
-    } else {
-      rest.push(s);
-    }
-  }
-  for (const pos of [...free].sort((a, b) => a - b)) {
-    const s = rest.shift();
-    if (!s) break;
-    target[pos - 1] = { ...s, index: pos };
-  }
-}
-
-export function missingIndices(target: (Record<string, unknown> | undefined)[], total: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < total; i++) if (!target[i]) out.push(i + 1);
-  return out;
-}
-
-/** Slide mínimo a partir do roteiro, para nunca entregar um deck com buraco. */
-export function slideFromOutline(outline: StoryOutline, index1: number): Record<string, unknown> {
-  const beat = outline.beats[index1 - 1];
-  const headline = (beat?.key_message ?? "").split(/\s+/).slice(0, 6).join(" ") || `Parte ${index1}`;
-  return {
-    index: index1,
-    slide_type: index1 === 1 ? "title_slide" : "content",
-    headline,
-    subtitle: beat?.function ?? "",
-    body_text: beat?.key_message ?? "",
-    speaker_notes: beat?.connects_to_previous ?? "",
-  };
-}
-
-/**
- * Gera o conteúdo v2: uma chamada principal (ou duas em paralelo acima do
- * limite), e UM retry pedindo só os slides que faltaram. O que ainda faltar
- * vira slide mínimo do roteiro — o deck pago nunca sai com buraco.
+ * Gera o conteúdo v2 pela mecânica comum (./contentCall.ts): uma chamada
+ * principal (ou duas em paralelo acima do limite), e UM retry pedindo só os
+ * slides que faltaram. O que ainda faltar vira slide mínimo do roteiro.
  */
 export async function generateContentV2(
   req: ContentV2Request,
@@ -451,52 +265,29 @@ export async function generateContentV2(
   /** Prazo absoluto (epoch ms) da geração inteira; padrão: 135 s a partir de agora. */
   deadline: number = Date.now() + 135_000,
 ): Promise<ContentV2Result | ContentV2Failure> {
-  const n = req.slidesCount;
-  const system = buildSystemPromptV2(req, brief, outline, plan);
-  const split = req.includeSpeeches && n > SPLIT_THRESHOLD;
-  const ranges = split
-    ? [{ from: 1, to: Math.ceil(n / 2) }, { from: Math.ceil(n / 2) + 1, to: n }]
-    : [{ from: 1, to: n }];
-
-  const outcomes = await Promise.all(ranges.map((r, k) =>
-    callContent("content", keys, system, userPromptV2(req, r, k === 0), buildToolV2(req, k === 0), r.to - r.from + 1, req.includeSpeeches, deadline),
-  ));
-
-  const slides: (Record<string, unknown> | undefined)[] = new Array(n).fill(undefined);
-  outcomes.forEach((o, k) => placeSlides(slides, o.parsed?.slides as unknown[] | undefined, ranges[k]));
-  const first = outcomes[0].parsed;
-  const calls = outcomes.map((o) => o.call);
-
-  // Nenhum slide em nenhuma chamada: falha real (com a causa da primeira).
-  if (slides.every((s) => !s)) {
-    const failure = outcomes.find((o) => o.failure)?.failure;
-    return failure ?? { ok: false, code: "ai_empty_slides", message: "A IA não conseguiu montar nenhum slide para este título — tente reformular o título ou detalhar a descrição.", status: 502 };
-  }
-
-  // Retry SÓ dos slides que faltaram (antes: o deck inteiro era refeito).
-  let retry: ContentCall | null = null;
-  let missing = missingIndices(slides, n);
-  // Sem tempo para o retry, os faltantes saem do roteiro (abaixo).
-  if (missing.length && deadline - Date.now() > 45_000) {
-    const listed = missing.map((m) => `S${m}`).join(", ");
-    const user = `${userPromptV2(req, { from: missing[0], to: missing[missing.length - 1] }, false)}
-
-ATENÇÃO: escreva APENAS os slides ${listed} (e nenhum outro), cada um com seu "index".`;
-    const r = await callContent("contentRetry", keys, system, user, buildToolV2(req, false), missing.length, req.includeSpeeches, deadline);
-    retry = r.call;
-    // Só as posições que faltavam: nada já escrito é sobrescrito.
-    placeAtPositions(slides, r.parsed?.slides as unknown[] | undefined, missing);
-    missing = missingIndices(slides, n);
-  }
-  for (const m of missing) slides[m - 1] = slideFromOutline(outline, m);
-
+  const res = await generateSlides(
+    {
+      system: buildSystemPromptV2(req, brief, outline, plan),
+      user: (range, withTheme) => userPromptV2(req, range, withTheme),
+      tool: (withTheme) => buildToolV2(req, withTheme),
+      tokensPerSlide: req.includeSpeeches ? 860 : 600,
+    },
+    req.slidesCount,
+    { includeSpeeches: req.includeSpeeches, keys, outline, deadline },
+  );
+  if (res.ok === false) return res as ContentFailure;
+  const top = res.top;
   return {
     ok: true,
-    slides,
-    dynamic_theme: first?.dynamic_theme && typeof first.dynamic_theme === "object" ? first.dynamic_theme as Record<string, unknown> : null,
-    font_pairing: typeof first?.font_pairing === "string" ? first.font_pairing : null,
-    calls,
-    retry,
-    filled_from_outline: missing,
+    slides: res.slides,
+    dynamic_theme: top.dynamic_theme && typeof top.dynamic_theme === "object" ? top.dynamic_theme as Record<string, unknown> : null,
+    font_pairing: typeof top.font_pairing === "string" ? top.font_pairing : null,
+    calls: res.calls,
+    retry: res.retry,
+    filled_from_outline: res.filled_from_outline,
+    deck_title: typeof top.deck_title === "string" ? top.deck_title : null,
   };
 }
+
+/** Mantido para quem importava o tipo da chamada daqui. */
+export type { ContentCall as ContentV2Call };
