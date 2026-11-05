@@ -73,14 +73,21 @@ O que mudou:
 - "Reduzir movimento" do sistema: o slide entra no quadro final, sem loops.
 - Acessibilidade: botões com rótulo, anúncio do slide atual para leitores de tela, barra de progresso semântica, navegação dos pontos com `aria-current`, teclas ignoradas quando o foco está em campo/menu, gesto de arrastar só sobre o slide, controles revelados também pelo teclado em tela cheia. Os quadradinhos pretos sobre os pontos de navegação sumiram.
 
+## Dados reais usados (banco, só leitura)
+
+Antes do merge, `generation_logs` foi consultado (somente leitura, números agregados — sem títulos nem conteúdo de usuários) para calibrar o teto de tokens de saída do v1 novo: o v1 antigo chegou a p90 de 587 tokens/slide no "equilibrado" e máx. de 774 no "longo", encostado no teto antigo (800). O teto novo ficou em 650/800/1050 por profundidade (+380 com falas) — nunca abaixo do antigo, porque resposta cortada é geração perdida e o teto não custa nada (paga-se o que a IA escreve). O mesmo levantamento mostrou que, nos últimos 90 dias, as gerações foram de contas de desenvolvedor (15 no v1, 2 no v2) e as únicas falhas foram 2 `ai_rate_limited`.
+
+## GitHub × Lovable
+
+A Lovable tinha desfeito em 03/11 a mudança "Destacou descontos de até 54%" (versão restaurada), mas essa reversão nunca chegou ao GitHub. Para o merge não trazer o selo de volta, este PR inclui a mesma reversão (`git revert -m 1 bcfed66`): os 6 arquivos ficaram idênticos aos da Lovable.
+
 ## Testes
 
-Suítes novas: `deckTitle`, `deckComposer`, `contentV1`; ampliadas: `editDirector`, `aiEditMerge`. `npm test`: 510 passando.
-A única falha (`landingSeo.test.tsx`, rótulo de desconto "-15%" da página de preços) já existia antes desta mudança e não tem relação com ela.
+Suítes novas: `deckTitle`, `deckComposer`, `contentV1`; ampliadas: `editDirector`, `aiEditMerge`. `npm test`: **509 passando, nenhuma falha** (a falha antiga de `landingSeo.test.tsx` era causada pela mudança de descontos que a Lovable já tinha desfeito).
 
 ## O que aplicar na Lovable
 
-Não há migração de banco nem segredo novo. Depois do merge na `main`, o front é sincronizado sozinho; falta o deploy de **duas** edge functions. O bloco abaixo pode ser colado inteiro no chat da Lovable:
+Não há migração de banco nem segredo novo. Depois do merge na `main`, a Lovable puxa o código do GitHub (confira se o último commit do projeto é o do merge; se a conexão com o GitHub mostrar erro, reconecte em Settings → GitHub). Falta o deploy de **duas** edge functions e, por fim, publicar o site (Publish → Update), para o front novo e as funções novas entrarem juntos. O bloco abaixo pode ser colado inteiro no chat da Lovable:
 
 ```text
 Contexto: o repositório recebeu a atualização do motor principal (v1) do
@@ -105,9 +112,8 @@ Nenhuma outra função mudou. Não crie nem altere secrets.
 ETAPA 2 — Build e testes
   1. npm install (ou bun install, conforme o lockfile)
   2. npm run build → deve terminar sem erro
-  3. npm test → espero 510 testes passando; a única falha conhecida é
-     src/test/landingSeo.test.tsx ("-15%" na página de preços), que já
-     existia antes desta atualização. Me mostre o resumo.
+  3. npm test → espero 509 testes passando e nenhuma falha. Me mostre o
+     resumo.
 
 ETAPA 3 — Verificação funcional (conta de teste, motor v1 = padrão)
   a) Gere "historia da espanha", 10 slides, "Gráficos & dados" e "Imagens
@@ -130,6 +136,10 @@ ETAPA 3 — Verificação funcional (conta de teste, motor v1 = padrão)
             metadata->'tokens' AS tokens, actual_cost_usd, duration_ms
        FROM public.generation_logs
       ORDER BY created_at DESC LIMIT 3;
+
+ETAPA 4 — Publicação
+Se as etapas 1 a 3 passaram, publique a versão atual do site (Publish →
+Update), para o front novo entrar junto com as funções novas.
 
 Não mude código para "melhorar" nada que eu não pedi. Se algo divergir do
 esperado, descreva o que viu e pare.
