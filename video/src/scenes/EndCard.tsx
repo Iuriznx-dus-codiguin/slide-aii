@@ -40,7 +40,7 @@ const GEO = {
     offer: { left: 70, top: 1418 },
     trust: { left: 70, top: 1500 },
     slideA: { left: 330, top: 745, w: 620, r: 4 },
-    slideB: { left: 70, top: 950, w: 360, r: -6 },
+    slideB: { left: 60, top: 990, w: 320, r: -6 },
     chip: { left: 560, top: 700 },
     pointerFrom: [900, 1760],
   },
