@@ -12,15 +12,31 @@ const OFFER = {
   discount: "PRO com até 64% OFF",
 };
 
+const PROPS = { ...OFFER, url: "slideai.com.br", withAudio: true };
+
 export const RemotionRoot = () => (
-  <Composition
-    id="SlideAIComercial"
-    component={Commercial}
-    schema={commercialSchema}
-    durationInFrames={DURATION_IN_FRAMES}
-    fps={FPS}
-    width={WIDTH}
-    height={HEIGHT}
-    defaultProps={{ ...OFFER, url: "slideai.com.br", withAudio: true }}
-  />
+  <>
+    {/* 16:9 for YouTube in-stream */}
+    <Composition
+      id="SlideAIComercial"
+      component={Commercial}
+      schema={commercialSchema}
+      durationInFrames={DURATION_IN_FRAMES}
+      fps={FPS}
+      width={WIDTH}
+      height={HEIGHT}
+      defaultProps={PROPS}
+    />
+    {/* 9:16 for Shorts, Reels and TikTok: same timeline, mobile layouts */}
+    <Composition
+      id="SlideAIComercialVertical"
+      component={Commercial}
+      schema={commercialSchema}
+      durationInFrames={DURATION_IN_FRAMES}
+      fps={FPS}
+      width={HEIGHT}
+      height={WIDTH}
+      defaultProps={PROPS}
+    />
+  </>
 );

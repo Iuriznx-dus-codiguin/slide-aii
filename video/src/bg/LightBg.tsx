@@ -1,5 +1,5 @@
 import { AbsoluteFill, useCurrentFrame } from "remotion";
-import { beatPulse, enter } from "../anim";
+import { beatPulse, enter, useIsPortrait } from "../anim";
 import { Sparkle } from "../mg/Sparkle";
 import { EASE, GRADIENT, L } from "../theme";
 
@@ -37,6 +37,25 @@ const SHAPES_END: Shape[] = [
   { kind: "spark", x: 1860, y: 980, s: 64, r: -10, delay: 14, depth: 1.2 },
 ];
 
+// 9:16: shapes hug the top and side edges, clear of the copy column and of
+// the bottom area that the Shorts/Reels UI covers.
+const SHAPES_V: Shape[] = [
+  { kind: "tile", x: 110, y: 150, s: 84, r: -14, delay: 2, depth: 1.2 },
+  { kind: "ring", x: 930, y: 150, s: 110, r: 0, delay: 5, depth: 0.8 },
+  { kind: "spark", x: 990, y: 760, s: 60, r: 10, delay: 8, depth: 1.4 },
+  { kind: "dot", x: 60, y: 1080, s: 40, r: 0, delay: 6, depth: 0.7 },
+  { kind: "pill", x: 860, y: 1700, s: 140, r: -12, delay: 10, depth: 1 },
+  { kind: "ring", x: 150, y: 1660, s: 70, r: 0, delay: 12, depth: 1.5 },
+  { kind: "spark", x: 520, y: 110, s: 40, r: -20, delay: 9, depth: 0.6 },
+];
+
+const SHAPES_END_V: Shape[] = [
+  { kind: "ring", x: 960, y: 140, s: 100, r: 0, delay: 3, depth: 0.8 },
+  { kind: "spark", x: 60, y: 760, s: 50, r: 10, delay: 6, depth: 1.3 },
+  { kind: "tile", x: 1020, y: 1000, s: 56, r: 16, delay: 9, depth: 1.1 },
+  { kind: "spark", x: 960, y: 1700, s: 60, r: -10, delay: 14, depth: 1.2 },
+];
+
 const ShapeEl = ({ kind, s }: { kind: Shape["kind"]; s: number }) => {
   switch (kind) {
     case "tile":
@@ -66,8 +85,10 @@ export const LightBg = ({
   shapeOpacity?: number;
 }) => {
   const frame = useCurrentFrame();
+  const portrait = useIsPortrait();
   const pulse = beatPulse(frame, 5);
   const t = frame / 30;
+  const list = portrait ? (layout === "end" ? SHAPES_END_V : SHAPES_V) : layout === "end" ? SHAPES_END : SHAPES;
   return (
     <AbsoluteFill style={{ backgroundColor: L.bg, overflow: "hidden" }}>
       <AbsoluteFill
@@ -87,7 +108,7 @@ export const LightBg = ({
         />
       ) : null}
       {shapes
-        ? (layout === "end" ? SHAPES_END : SHAPES).map((sh, i) => {
+        ? list.map((sh, i) => {
             const p = enter(frame, sh.delay, 16, EASE.outBack);
             const bob = Math.sin(t * 1.4 + i) * 12 * sh.depth;
             return (

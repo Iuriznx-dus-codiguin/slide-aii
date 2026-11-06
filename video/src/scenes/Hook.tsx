@@ -1,5 +1,5 @@
 import { AbsoluteFill, useCurrentFrame } from "remotion";
-import { enter, tw } from "../anim";
+import { enter, tw, useIsPortrait } from "../anim";
 import { GridBg } from "../bg/GridBg";
 import { Burst, glitchStyle } from "../mg/Fx";
 import { Sparkle } from "../mg/Sparkle";
@@ -14,14 +14,23 @@ import { MOMENTS } from "../timeline";
 const HEAD = { fontFamily: FONT.sans, fontWeight: 800, fontSize: 124, lineHeight: 1.04, letterSpacing: -4, color: C.fg };
 
 // Blank slide with a clock badge: deadline + empty deck in one image.
-const BlankDeck = ({ at }: { at: number }) => {
+const BlankDeck = ({ at, portrait }: { at: number; portrait: boolean }) => {
   const frame = useCurrentFrame();
   const p = enter(frame, at + 4, 22, EASE.outExpo);
   const badge = enter(frame, at + 16, 16, EASE.outBack);
   const caret = Math.floor((frame - at) / 9) % 2 === 0;
   const f = frame - at;
   return (
-    <div style={{ position: "absolute", left: 1120, top: 270, perspective: 1600 }}>
+    <div
+      style={{
+        position: "absolute",
+        left: portrait ? 111 : 1120,
+        top: portrait ? 880 : 270,
+        perspective: 1600,
+        scale: portrait ? "1.3" : "1",
+        transformOrigin: "0 0",
+      }}
+    >
       <div
         style={{
           width: 660,
@@ -75,7 +84,7 @@ const BlankDeck = ({ at }: { at: number }) => {
   );
 };
 
-const Stopwatch = ({ at }: { at: number }) => {
+const Stopwatch = ({ at, portrait }: { at: number; portrait: boolean }) => {
   const frame = useCurrentFrame();
   const p = enter(frame, at + 6, 18, EASE.outBack);
   const fill = tw(frame, [at + 14, at + 50], [0, 1], EASE.inOut);
@@ -83,7 +92,15 @@ const Stopwatch = ({ at }: { at: number }) => {
   const R = 140;
   const len = 2 * Math.PI * R;
   return (
-    <div style={{ position: "absolute", left: 1400, top: 230, scale: String(p) }}>
+    <div
+      style={{
+        position: "absolute",
+        left: portrait ? 540 - 190 * 1.4 : 1400,
+        top: portrait ? 800 : 230,
+        scale: String(p * (portrait ? 1.4 : 1)),
+        transformOrigin: "0 0",
+      }}
+    >
       <svg width="380" height="380" viewBox="0 0 380 380">
         <circle cx="190" cy="190" r={R} fill="hsl(250 40% 8%)" stroke="hsl(262 60% 26%)" strokeWidth="22" />
         <circle cx="190" cy="190" r={R} fill="none" stroke="url(#sw)" strokeWidth="22" strokeLinecap="round" strokeDasharray={len} strokeDashoffset={len * (1 - fill)} transform="rotate(-90 190 190)" />
@@ -119,34 +136,44 @@ export const Hook = () => {
   const [b1, b2] = MOMENTS.hookCuts;
   const build = tw(frame, [128, 144], [0, 1], EASE.inExpo);
   const showA = frame < b2;
+  const portrait = useIsPortrait();
+  // 9:16: copy pinned near the top, art centred below it.
+  const textBox = portrait
+    ? ({ position: "absolute", left: 70, top: 300 } as const)
+    : ({ position: "absolute", left: 140, top: 0, bottom: 80, display: "flex", alignItems: "center" } as const);
+  const head = portrait ? { ...HEAD, fontSize: 118 } : HEAD;
   return (
     <AbsoluteFill style={{ scale: String(1 + build * 0.08), filter: `brightness(${1 + build * 0.7})` }}>
       <GridBg />
       <AbsoluteFill style={glitchStyle(frame, [b2], 4)}>
         {showA ? (
           <>
-            <div style={{ position: "absolute", left: 140, top: 0, bottom: 80, display: "flex", alignItems: "center" }}>
-              <Words tokens={["Apresentação", "\n", "pra", { t: "amanhã?", look: "gradient" }]} at={b1 + 2} stagger={5} dur={18} mode="rise" style={HEAD} />
+            <div style={textBox}>
+              <Words tokens={["Apresentação", "\n", "pra", { t: "amanhã?", look: "gradient" }]} at={b1 + 2} stagger={5} dur={18} mode="rise" style={head} />
             </div>
-            <BlankDeck at={b1} />
+            <BlankDeck at={b1} portrait={portrait} />
           </>
         ) : (
           <>
-            <div style={{ position: "absolute", left: 140, top: 0, bottom: 80, display: "flex", alignItems: "center" }}>
+            <div style={textBox}>
               <Words
-                tokens={["E", "se", "ficasse", "pronta", "\n", "em", { t: "1", look: "gradient" }, { t: "minuto?", look: "gradient" }]}
+                tokens={
+                  portrait
+                    ? ["E", "se", "ficasse", "\n", "pronta", "em", "\n", { t: "1", look: "gradient" }, { t: "minuto?", look: "gradient" }]
+                    : ["E", "se", "ficasse", "pronta", "\n", "em", { t: "1", look: "gradient" }, { t: "minuto?", look: "gradient" }]
+                }
                 at={b2 + 2}
                 stagger={4}
                 dur={18}
                 mode="rise"
-                style={HEAD}
+                style={head}
               />
             </div>
-            <Stopwatch at={b2} />
+            <Stopwatch at={b2} portrait={portrait} />
           </>
         )}
       </AbsoluteFill>
-      <Burst at={b2 + 50} x={1590} y={420} count={22} dist={320} />
+      <Burst at={b2 + 50} x={portrait ? 540 : 1590} y={portrait ? 1066 : 420} count={22} dist={portrait ? 420 : 320} />
     </AbsoluteFill>
   );
 };

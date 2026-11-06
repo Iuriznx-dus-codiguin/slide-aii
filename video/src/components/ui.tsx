@@ -124,12 +124,13 @@ export const StepLabel = ({ n, children, style }: { n: string; children: ReactNo
 
 // Honesty tag for the product demo (product-proof-saas: never fake speed
 // without saying so).
-export const SimTag = ({ opacity = 1, tone = "dark" }: { opacity?: number; tone?: "dark" | "light" }) => (
+// In 9:16 the bottom and right edges sit under the Shorts/Reels UI, so the
+// tag moves to the top-left there.
+export const SimTag = ({ opacity = 1, tone = "dark", portrait = false }: { opacity?: number; tone?: "dark" | "light"; portrait?: boolean }) => (
   <div
     style={{
       position: "absolute",
-      right: 64,
-      bottom: 48,
+      ...(portrait ? { left: 70, top: 232 } : { right: 64, bottom: 48 }),
       display: "flex",
       alignItems: "center",
       gap: 12,

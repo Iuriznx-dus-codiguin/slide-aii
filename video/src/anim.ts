@@ -1,4 +1,4 @@
-import { interpolate, type EasingFunction } from "remotion";
+import { interpolate, useVideoConfig, type EasingFunction } from "remotion";
 import { BEAT } from "./timeline";
 
 // Clamped interpolate with an easing. Keeps scene code short.
@@ -31,3 +31,9 @@ export const beatPulse = (frame: number, decay = 4, every = BEAT): number => {
 // Progress 0..1 of an entrance that starts at `at` and lasts `dur` frames.
 export const enter = (frame: number, at: number, dur: number, easing?: EasingFunction): number =>
   tw(frame, [at, at + dur], [0, 1], easing);
+
+// True for vertical (9:16) compositions.
+export const useIsPortrait = (): boolean => {
+  const { width, height } = useVideoConfig();
+  return height > width;
+};

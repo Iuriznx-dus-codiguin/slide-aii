@@ -1,4 +1,5 @@
 import { AbsoluteFill, useCurrentFrame } from "remotion";
+import { useIsPortrait } from "../anim";
 
 // The purple glow of the SlideAI landing page, rebuilt frame-exact:
 // - .bg-gradient-glow: radial violet glow from the top centre;
@@ -52,10 +53,16 @@ const ORBS = [
 // 22–38 s; a 4 s shot would otherwise look static).
 export const Orbs = ({ intensity = 1, speed = 3, glow = true }: { intensity?: number; speed?: number; glow?: boolean }) => {
   const frame = useCurrentFrame();
+  const portrait = useIsPortrait();
   const t = (frame / 30) * speed;
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       {ORBS.map((o, i) => {
+        // Keep the orbs round in 9:16: size in % of width, height scaled down.
+        const w = portrait ? o.size * 1.35 : o.size;
+        const h = portrait ? o.size * 0.78 : o.size * 1.4;
+        const left = portrait ? o.left * 0.9 - 12 : o.left;
+        const top = portrait ? o.top * 1.1 : o.top;
         const dur = 22 + i * 4;
         const p = (((t + i * 3) % dur) + dur) % dur / dur;
         const m = sample(i % 2 === 0 ? ORB_A : ORB_B, p);
@@ -64,10 +71,10 @@ export const Orbs = ({ intensity = 1, speed = 3, glow = true }: { intensity?: nu
             key={i}
             style={{
               position: "absolute",
-              top: `${o.top}%`,
-              left: `${o.left}%`,
-              width: `${o.size}%`,
-              height: `${o.size * 1.4}%`,
+              top: `${top}%`,
+              left: `${left}%`,
+              width: `${w}%`,
+              height: `${h}%`,
               background: `radial-gradient(closest-side, rgba(${o.color}, ${0.4 * intensity}) 0%, rgba(${o.color}, ${0.16 * intensity}) 45%, transparent 100%)`,
               translate: `${m.x}% ${m.y}%`,
               scale: String(m.s),

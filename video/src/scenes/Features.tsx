@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { AbsoluteFill, useCurrentFrame } from "remotion";
-import { beatPulse, enter, tw } from "../anim";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { beatPulse, enter, tw, useIsPortrait } from "../anim";
 import { GridBg } from "../bg/GridBg";
 import { RevenueSlide } from "../components/DeckSlide";
 import { Scaled, Slide, SolarRoof } from "../decks/Decks";
@@ -11,10 +11,12 @@ import { C, EASE, FONT, GRADIENT } from "../theme";
 import { MOMENTS } from "../timeline";
 
 // 30–37.2 s, grid world. Three features, one per bar, each sliding in
-// from the right: chat edits, speaker notes, export.
+// from the right: chat edits, speaker notes, export. 16:9 puts copy left and
+// the visual right; 9:16 stacks copy on top and the visual below it.
 
 const Hit = ({ at, end, n, title, sub, children }: { at: number; end: number; n: string; title: Token[]; sub: string; children: ReactNode }) => {
   const frame = useCurrentFrame();
+  const portrait = useIsPortrait();
   if (frame < at || frame >= end) return null;
   const inP = tw(frame, [at, at + 14], [0, 1], EASE.outExpo);
   const outP = tw(frame, [end - 8, end], [0, 1], EASE.inExpo);
@@ -22,12 +24,12 @@ const Hit = ({ at, end, n, title, sub, children }: { at: number; end: number; n:
   const blur = (1 - inP) * 24 + outP * 24;
   return (
     <AbsoluteFill style={{ translate: `${x}px 0`, filter: `blur(${blur}px)` }}>
-      <div style={{ position: "absolute", left: 140, top: 250, width: 820 }}>
+      <div style={{ position: "absolute", left: portrait ? 70 : 140, top: portrait ? 260 : 250, width: portrait ? 940 : 820 }}>
         <div style={{ fontFamily: FONT.mono, fontSize: 30, fontWeight: 700, letterSpacing: 4, color: C.primaryGlow, opacity: enter(frame, at + 2, 8) }}>{n} / 03</div>
         <div style={{ height: 24 }} />
-        <Words tokens={title} at={at + 4} stagger={5} dur={18} mode="rise" style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 112, letterSpacing: -4, color: C.fg, lineHeight: 1.02 }} />
-        <div style={{ height: 30 }} />
-        <div style={{ fontFamily: FONT.sans, fontSize: 42, color: C.fgMuted, opacity: enter(frame, at + 16, 14), translate: `0 ${(1 - enter(frame, at + 16, 14, EASE.outExpo)) * 20}px` }}>{sub}</div>
+        <Words tokens={title} at={at + 4} stagger={5} dur={18} mode="rise" style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: portrait ? 120 : 112, letterSpacing: -4, color: C.fg, lineHeight: 1.02 }} />
+        <div style={{ height: portrait ? 24 : 30 }} />
+        <div style={{ fontFamily: FONT.sans, fontSize: portrait ? 46 : 42, color: C.fgMuted, opacity: enter(frame, at + 16, 14), translate: `0 ${(1 - enter(frame, at + 16, 14, EASE.outExpo)) * 20}px` }}>{sub}</div>
       </div>
       {children}
     </AbsoluteFill>
@@ -36,6 +38,7 @@ const Hit = ({ at, end, n, title, sub, children }: { at: number; end: number; n:
 
 const ChatEdit = ({ at }: { at: number }) => {
   const frame = useCurrentFrame();
+  const portrait = useIsPortrait();
   const msg = enter(frame, at + MOMENTS.featureChatMsg, 14, EASE.outBack);
   const morph = at + MOMENTS.featureChatMorph;
   const bullets = 1 - tw(frame, [morph, morph + 8], [0, 1]);
@@ -43,24 +46,24 @@ const ChatEdit = ({ at }: { at: number }) => {
   const chartP = tw(frame, [morph + 3, morph + 30], [0, 1], EASE.outQuart);
   const ring = tw(frame, [morph - 2, morph + 6, morph + 28], [0, 1, 0]);
   return (
-    <div style={{ position: "absolute", left: 1000, top: 230 }}>
+    <div style={{ position: "absolute", left: portrait ? 70 : 1000, top: portrait ? 770 : 230 }}>
       <div style={{ borderRadius: 22, overflow: "hidden", boxShadow: `0 40px 100px -20px rgba(0,0,0,0.85), 0 0 0 ${3 + ring * 8}px hsl(262 100% 72% / ${0.4 + ring * 0.5}), 0 0 ${ring * 80}px hsl(262 100% 70%)` }}>
-        <Scaled width={780}>
+        <Scaled width={portrait ? 900 : 780}>
           <RevenueSlide bulletsOpacity={bullets} chartOpacity={chartO} chartProgress={chartP} />
         </Scaled>
       </div>
       <div
         style={{
           position: "absolute",
-          right: -40,
-          bottom: -70,
-          maxWidth: 520,
+          right: portrait ? 30 : -40,
+          bottom: portrait ? -100 : -70,
+          maxWidth: portrait ? 600 : 520,
           padding: "22px 28px",
           borderRadius: "28px 28px 8px 28px",
           background: GRADIENT.primary,
           color: "#fff",
           fontFamily: FONT.sans,
-          fontSize: 34,
+          fontSize: portrait ? 40 : 34,
           fontWeight: 700,
           lineHeight: 1.25,
           boxShadow: "0 24px 50px -16px hsl(252 100% 40% / 0.8)",
@@ -79,6 +82,7 @@ const ChatEdit = ({ at }: { at: number }) => {
 
 const Notes = ({ at }: { at: number }) => {
   const frame = useCurrentFrame();
+  const portrait = useIsPortrait();
   const p = enter(frame, at + 6, 18, EASE.outExpo);
   const pulse = beatPulse(frame, 5);
   const lines = [
@@ -90,7 +94,7 @@ const Notes = ({ at }: { at: number }) => {
   ];
   const hl = Math.min(lines.length - 1, Math.floor((frame - at - 8) / 12));
   return (
-    <div style={{ position: "absolute", left: 1000, top: 210, width: 780, opacity: p, translate: `0 ${(1 - p) * 60}px` }}>
+    <div style={{ position: "absolute", left: portrait ? 70 : 1000, top: portrait ? 750 : 210, width: portrait ? 940 : 780, opacity: p, translate: `0 ${(1 - p) * 60}px` }}>
       <div style={{ borderRadius: 24, background: "hsl(245 30% 12%)", border: "3px solid hsl(262 60% 35%)", padding: 28, boxShadow: "0 40px 100px -20px rgba(0,0,0,0.85)" }}>
         <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
           <div style={{ borderRadius: 12, overflow: "hidden", flexShrink: 0 }}>
@@ -111,7 +115,7 @@ const Notes = ({ at }: { at: number }) => {
         </div>
         <div style={{ marginTop: 26, display: "flex", flexDirection: "column", gap: 8 }}>
           {lines.map((l, i) => (
-            <div key={l} style={{ fontFamily: FONT.sans, fontSize: 36, fontWeight: 600, lineHeight: 1.25, color: i === hl ? "#fff" : "hsl(240 10% 55%)", background: i === hl ? "hsl(262 100% 64% / 0.25)" : "transparent", borderRadius: 10, padding: "2px 12px" }}>
+            <div key={l} style={{ fontFamily: FONT.sans, fontSize: portrait ? 42 : 36, fontWeight: 600, lineHeight: 1.25, color: i === hl ? "#fff" : "hsl(240 10% 55%)", background: i === hl ? "hsl(262 100% 64% / 0.25)" : "transparent", borderRadius: 10, padding: "2px 12px" }}>
               {l}
             </div>
           ))}
@@ -122,24 +126,31 @@ const Notes = ({ at }: { at: number }) => {
 };
 
 const FORMATS = [
-  { label: "PowerPoint", ext: ".pptx", dx: -300, dy: -235 },
-  { label: "PDF", ext: ".pdf", dx: 300, dy: -235 },
-  { label: "Imagens", ext: ".png", dx: -300, dy: 255 },
-  { label: "Link público", ext: "tela cheia", dx: 300, dy: 255 },
+  { label: "PowerPoint", ext: ".pptx", dx: -1, dy: -1 },
+  { label: "PDF", ext: ".pdf", dx: 1, dy: -1 },
+  { label: "Imagens", ext: ".png", dx: -1, dy: 1 },
+  { label: "Link público", ext: "tela cheia", dx: 1, dy: 1 },
 ];
 
 const Export = ({ at }: { at: number }) => {
   const frame = useCurrentFrame();
-  const cx = 1420;
-  const cy = 560;
+  const portrait = useIsPortrait();
+  const { width, height } = useVideoConfig();
+  const cx = portrait ? 540 : 1420;
+  const cy = portrait ? 1110 : 560;
+  const sx = portrait ? 225 : 300;
+  const syUp = portrait ? 300 : 235;
+  const syDown = portrait ? 300 : 255;
+  const off = (f: (typeof FORMATS)[number]) => ({ x: f.dx * sx, y: f.dy < 0 ? -syUp : syDown });
   const card = enter(frame, at + 4, 16, EASE.outBack);
   const burstAt = MOMENTS.featureExportBurst;
   return (
     <>
-      <svg width={1920} height={1080} style={{ position: "absolute", left: 0, top: 0 }}>
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0 }}>
         {FORMATS.map((f, i) => {
           const p = enter(frame, burstAt + i * 3, 16, EASE.outExpo);
-          return <line key={i} x1={cx} y1={cy} x2={cx + f.dx * p} y2={cy + f.dy * p} stroke="hsl(262 100% 72% / 0.7)" strokeWidth={4} strokeDasharray="10 10" strokeDashoffset={-frame * 2} />;
+          const o = off(f);
+          return <line key={i} x1={cx} y1={cy} x2={cx + o.x * p} y2={cy + o.y * p} stroke="hsl(262 100% 72% / 0.7)" strokeWidth={4} strokeDasharray="10 10" strokeDashoffset={-frame * 2} />;
         })}
       </svg>
       <div style={{ position: "absolute", left: cx - 230, top: cy - 130, scale: String(card), borderRadius: 16, boxShadow: "0 40px 90px -20px rgba(0,0,0,0.85), 0 0 0 3px hsl(262 100% 72% / 0.5)" }}>
@@ -147,13 +158,14 @@ const Export = ({ at }: { at: number }) => {
       </div>
       {FORMATS.map((f, i) => {
         const p = enter(frame, burstAt + i * 3, 18, EASE.outBack);
+        const o = off(f);
         return (
           <div
             key={f.label}
             style={{
               position: "absolute",
-              left: cx + f.dx * p - 170,
-              top: cy + f.dy * p - 60,
+              left: cx + o.x * p - 170,
+              top: cy + o.y * p - 60,
               width: 340,
               height: 120,
               borderRadius: 24,

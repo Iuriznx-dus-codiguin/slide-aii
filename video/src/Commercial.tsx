@@ -1,5 +1,5 @@
 import { TransitionSeries } from "@remotion/transitions";
-import { AbsoluteFill } from "remotion";
+import { AbsoluteFill, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { BlockWipe, IrisWipe } from "./mg/Wipes";
 import { Audience } from "./scenes/Audience";
@@ -25,7 +25,11 @@ export type CommercialProps = z.infer<typeof commercialSchema>;
 const PURPLE_WIPE = ["hsl(290 90% 65%)", "hsl(270 95% 60%)", "hsl(252 100% 64%)"];
 const DARK_WIPE = ["hsl(252 100% 64%)", "hsl(255 70% 25%)", "hsl(250 50% 3%)"];
 
-export const Commercial = ({ price, discount, url, withAudio }: CommercialProps) => (
+// One component for both formats: every scene reads the composition size and
+// lays itself out for 16:9 or 9:16; timing, music and effects are shared.
+export const Commercial = ({ price, discount, url, withAudio }: CommercialProps) => {
+  const { width, height } = useVideoConfig();
+  return (
   <AbsoluteFill style={{ backgroundColor: "#000" }}>
     <TransitionSeries>
       <TransitionSeries.Sequence name="1 Hook (grade)" durationInFrames={sceneDuration("hook")}>
@@ -56,7 +60,7 @@ export const Commercial = ({ price, discount, url, withAudio }: CommercialProps)
         <Tagline />
       </TransitionSeries.Sequence>
       <TransitionSeries.Overlay durationInFrames={24}>
-        <IrisWipe color="#fff" x={960} y={560} />
+        <IrisWipe color="#fff" x={width / 2} y={height / 2} />
       </TransitionSeries.Overlay>
       <TransitionSeries.Sequence name="8 Cartela final (claro)" durationInFrames={sceneDuration("endcard")}>
         <EndCard price={price} discount={discount} url={url} />
@@ -64,4 +68,5 @@ export const Commercial = ({ price, discount, url, withAudio }: CommercialProps)
     </TransitionSeries>
     {withAudio ? <SoundTrack /> : null}
   </AbsoluteFill>
-);
+  );
+};

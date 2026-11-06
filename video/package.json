@@ -2,12 +2,13 @@
   "name": "slideai-youtube-ad",
   "private": true,
   "version": "1.0.0",
-  "description": "Comercial de 45s (16:9) do SlideAI para o YouTube, feito em Remotion.",
+  "description": "Comercial de 45s do SlideAI (16:9 para YouTube e 9:16 para Shorts/Reels), feito em Remotion.",
   "type": "module",
   "scripts": {
     "dev": "remotion studio",
     "still": "remotion still SlideAIComercial --scale=0.5",
     "render": "remotion render SlideAIComercial out/slideai-comercial-45s-16x9.mp4 --codec=h264 --crf=17",
+    "render:vertical": "remotion render SlideAIComercialVertical out/slideai-comercial-45s-9x16.mp4 --codec=h264 --crf=17",
     "music": "node scripts/make-music.mjs",
     "typecheck": "tsc --noEmit"
   },

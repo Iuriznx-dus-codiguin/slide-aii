@@ -1,8 +1,13 @@
 # Comercial do SlideAI para YouTube (Remotion)
 
-Comercial de 45 s em 16:9 (1920×1080, 30 fps, trilha a 100 BPM) para anúncio
-in-stream no YouTube. Projeto isolado do app: tem `package.json` próprio e não
-entra no build do Vite.
+Comercial de 45 s (30 fps, trilha a 100 BPM) em dois formatos:
+
+- **16:9** (1920×1080), composição `SlideAIComercial`, para anúncio in-stream no YouTube;
+- **9:16** (1080×1920), composição `SlideAIComercialVertical`, para Shorts, Reels e TikTok.
+
+Os dois usam o mesmo componente, a mesma timeline, trilha e efeitos; cada cena
+lê o tamanho da composição e se recompõe para a orientação. Projeto isolado do
+app: tem `package.json` próprio e não entra no build do Vite.
 
 Roteiro, estratégia (ABCD do YouTube, PAS, Ogilvy) e mapa de cenas:
 [STORYBOARD.md](STORYBOARD.md).
@@ -15,7 +20,8 @@ Requer Node 22.18+ (o gerador de trilha importa `src/timeline.ts` direto).
 cd video
 npm install
 npm run dev        # Remotion Studio para editar e pré-visualizar
-npm run render     # gera out/slideai-comercial-45s-16x9.mp4 (H.264, CRF 17)
+npm run render            # gera out/slideai-comercial-45s-16x9.mp4 (H.264, CRF 17)
+npm run render:vertical   # gera out/slideai-comercial-45s-9x16.mp4
 npm run still -- --frame=180   # um frame para conferir layout
 npm run music      # regenera public/audio/music.mp3 a partir da timeline
 npm run typecheck
@@ -31,6 +37,18 @@ como props no Studio:
 - `discount`: "PRO com até 64% OFF", valor informado pela equipe para a
   campanha. A tabela de preços do repositório sozinha não chega a esse número,
   então atualize a prop quando a oferta mudar.
+
+## Versão 9:16 (mobile)
+
+- Zona segura do Shorts/Reels/TikTok respeitada: nada importante nos 220 px do
+  topo, nos 420 px de baixo (legenda, nome do perfil, botão do anúncio) nem na
+  coluna de ícones à direita.
+- Texto maior em relação à largura (títulos de 96 a 150 px em 1080 de largura)
+  e quebras de linha próprias para tela estreita.
+- Cenas empilhadas: texto no topo e visual embaixo; botão da cartela em largura
+  total; painel roxo dos públicos no topo com o deck embaixo; plano isométrico
+  em 2 × 4 slides.
+- A etiqueta "Simulação de uso · tempo acelerado" sobe para o topo esquerdo.
 
 ## Estrutura
 

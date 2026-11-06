@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { AbsoluteFill, useCurrentFrame } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { enter, rand, tw } from "../anim";
 import { EASE, FONT } from "../theme";
 
@@ -140,6 +140,7 @@ export const Callout = ({
   side?: "left" | "right";
 }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
   const dot = enter(frame, at, 8, EASE.outBack);
   const line = enter(frame, at + 3, 12, EASE.outQuart);
   const pill = enter(frame, at + 11, 10, EASE.outBack);
@@ -149,7 +150,7 @@ export const Callout = ({
   const ring = tw(frame, [at, at + 24], [0, 1]);
   return (
     <>
-      <svg width={1920} height={1080} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+      <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
         <path d={d} fill="none" stroke="hsl(252 100% 64%)" strokeWidth={4} strokeDasharray={len} strokeDashoffset={len * (1 - line)} strokeLinecap="round" />
       </svg>
       <div style={{ position: "absolute", left: ax - 12, top: ay - 12, width: 24, height: 24, borderRadius: 99, background: "hsl(252 100% 64%)", border: "5px solid #fff", boxShadow: "0 4px 14px hsl(252 100% 40% / 0.5)", scale: String(dot) }} />
@@ -169,7 +170,7 @@ export const Callout = ({
         style={{
           position: "absolute",
           left: side === "right" ? lx - 8 : undefined,
-          right: side === "left" ? 1920 - lx - 8 : undefined,
+          right: side === "left" ? width - lx - 8 : undefined,
           top: ly - 34,
           padding: "12px 26px",
           borderRadius: 999,

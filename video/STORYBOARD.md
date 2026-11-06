@@ -1,4 +1,4 @@
-# SlideAI · comercial YouTube 45s (16:9) · v3
+# SlideAI · comercial 45s · 16:9 (YouTube) e 9:16 (Shorts/Reels) · v3
 
 Remotion, 1920×1080, 30 fps, 1350 frames, trilha a 100 BPM (1 tempo = 18
 frames, 1 compasso = 72 frames). Todo corte cai num tempo da música.
@@ -43,6 +43,24 @@ Transições: corte com leve split RGB (hook), flash suave e onda de choque
 (marca), íris branca (brilho → claro), cortina de blocos roxos (demo →
 públicos e públicos → grade), deslize com blur (entre recursos), íris branca
 (assinatura → cartela).
+
+## Versão 9:16
+
+Mesma timeline, trilha e copy; só a composição de cada tela muda:
+
+| Cena | 9:16 |
+| --- | --- |
+| Hook | Frase no topo em 2 ou 3 linhas; slide em branco ou cronômetro grandes no centro |
+| Marca | Ícone, "SlideAI" e frase empilhados no centro |
+| Prompt | Cartão de formulário com o tema numa linha e botão "Gerar" de largura total, chips em duas linhas |
+| Slides prontos | Plano isométrico 2 × 4 em cima, "8 slides prontos." embaixo; chamadas nas margens do slide |
+| Públicos | Painel roxo no topo com a palavra em caça-níquel; capa do deck embaixo com os outros slides em leque atrás |
+| Recursos | Título no topo, visual (chat, falas, formatos) ocupando a metade de baixo |
+| Assinatura | Frase em quatro linhas |
+| Cartela | Logo, promessa em 3 linhas, colagem, botão de largura total, URL centralizada, oferta e linha de confiança |
+
+Zona segura: nada essencial nos 220 px do topo, nos 420 px de baixo nem na
+coluna de ícones à direita (Shorts/Reels/TikTok).
 
 ## Oferta
 

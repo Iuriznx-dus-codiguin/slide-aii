@@ -9,7 +9,7 @@ import { EASE } from "../theme";
 // Staggered skewed colour blocks sweeping left to right.
 export const BlockWipe = ({ colors }: { colors: string[] }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width, height } = useVideoConfig();
   const mid = Math.floor(durationInFrames / 2);
   return (
     <AbsoluteFill style={{ overflow: "hidden", pointerEvents: "none" }}>
@@ -36,8 +36,8 @@ export const BlockWipe = ({ colors }: { colors: string[] }) => {
       <div
         style={{
           position: "absolute",
-          left: tw(frame, [0, mid], [-200, 900], EASE.outExpo),
-          top: 440,
+          left: tw(frame, [0, mid], [-200, width / 2 - 100], EASE.outExpo),
+          top: height / 2 - 100,
           opacity: tw(frame, [0, 3, mid - 2, mid + 2], [0, 1, 1, 0]),
           rotate: `${frame * 12}deg`,
         }}
