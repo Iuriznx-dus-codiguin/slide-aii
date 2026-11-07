@@ -3,12 +3,12 @@ import { enter, tw, useIsPortrait } from "../anim";
 import { LightBg } from "../bg/LightBg";
 import { SimTag } from "../components/ui";
 import { Scaled, Slide, SolarChart, SolarRoof } from "../decks/Decks";
-import { Callout, Flash } from "../mg/Fx";
+import { Callout } from "../mg/Fx";
 import { Words } from "../mg/Text";
 import { EASE, FONT, L } from "../theme";
 import { MOMENTS } from "../timeline";
 
-// 15.6–22.8 s, light world. Shot 1: the 8 generated slides drop onto an
+// 13.3–19.2 s, light world. Shot 1: the 8 generated slides drop onto an
 // isometric canvas while the camera drifts. Shot 2: one slide up close with
 // callouts that draw themselves to each thing the AI made.
 
@@ -28,7 +28,7 @@ const Plane = ({ portrait }: { portrait: boolean }) => {
   const rows = 8 / P.cols;
   const W = CW * P.cols + GAP * (P.cols - 1);
   const H = CH * rows + GAP * (rows - 1);
-  const pan = tw(frame, [0, 108], [0, 1], EASE.outQuart);
+  const pan = tw(frame, [0, 104], [0, 1], EASE.outQuart);
   const [x0, y0, z0] = P.from;
   const [x1, y1, z1] = P.to;
   return (
@@ -48,7 +48,7 @@ const Plane = ({ portrait }: { portrait: boolean }) => {
           const col = i % P.cols;
           const row = Math.floor(i / P.cols);
           const at = MOMENTS.demoCards + i * MOMENTS.demoCardStagger;
-          const p = enter(frame, at, 22, EASE.outExpo);
+          const p = enter(frame, at, 18, EASE.outExpo);
           return (
             <div
               key={i}
@@ -87,17 +87,17 @@ const Shot1 = ({ portrait }: { portrait: boolean }) => {
       <div style={{ position: "absolute", left: portrait ? 70 : 140, bottom: portrait ? 400 : 120 }}>
         <Words
           tokens={portrait ? [{ t: "8", look: "gradientInk" }, { t: "slides", look: "gradientInk" }, "\n", "prontos."] : [{ t: "8", look: "gradientInk" }, { t: "slides", look: "gradientInk" }, "prontos."]}
-          at={26}
-          stagger={5}
-          dur={18}
+          at={16}
+          stagger={4}
+          dur={16}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 150, letterSpacing: -5, color: L.ink, lineHeight: 1 }}
         />
         <Words
-          tokens={["Em", "cerca", "de", { t: "1", look: "marker" }, { t: "minuto.", look: "marker" }]}
-          at={42}
-          stagger={4}
-          dur={18}
+          tokens={["Em", "menos", "de", { t: "1", look: "marker" }, { t: "minuto.", look: "marker" }]}
+          at={28}
+          stagger={3}
+          dur={16}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 700, fontSize: 64, letterSpacing: -1.5, color: L.ink, marginTop: 10 }}
         />
@@ -139,9 +139,9 @@ const Shot2 = ({ at, portrait }: { at: number; portrait: boolean }) => {
   const S2 = portrait ? SHOT2.portrait : SHOT2.landscape;
   const MAIN = S2.main;
   const SIDE = S2.side;
-  const main = enter(frame, at, 22, EASE.outExpo);
-  const side = enter(frame, at + 8, 20, EASE.outBack);
-  const chart = tw(frame, [at + 10, at + 60], [0, 1], EASE.outQuart);
+  const main = enter(frame, at, 18, EASE.outExpo);
+  const side = enter(frame, at + 6, 16, EASE.outQuart);
+  const chart = tw(frame, [at + 8, at + 50], [0, 1], EASE.outQuart);
 
   return (
     <AbsoluteFill>
@@ -154,8 +154,8 @@ const Shot2 = ({ at, portrait }: { at: number; portrait: boolean }) => {
               : ["Roteiro,", "design,", "imagens", "e", { t: "gráficos.", look: "gradientInk" }]
           }
           at={at + 2}
-          stagger={4}
-          dur={18}
+          stagger={3}
+          dur={16}
           mode="rise"
           style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: S2.headSize, letterSpacing: -3.5, color: L.ink, lineHeight: 1.04 }}
         />
@@ -166,8 +166,8 @@ const Shot2 = ({ at, portrait }: { at: number; portrait: boolean }) => {
           left: MAIN.x,
           top: MAIN.y,
           opacity: main,
-          scale: String(1.25 - 0.25 * main),
-          filter: `blur(${(1 - main) * 14}px)`,
+          scale: String(1.08 - 0.08 * main),
+          filter: `blur(${(1 - main) * 8}px)`,
           borderRadius: 22,
           boxShadow: "0 50px 110px -30px hsl(252 80% 30% / 0.45), 0 0 0 3px hsl(252 100% 88%)",
         }}
@@ -182,7 +182,7 @@ const Shot2 = ({ at, portrait }: { at: number; portrait: boolean }) => {
           left: SIDE.x,
           top: SIDE.y,
           opacity: side,
-          translate: `${(1 - side) * 200}px 0`,
+          translate: `${(1 - side) * 80}px 0`,
           rotate: `${6 * side}deg`,
           borderRadius: 16,
           boxShadow: "0 40px 90px -24px hsl(252 80% 30% / 0.5), 0 0 0 3px #fff",
@@ -204,10 +204,20 @@ export const Demo = () => {
   const frame = useCurrentFrame();
   const portrait = useIsPortrait();
   const shot2 = MOMENTS.demoShot2;
+  // Short crossfade between the two shots (both on white).
+  const x = tw(frame, [shot2 - 2, shot2 + 8], [0, 1], EASE.inOut);
   return (
     <AbsoluteFill>
-      {frame < shot2 ? <Shot1 portrait={portrait} /> : <Shot2 at={shot2} portrait={portrait} />}
-      <Flash at={shot2} color="#fff" dur={9} peak={0.7} />
+      {frame < shot2 + 8 ? (
+        <AbsoluteFill style={{ opacity: 1 - x, scale: String(1 + x * 0.04) }}>
+          <Shot1 portrait={portrait} />
+        </AbsoluteFill>
+      ) : null}
+      {frame >= shot2 - 2 ? (
+        <AbsoluteFill style={{ opacity: x }}>
+          <Shot2 at={shot2} portrait={portrait} />
+        </AbsoluteFill>
+      ) : null}
     </AbsoluteFill>
   );
 };

@@ -72,7 +72,7 @@ const ShapeEl = ({ kind, s }: { kind: Shape["kind"]; s: number }) => {
 };
 
 export const LightBg = ({
-  shapes = true,
+  shapes = false,
   layout = "default",
   dots = true,
   glow = 1,
@@ -99,7 +99,7 @@ export const LightBg = ({
       {dots ? (
         <AbsoluteFill
           style={{
-            backgroundImage: "radial-gradient(hsl(252 40% 70% / 0.5) 2.2px, transparent 2.6px)",
+            backgroundImage: "radial-gradient(hsl(252 40% 72% / 0.38) 2.2px, transparent 2.6px)",
             backgroundSize: "44px 44px",
             backgroundPosition: `${(frame * 0.5) % 44}px ${(frame * 0.3) % 44}px`,
             maskImage: "radial-gradient(ellipse 70% 65% at 50% 45%, black 20%, transparent 80%)",

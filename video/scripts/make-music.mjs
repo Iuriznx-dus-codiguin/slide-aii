@@ -4,7 +4,7 @@
 //
 //   node scripts/make-music.mjs        -> public/audio/music.mp3
 //
-// 100 BPM. Hook hits on every cut, drop + sonic logo on the brand reveal,
+// 112.5 BPM. Hook hits on every cut, drop + sonic logo on the brand reveal,
 // four-on-the-floor through the demo, a breakdown on the tagline and the same
 // sonic logo on the end card (audio mnemonic).
 
@@ -25,7 +25,7 @@ const T = {
   brand: sec(SCENE_START.brand),
   prompt: sec(SCENE_START.prompt),
   click: sec(SCENE_START.prompt + MOMENTS.promptClick),
-  burst: sec(SCENE_START.prompt + MOMENTS.promptBurst),
+  done: sec(SCENE_START.prompt + MOMENTS.promptStages[2]),
   demo: sec(SCENE_START.demo),
   audience: sec(SCENE_START.audience),
   features: sec(SCENE_START.features),
@@ -310,42 +310,38 @@ for (let b = 0; ; b++) {
   for (let beat = 0; beat < 4; beat++) {
     const tb = t0 + beat * BEAT;
     if (tb >= T.tagline - 0.2) break;
-    kick(tb, 1);
-    if (beat % 2 === 1) clap(tb, energy >= 1 ? 0.32 : 0.24);
-    hat(tb + BEAT / 2, energy === 2 ? 0.2 : 0.14, energy === 2 ? 18 : 32, 0.3);
-    if (energy >= 1) {
-      hat(tb + BEAT / 4, 0.05, 80, -0.3);
-      hat(tb + (3 * BEAT) / 4, 0.05, 80, -0.3);
-    }
+    // Lean groove so the narration sits on top.
+    kick(tb, 0.9);
+    if (beat % 2 === 1) clap(tb, energy >= 1 ? 0.24 : 0.18);
+    hat(tb + BEAT / 2, energy === 2 ? 0.12 : 0.09, 34, 0.3);
   }
   const len = Math.min(BAR_S, T.tagline - t0);
-  pad(t0, len, chord.notes, energy === 0 ? 1400 : 2600, 0.05);
+  pad(t0, len, chord.notes, energy === 0 ? 1300 : 2000, 0.045);
   for (let e = 0; e < 8; e++) {
     const te = t0 + e * (BEAT / 2);
     if (te >= T.tagline - 0.2) break;
-    bass(te, BEAT / 2 - 0.02, chord.root + (e === 7 ? 7 : e === 3 ? 12 : 0), 0.3);
+    bass(te, BEAT / 2 - 0.02, chord.root + (e === 7 ? 7 : 0), 0.26);
   }
-  for (let s = 0; s < 16; s++) {
-    const ts = t0 + s * (BEAT / 4);
+  for (let s = 0; s < 8; s++) {
+    const ts = t0 + s * (BEAT / 2);
     if (ts < T.click - 0.02 || ts >= T.tagline - 0.25) continue;
     const tones = chord.notes.map((m) => m + 12);
-    pluck(ts, tones[[0, 1, 2, 3, 2, 1, 3, 2][s % 8]], 0.065, s % 2 === 0 ? -0.35 : 0.35);
+    pluck(ts, tones[[0, 2, 1, 3, 2, 1, 3, 2][s % 8]], 0.05, s % 2 === 0 ? -0.3 : 0.3);
   }
 }
 // Accents on the cuts and events of the groove section
-pluck(T.click, 84, 0.12, 0, 9);
-whoosh(T.burst + 0.3, 0.6, 0.55, 1);
-impact(T.demo, 0.6);
-crash(T.demo, 0.14);
-whoosh(T.demoShot2, 0.45, 0.4, 1);
-whoosh(T.audience, 0.6, 0.6, 1);
-crash(T.audience, 0.12);
-MOMENTS.audienceSwaps.slice(1).forEach((f, i) => pluck(T.audience + sec(f) - 0.05, [88, 91, 95][i], 0.08, 0.3, 12));
-whoosh(T.features, 0.6, 0.6, 1);
-impact(T.features, 0.5);
-MOMENTS.featureHits.slice(1).forEach((f) => whoosh(T.features + sec(f), 0.45, 0.45, 1));
-impact(T.exportBurst, 0.5);
-crash(T.exportBurst, 0.14);
+// Accents on the transitions (each centred on the crossfade/push).
+pluck(T.click, 84, 0.1, 0, 9);
+pluck(T.done, 91, 0.07, 0, 10);
+whoosh(T.demo + 0.2, 0.5, 0.4, 1);
+impact(T.demo, 0.3);
+whoosh(T.demoShot2, 0.4, 0.3, 1);
+whoosh(T.audience + 0.25, 0.55, 0.45, 1);
+MOMENTS.audienceSwaps.slice(1).forEach((f, i) => pluck(T.audience + sec(f) - 0.05, [88, 91, 95][i], 0.06, 0.3, 12));
+whoosh(T.features + 0.25, 0.55, 0.45, 1);
+impact(T.features, 0.3);
+MOMENTS.featureHits.slice(1).forEach((f) => whoosh(T.features + sec(f), 0.4, 0.3, 1));
+crash(T.exportBurst, 0.08);
 
 // 4) Tagline breakdown: drums out, reverse swell, sparse bells.
 const tagSplit = T.tagline + (T.endcard - T.tagline) / 2;

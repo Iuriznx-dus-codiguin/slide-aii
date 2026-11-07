@@ -1,6 +1,5 @@
-import type { CSSProperties } from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
-import { enter, rand, tw } from "../anim";
+import { useCurrentFrame, useVideoConfig } from "remotion";
+import { enter, tw } from "../anim";
 import { EASE, FONT } from "../theme";
 
 // Shockwave: rings expanding from (x, y).
@@ -48,77 +47,6 @@ export const Shockwave = ({
       })}
     </>
   );
-};
-
-// Radial particle burst.
-export const Burst = ({
-  at,
-  x,
-  y,
-  count = 26,
-  dist = 520,
-  color = "hsl(262 100% 80%)",
-  dur = 30,
-  seed = 1,
-}: {
-  at: number;
-  x: number;
-  y: number;
-  count?: number;
-  dist?: number;
-  color?: string;
-  dur?: number;
-  seed?: number;
-}) => {
-  const frame = useCurrentFrame();
-  const p = enter(frame, at, dur, EASE.outQuart);
-  if (p <= 0 || p >= 1) return null;
-  return (
-    <>
-      {Array.from({ length: count }).map((_, i) => {
-        const a = (i / count) * Math.PI * 2 + rand(seed * 100 + i) * 0.4;
-        const d = dist * (0.5 + rand(seed * 200 + i) * 0.6) * p;
-        const s = 4 + rand(seed * 300 + i) * 10;
-        return (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              left: x + Math.cos(a) * d - s / 2,
-              top: y + Math.sin(a) * d - s / 2,
-              width: s,
-              height: s,
-              borderRadius: i % 3 === 0 ? 2 : 99,
-              rotate: `${a}rad`,
-              background: color,
-              opacity: 1 - p,
-              boxShadow: `0 0 12px ${color}`,
-            }}
-          />
-        );
-      })}
-    </>
-  );
-};
-
-// Full-frame flash.
-export const Flash = ({ at, color = "#fff", dur = 10, peak = 1 }: { at: number; color?: string; dur?: number; peak?: number }) => {
-  const frame = useCurrentFrame();
-  const o = tw(frame, [at, at + 1, at + dur], [0, peak, 0]);
-  if (o <= 0) return null;
-  return <AbsoluteFill style={{ backgroundColor: color, opacity: o, pointerEvents: "none" }} />;
-};
-
-// Chromatic split + jitter for a few frames after a cut.
-export const glitchStyle = (frame: number, cuts: readonly number[], len = 5): CSSProperties => {
-  const c = cuts.find((x) => frame >= x && frame < x + len);
-  if (c === undefined) return {};
-  const k = 1 - (frame - c) / len;
-  const j = (rand(frame * 7) - 0.5) * 30 * k;
-  return {
-    translate: `${j}px 0`,
-    filter: `drop-shadow(${10 * k}px 0 0 hsl(330 100% 60% / 0.75)) drop-shadow(${-10 * k}px 0 0 hsl(190 100% 60% / 0.75))`,
-  };
 };
 
 // Callout: anchor dot + elbow leader line that draws, then a label pill.

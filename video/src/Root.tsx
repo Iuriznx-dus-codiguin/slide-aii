@@ -12,7 +12,7 @@ const OFFER = {
   discount: "PRO com até 64% OFF",
 };
 
-const PROPS = { ...OFFER, url: "slideai.com.br", withAudio: true };
+const PROPS = { ...OFFER, url: "slideai.com.br", withAudio: true, withVoice: true };
 
 export const RemotionRoot = () => (
   <>

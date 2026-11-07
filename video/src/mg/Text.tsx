@@ -148,7 +148,7 @@ export const SlotWord = ({
   let pos = 0;
   switches.forEach((s, i) => {
     if (i === 0) return;
-    pos += enter(frame, s - 3, 12, EASE.outBack);
+    pos += enter(frame, s - 3, 12, EASE.outExpo);
   });
   return (
     <div style={{ height: lineHeight, overflow: "hidden", position: "relative", ...style }}>

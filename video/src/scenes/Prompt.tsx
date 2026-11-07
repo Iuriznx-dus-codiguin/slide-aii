@@ -2,13 +2,13 @@ import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { enter, tw, useIsPortrait } from "../anim";
 import { LightBg } from "../bg/LightBg";
 import { Pointer, SimTag } from "../components/ui";
-import { Burst, Flash, Shockwave } from "../mg/Fx";
+import { Shockwave } from "../mg/Fx";
 import { Sparkle } from "../mg/Sparkle";
 import { Words } from "../mg/Text";
 import { C, EASE, FONT, GRADIENT, L } from "../theme";
 import { MOMENTS } from "../timeline";
 
-// 9–15.6 s, light world. Step 1: the viewer types a topic in the real form
+// 7.5–13.3 s, light world. Step 1: the viewer types a topic in the real form
 // ("Título / Tema"); step 2: one click and the AI works through the stages
 // the product shows ("Direção de arte, roteiro e ilustração").
 
@@ -49,16 +49,16 @@ export const Prompt = () => {
   const G = portrait ? GEO.portrait : GEO.landscape;
   const BAR = G.bar;
   const BTN = G.btn;
-  const { promptTypeStart, promptTypeEnd, promptClick, promptStages, promptBurst } = MOMENTS;
+  const { promptTypeStart, promptTypeEnd, promptClick, promptStages } = MOMENTS;
+  const doneAt = promptStages[2];
 
   const typed = Math.round(tw(frame, [promptTypeStart, promptTypeEnd], [0, TOPIC.length]));
   const typing = frame >= promptTypeStart && frame < promptTypeEnd;
   const caretOn = typing || Math.floor(frame / 8) % 2 === 0;
-  const barIn = enter(frame, 8, 20, EASE.outExpo);
+  const barIn = enter(frame, 6, 18, EASE.outExpo);
   const generating = frame >= promptClick;
-  const progress = tw(frame, [promptClick + 2, promptBurst], [0, 1], EASE.inOut);
+  const progress = tw(frame, [promptClick + 2, doneAt + 4], [0, 1], EASE.inOut);
   const pressed = tw(frame, [promptClick - 2, promptClick, promptClick + 6], [0, 1, 0]);
-  const burst = enter(frame, promptBurst, 12, EASE.inExpo);
 
   const btnCx = portrait ? BAR.x + BAR.w / 2 : BAR.x + BAR.w - 30 - BTN.w / 2;
   const btnCy = portrait ? BAR.y + BAR.h - 30 - BTN.h / 2 : BAR.y + BAR.h / 2;
@@ -73,13 +73,13 @@ export const Prompt = () => {
   return (
     <AbsoluteFill>
       <LightBg />
-      <AbsoluteFill style={{ scale: String(1 - burst * 0.04) }}>
+      <AbsoluteFill>
         {/* Kicker + headline, swap at the click */}
         <div style={{ position: "absolute", left: 0, right: 0, top: G.kickerTop, display: "flex", justifyContent: "center" }}>
           {generating ? (
-            <KickerChip text="PASSO 2 · A IA CRIA" p={enter(frame, promptClick + 2, 10, EASE.outExpo)} />
+            <KickerChip text="PASSO 2 · A IA CRIA" p={enter(frame, promptClick + 2, 12, EASE.outExpo)} />
           ) : (
-            <KickerChip text="PASSO 1 · VOCÊ DESCREVE" p={enter(frame, 2, 10, EASE.outExpo)} />
+            <KickerChip text="PASSO 1 · VOCÊ DESCREVE" p={enter(frame, 0, 12, EASE.outExpo)} />
           )}
         </div>
         <div style={{ position: "absolute", left: 0, right: 0, top: G.headTop, display: "flex", justifyContent: "center", textAlign: "center" }}>
@@ -88,8 +88,8 @@ export const Prompt = () => {
               key="b"
               tokens={portrait ? ["A", "IA", "\n", { t: "cria", look: "gradientInk" }, { t: "tudo.", look: "gradientInk" }] : ["A", "IA", { t: "cria", look: "gradientInk" }, { t: "tudo.", look: "gradientInk" }]}
               at={promptClick + 2}
-              stagger={4}
-              dur={18}
+              stagger={3}
+              dur={16}
               mode="rise"
               style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 120, letterSpacing: -4, color: L.ink }}
             />
@@ -97,11 +97,11 @@ export const Prompt = () => {
             <Words
               key="a"
               tokens={portrait ? ["Descreva", "\n", "o", { t: "tema.", look: "marker" }] : ["Descreva", "o", { t: "tema.", look: "marker" }]}
-              at={4}
-              stagger={5}
-              dur={18}
+              at={2}
+              stagger={4}
+              dur={16}
               mode="rise"
-              exitAt={promptClick - 4}
+              exitAt={promptClick - 6}
               exitDur={6}
               style={{ fontFamily: FONT.sans, fontWeight: 800, fontSize: 130, letterSpacing: -4, color: L.ink }}
             />
@@ -126,7 +126,7 @@ export const Prompt = () => {
           }}
         >
           <div style={{ position: "absolute", left: 30, top: 30, width: portrait ? 96 : 120, height: portrait ? 96 : 120, borderRadius: 28, background: GRADIENT.primary, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Sparkle size={portrait ? 52 : 64} color="#fff" style={{ rotate: `${generating ? frame * 8 : 0}deg` }} />
+            <Sparkle size={portrait ? 52 : 64} color="#fff" style={{ rotate: `${generating ? (frame - promptClick) * 3 : 0}deg` }} />
           </div>
           {portrait ? (
             <div style={{ position: "absolute", left: 148, top: 58, fontFamily: FONT.sans, fontSize: 30, fontWeight: 600, color: L.muted }}>{generating ? "Gerando sua apresentação" : "Título / Tema"}</div>
@@ -135,7 +135,7 @@ export const Prompt = () => {
             {portrait ? null : <div style={{ fontFamily: FONT.sans, fontSize: 26, fontWeight: 600, color: L.muted }}>{generating ? "Gerando sua apresentação" : "Título / Tema"}</div>}
             <div style={{ fontFamily: FONT.sans, fontSize: portrait ? 58 : 60, fontWeight: 700, color: L.ink, letterSpacing: -1.5, whiteSpace: "nowrap", marginTop: 4 }}>
               {generating ? (
-                <span style={{ color: frame >= promptStages[2] ? C.success : C.primary }}>{frame >= promptStages[2] ? "Pronto!" : `${STAGES[stageIdx]}…`}</span>
+                <span style={{ color: frame >= doneAt ? C.success : C.primary }}>{frame >= doneAt ? "Pronto!" : `${STAGES[stageIdx]}…`}</span>
               ) : (
                 <>
                   {TOPIC.slice(0, typed)}
@@ -183,7 +183,7 @@ export const Prompt = () => {
         <div style={{ position: "absolute", left: portrait ? 60 : 0, right: portrait ? 60 : 0, top: BAR.y + BAR.h + G.chipsGap, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 18 }}>
           {(generating ? STAGES : ["8 slides", "Português", "Imagens reais", "Gráficos & dados"]).map((c, i) => {
             const done = generating && frame >= promptStages[i];
-            const p = generating ? enter(frame, promptStages[i] - 10, 14, EASE.outBack) : enter(frame, 28 + i * 6, 16, EASE.outBack);
+            const p = generating ? enter(frame, promptStages[i] - 10, 12, EASE.outQuart) : enter(frame, 22 + i * 4, 14, EASE.outQuart);
             return (
               <div
                 key={c}
@@ -200,7 +200,7 @@ export const Prompt = () => {
                   background: done ? C.success : L.soft,
                   border: `3px solid ${done ? C.success : L.line}`,
                   opacity: p,
-                  scale: String(0.6 + 0.4 * p),
+                  translate: `0 ${(1 - p) * 18}px`,
                 }}
               >
                 {done ? (
@@ -218,10 +218,7 @@ export const Prompt = () => {
       <AbsoluteFill style={{ opacity: pointerO }}>
         <Pointer x={px} y={py} pressed={pressed} />
       </AbsoluteFill>
-      <Shockwave at={promptClick} x={btnCx} y={btnCy} size={900} rings={2} color="hsl(252 100% 64% / 0.8)" width={8} />
-      <Burst at={promptBurst} x={BAR.x + BAR.w / 2} y={BAR.y + BAR.h / 2} count={30} dist={900} color="hsl(262 100% 66%)" />
-      <Shockwave at={promptBurst} x={BAR.x + BAR.w / 2} y={BAR.y + BAR.h / 2} size={2600} rings={3} color="hsl(252 100% 64% / 0.7)" />
-      <Flash at={promptBurst + 8} color="#fff" dur={10} peak={0.9} />
+      <Shockwave at={promptClick} x={btnCx} y={btnCy} size={420} rings={1} dur={20} color="hsl(252 100% 64% / 0.55)" width={4} />
       <SimTag tone="light" portrait={portrait} opacity={tw(frame, [promptClick, promptClick + 8], [0, 1])} />
     </AbsoluteFill>
   );

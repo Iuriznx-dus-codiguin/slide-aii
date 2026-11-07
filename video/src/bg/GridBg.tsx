@@ -9,7 +9,7 @@ import { Orbs } from "./Orbs";
 export const GridBg = ({ cell = 88, orbs = 0.55 }: { cell?: number; orbs?: number }) => {
   const frame = useCurrentFrame();
   const pulse = beatPulse(frame, 6);
-  const a = 0.2 + pulse * 0.06;
+  const a = 0.2 + pulse * 0.03;
   const drift = (frame * 0.35) % cell;
   return (
     <AbsoluteFill style={{ backgroundColor: "hsl(250 45% 4%)", overflow: "hidden" }}>
@@ -24,7 +24,7 @@ export const GridBg = ({ cell = 88, orbs = 0.55 }: { cell?: number; orbs?: numbe
       {/* Brighter dots on the grid intersections */}
       <AbsoluteFill
         style={{
-          backgroundImage: `radial-gradient(hsl(262 100% 80% / ${0.35 + pulse * 0.15}) 2.5px, transparent 3px)`,
+          backgroundImage: `radial-gradient(hsl(262 100% 80% / ${0.32 + pulse * 0.08}) 2.5px, transparent 3px)`,
           backgroundSize: `${cell}px ${cell}px`,
           backgroundPosition: `${drift - cell / 2 + 1}px ${drift * 0.5 - cell / 2 + 1}px`,
         }}
