@@ -1,6 +1,7 @@
-import { Composition } from "remotion";
+import { Composition, Folder } from "remotion";
 import { PLAN_PRICES } from "../../src/lib/cakto";
 import { Commercial, commercialSchema } from "./Commercial";
+import { HERO_LOOP, HeroLoop, heroLoopSchema } from "./landing/HeroLoop";
 import { DURATION_IN_FRAMES, FPS, HEIGHT, WIDTH } from "./timeline";
 
 // Entry price comes from the app's price table (single purchase). The PRO
@@ -38,5 +39,9 @@ export const RemotionRoot = () => (
       height={WIDTH}
       defaultProps={PROPS}
     />
+    {/* Seamless loop for the landing page hero mockup */}
+    <Folder name="Landing">
+      <Composition id="LandingHeroLoop" component={HeroLoop} schema={heroLoopSchema} {...HERO_LOOP} defaultProps={{ transparent: false }} />
+    </Folder>
   </>
 );
