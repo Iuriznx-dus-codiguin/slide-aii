@@ -192,15 +192,15 @@ export const VisualPanel = ({ slide, theme, brief, onContentChange, onLayoutChan
         {visual.items.map((item, i) => (
           <div key={i} className="rounded-lg border border-border p-2 space-y-1.5">
             <div className="flex items-center gap-1">
-              <Input className="h-8 text-xs" value={item.label} placeholder="Rótulo" onChange={(e) => updateItem(i, { label: e.target.value })} />
+              <Input className="h-8 text-base" value={item.label} placeholder="Rótulo" onChange={(e) => updateItem(i, { label: e.target.value })} />
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => moveItem(i, -1)} disabled={i === 0}><ArrowUp className="h-3 w-3" /></Button>
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => moveItem(i, 1)} disabled={i === visual.items.length - 1}><ArrowDown className="h-3 w-3" /></Button>
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 hover:text-destructive" onClick={() => updateItems(visual.items.filter((_, k) => k !== i))}><Trash2 className="h-3 w-3" /></Button>
             </div>
-            <Textarea className="text-xs min-h-[44px]" rows={2} value={item.detail ?? ""} placeholder="Detalhe" onChange={(e) => updateItem(i, { detail: e.target.value })} />
+            <Textarea className="text-base md:text-xs min-h-[44px]" rows={2} value={item.detail ?? ""} placeholder="Detalhe" onChange={(e) => updateItem(i, { detail: e.target.value })} />
             <div className="grid grid-cols-2 gap-1.5">
               <Input
-                className="h-8 text-xs" type="number" placeholder="Valor"
+                className="h-8 text-base" type="number" placeholder="Valor"
                 value={item.value ?? ""}
                 onChange={(e) => updateItem(i, { value: e.target.value === "" ? undefined : Number(e.target.value) })}
               />
@@ -212,12 +212,12 @@ export const VisualPanel = ({ slide, theme, brief, onContentChange, onLayoutChan
                 </SelectContent>
               </Select>
               {grouped && (
-                <Input className="h-8 text-xs col-span-2" placeholder={graph ? "Camada (group)" : "Grupo / lado"} value={item.group ?? ""} onChange={(e) => updateItem(i, { group: e.target.value })} />
+                <Input className="h-8 text-base col-span-2" placeholder={graph ? "Camada (group)" : "Grupo / lado"} value={item.group ?? ""} onChange={(e) => updateItem(i, { group: e.target.value })} />
               )}
               {(graph || rows) && (
                 <>
-                  <Input className="h-8 text-xs" placeholder={rows ? "Antes (from)" : "De (from)"} value={item.from ?? ""} onChange={(e) => updateItem(i, { from: e.target.value })} />
-                  <Input className="h-8 text-xs" placeholder={rows ? "Depois (to)" : "Para (to)"} value={item.to ?? ""} onChange={(e) => updateItem(i, { to: e.target.value })} />
+                  <Input className="h-8 text-base" placeholder={rows ? "Antes (from)" : "De (from)"} value={item.from ?? ""} onChange={(e) => updateItem(i, { from: e.target.value })} />
+                  <Input className="h-8 text-base" placeholder={rows ? "Depois (to)" : "Para (to)"} value={item.to ?? ""} onChange={(e) => updateItem(i, { to: e.target.value })} />
                 </>
               )}
             </div>

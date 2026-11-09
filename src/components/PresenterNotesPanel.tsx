@@ -160,7 +160,8 @@ export const PresenterNotesPanel = ({
   };
 
   return (
-    <aside className="w-80 md:w-96 border-l border-border bg-card/40 flex flex-col flex-shrink-0">
+    // < 1024px o editor empilha os painéis: largura total, separado por cima.
+    <aside aria-label="Falas dos apresentadores" className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-border bg-card/40 flex flex-col flex-shrink-0">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Users className="h-3.5 w-3.5 text-primary" /> Falas dos apresentadores
@@ -194,7 +195,7 @@ export const PresenterNotesPanel = ({
           >
             <Printer className="h-3.5 w-3.5" />
           </Button>
-          <button onClick={onClose} className="hover:bg-muted rounded p-1">
+          <button type="button" onClick={onClose} aria-label="Fechar painel de falas" title="Fechar" className="hover:bg-muted rounded p-1 [@media(pointer:coarse)]:p-2.5">
             <X className="h-3 w-3" />
           </button>
         </div>
@@ -277,7 +278,7 @@ export const PresenterNotesPanel = ({
                       onChange={(e) => updatePresenter(p.id, { transition_anchor: e.target.value })}
                       rows={2}
                       placeholder='Ex: "Agora, Maria explicará a parte técnica."'
-                      className="text-xs"
+                      className="text-base md:text-xs"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -294,7 +295,7 @@ export const PresenterNotesPanel = ({
                       onChange={(e) => updatePresenter(p.id, { exact_speech: e.target.value })}
                       rows={8}
                       placeholder="Abertura curta → ponto principal → gancho para o próximo slide..."
-                      className="text-xs leading-relaxed font-medium"
+                      className="text-base md:text-xs leading-relaxed font-medium"
                     />
                   </div>
                 </TabsContent>

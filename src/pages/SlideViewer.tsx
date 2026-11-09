@@ -82,7 +82,15 @@ const SlideViewer = () => {
   const prev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), []);
 
   const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    if (!document.fullscreenElement) {
+      // iPhone (Safari) não oferece tela cheia para a página: a chamada lançava
+      // "requestFullscreen is not a function" e o botão não fazia nada.
+      if (typeof document.documentElement.requestFullscreen !== "function") {
+        toast.message("Tela cheia indisponível neste navegador. Gire o celular para ampliar o slide.");
+        return;
+      }
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
     else document.exitFullscreen();
   }, []);
 
@@ -211,13 +219,13 @@ const SlideViewer = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!pres) return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+    <main className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="text-center">
         <h1 className="font-display text-3xl font-bold">Apresentação não encontrada</h1>
         <p className="text-muted-foreground mt-2">O link pode estar incorreto, ou o autor deixou a apresentação privada.</p>
         <Link to="/" className="text-primary underline mt-4 inline-block">Voltar para o início</Link>
       </div>
-    </div>
+    </main>
   );
 
   const progress = slides.length ? ((idx + 1) / slides.length) * 100 : 0;
@@ -247,10 +255,10 @@ const SlideViewer = () => {
       {/* Top bar */}
       {!fullscreen && (
         <header className="relative z-40 flex items-center justify-between px-4 md:px-6 py-3 border-b border-white/10 flex-shrink-0">
-          <button type="button" onClick={() => navigate(-1)} aria-label="Voltar" className="flex items-center gap-2 text-sm text-white/70 hover:text-white">
+          <button type="button" onClick={() => navigate(-1)} aria-label="Voltar" className="flex shrink-0 items-center justify-center gap-2 rounded-lg text-sm text-white/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11">
             <ArrowLeft className="h-4 w-4" aria-hidden /> <span className="hidden sm:inline">Voltar</span>
           </button>
-          <div className="text-sm font-medium truncate max-w-[40%] md:max-w-md">{pres.title}</div>
+          <div className="text-sm font-medium truncate min-w-0 flex-1 text-center px-2 md:flex-none md:max-w-md">{pres.title}</div>
           <div className="flex items-center gap-1 md:gap-2">
             <Popover>
               <PopoverTrigger asChild>
@@ -271,19 +279,19 @@ const SlideViewer = () => {
                     </div>
                   )}
                   <Button variant="outline" size="sm" className="w-full justify-start" onClick={copyLink}><Copy className="h-4 w-4" /> Copiar link</Button>
-                  <a href={`https://wa.me/?text=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">
-                    <Button variant="outline" size="sm" className="w-full justify-start">WhatsApp</Button>
-                  </a>
-                  <a href={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">
-                    <Button variant="outline" size="sm" className="w-full justify-start">Gerar QR Code</Button>
-                  </a>
+                  <Button asChild variant="outline" size="sm" className="w-full justify-start">
+                    <a href={`https://wa.me/?text=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">WhatsApp</a>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="w-full justify-start">
+                    <a href={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`} target="_blank" rel="noreferrer">Gerar QR Code</a>
+                  </Button>
                 </div>
               </PopoverContent>
             </Popover>
             {pres.include_speeches && (
               <PresenterNotesPopover slide={current} slideIndex={idx} presentersNames={pres.presenters_names ?? []} />
             )}
-            <ExportMenu presentationId={pres.id} getDeck={getDeck} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" />
+            <ExportMenu presentationId={pres.id} getDeck={getDeck} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white" />
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={toggleFullscreen} aria-label={fullscreen ? "Sair da tela cheia" : "Apresentar em tela cheia"}>
               {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden /> : <Maximize2 className="h-4 w-4" aria-hidden />}
               <span className="hidden md:inline ml-1">Apresentar</span>
@@ -333,11 +341,11 @@ const SlideViewer = () => {
 
         {/* Nav arrows */}
         <button type="button" onClick={prev} disabled={idx === 0} aria-label="Slide anterior" title="Slide anterior (←)"
-          className={`absolute left-2 md:left-6 top-1/2 -translate-y-1/2 h-10 w-10 md:h-12 md:w-12 rounded-full bg-black/40 hover:bg-black/60 disabled:opacity-30 flex items-center justify-center transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+          className={`absolute left-2 md:left-6 top-1/2 -translate-y-1/2 h-11 w-11 md:h-12 md:w-12 rounded-full bg-black/40 hover:bg-black/60 disabled:opacity-30 flex items-center justify-center transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
           <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" aria-hidden />
         </button>
         <button type="button" onClick={next} disabled={idx === slides.length - 1} aria-label="Próximo slide" title="Próximo slide (→)"
-          className={`absolute right-2 md:right-6 top-1/2 -translate-y-1/2 h-10 w-10 md:h-12 md:w-12 rounded-full bg-black/40 hover:bg-black/60 disabled:opacity-30 flex items-center justify-center transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+          className={`absolute right-2 md:right-6 top-1/2 -translate-y-1/2 h-11 w-11 md:h-12 md:w-12 rounded-full bg-black/40 hover:bg-black/60 disabled:opacity-30 flex items-center justify-center transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${hideUI ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
           <ChevronRight className="h-5 w-5 md:h-6 md:w-6" aria-hidden />
         </button>
       </main>
@@ -421,7 +429,7 @@ const PresenterNotesPopover = ({
             <Users className="h-4 w-4" aria-hidden />
           </button>
         ) : (
-          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" title="Consultar falas e notas">
+          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" title="Consultar falas e notas" aria-label="Consultar falas e notas">
             <Users className="h-4 w-4" />
             <span className="hidden md:inline ml-1">Falas</span>
           </Button>

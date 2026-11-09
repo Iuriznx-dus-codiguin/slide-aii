@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   LifeBuoy, X, Send, Loader2, Star, ThumbsUp, ThumbsDown, BookOpen,
   History, Minus, Plus, ArrowLeft, ExternalLink, CheckCircle2, Clock3,
@@ -24,6 +24,20 @@ const WELCOME: Msg = {
 
 export const SupportWidget = () => {
   const { user } = useAuth();
+  const { pathname } = useLocation();
+  // Onde o botão flutuante atrapalha: na própria central de suporte (cobria o
+  // "Enviar" do chat), em tela cheia (aparecia sobre os slides) e, no celular,
+  // no editor e no visualizador (cobria o inspetor e a navegação dos slides).
+  // No gerador ele sobe para não cobrir o botão fixo "Gerar apresentação".
+  const onSupportPage = pathname === "/suporte" || pathname.startsWith("/suporte/");
+  const immersive = pathname.startsWith("/editor/") || pathname.startsWith("/slides/");
+  const liftedOnMobile = pathname === "/gerar";
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onFs = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -180,17 +194,20 @@ export const SupportWidget = () => {
     toast.success("Obrigado pela avaliação!");
   };
 
-  if (!user) return null;
+  if (!user || onSupportPage || fullscreen) return null;
 
   const showConfirmation = state === "awaiting_confirmation";
   const showRating = (state === "resolved" || state === "escalated") && !rated && conversationId;
+  const mobileVisibility = immersive ? "hidden md:flex" : "flex";
 
   return (
     <>
+      {/* z-40: modais e diálogos (z-50) ficam por cima — antes o botão cobria o "Pagar agora". */}
       <button
         onClick={() => { setOpen((v) => !v); setMinimized(false); }}
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-elegant flex items-center justify-center hover:scale-105 transition-transform"
+        className={`${mobileVisibility} fixed ${liftedOnMobile ? "bottom-24" : "bottom-4"} right-4 md:bottom-6 md:right-6 z-40 h-12 w-12 md:h-14 md:w-14 rounded-full bg-primary text-primary-foreground shadow-elegant items-center justify-center hover:scale-105 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
         aria-label={open ? "Fechar suporte" : "Abrir suporte"}
+        aria-expanded={open}
       >
         {open ? <X className="h-6 w-6" /> : <LifeBuoy className="h-6 w-6" />}
       </button>
@@ -201,8 +218,8 @@ export const SupportWidget = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className={`fixed bottom-24 right-6 z-50 w-[390px] max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-elegant flex flex-col overflow-hidden ${
-              minimized ? "h-auto" : "h-[580px] max-h-[calc(100vh-8rem)]"
+            className={`${mobileVisibility} fixed ${liftedOnMobile ? "bottom-40" : "bottom-20"} right-4 md:bottom-24 md:right-6 z-40 w-[390px] max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-elegant flex-col overflow-hidden ${
+              minimized ? "h-auto" : "h-[580px] max-h-[calc(100dvh-7rem)] md:max-h-[calc(100dvh-8rem)]"
             }`}
           >
             <header className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 bg-gradient-primary/10">
@@ -215,13 +232,13 @@ export const SupportWidget = () => {
               <div className="flex items-center gap-1 shrink-0">
                 {errorCode && <span className="text-[10px] font-mono bg-muted px-2 py-1 rounded">{errorCode}</span>}
                 <button onClick={() => setShowHistory((v) => !v)} aria-label="Histórico de conversas" title="Histórico"
-                  className={`p-1.5 rounded-md hover:bg-muted ${showHistory ? "bg-muted text-primary" : ""}`}>
+                  className={`p-1.5 [@media(pointer:coarse)]:p-3 rounded-md hover:bg-muted ${showHistory ? "bg-muted text-primary" : ""}`}>
                   <History className="h-4 w-4" />
                 </button>
-                <button onClick={startNew} aria-label="Nova conversa" title="Nova conversa" className="p-1.5 rounded-md hover:bg-muted">
+                <button onClick={startNew} aria-label="Nova conversa" title="Nova conversa" className="p-1.5 [@media(pointer:coarse)]:p-3 rounded-md hover:bg-muted">
                   <Plus className="h-4 w-4" />
                 </button>
-                <button onClick={() => setMinimized((v) => !v)} aria-label={minimized ? "Expandir" : "Recolher"} title={minimized ? "Expandir" : "Recolher"} className="p-1.5 rounded-md hover:bg-muted">
+                <button onClick={() => setMinimized((v) => !v)} aria-label={minimized ? "Expandir" : "Recolher"} title={minimized ? "Expandir" : "Recolher"} className="p-1.5 [@media(pointer:coarse)]:p-3 rounded-md hover:bg-muted">
                   {minimized ? <ArrowLeft className="h-4 w-4 rotate-90" /> : <Minus className="h-4 w-4" />}
                 </button>
               </div>
@@ -289,7 +306,7 @@ export const SupportWidget = () => {
                     <p className="text-xs text-muted-foreground mb-2">Como foi este atendimento?</p>
                     <div className="flex justify-center gap-1">
                       {[1, 2, 3, 4, 5].map((n) => (
-                        <button key={n} onClick={() => rate(n)} className="p-1 hover:scale-110 transition-transform" aria-label={`Avaliar com ${n}`}>
+                        <button key={n} onClick={() => rate(n)} className="p-1 [@media(pointer:coarse)]:p-2.5 hover:scale-110 transition-transform" aria-label={`Avaliar com ${n}`}>
                           <Star className="h-5 w-5 text-yellow-500" />
                         </button>
                       ))}

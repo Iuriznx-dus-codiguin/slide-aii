@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,18 +55,16 @@ const Settings = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <Link to="/dashboard" className="-ml-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ArrowLeft className="h-4 w-4" /> Dashboard
           </Link>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center"><Sparkles className="h-4 w-4 text-primary-foreground" /></div>
-            <span className="font-display font-bold">SlideAI</span>
-          </div>
+          {/* Mesmo logotipo do resto do app (antes: o antigo quadrado com Sparkles). */}
+          <BrandLogo size={30} />
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-10 max-w-3xl">
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 max-w-3xl">
         <h1 className="font-display text-3xl font-bold mb-8">Configurações</h1>
         <Tabs defaultValue="perfil">
           <TabsList className="mb-6">

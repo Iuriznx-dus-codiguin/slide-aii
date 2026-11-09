@@ -53,19 +53,16 @@ export const Hero = () => {
             transition={{ duration: 0.4, delay: 0.3 }}
             className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center"
           >
-            <Link to="/gerar" className="w-full sm:w-auto">
-
-                <Button variant="hero" size="xl" className="group w-full px-5 sm:px-9">
-                  Criar minha apresentação
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-
-            </Link>
-            <a href="#how" className="w-full sm:w-auto">
-
-                <Button variant="outline" size="xl" className="w-full px-5 sm:px-9">Ver como funciona</Button>
-
-            </a>
+            {/* asChild: o link é o próprio botão (antes <a><button>, dois alvos de foco aninhados). */}
+            <Button asChild variant="hero" size="xl" className="group w-full sm:w-auto px-5 sm:px-9">
+              <Link to="/gerar">
+                Criar minha apresentação
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="xl" className="w-full sm:w-auto px-5 sm:px-9">
+              <a href="#how">Ver como funciona</a>
+            </Button>
           </motion.div>
 
           <motion.p
@@ -129,9 +126,10 @@ export const Hero = () => {
                   <div className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4">
                     <Zap className="h-3 w-3" /> Slide 02 de 08
                   </div>
-                  <h3 className="font-display text-xl sm:text-2xl lg:text-4xl font-bold mb-3">
+                  {/* Texto ilustrativo do mockup: parágrafo, não título (mantinha a ordem de títulos quebrada). */}
+                  <p className="font-display text-xl sm:text-2xl lg:text-4xl font-bold tracking-tight mb-3">
                     O futuro das <span className="text-gradient">apresentações</span>
-                  </h3>
+                  </p>
                   <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
                     Conteúdo gerado por IA em cerca de um minuto, com gráficos, imagens e narrativa coerente.
                   </p>

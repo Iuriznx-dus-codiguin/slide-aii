@@ -26,9 +26,11 @@ interface Props {
   variant?: "default" | "ghost" | "outline";
   size?: "sm" | "default" | "icon";
   label?: string;
+  /** Classes extras do botão (ex.: cabeçalho escuro do visualizador). */
+  className?: string;
 }
 
-export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "modern", slug, variant = "outline", size = "sm", label = "Exportar" }: Props) => {
+export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "modern", slug, variant = "outline", size = "sm", label = "Exportar", className }: Props) => {
   const [busy, setBusy] = useState(false);
 
   const fetchSlides = async () => {
@@ -152,9 +154,10 @@ export const ExportMenu = ({ presentationId, getDeck, title, themeId, fontId = "
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={variant} size={size} disabled={busy}>
+        {/* Nome acessível também na versão só com ícone; no celular o texto some para caber na barra. */}
+        <Button variant={variant} size={size} disabled={busy} aria-label={label} className={className}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          {size !== "icon" && <span className="ml-1">{label}</span>}
+          {size !== "icon" && <span className="ml-1 hidden sm:inline">{label}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

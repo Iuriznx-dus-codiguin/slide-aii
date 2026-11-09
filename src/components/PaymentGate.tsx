@@ -64,6 +64,26 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
     }
   }, [waiting, ent.allowed, ent.loading, ent.credits_available, ent.unlimited]);
 
+  // Esc fecha, como nos demais diálogos do app — a menos que outra camada (um
+  // diálogo ou menu do Radix por cima) já tenha tratado a tecla.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Foco: entra no painel ao abrir e volta para onde estava ao fechar.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => previous?.focus?.();
+  }, [open]);
+
   if (!open) return null;
 
   const proId = proPlanFor(cycle);
@@ -93,24 +113,31 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
 
   const cycleButton = (id: BillingCycle, label: string, badge?: string) => (
     <button
+      type="button"
       onClick={() => setCycle(id)}
-      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${cycle === id ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+      aria-pressed={cycle === id}
+      // No celular o selo vai para baixo do rótulo: os três cabem em 320px.
+      className={`min-h-10 px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1.5 ${cycle === id ? "bg-background shadow-sm" : "text-muted-foreground"}`}
     >
       {label}
       {badge && (
-        <span className="text-[9px] px-1 py-0.5 rounded-full bg-primary/15 text-primary font-bold">{badge}</span>
+        <span className="text-[9px] px-1 py-0.5 rounded-full bg-primary/15 text-[hsl(var(--primary-deep))] font-bold">{badge}</span>
       )}
     </button>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <motion.div
+        ref={panelRef}
+        role="dialog"
+        aria-labelledby="payment-gate-title"
+        tabIndex={-1}
         initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-card border border-border rounded-3xl p-6 md:p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+        className="bg-card border border-border rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] overflow-y-auto focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={onClose} className="absolute top-4 right-4 h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
+        <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-2 right-2 sm:top-3 sm:right-3 h-11 w-11 rounded-full hover:bg-muted flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <X className="h-4 w-4" />
         </button>
 
@@ -118,7 +145,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3">
             <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro · Cakto
           </div>
-          <h2 className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</h2>
+          <h2 id="payment-gate-title" className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</h2>
           <p className="text-sm text-muted-foreground mt-2">
             Sua configuração está salva. Após pagar, a geração inicia automaticamente.
           </p>

@@ -57,7 +57,7 @@ export const HowItWorks = () => {
                 <div className="absolute -top-6 left-8 h-12 w-12 rounded-2xl bg-gradient-primary shadow-glow flex items-center justify-center">
                   <step.icon className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
                 </div>
-                <div className="text-7xl font-display font-extrabold text-primary/10 mb-2 leading-none">
+                <div aria-hidden="true" className="text-7xl font-display font-extrabold text-primary/10 mb-2 leading-none">
                   {step.number}
                 </div>
                 <h3 className="font-display text-xl font-bold mb-2">{step.title}</h3>

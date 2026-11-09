@@ -243,15 +243,15 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <Link to="/dashboard" className="-ml-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ArrowLeft className="h-4 w-4" /> Dashboard
           </Link>
           <BrandLogo size={30} />
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-10 max-w-4xl">
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 max-w-4xl">
         <div className="flex items-start gap-5 mb-8">
           <div className="relative">
             <Avatar className="h-20 w-20">
@@ -265,7 +265,7 @@ const ProfilePage = () => {
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               aria-label="Enviar foto de perfil"
-              className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:scale-105 transition-transform"
+              className="absolute -bottom-1 -right-1 h-8 w-8 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:scale-105 transition-transform"
             >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             </button>
@@ -279,7 +279,7 @@ const ProfilePage = () => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-3xl font-bold truncate">{profile?.full_name || "Sem nome"}</h1>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold truncate">{profile?.full_name || "Sem nome"}</h1>
               <Badge variant={profile?.is_public ? "secondary" : "outline"} className="text-[10px]">
                 {profile?.is_public ? "Portfólio público" : "Portfólio privado"}
               </Badge>
@@ -301,7 +301,8 @@ const ProfilePage = () => {
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="mb-6 flex-wrap">
+          {/* h-auto: com 7 abas a 2ª linha escapava do contêiner de 40px no celular. */}
+          <TabsList className="mb-6 h-auto [@media(pointer:coarse)]:h-auto flex-wrap justify-start">
             <TabsTrigger value="conta">Conta</TabsTrigger>
             <TabsTrigger value="creditos">Créditos</TabsTrigger>
             <TabsTrigger value="perfil">Dados</TabsTrigger>

@@ -26,6 +26,7 @@ const HelpCenter = () => {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [isTouch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const [category, setCategory] = useState<string>("all");
 
 
@@ -84,21 +85,21 @@ const HelpCenter = () => {
         path="/ajuda"
       />
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <BrandLogo size={34} />
           </Link>
           <div className="flex items-center gap-2">
-            <Link to="/dashboard">
-              <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /> Dashboard</Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Dashboard</Link>
+            </Button>
           </div>
         </div>
       </header>
 
       {/* Hero de busca */}
       <section className="border-b border-border bg-gradient-to-b from-primary/5 to-transparent">
-        <div className="container mx-auto px-6 py-16 text-center max-w-3xl">
+        <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16 text-center max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary mb-4">
             <BookOpen className="h-3.5 w-3.5" /> Central de Ajuda
           </div>
@@ -109,9 +110,13 @@ const HelpCenter = () => {
             Guias, tutoriais e respostas para você aproveitar o SlideAI ao máximo.
           </p>
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" aria-hidden />
             <Input
-              autoFocus
+              // No toque, o foco automático abria o teclado e cobria metade da página.
+              autoFocus={!isTouch}
+              type="search"
+              enterKeyHint="search"
+              aria-label="Buscar na Central de Ajuda"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Busque por 'como gerar', 'pagamento', 'exportar PDF'…"
@@ -121,13 +126,15 @@ const HelpCenter = () => {
         </div>
       </section>
 
-      <main className="container mx-auto px-6 py-10 max-w-6xl">
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 max-w-6xl">
         {/* Filtros por categoria */}
         {!loading && categories.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-8">
             <button
+              type="button"
               onClick={() => setCategory("all")}
-              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+              aria-pressed={category === "all"}
+              className={`px-3 py-1.5 [@media(pointer:coarse)]:min-h-11 rounded-full text-sm border transition-colors ${
                 category === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:border-primary/50"
               }`}
             >Todos ({articles.length})</button>
@@ -136,8 +143,10 @@ const HelpCenter = () => {
               return (
                 <button
                   key={c}
+                  type="button"
                   onClick={() => setCategory(c)}
-                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  aria-pressed={category === c}
+                  className={`px-3 py-1.5 [@media(pointer:coarse)]:min-h-11 rounded-full text-sm border transition-colors ${
                     category === c ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:border-primary/50"
                   }`}
                 >{helpCategoryLabel(c)} ({count})</button>
@@ -235,7 +244,7 @@ const HelpCenter = () => {
         </section>
 
         {/* CTA de suporte */}
-        <section className="mt-12 rounded-2xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-8 text-center">
+        <section className="mt-12 rounded-2xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-6 sm:p-8 text-center">
           <LifeBuoy className="h-8 w-8 text-primary mx-auto mb-3" />
           <h3 className="font-display text-xl font-bold mb-2">Não encontrou o que procurava?</h3>
           <p className="text-sm text-muted-foreground mb-4">Nosso assistente inteligente pode diagnosticar seu problema em segundos.</p>

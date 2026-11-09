@@ -47,9 +47,9 @@ const Templates = () => {
       />
       <Navbar />
       <main className="flex-1 pt-24 pb-20">
-        <div className="container mx-auto px-6">
-          <div className="max-w-3xl mx-auto text-center mb-12">
-            <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="max-w-3xl mx-auto text-center mb-10 sm:mb-12">
+            <Link to="/" className="inline-flex items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground mb-6 [@media(pointer:coarse)]:min-h-11">
               <ArrowLeft className="h-4 w-4" /> Voltar
             </Link>
             <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 uppercase tracking-wider">
@@ -68,8 +68,10 @@ const Templates = () => {
             {TEMPLATE_CATEGORIES.map((c) => (
               <button
                 key={c}
+                type="button"
                 onClick={() => setCat(c)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                aria-pressed={cat === c}
+                className={`px-4 py-1.5 [@media(pointer:coarse)]:min-h-11 rounded-full text-sm font-medium transition-all ${
                   cat === c
                     ? "bg-gradient-primary text-primary-foreground shadow-glow"
                     : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"

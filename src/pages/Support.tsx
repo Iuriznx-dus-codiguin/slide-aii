@@ -9,7 +9,7 @@ import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea,
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/errorCapture";
 import { toast } from "sonner";
@@ -134,18 +134,23 @@ export default function Support() {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <header className="flex h-16 items-center justify-between border-b border-border px-4 md:px-6">
-        <div className="flex items-center gap-3">
-          <Link to="/dashboard" aria-label="Voltar ao dashboard"><ArrowLeft className="h-5 w-5 text-muted-foreground" /></Link>
-          <BrandLogo size={34} />
+    // 100dvh: com 100vh o campo de mensagem (no rodapé) ficava atrás da barra do navegador no celular.
+    <div className="flex h-screen supports-[height:100dvh]:h-[100dvh] flex-col bg-background">
+      <header className="flex h-16 items-center justify-between gap-2 border-b border-border px-3 sm:px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-3">
+          <Link to="/dashboard" aria-label="Voltar ao dashboard" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft className="h-5 w-5 text-muted-foreground" /></Link>
+          <BrandLogo size={34} wordmarkClassName="hidden min-[400px]:inline" />
           <Badge variant="secondary" className="hidden sm:inline-flex">Suporte</Badge>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm"><Link to="/ajuda"><BookOpen /> Central de Ajuda</Link></Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* No celular só o ícone: o texto empurrava o cabeçalho para fora da tela em 320px. */}
+          <Button asChild variant="ghost" size="sm"><Link to="/ajuda" aria-label="Central de Ajuda"><BookOpen /> <span className="hidden sm:inline">Central de Ajuda</span></Link></Button>
           <Sheet>
-            <SheetTrigger asChild><Button variant="outline" size="icon" className="md:hidden"><Menu /></Button></SheetTrigger>
-            <SheetContent side="left" className="p-0">{threadList}</SheetContent>
+            <SheetTrigger asChild><Button variant="outline" size="icon" className="md:hidden" aria-label="Seus atendimentos"><Menu /></Button></SheetTrigger>
+            <SheetContent side="left" className="p-0 pt-12">
+              <SheetTitle className="sr-only">Seus atendimentos</SheetTitle>
+              {threadList}
+            </SheetContent>
           </Sheet>
         </div>
       </header>
@@ -158,7 +163,7 @@ export default function Support() {
               <h1 className="text-sm font-bold">{isNew ? "Novo atendimento" : threads.find((t) => t.id === conversationId)?.subject || "Atendimento"}</h1>
               <p className="text-[11px] text-muted-foreground">Histórico sincronizado com sua conta</p>
             </div>
-            <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => setSidebarOpen((value) => !value)} title="Alternar histórico">
+            <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => setSidebarOpen((value) => !value)} title="Alternar histórico" aria-label={sidebarOpen ? "Ocultar histórico" : "Mostrar histórico"}>
               <PanelLeftClose className={`h-4 w-4 ${sidebarOpen ? "" : "rotate-180"}`} />
             </Button>
           </div>
@@ -179,7 +184,7 @@ export default function Support() {
 
           <div className="border-t border-border bg-background p-3 md:p-4">
             <PromptInput onSubmit={send} className="mx-auto max-w-3xl">
-              <PromptInputTextarea ref={textareaRef} placeholder="Descreva sua dúvida sobre o SlideAI..." disabled={status === "submitted"} />
+              <PromptInputTextarea ref={textareaRef} aria-label="Mensagem para o suporte" placeholder="Descreva sua dúvida sobre o SlideAI..." disabled={status === "submitted"} />
               <PromptInputFooter className="justify-end">
                 <PromptInputSubmit status={status} disabled={status === "submitted"} />
               </PromptInputFooter>

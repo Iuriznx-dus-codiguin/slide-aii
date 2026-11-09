@@ -37,7 +37,7 @@ const Onboarding = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 relative">
+    <main className="min-h-screen flex items-center justify-center px-4 py-12 relative">
       <div className="absolute inset-0 bg-gradient-glow opacity-30 pointer-events-none" />
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-2xl">
         <div className="text-center mb-10">
@@ -51,6 +51,8 @@ const Onboarding = () => {
             return (
               <motion.button
                 key={r.id}
+                type="button"
+                aria-pressed={active}
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
                 onClick={() => setSelected(r.id)}
@@ -69,7 +71,7 @@ const Onboarding = () => {
           {saving && <Loader2 className="h-4 w-4 animate-spin" />} Continuar
         </Button>
       </motion.div>
-    </div>
+    </main>
   );
 };
 
