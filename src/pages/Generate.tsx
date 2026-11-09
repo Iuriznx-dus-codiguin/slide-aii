@@ -455,7 +455,7 @@ const Generate = () => {
       <header className="relative border-b border-border">
         <div className="container mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
           <button type="button" onClick={() => navigate("/dashboard")} aria-label="Voltar ao painel"
-            className="-ml-2 inline-flex min-h-11 min-w-11 items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="-ml-2 inline-flex items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11">
             <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span>
           </button>
           {/* Mesmo logotipo do resto do app (antes: o antigo quadrado com Sparkles). */}

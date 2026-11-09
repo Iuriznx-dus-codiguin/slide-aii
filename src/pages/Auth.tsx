@@ -165,7 +165,7 @@ const Auth = () => {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 py-10 bg-background relative overflow-hidden">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8 md:py-0 bg-background relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-glow opacity-40 pointer-events-none" />
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}

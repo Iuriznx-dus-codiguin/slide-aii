@@ -244,7 +244,7 @@ const ProfilePage = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-          <Link to="/dashboard" className="-ml-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Link to="/dashboard" className="-ml-2 inline-flex items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11">
             <ArrowLeft className="h-4 w-4" /> Dashboard
           </Link>
           <BrandLogo size={30} />

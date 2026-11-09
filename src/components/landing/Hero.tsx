@@ -127,7 +127,7 @@ export const Hero = () => {
                     <Zap className="h-3 w-3" /> Slide 02 de 08
                   </div>
                   {/* Texto ilustrativo do mockup: parágrafo, não título (mantinha a ordem de títulos quebrada). */}
-                  <p className="font-display text-xl sm:text-2xl lg:text-4xl font-bold tracking-tight mb-3">
+                  <p className="font-display text-xl sm:text-2xl lg:text-4xl font-bold mb-3 text-balance">
                     O futuro das <span className="text-gradient">apresentações</span>
                   </p>
                   <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
