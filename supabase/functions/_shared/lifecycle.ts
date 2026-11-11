@@ -13,7 +13,7 @@ const PURCHASE_TYPES = ["single_purchase", "subscription_monthly", "subscription
 
 /** Situação atual da conta, usada nos modelos e nas regras de envio. */
 export const loadLifecycleContext = async (admin: SupabaseClient, userId: string): Promise<RuleContext | null> => {
-  const [{ data: p }, { data: b }, { data: charge }, { data: lastPurchase }, { data: purchased }, { data: internal }, { data: token }] =
+  const [{ data: p }, { data: b }, { data: charge }, { data: lastPurchase }, { data: purchased }, { data: internal }, { data: token }, { count: offline }] =
     await Promise.all([
       admin.from("profiles").select(
         "full_name, username, email, role, plan, subscription_status, subscription_renews_at, credits_bonus, credits_monthly, generations_count",
@@ -26,6 +26,8 @@ export const loadLifecycleContext = async (admin: SupabaseClient, userId: string
       admin.rpc("user_has_purchased", { _uid: userId }),
       admin.rpc("is_internal_account", { _uid: userId }),
       admin.rpc("ensure_email_preferences", { _uid: userId }),
+      admin.from("presentations").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).not("offline_since", "is", null),
     ]);
   if (!p) return null;
 
@@ -66,6 +68,7 @@ export const loadLifecycleContext = async (admin: SupabaseClient, userId: string
     lastPurchaseAt: lastPurchase?.created_at ?? null,
     relationshipAllowed: prefs?.relationship_emails !== false,
     internal: internal === true,
+    offlineDecks: typeof offline === "number" ? offline : undefined,
     preferencesUrl: prefsPage,
     unsubscribeUrl: prefsPage ? `${prefsPage}&sair=1` : undefined,
   };

@@ -11,6 +11,7 @@ import {
   type PaidPlan, PLAN_LABELS, PLAN_MONTHLY_CREDITS, PLAN_PRICES, REFERENCE_DECK_CREDITS, SINGLE_PURCHASE_CREDITS,
   TYPICAL_DECK_CREDITS,
 } from "./plans.ts";
+import { HOSTING_GRACE_DAYS, SINGLE_HOSTING_MONTHS } from "./hosting.ts";
 
 // ───────────── Configuração ─────────────
 
@@ -100,7 +101,8 @@ export type LifecycleTemplate =
   | "subscription_paused" | "subscription_canceled"
   | "refund_requested" | "refund_done" | "chargeback"
   | "purchase_refused" | "pix_pending" | "boleto_pending" | "checkout_abandoned"
-  | "winback" | "first_deck" | "credits_low" | "generation_refunded";
+  | "winback" | "first_deck" | "credits_low" | "generation_refunded"
+  | "presentations_offline" | "presentations_deletion_soon";
 
 /** Relacionamento = dicas e ofertas: precisa de descadastro e respeita a preferência. */
 export const RELATIONSHIP_TEMPLATES: LifecycleTemplate[] = ["nurture", "checkout_abandoned", "winback"];
@@ -439,7 +441,7 @@ const B: Record<LifecycleTemplate, Builder> = {
                 "**Você tem 7 dias para desistir**, com reembolso integral.",
                 "**Cancele quando quiser:** o acesso continua até o fim do período pago.",
                 "**Créditos do avulso e bônus não expiram.**",
-                "**Suas apresentações são suas**, mesmo depois de cancelar.",
+                "**Suas apresentações ficam no ar** enquanto o plano estiver ativo. Se ele terminar, você tem 30 dias para restaurá-las.",
               ],
             },
             { p: "Ficou alguma dúvida? Responda este e-mail que eu mesma respondo." },
@@ -478,6 +480,7 @@ const B: Record<LifecycleTemplate, Builder> = {
       blocks: [
         { stat: `${fmtInt(ctx.balance)} créditos`, label: `disponíveis agora · ~${decks(ctx.balance)} apresentações de 10 slides` },
         { p: `Pagamento confirmado! Os créditos do avulso **não expiram**: use no seu ritmo, em ${voice(ctx).next} e nas próximas.` },
+        { p: `Cada apresentação fica no ar por **${SINGLE_HOSTING_MONTHS} meses** depois de gerada, e cada nova compra de créditos renova esse prazo para todas. Quem assina um plano mantém tudo no ar enquanto o plano estiver ativo.` },
         ideasBlock(ctx, l),
         { note: "O comprovante do pagamento chega pela Cakto, em um e-mail separado." },
       ],
@@ -544,7 +547,7 @@ const B: Record<LifecycleTemplate, Builder> = {
         tone: "warning",
         blocks: [
           { stat: days === 1 ? "Amanhã" : `${days} dias`, label: `seu ${label} vai até ${fmtDateLong(due)}` },
-          { p: `Você cancelou a renovação, então o plano vale até **${fmtDateLong(due)}**. Depois disso, a cota mensal para; seu bônus e todas as suas apresentações continuam com você.` },
+          { p: `Você cancelou a renovação, então o plano vale até **${fmtDateLong(due)}**. Depois disso, a cota mensal para e **suas apresentações saem do ar**. Seu bônus continua guardado, e você tem ${HOSTING_GRACE_DAYS} dias para reativar e trazer tudo de volta.` },
           { p: "Mudou de ideia? Reativar leva um minuto e você não perde o ritmo." },
           sameEmailNote(ctx),
         ],
@@ -614,13 +617,14 @@ const B: Record<LifecycleTemplate, Builder> = {
     const label = planLabel(ctx.plan);
     return {
       subject: "Não conseguimos renovar seu plano",
-      preheader: "Acontece. Resolver leva um minuto, e seu acesso continua por enquanto.",
+      preheader: "Acontece. Resolver leva um minuto e traz suas apresentações de volta ao ar.",
       greeting: ctx.firstName ? `Oi, ${callName(ctx)}.` : "Olá.",
       title: "A renovação não passou",
       tone: "danger",
       blocks: [
         { p: `A cobrança do seu **${label}** no **${paymentLabel(ctx)}** foi recusada. Acontece: limite, cartão vencido ou bloqueio do banco.` },
-        { p: `${ctx.renewsAt ? `Seu acesso continua até **${fmtDateLong(ctx.renewsAt)}**. ` : ""}A Cakto tenta cobrar de novo automaticamente; se preferir resolver agora, é só atualizar o pagamento.` },
+        { p: `Enquanto o pagamento não for confirmado, **suas apresentações ficam fora do ar** (links públicos e portfólio não abrem). A Cakto tenta cobrar de novo automaticamente; se preferir resolver agora, é só atualizar o pagamento.` },
+        { p: `Regularizando em até ${HOSTING_GRACE_DAYS} dias, tudo volta na hora. Depois disso, as apresentações fora do ar são excluídas.` },
         sameEmailNote(ctx),
       ],
       cta: { label: "Atualizar pagamento", url: renewUrl(ctx, l, data) },
@@ -633,13 +637,13 @@ const B: Record<LifecycleTemplate, Builder> = {
     const l = links("subscription_late");
     return {
       subject: "Seu plano está em atraso",
-      preheader: "Falta só regularizar o pagamento. Seu bônus e suas apresentações continuam.",
+      preheader: "Regularize o pagamento para trazer suas apresentações de volta ao ar.",
       greeting: ctx.firstName ? `Oi, ${callName(ctx)}.` : "Olá.",
       title: "Falta só regularizar o pagamento",
       tone: "danger",
       blocks: [
-        { p: `O pagamento do seu **${planLabel(ctx.plan)}** ainda não foi confirmado. Enquanto isso, a cota mensal fica pausada — seu bônus e todas as suas apresentações continuam com você.` },
-        { p: "Regularizando, tudo volta na hora." },
+        { p: `O pagamento do seu **${planLabel(ctx.plan)}** ainda não foi confirmado. Enquanto isso, a cota mensal fica pausada e **suas apresentações estão fora do ar**. Seu bônus continua guardado.` },
+        { p: `Regularizando em até ${HOSTING_GRACE_DAYS} dias, tudo volta na hora. Depois disso, as apresentações fora do ar são excluídas.` },
         sameEmailNote(ctx),
       ],
       cta: { label: "Regularizar agora", url: renewUrl(ctx, l, data) },
@@ -657,7 +661,7 @@ const B: Record<LifecycleTemplate, Builder> = {
       title: "Ainda dá tempo",
       tone: "warning",
       blocks: [
-        { p: `Seu **${planLabel(ctx.plan)}** continua aguardando o pagamento. Assim que ele for confirmado, a cota do mês volta na hora.` },
+        { p: `Seu **${planLabel(ctx.plan)}** continua aguardando o pagamento, e suas apresentações seguem fora do ar. Assim que ele for confirmado, a cota do mês e as apresentações voltam na hora.` },
         { p: "Se algo deu errado no pagamento, responda este e-mail que a gente ajuda." },
         sameEmailNote(ctx),
       ],
@@ -693,8 +697,8 @@ const B: Record<LifecycleTemplate, Builder> = {
       greeting: greeting(ctx),
       title: "Assinatura pausada",
       blocks: [
-        { p: `Seu **${planLabel(ctx.plan)}** está pausado. Enquanto isso, a cota mensal fica suspensa; seu bônus e suas apresentações continuam disponíveis.` },
-        { p: "Quando retomar, avisamos por aqui." },
+        { p: `Seu **${planLabel(ctx.plan)}** está pausado. Enquanto isso, a cota mensal fica suspensa e **suas apresentações saem do ar**; seu bônus continua guardado.` },
+        { p: `Retomando em até ${HOSTING_GRACE_DAYS} dias, tudo volta. Quando retomar, avisamos por aqui.` },
       ],
       cta: { label: "Ver meu plano", url: l.subscription() },
       signoff: TEAM_SIGNOFF,
@@ -715,7 +719,9 @@ const B: Record<LifecycleTemplate, Builder> = {
           : `Tudo certo: a renovação do seu **${planLabel(ctx.plan)}** foi cancelada.` },
         {
           list: [
-            "**Suas apresentações continuam suas**, e o link público segue funcionando.",
+            ctx.renewsAt
+              ? `**Suas apresentações ficam no ar até ${fmtDateLong(ctx.renewsAt)}.** Depois, saem do ar e podem ser restauradas por ${HOSTING_GRACE_DAYS} dias, reativando o plano ou comprando créditos.`
+              : `**Suas apresentações saem do ar** e podem ser restauradas por ${HOSTING_GRACE_DAYS} dias, reativando o plano ou comprando créditos.`,
             "**O bônus fica guardado** e pode ser usado depois.",
             "**A cota mensal para** quando o período terminar.",
           ],
@@ -740,6 +746,7 @@ const B: Record<LifecycleTemplate, Builder> = {
         list: [
           "Os créditos concedidos por esse pedido são cancelados.",
           "Se for uma assinatura, ela é encerrada.",
+          "As apresentações que dependiam desse pedido saem do ar quando o reembolso for concluído.",
           "No cartão, o estorno costuma aparecer em até duas faturas.",
         ],
       },
@@ -756,8 +763,8 @@ const B: Record<LifecycleTemplate, Builder> = {
     title: "Reembolso concluído",
     blocks: [
       { p: "Seu reembolso foi processado pela Cakto, pelo mesmo meio de pagamento. No cartão, o estorno costuma aparecer em até duas faturas." },
-      { p: "Os créditos desse pedido foram retirados da conta. Sua conta continua ativa, e suas apresentações também." },
-      { p: "Se quiser voltar um dia, é só escolher um plano." },
+      { p: "Os créditos desse pedido foram retirados da conta, e as apresentações que dependiam dele saíram do ar. Sua conta continua ativa." },
+      { p: `Assinando um plano ou comprando créditos em até ${HOSTING_GRACE_DAYS} dias, as apresentações voltam. Depois disso, elas são excluídas.` },
     ],
     cta: { label: "Ver planos", url: links("refund_done").plans() },
     signoff: TEAM_SIGNOFF,
@@ -771,7 +778,7 @@ const B: Record<LifecycleTemplate, Builder> = {
     title: "Contestação de pagamento",
     tone: "warning",
     blocks: [
-      { p: "Recebemos da operadora do cartão uma contestação (chargeback) de um pagamento feito na sua conta. Por isso, o plano e os créditos desse pedido foram encerrados." },
+      { p: "Recebemos da operadora do cartão uma contestação (chargeback) de um pagamento feito na sua conta. Por isso, o plano e os créditos desse pedido foram encerrados, e as apresentações que dependiam dele saíram do ar." },
       { p: "Se você não reconhece essa contestação, ou quer resolver de outro jeito, responda este e-mail que a gente ajuda." },
     ],
     signoff: TEAM_SIGNOFF,
@@ -876,7 +883,7 @@ const B: Record<LifecycleTemplate, Builder> = {
         preheader: "Separei um desconto especial para você retomar.",
         title: "Que tal voltar a criar?",
         blocks: [
-          { p: `Faz um mês que seu ${planLabel(prev)} terminou. Suas apresentações continuam aqui, esperando as próximas. Para facilitar a volta:` },
+          { p: `Faz um mês que seu ${planLabel(prev)} terminou. Que tal recomeçar? Para facilitar a volta:` },
           { coupon: c.code, text: `**${c.percent}% de desconto** — use este cupom no checkout` },
           ideasBlock(ctx, l, "Para recomeçar"),
           sameEmailNote(ctx),
@@ -888,10 +895,10 @@ const B: Record<LifecycleTemplate, Builder> = {
     return {
       ...base,
       subject: "Sentimos sua falta por aqui",
-      preheader: "Suas apresentações continuam guardadas.",
-      title: "Suas apresentações continuam aqui",
+      preheader: "Ainda dá tempo de trazer suas apresentações de volta.",
+      title: "Ainda dá tempo de restaurar suas apresentações",
       blocks: [
-        { p: `Seu ${planLabel(prev)} terminou há uma semana. Tudo o que você criou continua salvo, e o seu bônus também.` },
+        { p: `Seu ${planLabel(prev)} terminou há uma semana e suas apresentações saíram do ar. Reativando o plano dentro de ${HOSTING_GRACE_DAYS} dias do fim, tudo volta como estava, e o seu bônus continua guardado.` },
         ideasBlock(ctx, l, "Algumas ideias para a próxima"),
       ],
       cta: { label: "Reativar meu plano", url: l.checkout(paidPlan(prev)) },
@@ -969,6 +976,68 @@ const B: Record<LifecycleTemplate, Builder> = {
       secondary: { label: "Ver extrato de créditos", url: l.credits() },
       signoff: TEAM_SIGNOFF,
       reason: "Você recebeu este e-mail porque uma geração da sua conta foi estornada.",
+    };
+  },
+
+  presentations_offline: (ctx, data) => {
+    const l = links("presentations_offline");
+    const count = Math.max(1, Number(data.count ?? 1));
+    const purge = typeof data.purge_at === "string" ? data.purge_at : null;
+    const many = count > 1;
+    const subscriber = isSubscriptionPlan(ctx.plan);
+    return {
+      subject: many ? `${count} apresentações saíram do ar` : "Uma apresentação sua saiu do ar",
+      preheader: purge ? `Restaure até ${fmtDate(purge)}: reative um plano ou compre créditos.` : "Reative um plano ou compre créditos para restaurar.",
+      greeting: ctx.firstName ? `Oi, ${callName(ctx)}.` : "Olá.",
+      title: many ? "Suas apresentações estão fora do ar" : "Sua apresentação está fora do ar",
+      tone: "warning",
+      blocks: [
+        { p: subscriber
+          ? `Seu **${planLabel(ctx.plan)}** não está ativo no momento (cancelamento, reembolso ou pagamento não confirmado), então ${many ? `${count} apresentações saíram` : "uma apresentação saiu"} do ar.`
+          : `O prazo de hospedagem dos créditos avulsos terminou, então ${many ? `${count} apresentações saíram` : "uma apresentação saiu"} do ar.` },
+        {
+          list: [
+            "Os links públicos e o portfólio deixam de abrir.",
+            "No painel você ainda vê os títulos, mas não abre, edita nem exporta.",
+            purge
+              ? `Até **${fmtDateLong(purge)}**, tudo volta ao reativar um plano ou comprar créditos.`
+              : `Por ${HOSTING_GRACE_DAYS} dias, tudo volta ao reativar um plano ou comprar créditos.`,
+            "Depois desse prazo, os slides e as imagens são excluídos de vez.",
+          ],
+        },
+        sameEmailNote(ctx),
+      ],
+      cta: subscriber
+        ? { label: "Reativar meu plano", url: l.checkout(paidPlan(ctx.plan)) }
+        : { label: `Comprar créditos (${PLAN_PRICES.single})`, url: l.checkout("single") },
+      secondary: { label: "Ver planos", url: l.plans() },
+      signoff: TEAM_SIGNOFF,
+      reason: "Você recebeu este e-mail porque apresentações da sua conta saíram do ar.",
+    };
+  },
+
+  presentations_deletion_soon: (ctx, data) => {
+    const l = links("presentations_deletion_soon");
+    const purge = typeof data.purge_at === "string" ? data.purge_at : null;
+    const subscriber = isSubscriptionPlan(ctx.plan);
+    return {
+      subject: "Suas apresentações serão excluídas em 7 dias",
+      preheader: purge ? `Restaure até ${fmtDate(purge)} para não perder nada.` : "Restaure agora para não perder nada.",
+      greeting: ctx.firstName ? `Oi, ${callName(ctx)}.` : "Olá.",
+      title: "Últimos dias para restaurar",
+      tone: "danger",
+      blocks: [
+        { stat: "7 dias", label: purge ? `exclusão definitiva em ${fmtDateLong(purge)}` : "para a exclusão definitiva" },
+        { p: "Suas apresentações estão fora do ar. Para não perdê-las, reative um plano ou compre créditos antes do prazo: tudo volta na hora, como estava." },
+        { p: "Depois da data, os slides e as imagens são excluídos de vez e não podem ser recuperados." },
+        sameEmailNote(ctx),
+      ],
+      cta: subscriber
+        ? { label: "Reativar meu plano", url: l.checkout(paidPlan(ctx.plan)) }
+        : { label: `Comprar créditos (${PLAN_PRICES.single})`, url: l.checkout("single") },
+      secondary: { label: "Ver planos", url: l.plans() },
+      signoff: TEAM_SIGNOFF,
+      reason: "Você recebeu este e-mail porque apresentações da sua conta estão fora do ar.",
     };
   },
 };
