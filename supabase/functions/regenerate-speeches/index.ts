@@ -8,8 +8,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AI_ENDPOINTS, TEXT_STAGES } from "../_shared/modelRegistry.ts";
 
-const OFFLINE_MESSAGE = "Esta apresentação está fora do ar. Reative um plano ou compre créditos para restaurá-la.";
 import { speechesByPosition } from "./lib.ts";
+const OFFLINE_MESSAGE = "Esta apresentação está fora do ar. Reative um plano ou compre créditos para restaurá-la.";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
