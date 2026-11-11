@@ -68,6 +68,9 @@ export const SAMPLE_LIFECYCLE: Record<string, [LifecycleTemplate, Partial<Lifecy
   "ciclo-saldo-baixo-avulso": ["credits_low", { plan: "single", balance: 60, firstName: "Ana", persona: "estudante" }],
   "ciclo-saldo-baixo-assinante": ["credits_low", { ...card, balance: 80 }],
   "ciclo-estorno-geracao": ["generation_refunded", {}, { credits: 170 }],
+  "ciclo-fora-do-ar-assinante": ["presentations_offline", { ...card, subscriptionStatus: "canceled" }, { count: 4, purge_at: "2026-12-12T12:00:00Z" }],
+  "ciclo-fora-do-ar-avulso": ["presentations_offline", { plan: "single", balance: 0, firstName: "Ana", persona: "estudante" }, { count: 1, purge_at: "2026-12-12T12:00:00Z" }],
+  "ciclo-exclusao-em-7-dias": ["presentations_deletion_soon", { ...card, subscriptionStatus: "canceled" }, { purge_at: "2026-12-12T12:00:00Z" }],
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
