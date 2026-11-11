@@ -17,6 +17,7 @@ import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
 import { useAuth } from "@/hooks/useAuth";
 import { useProgressiveAssets, type AssetPatch } from "@/hooks/useProgressiveAssets";
 import { saveResolvedAsset } from "@/lib/assetWrite";
+import { PresentationOffline } from "@/components/PresentationOffline";
 
 interface Pres {
   id: string; is_published?: boolean; is_owner?: boolean; title: string; description: string | null; theme: string; font_style: string; slug: string;
@@ -44,6 +45,8 @@ const SlideViewer = () => {
   // Deve ficar antes de qualquer retorno condicional. Antes estava depois de
   // `if (loading)`/`if (!pres)`, causando React #310 ao abrir apresentações.
   const prevIdxRef = useRef(0);
+  // Fora do ar (plano encerrado ou créditos expirados): o servidor não manda os slides.
+  const [offline, setOffline] = useState<{ isOwner: boolean; title?: string; purgeAt?: string } | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -51,6 +54,13 @@ const SlideViewer = () => {
       // Uma chamada devolve o deck do slug (publicado, ou privado do próprio
       // dono). As tabelas não são mais legíveis por visitantes.
       const { data } = await supabase.rpc("get_shared_presentation", { _slug: slug });
+      const unavailable = data as unknown as { unavailable?: boolean; is_owner?: boolean; presentation?: { title?: string; purge_at?: string } | null } | null;
+      if (unavailable?.unavailable) {
+        setOffline({ isOwner: !!unavailable.is_owner, title: unavailable.presentation?.title, purgeAt: unavailable.presentation?.purge_at });
+        document.title = "Apresentação indisponível — SlideAI";
+        setLoading(false);
+        return;
+      }
       const deck = data as unknown as { presentation: Pres; slides: SlideRow[] } | null;
       const p = deck?.presentation;
       if (!p) { setLoading(false); return; }
@@ -210,6 +220,7 @@ const SlideViewer = () => {
   }, [autoPrint, loading, slides.length]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (offline) return <PresentationOffline isOwner={offline.isOwner} title={offline.title} purgeAt={offline.purgeAt} />;
   if (!pres) return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="text-center">
