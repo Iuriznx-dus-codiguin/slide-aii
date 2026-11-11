@@ -7,6 +7,8 @@
 // ============================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AI_ENDPOINTS, TEXT_STAGES } from "../_shared/modelRegistry.ts";
+
+const OFFLINE_MESSAGE = "Esta apresentação está fora do ar. Reative um plano ou compre créditos para restaurá-la.";
 import { speechesByPosition } from "./lib.ts";
 
 const corsHeaders = {
@@ -74,6 +76,10 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (presErr || !pres) return json({ error: "Apresentação não encontrada." }, 404);
   if (pres.user_id !== userId) return json({ error: "Acesso negado." }, 403);
+  const { data: hosted } = await admin.rpc("presentation_is_hosted", { _presentation_id: presentationId });
+  if (hosted === false) {
+    return json({ error: OFFLINE_MESSAGE, reason: "presentation_offline" }, 403);
+  }
   // As falas são um recurso pago na geração (+50 créditos). Regenerar só vale
   // para apresentações que incluíram as falas — senão viravam falas grátis.
   if (!(pres as any).include_speeches) {

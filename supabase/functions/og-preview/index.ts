@@ -139,6 +139,18 @@ Deno.serve(async (req) => {
     }), 404);
   }
 
+  // Fora do ar (plano encerrado ou créditos expirados): sem título nem capa.
+  const { data: hosted } = await admin.rpc("presentation_is_hosted", { _presentation_id: pres.id });
+  if (hosted === false) {
+    log.info("preview_offline", { slug });
+    return html(page({
+      title: "Apresentação indisponível — SlideAI",
+      description: "Esta apresentação está fora do ar no momento.",
+      image: DEFAULT_IMAGE,
+      url: target,
+    }), 404);
+  }
+
   // Capa = primeira imagem disponível do slide de posição mais baixa.
   const { data: slides } = await admin
     .from("slides")
