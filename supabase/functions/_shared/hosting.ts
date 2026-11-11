@@ -51,7 +51,7 @@ export async function purgeExpiredPresentations(
       if (!paths.length) continue;
       const { data: free, error: relErr } = await admin.rpc("release_storage_paths", { _uid: row.user_id, _paths: paths });
       if (relErr) throw new Error(relErr.message);
-      const removable = ((free ?? []) as string[]).filter((p) => p.startsWith(`${row.user_id}/`) || p.startsWith("anon/"));
+      const removable = ((free ?? []) as string[]).filter((p) => p.startsWith(`${row.user_id}/`));
       if (removable.length) {
         const { error: rmErr } = await admin.storage.from(BUCKET).remove(removable);
         if (rmErr) throw new Error(rmErr.message);
