@@ -19,6 +19,7 @@ import {
   FAIR_USE_MAX_MONTHLY_CREDITS,
   SPEECH_REGENS_PER_PRESENTATION,
 } from "@/lib/fairUse";
+import { HOSTING_GRACE_DAYS, SINGLE_HOSTING_MONTHS } from "@/lib/hosting";
 
 const fmt = (n: number) => n.toLocaleString("pt-BR");
 
@@ -35,7 +36,7 @@ const TOC: TocItem[] = [
   { id: "uso-justo", label: "9. Uso justo e limites técnicos" },
   { id: "ia", label: "10. Conteúdo gerado por IA" },
   { id: "propriedade", label: "11. Seu conteúdo e propriedade intelectual" },
-  { id: "publicacao", label: "12. Publicação e portfólio" },
+  { id: "publicacao", label: "12. Publicação, hospedagem e portfólio" },
   { id: "condutas", label: "13. Condutas proibidas" },
   { id: "denuncias", label: "14. Denúncias e remoção de conteúdo" },
   { id: "integracoes", label: "15. Integrações e serviços de terceiros" },
@@ -104,6 +105,11 @@ const Terms = () => {
             </li>
             <li>O que você envia continua seu, e você pode usar o que gerar, inclusive comercialmente.</li>
             <li>Suas apresentações são privadas até você decidir publicá-las.</li>
+            <li>
+              <Strong>Sem plano ativo, as apresentações saem do ar.</Strong> Com créditos avulsos, cada uma fica no ar por{" "}
+              {SINGLE_HOSTING_MONTHS} meses. Fora do ar, você pode restaurá-las por {HOSTING_GRACE_DAYS} dias; depois, elas são
+              excluídas definitivamente (seção 12).
+            </li>
           </LegalList>
         </Callout>
       </section>
@@ -262,8 +268,9 @@ const Terms = () => {
           partir da renovação seguinte. Se não concordar, você pode cancelar antes da renovação.
         </Clause>
         <Clause n="6.6">
-          <Strong>Pagamento não aprovado.</Strong> Se a renovação não for paga, o acesso à cota do plano termina no fim do
-          período pago. Seu bônus e suas apresentações continuam na Conta.
+          <Strong>Pagamento não aprovado.</Strong> <Strong>Na primeira recusa ou atraso no pagamento da renovação, suas
+          apresentações saem do ar</Strong> até a regularização (cláusula 12.6). Se a renovação não for paga, o acesso à cota do
+          plano termina no fim do período pago. Seu bônus continua na Conta.
         </Clause>
         <Clause n="6.7">
           <Strong>Sem bônus de ativação.</Strong> As assinaturas concedem apenas a cota mensal do plano. Os planos
@@ -289,7 +296,8 @@ const Terms = () => {
         </Clause>
         <Clause n="7.2">
           <Strong>Com o cancelamento, a assinatura não renova mais</Strong>, mas você continua com o acesso e a cota mensal
-          até o fim do período pago. Depois disso, o bônus continua disponível e as apresentações continuam na Conta.
+          até o fim do período pago. Depois disso, o bônus continua disponível e{" "}
+          <Strong>as apresentações saem do ar</Strong>, podendo ser restauradas por {HOSTING_GRACE_DAYS} dias (seção 12).
         </Clause>
         <Clause n="7.3">
           <Strong>O período em curso não é reembolsado de forma proporcional</Strong>. As exceções são o direito de
@@ -317,7 +325,8 @@ const Terms = () => {
         <Clause n="8.4">
           <Strong>Efeitos do reembolso.</Strong> Os créditos concedidos pelo pedido reembolsado são cancelados. No caso de
           assinatura, ela é encerrada na hora, com a cota mensal. Os créditos daquele pedido que você já tiver usado não
-          geram cobrança adicional.
+          geram cobrança adicional. <Strong>As apresentações que dependiam do pedido saem do ar na hora</Strong> e podem ser
+          restauradas por {HOSTING_GRACE_DAYS} dias com uma nova contratação (seção 12).
         </Clause>
         <Clause n="8.5">
           <Strong>Outros reembolsos.</Strong> Cobranças duplicadas, indevidas ou não reconhecidas são analisadas pelo suporte
@@ -428,7 +437,7 @@ const Terms = () => {
         </Clause>
       </LegalSection>
 
-      <LegalSection id="publicacao" title="12. Publicação, links públicos e portfólio">
+      <LegalSection id="publicacao" title="12. Publicação, hospedagem, links públicos e portfólio">
         <Clause n="12.1">
           As apresentações são <Strong>privadas por padrão</Strong>. Ao publicar, a apresentação fica acessível a qualquer
           pessoa com o link, <Strong>incluindo as notas e as falas dos apresentadores</Strong> (é assim que coapresentadores
@@ -448,6 +457,39 @@ const Terms = () => {
         <Clause n="12.4">
           O perfil público e o portfólio são opcionais. Mostram apenas o que você preencher e as apresentações que você
           publicar, e podem ser tornados privados a qualquer momento.
+        </Clause>
+        <Clause n="12.5">
+          <Strong>Hospedagem.</Strong> As apresentações ficam hospedadas ("no ar") enquanto houver uma assinatura vigente na
+          Conta, com o pagamento em dia. Apresentações geradas sem assinatura vigente, com créditos avulsos ou bônus, ficam no
+          ar por <Strong>{SINGLE_HOSTING_MONTHS} meses contados da geração</Strong>. Cada nova compra de créditos renova esse
+          prazo, por {SINGLE_HOSTING_MONTHS} meses a partir da compra, para todas as apresentações da Conta. O prazo de
+          hospedagem não se confunde com a validade dos créditos, que segue a cláusula 5.6.
+        </Clause>
+        <Clause n="12.6">
+          <Strong>Saída do ar.</Strong> As apresentações que não estiverem cobertas por uma assinatura vigente ou pelo prazo
+          da cláusula 12.5 saem do ar:
+        </Clause>
+        <LegalList>
+          <li>no fim do período pago, quando a assinatura é cancelada;</li>
+          <li><Strong>na hora</Strong>, quando a compra ou a assinatura é reembolsada ou contestada (chargeback);</li>
+          <li><Strong>na primeira recusa ou atraso</Strong> no pagamento da renovação, até a regularização;</li>
+          <li>quando a assinatura é pausada ou vence sem pagamento;</li>
+          <li>ao fim do prazo de {SINGLE_HOSTING_MONTHS} meses das apresentações de créditos avulsos.</li>
+        </LegalList>
+        <Clause n="12.7">
+          <Strong>Efeitos.</Strong> Fora do ar, o link público, o portfólio e a prévia de link deixam de exibir a
+          apresentação, e você não consegue abri-la, editá-la, exportá-la nem usar o assistente de IA nela. O título continua
+          visível no seu painel.
+        </Clause>
+        <Clause n="12.8">
+          <Strong>Restauração.</Strong> Por <Strong>{HOSTING_GRACE_DAYS} dias</Strong> contados da saída do ar, você pode
+          restaurar as apresentações, como estavam, reativando ou contratando um plano, regularizando o pagamento ou comprando
+          créditos.
+        </Clause>
+        <Clause n="12.9">
+          <Strong>Exclusão definitiva. Passado o prazo da cláusula 12.8, os slides, as imagens e os demais conteúdos da
+          apresentação são excluídos e não podem ser recuperados.</Strong> Avisamos por e-mail quando as apresentações saem do
+          ar e 7 dias antes da exclusão. Exporte as apresentações importantes antes de cancelar ou de deixar o prazo vencer.
         </Clause>
       </LegalSection>
 
@@ -523,7 +565,9 @@ const Terms = () => {
           legal de 5 dias (Decreto 7.962/2013, art. 4º).
         </Clause>
         <Clause n="16.3">
-          Recomendamos exportar periodicamente as apresentações importantes. O serviço não é um sistema de backup.
+          Recomendamos exportar periodicamente as apresentações importantes, principalmente antes de cancelar um plano, já
+          que apresentações fora do ar são excluídas após {HOSTING_GRACE_DAYS} dias (seção 12). O serviço não é um sistema de
+          backup.
         </Clause>
         <Clause n="16.4">
           <Strong>Encerramento do serviço.</Strong> Se decidirmos encerrar o {LEGAL.brand}, avisaremos com pelo menos 30 dias
