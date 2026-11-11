@@ -5,7 +5,7 @@
 //   • subscription_created    → ativa assinatura
 //   • subscription_renewed    → estende o período (renewsAt = agora + ciclo)
 //   • subscription_canceled   → marca status=canceled (acesso até o fim do período pago)
-//   • refunded / chargeback   → cancela e limpa o plano
+//   • refunded / chargeback   → cancela e limpa o plano; apresentações saem do ar na hora
 //
 // Segurança: o segredo pode chegar em header (`x-cakto-token`, `x-cakto-secret`,
 // `authorization`…), query (`?token=`/`?secret=`) ou no corpo (`secret`).
@@ -255,6 +255,9 @@ Deno.serve(async (req) => {
         mustReturn(await admin.rpc("grant_bonus_credits", {
           _uid: userId, _amount: SINGLE_PURCHASE_CREDITS, _type: "single_purchase",
         }), "grant_bonus_credits");
+        // Comprar créditos mantém todas as apresentações no ar por mais 3
+        // meses e restaura as que estavam fora do ar (até 30 dias).
+        must(await admin.rpc("extend_presentations_hosting", { _uid: userId }), "extend_presentations_hosting");
       } else {
         const patch: Record<string, unknown> = {
           plan,
@@ -325,6 +328,10 @@ Deno.serve(async (req) => {
       }), "revoke_order_credits") as { ok?: boolean; reason?: string };
       if (revoked.ok === false) throw new Error(`revoke_order_credits: ${revoked.reason ?? "falhou"}`);
       log.info("credits_revoked", { revoked, scope: scope.kind });
+      // Reembolso/chargeback tira do ar na hora o que dependia do pedido
+      // (restaurável por 30 dias com nova compra ou plano).
+      const offline = must(await admin.rpc("revoke_presentations_hosting", { _uid: userId }), "revoke_presentations_hosting");
+      log.info("presentations_offline_after_refund", { offline });
 
     } else if (action === "canceled") {
       // Não apaga o plano: apenas marca canceled. Pelos Termos (seção 7), o
@@ -380,6 +387,15 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     log.error("lifecycle_email_failed", { message: e instanceof Error ? e.message : String(e) });
+  }
+
+  // ── Hospedagem: depois do alerta de cobrança (falha na renovação tira do ar
+  // na hora; pagamento confirmado restaura). A varredura horária do
+  // despachante corrige qualquer falha aqui.
+  {
+    const { data: hosting, error: hostingErr } = await admin.rpc("sync_user_presentation_hosting", { _uid: userId });
+    if (hostingErr) log.error("presentation_hosting_sync_failed", { message: hostingErr.message });
+    else log.info("presentation_hosting_synced", { hosting });
   }
 
   log.info("processed", { event_type, action, plan });

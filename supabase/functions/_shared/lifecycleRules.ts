@@ -15,6 +15,8 @@ export interface RuleContext extends LifecycleContext {
   pendingOrderId?: string | null;
   relationshipAllowed: boolean;
   internal: boolean;
+  /** Apresentações fora do ar (hospedagem), quando conhecido. */
+  offlineDecks?: number;
 }
 
 export const isSubscriptionCurrent = (
@@ -77,6 +79,9 @@ export const shouldSend = (
       return ctx.billingAlert === "late" ? { send: true } : { send: false, reason: "resolved" };
     case "winback":
       return isSubscriptionCurrent(ctx, now) ? { send: false, reason: "resubscribed" } : { send: true };
+    case "presentations_offline":
+    case "presentations_deletion_soon":
+      return ctx.offlineDecks === 0 ? { send: false, reason: "restored" } : { send: true };
     case "credits_low":
       return ctx.balance < TYPICAL_DECK_CREDITS ? { send: true } : { send: false, reason: "balance_ok" };
     default:

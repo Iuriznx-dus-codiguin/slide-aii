@@ -49,9 +49,9 @@ export const reasonMessage = (reason: Entitlement["reason"], resetDate?: string 
     case "system_error":
       return "Não foi possível verificar seu saldo agora. Tente novamente em alguns minutos.";
     case "subscription_canceled":
-      return "Sua assinatura foi cancelada e o período pago terminou. Reative um plano ou use créditos avulsos para voltar a gerar — suas apresentações continuam salvas.";
+      return "Sua assinatura foi cancelada e o período pago terminou. Suas apresentações saíram do ar: reative um plano ou compre créditos em até 30 dias para restaurá-las e voltar a gerar.";
     case "subscription_expired":
-      return "Sua assinatura venceu e as gerações estão pausadas. Renove o plano ou use créditos avulsos para voltar a gerar — suas apresentações continuam salvas.";
+      return "Sua assinatura venceu e as gerações estão pausadas. Suas apresentações saíram do ar: renove o plano ou compre créditos em até 30 dias para restaurá-las e voltar a gerar.";
     case "no_plan":
       return "Escolha um plano para gerar apresentações.";
     default:
