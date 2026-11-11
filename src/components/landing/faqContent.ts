@@ -30,7 +30,11 @@ export const LANDING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Posso cancelar a assinatura quando quiser?",
-    a: "Sim, sem multa. Os planos PRO e MAX podem ser cancelados a qualquer momento: a renovação para e você mantém o acesso até o fim do período já pago.",
+    a: "Sim, sem multa. Os planos PRO e MAX podem ser cancelados a qualquer momento: a renovação para e você mantém o acesso até o fim do período já pago. Depois disso, suas apresentações saem do ar e podem ser restauradas por 30 dias, reativando um plano ou comprando créditos.",
+  },
+  {
+    q: "Por quanto tempo minhas apresentações ficam no ar?",
+    a: "Com um plano PRO ou MAX ativo, todas ficam no ar enquanto o plano durar. Com créditos avulsos, cada apresentação fica no ar por 3 meses depois de gerada, e cada nova compra renova o prazo de todas. Se o plano terminar, for reembolsado ou a renovação não for paga, elas saem do ar (links e portfólio deixam de abrir) e podem ser restauradas por 30 dias; depois disso, são excluídas de vez.",
   },
   {
     q: "E se eu me arrepender da compra?",
