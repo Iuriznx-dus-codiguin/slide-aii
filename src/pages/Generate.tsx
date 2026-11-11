@@ -812,10 +812,11 @@ const Generate = () => {
               </div>
             )}
 
-            {/* No mobile o CTA fica fixo ao alcance do polegar. */}
+            {/* No mobile o CTA fica fixo ao alcance do polegar — exceto em telas baixas
+                (celular deitado), onde cobriria os campos: lá fica no fim do formulário. */}
 
             <Button variant="hero" size="xl"
-              className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
+              className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant [@media(max-height:500px)]:static"
               onClick={handleGenerate} disabled={ent.loading}>
               <Sparkles className="h-4 w-4" /> {unlimitedCredits || (canGenerate && !insufficientCredits) ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>

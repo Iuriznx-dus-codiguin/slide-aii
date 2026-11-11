@@ -256,7 +256,7 @@ export const PresenterNotesPanel = ({
               const speaks = (p.exact_speech || "").trim().length > 0;
               return (
                 <TabsTrigger key={i} value={String(i)} className="text-[11px] truncate gap-1">
-                  <span className="opacity-60">{i + 1}.</span> {p.name || "Apresentador"}
+                  <span>{i + 1}.</span> {p.name || "Apresentador"}
                   {speaks && <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" title="Fala neste slide" />}
                 </TabsTrigger>
               );
@@ -269,11 +269,12 @@ export const PresenterNotesPanel = ({
               return (
                 <TabsContent key={i} value={String(i)} className="px-3 py-3 space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] flex items-center gap-1">
+                    <Label htmlFor={`notes-anchor-${i}`} className="text-[11px] flex items-center gap-1">
                       Âncora de transição
                       <span className="text-muted-foreground font-normal">(handoff entre apresentadores)</span>
                     </Label>
                     <Textarea
+                      id={`notes-anchor-${i}`}
                       value={p.transition_anchor || ""}
                       onChange={(e) => updatePresenter(p.id, { transition_anchor: e.target.value })}
                       rows={2}
@@ -283,14 +284,15 @@ export const PresenterNotesPanel = ({
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label className="text-[11px] flex items-center gap-1">
+                      <Label htmlFor={`notes-speech-${i}`} className="text-[11px] flex items-center gap-1">
                         🎤 Fala (40-80 palavras)
                       </Label>
-                      <span className={`text-[10px] font-mono ${wordOk ? "text-muted-foreground" : "text-destructive"}`}>
+                      <span className={`text-[10px] font-mono ${wordOk ? "text-muted-foreground" : "text-red-700"}`}>
                         {wordCount} palavras
                       </span>
                     </div>
                     <Textarea
+                      id={`notes-speech-${i}`}
                       value={p.exact_speech || ""}
                       onChange={(e) => updatePresenter(p.id, { exact_speech: e.target.value })}
                       rows={8}

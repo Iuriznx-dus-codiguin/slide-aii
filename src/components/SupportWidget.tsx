@@ -205,7 +205,7 @@ export const SupportWidget = () => {
       {/* z-40: modais e diálogos (z-50) ficam por cima — antes o botão cobria o "Pagar agora". */}
       <button
         onClick={() => { setOpen((v) => !v); setMinimized(false); }}
-        className={`${mobileVisibility} fixed ${liftedOnMobile ? "bottom-24" : "bottom-4"} right-4 md:bottom-6 md:right-6 z-40 h-12 w-12 md:h-14 md:w-14 rounded-full bg-primary text-primary-foreground shadow-elegant items-center justify-center hover:scale-105 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+        className={`${mobileVisibility} fixed ${liftedOnMobile ? "bottom-24 [@media(max-height:500px)]:bottom-4" : "bottom-4"} right-4 md:bottom-6 md:right-6 z-40 h-12 w-12 md:h-14 md:w-14 rounded-full bg-primary text-primary-foreground shadow-elegant items-center justify-center hover:scale-105 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
         aria-label={open ? "Fechar suporte" : "Abrir suporte"}
         aria-expanded={open}
       >
@@ -218,7 +218,7 @@ export const SupportWidget = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className={`${mobileVisibility} fixed ${liftedOnMobile ? "bottom-40" : "bottom-20"} right-4 md:bottom-24 md:right-6 z-40 w-[390px] max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-elegant flex-col overflow-hidden ${
+            className={`${mobileVisibility} fixed ${liftedOnMobile ? "bottom-40 [@media(max-height:500px)]:bottom-20" : "bottom-20"} right-4 md:bottom-24 md:right-6 z-40 w-[390px] max-w-[calc(100vw-2rem)] bg-card border border-border rounded-2xl shadow-elegant flex-col overflow-hidden ${
               minimized ? "h-auto" : "h-[580px] max-h-[calc(100dvh-7rem)] md:max-h-[calc(100dvh-8rem)]"
             }`}
           >

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { UIMessage } from "ai";
 import { ArrowDownIcon, DownloadIcon } from "lucide-react";
 import type { ComponentProps } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 
 export type ConversationProps = ComponentProps<typeof StickToBottom>;
@@ -27,12 +27,24 @@ export type ConversationContentProps = ComponentProps<
 export const ConversationContent = ({
   className,
   ...props
-}: ConversationContentProps) => (
-  <StickToBottom.Content
-    className={cn("flex flex-col gap-8 p-4", className)}
-    {...props}
-  />
-);
+}: ConversationContentProps) => {
+  // A área que rola é criada pela biblioteca: torna-a focável para que dê para
+  // rolar o histórico pelo teclado (setas/PageUp) quando as mensagens não cabem.
+  const { scrollRef } = useStickToBottomContext();
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && !el.hasAttribute("tabindex")) {
+      el.tabIndex = 0;
+      el.setAttribute("aria-label", "Histórico da conversa");
+    }
+  }, [scrollRef]);
+  return (
+    <StickToBottom.Content
+      className={cn("flex flex-col gap-8 p-4", className)}
+      {...props}
+    />
+  );
+};
 
 export type ConversationEmptyStateProps = ComponentProps<"div"> & {
   title?: string;
