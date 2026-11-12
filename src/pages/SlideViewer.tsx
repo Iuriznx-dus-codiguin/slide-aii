@@ -129,9 +129,25 @@ const SlideViewer = () => {
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  // Auto-hide UI in fullscreen
+  // Tela baixa (celular deitado): a barra de navegação fixa cobre a parte de
+  // baixo do slide. Ali os controles também se escondem sozinhos, como no
+  // YouTube ou no Google Slides, e qualquer toque, mouse ou tecla os traz de volta.
+  const [shortViewport, setShortViewport] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(max-height: 500px)").matches === true,
+  );
   useEffect(() => {
-    if (!fullscreen) { setHideUI(false); return; }
+    const mq = window.matchMedia?.("(max-height: 500px)");
+    if (!mq) return;
+    const onChange = () => setShortViewport(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const autoHideUI = fullscreen || shortViewport;
+
+  // Auto-hide UI in fullscreen (e em telas baixas)
+  useEffect(() => {
+    if (!autoHideUI) { setHideUI(false); return; }
     let t: any;
     const reset = () => {
       setHideUI(false);
@@ -149,7 +165,7 @@ const SlideViewer = () => {
       window.removeEventListener("touchstart", reset);
       window.removeEventListener("keydown", reset);
     };
-  }, [fullscreen]);
+  }, [autoHideUI]);
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);

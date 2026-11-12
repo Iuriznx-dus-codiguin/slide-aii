@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 export default {
   darkMode: ["class"],
@@ -119,5 +120,12 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    // Celular deitado (e tablets baixos): largura de "mobile" com pouca altura.
+    // O editor usa para pôr miniaturas e painéis lado a lado com o slide.
+    plugin(({ addVariant }) => {
+      addVariant("mobile-landscape", "@media (max-width: 1023px) and (max-height: 500px)");
+    }),
+  ],
 } satisfies Config;

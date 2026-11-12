@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
+import { Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   CHECKOUT_URLS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, SINGLE_PURCHASE_CREDITS,
   MAX_USAGE_MULTIPLIER, cycleDiscountPct, formatBRL, previousPriceDiscountPct, type PaidPlan, type BillingCycle,
@@ -64,28 +64,6 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
     }
   }, [waiting, ent.allowed, ent.loading, ent.credits_available, ent.unlimited]);
 
-  // Esc fecha, como nos demais diálogos do app — a menos que outra camada (um
-  // diálogo ou menu do Radix por cima) já tenha tratado a tecla.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  // Foco: entra no painel ao abrir e volta para onde estava ao fechar.
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-    return () => previous?.focus?.();
-  }, [open]);
-
-  if (!open) return null;
-
   const proId = proPlanFor(cycle);
   const maxId = maxPlanFor(cycle);
 
@@ -126,29 +104,20 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
     </button>
   );
 
+  // Dialog do Radix, como os demais modais do app: prende o foco dentro dele,
+  // trava a rolagem da página por trás, fecha com Esc ou clique fora e devolve
+  // o foco a quem abriu.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <motion.div
-        ref={panelRef}
-        role="dialog"
-        aria-labelledby="payment-gate-title"
-        tabIndex={-1}
-        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-card border border-border rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] overflow-y-auto focus:outline-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-2 right-2 sm:top-3 sm:right-3 h-11 w-11 rounded-full hover:bg-muted flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <X className="h-4 w-4" />
-        </button>
-
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent className="block gap-0 bg-card rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl shadow-2xl">
         <div className="text-center mb-5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3">
             <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro · Cakto
           </div>
-          <h2 id="payment-gate-title" className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</h2>
-          <p className="text-sm text-muted-foreground mt-2">
+          <DialogTitle className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-2">
             Sua configuração está salva. Após pagar, a geração inicia automaticamente.
-          </p>
+          </DialogDescription>
         </div>
 
         {/* Toggle para assinaturas — trimestral é o predefinido */}
@@ -235,7 +204,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
         <p className="text-center text-[11px] text-muted-foreground mt-3">
           Após o pagamento, retorne a esta janela. A geração começa sozinha assim que o pagamento for confirmado.
         </p>
-      </motion.div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

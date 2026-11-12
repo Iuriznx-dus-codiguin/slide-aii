@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
@@ -825,24 +826,23 @@ const Generate = () => {
         </motion.div>
       </main>
 
-      {/* Modal de limite (apenas free) — escondido para usuários pagos */}
-      {showLimitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowLimitModal(false)}>
-          <div className="bg-card border border-border rounded-3xl p-8 max-w-md w-full shadow-elegant" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-primary mx-auto mb-4">
-              <Sparkles className="h-7 w-7 text-primary-foreground" />
-            </div>
-            <h3 className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</h3>
-            <p className="text-center text-muted-foreground mt-2 text-sm">
-              Você atingiu o limite de testes gratuitos. Assine um plano PRO ou MAX para gerar apresentações completas.
-            </p>
-            <div className="flex gap-2 mt-6">
-              <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>
-              <Button variant="hero" className="flex-1" onClick={() => navigate("/#pricing")}>Ver planos</Button>
-            </div>
+      {/* Modal de limite (apenas free) — escondido para usuários pagos. Dialog do
+          Radix: foco preso no modal, Esc/clique fora fecham, rolagem travada. */}
+      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
+        <DialogContent className="block gap-0 bg-card rounded-3xl p-6 sm:p-8 max-w-md shadow-elegant">
+          <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-primary mx-auto mb-4">
+            <Sparkles className="h-7 w-7 text-primary-foreground" />
           </div>
-        </div>
-      )}
+          <DialogTitle className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</DialogTitle>
+          <DialogDescription className="text-center text-muted-foreground mt-2 text-sm">
+            Você atingiu o limite de testes gratuitos. Assine um plano PRO ou MAX para gerar apresentações completas.
+          </DialogDescription>
+          <div className="flex gap-2 mt-6">
+            <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>
+            <Button variant="hero" className="flex-1" onClick={() => navigate("/#pricing")}>Ver planos</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PaymentGate
         open={showPayment}

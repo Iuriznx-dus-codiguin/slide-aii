@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { Download, Printer, Users, X, FileDown, FileText, Sparkles, Loader2 } from "lucide-react";
 
 export interface PresenterEntry {
@@ -41,6 +42,9 @@ interface PresenterNotesPanelProps {
   regenerating?: "slide" | "all" | null;
   regensLeft?: number | null;
   onClose: () => void;
+  /** Id e classes extras do painel (o editor usa para a gaveta do celular). */
+  id?: string;
+  className?: string;
 }
 
 
@@ -132,6 +136,8 @@ export const PresenterNotesPanel = ({
   regenerating = null,
   regensLeft = null,
   onClose,
+  id,
+  className,
 }: PresenterNotesPanelProps) => {
   const current = slides[activeIdx];
   // Garantir que todos os apresentadores configurados tenham entrada
@@ -160,8 +166,8 @@ export const PresenterNotesPanel = ({
   };
 
   return (
-    // < 1024px o editor empilha os painéis: largura total, separado por cima.
-    <aside aria-label="Falas dos apresentadores" className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-border bg-card/40 flex flex-col flex-shrink-0">
+    // < 1024px o editor mostra o painel numa gaveta abaixo do slide (largura total).
+    <aside id={id} aria-label="Falas dos apresentadores" className={cn("w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-border bg-card/40 flex flex-col flex-shrink-0", className)}>
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Users className="h-3.5 w-3.5 text-primary" /> Falas dos apresentadores
@@ -262,7 +268,7 @@ export const PresenterNotesPanel = ({
               );
             })}
           </TabsList>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             {presenters.map((p, i) => {
               const wordCount = (p.exact_speech || "").trim().split(/\s+/).filter(Boolean).length;
               const wordOk = wordCount === 0 || (wordCount >= 20 && wordCount <= 100);

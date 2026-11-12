@@ -17,7 +17,7 @@ const ResetPassword = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const password = new FormData(e.currentTarget).get("password") as string;
-    if (password.length < 6) { toast.error("Senha precisa ter ao menos 6 caracteres"); return; }
+    if (password.length < 8) { toast.error("Senha precisa ter ao menos 8 caracteres"); return; }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
@@ -33,11 +33,11 @@ const ResetPassword = () => {
           <BrandLogo size={36} />
         </div>
         <h1 className="font-display text-2xl font-bold mb-2">Definir nova senha</h1>
-        <p className="text-sm text-muted-foreground mb-6">Escolha uma senha forte com ao menos 6 caracteres.</p>
+        <p className="text-sm text-muted-foreground mb-6">Escolha uma senha forte com ao menos 8 caracteres.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="password">Nova senha</Label>
-            <Input id="password" name="password" type="password" required minLength={6} autoComplete="new-password" />
+            <Input id="password" name="password" type="password" required minLength={8} autoComplete="new-password" />
           </div>
           <Button type="submit" variant="hero" className="w-full" disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} Atualizar senha

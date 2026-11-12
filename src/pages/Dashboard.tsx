@@ -1,10 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil, Globe, Lock, HelpCircle, UserRound, Settings, SearchX, CloudOff, Zap, Clock } from "lucide-react";
+import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil, Globe, Lock, HelpCircle, UserRound, SearchX, CloudOff, Zap, Clock } from "lucide-react";
 import { ExportMenu } from "@/components/ExportMenu";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -95,8 +99,14 @@ const Dashboard = () => {
 
   useEffect(() => { load(); }, [user]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Mover esta apresentação para a lixeira?")) return;
+  // Confirmação no estilo do app (AlertDialog), no lugar do confirm() nativo.
+  const [toDelete, setToDelete] = useState<Pres | null>(null);
+  const handleDelete = (id: string) => setToDelete(list.find((p) => p.id === id) ?? null);
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    const id = toDelete.id;
+    setToDelete(null);
     const { error } = await supabase.from("presentations").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast.error("Não foi possível mover para a lixeira. Tente de novo."); return; }
     toast.success("Movido para a lixeira");
@@ -125,16 +135,14 @@ const Dashboard = () => {
           <Link to="/" className="shrink-0" aria-label="SlideAI, página inicial">
             <BrandLogo size={32} wordmarkClassName="hidden min-[360px]:inline" />
           </Link>
-          {/* No celular, só os ícones (com nome acessível): os quatro textos não cabiam e cobriam o logo. */}
+          {/* No celular, só os ícones (com nome acessível): os textos não cabiam e cobriam o logo.
+              Configurações agora fica dentro do Perfil (/settings redireciona). */}
           <nav aria-label="Conta" className="flex items-center gap-1 sm:gap-2">
             <Button asChild variant="ghost" size="sm" className="px-3 sm:px-3.5">
               <Link to="/ajuda" aria-label="Ajuda"><HelpCircle className="h-4 w-4 sm:hidden" /><span className="hidden sm:inline">Ajuda</span></Link>
             </Button>
             <Button asChild variant="ghost" size="sm" className="px-3 sm:px-3.5">
               <Link to="/perfil" aria-label="Perfil"><UserRound className="h-4 w-4 sm:hidden" /><span className="hidden sm:inline">Perfil</span></Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm" className="px-3 sm:px-3.5">
-              <Link to="/settings" aria-label="Configurações"><Settings className="h-4 w-4 sm:hidden" /><span className="hidden sm:inline">Configurações</span></Link>
             </Button>
             <Button variant="ghost" size="sm" className="px-3 sm:px-3.5" aria-label="Sair" onClick={async () => { await signOut(); navigate("/"); }}>
               <LogOut className="h-4 w-4" /><span className="hidden sm:inline">Sair</span>
@@ -303,6 +311,23 @@ const Dashboard = () => {
           </div>
         )}
       </main>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(open) => { if (!open) setToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mover para a lixeira?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete ? <><strong className="font-semibold text-foreground">“{toDelete.title}”</strong> sai do seu painel, e o link compartilhado deixa de funcionar.</> : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => void confirmDelete()}>
+              Mover para a lixeira
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -26,11 +26,14 @@ export const SupportWidget = () => {
   const { user } = useAuth();
   const { pathname } = useLocation();
   // Onde o botão flutuante atrapalha: na própria central de suporte (cobria o
-  // "Enviar" do chat), em tela cheia (aparecia sobre os slides) e, no celular,
-  // no editor e no visualizador (cobria o inspetor e a navegação dos slides).
+  // "Enviar" do chat), em tela cheia (aparecia sobre os slides), no visualizador
+  // (é a tela de apresentar: como no Pitch ou no Google Slides, sem balão de
+  // chat sobre os slides) e, abaixo de 1024px, no editor (cobria o slide, a
+  // gaveta de edição e a barra de ferramentas de baixo).
   // No gerador ele sobe para não cobrir o botão fixo "Gerar apresentação".
   const onSupportPage = pathname === "/suporte" || pathname.startsWith("/suporte/");
-  const immersive = pathname.startsWith("/editor/") || pathname.startsWith("/slides/");
+  const presenting = pathname.startsWith("/slides/");
+  const immersive = pathname.startsWith("/editor/");
   const liftedOnMobile = pathname === "/gerar";
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
@@ -194,11 +197,11 @@ export const SupportWidget = () => {
     toast.success("Obrigado pela avaliação!");
   };
 
-  if (!user || onSupportPage || fullscreen) return null;
+  if (!user || onSupportPage || presenting || fullscreen) return null;
 
   const showConfirmation = state === "awaiting_confirmation";
   const showRating = (state === "resolved" || state === "escalated") && !rated && conversationId;
-  const mobileVisibility = immersive ? "hidden md:flex" : "flex";
+  const mobileVisibility = immersive ? "hidden lg:flex" : "flex";
 
   return (
     <>
