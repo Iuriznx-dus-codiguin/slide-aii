@@ -109,7 +109,12 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
   // o foco a quem abriu.
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent className="block gap-0 bg-card rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl shadow-2xl">
+      <DialogContent
+        className="block gap-0 bg-card rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl shadow-2xl focus:outline-none"
+        // Foco inicial no próprio modal: no primeiro botão ("Mensal") o anel de foco
+        // parecia indicar o ciclo escolhido (o padrão é o trimestral).
+        onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus(); }}
+      >
         <div className="text-center mb-5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3">
             <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro · Cakto

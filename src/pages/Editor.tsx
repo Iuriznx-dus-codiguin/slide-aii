@@ -853,7 +853,8 @@ const Editor = () => {
         <div className="px-3 md:px-4 py-2 flex items-center gap-1 sm:gap-2 md:gap-3 flex-nowrap lg:flex-wrap">
           <button type="button" onClick={() => navigate("/dashboard")} aria-label="Voltar ao painel"
             className="flex items-center justify-center gap-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11">
-            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span>
+            <ArrowLeft className="h-4 w-4" /> {/* Some no celular deitado (altura ≤ 500px), onde o cabeçalho divide espaço com as ferramentas. */}
+            <span className="hidden sm:[@media(min-height:501px)]:inline lg:inline">Dashboard</span>
           </button>
           <div className="h-5 w-px bg-border hidden sm:block" />
           <div className="hidden min-[360px]:flex items-center gap-1 min-w-0">
@@ -898,8 +899,8 @@ const Editor = () => {
             ))}
           </div>
           <div className="ml-auto flex flex-shrink-0 items-center justify-end gap-1 md:gap-2 lg:flex-wrap">
-            {/* No celular o estado vira um ponto no botão Salvar. */}
-            <span className={`hidden sm:inline text-[11px] ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
+            {/* No celular (retrato ou deitado) o estado vira um ponto no botão Salvar. */}
+            <span className={`hidden sm:[@media(min-height:501px)]:inline lg:inline text-[11px] ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
               {saving ? "Salvando..." : dirty ? "Não salvo" : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Salvo"}
             </span>
             <Button variant={inlineEdit ? "hero" : "ghost"} size="sm" className="hidden lg:inline-flex" onClick={() => setInlineEdit((v) => !v)} title="Editar texto direto no canvas" aria-label="Editar texto direto no canvas" aria-pressed={inlineEdit}>
@@ -956,8 +957,8 @@ const Editor = () => {
             </DropdownMenu>
             <Button variant="hero" size="sm" className="relative [@media(pointer:coarse)]:min-w-11" onClick={() => save()} disabled={saving}
               aria-label={dirty && !saving ? "Salvar (há alterações não salvas)" : "Salvar"}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} <span className="hidden sm:inline">Salvar</span>
-              {dirty && !saving && <span aria-hidden className="sm:hidden absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} <span className="hidden sm:[@media(min-height:501px)]:inline lg:inline">Salvar</span>
+              {dirty && !saving && <span aria-hidden className="sm:[@media(min-height:501px)]:hidden lg:hidden absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background" />}
             </Button>
           </div>
         </div>

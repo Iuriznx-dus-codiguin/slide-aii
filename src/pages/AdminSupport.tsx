@@ -641,7 +641,7 @@ export default function AdminSupport() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className={buttonVariants({ variant: "destructive" })}
+              className={`${buttonVariants({ variant: "destructive" })} bg-red-600 text-white hover:bg-red-700`}
               onClick={() => { if (articleToDelete) void deleteArticle(articleToDelete.id); }}
             >
               Excluir

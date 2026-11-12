@@ -322,7 +322,7 @@ const Dashboard = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => void confirmDelete()}>
+            <AlertDialogAction className={`${buttonVariants({ variant: "destructive" })} bg-red-600 text-white hover:bg-red-700`} onClick={() => void confirmDelete()}>
               Mover para a lixeira
             </AlertDialogAction>
           </AlertDialogFooter>
