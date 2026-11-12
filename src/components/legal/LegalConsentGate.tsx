@@ -25,7 +25,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { LEGAL } from "@/lib/legal";
 import { HOSTING_GRACE_DAYS, SINGLE_HOSTING_MONTHS } from "@/lib/hosting";
-import { MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PRICES } from "@/lib/cakto";
 import { acceptCurrentTerms, fetchLatestAcceptance, isCurrentAcceptance, recordAccess } from "@/lib/legalConsent";
 import { toast } from "sonner";
 
