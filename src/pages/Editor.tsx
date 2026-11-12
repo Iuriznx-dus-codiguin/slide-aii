@@ -27,6 +27,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { PresentationOffline } from "@/components/PresentationOffline";
+import { HOSTING_GRACE_DAYS } from "@/lib/hosting";
 import { SlideRendererWithChoreo } from "@/components/SlideRendererWithChoreo";
 import { SlideStage } from "@/components/SlideStage";
 import { ExportMenu, type ExportDeck } from "@/components/ExportMenu";
@@ -181,6 +183,8 @@ const Editor = () => {
   const prevActiveIdxRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [trashed, setTrashed] = useState(false);
+  // Fora do ar (plano encerrado ou créditos expirados): não abre para edição.
+  const [offline, setOffline] = useState<{ title: string; purgeAt: string | null } | null>(null);
   // Abaixo de 1024px o slide abre inteiro na largura da tela (antes: sempre 70%,
   // 896px, cortado no celular). Girar o aparelho ou redimensionar a janela
   // reajusta, enquanto o usuário não tiver mexido no zoom.
@@ -244,7 +248,7 @@ const Editor = () => {
     if (!slug || authLoading) return;
     (async () => {
       const { data: p } = await supabase.from("presentations")
-        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version,is_published,deleted_at").eq("slug", slug).maybeSingle();
+        .select("id,user_id,title,slug,theme,font_style,include_speeches,presenters_names,presenters_count,dynamic_theme,creative_brief,engine_version,is_published,deleted_at,offline_since").eq("slug", slug).maybeSingle();
       if (!p) {
         // Deck de outra pessoa não aparece aqui (RLS). Se estiver publicado,
         // abre no modo apresentação.
@@ -268,6 +272,13 @@ const Editor = () => {
       // Na lixeira: não abre para edição (o autosave gravaria num deck excluído).
       if (p.deleted_at) {
         setTrashed(true);
+        setLoading(false);
+        return;
+      }
+      const { data: hosted } = await supabase.rpc("presentation_is_hosted", { _presentation_id: p.id });
+      if (hosted === false) {
+        const since = p.offline_since ? new Date(p.offline_since) : new Date();
+        setOffline({ title: p.title, purgeAt: new Date(since.getTime() + HOSTING_GRACE_DAYS * 86_400_000).toISOString() });
         setLoading(false);
         return;
       }
@@ -748,6 +759,7 @@ const Editor = () => {
   }, [save]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (offline) return <PresentationOffline isOwner title={offline.title} purgeAt={offline.purgeAt} />;
   if (!pres) return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="text-center">

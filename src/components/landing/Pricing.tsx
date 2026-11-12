@@ -270,8 +270,9 @@ export const Pricing = () => {
 
         {/* Decreto 7.962/2013, art. 5º: o arrependimento é informado na oferta. */}
         <p className="max-w-3xl mx-auto mt-8 text-center text-xs text-muted-foreground leading-relaxed">
-          Assinaturas renovam automaticamente; cancele quando quiser e use até o fim do período pago. 7 dias para desistir
-          com reembolso integral.{" "}
+          Assinaturas renovam automaticamente; cancele quando quiser e use até o fim do período pago. Sem plano ativo, as
+          apresentações saem do ar e podem ser restauradas por 30 dias; com créditos avulsos, cada uma fica no ar por 3 meses.
+          7 dias para desistir com reembolso integral.{" "}
           <Link to="/termos#planos" className="underline underline-offset-2 hover:text-foreground">Condições</Link>
         </p>
       </div>

@@ -40,12 +40,13 @@ export const LEGAL = {
   /** Prazo de resposta do atendimento (o Decreto 7.962/2013 exige até 5 dias). */
   supportResponseTime: "até 1 dia útil",
 
-  /** Termos de 24/10/2026: nova tabela de planos e fim do bônus de ativação. */
-  termsVersion: "2026-10-24",
-  privacyVersion: "2026-10-19",
+  /** Termos de 10/11/2026: hospedagem das apresentações (saída do ar, 30 dias para restaurar, exclusão). */
+  termsVersion: "2026-11-10",
+  /** Política de 10/11/2026: prazo de guarda das apresentações. */
+  privacyVersion: "2026-11-10",
   /** Datas exibidas no topo de cada documento. */
-  termsEffectiveDateLabel: "24 de outubro de 2026",
-  privacyEffectiveDateLabel: "19 de outubro de 2026",
+  termsEffectiveDateLabel: "10 de novembro de 2026",
+  privacyEffectiveDateLabel: "10 de novembro de 2026",
 } as const;
 
 /** Linhas de identificação do fornecedor que estão preenchidas. */

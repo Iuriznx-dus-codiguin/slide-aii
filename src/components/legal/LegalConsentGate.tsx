@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { LEGAL } from "@/lib/legal";
+import { HOSTING_GRACE_DAYS, SINGLE_HOSTING_MONTHS } from "@/lib/hosting";
 import { MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, PLAN_PRICES } from "@/lib/cakto";
 import { acceptCurrentTerms, fetchLatestAcceptance, isCurrentAcceptance, recordAccess } from "@/lib/legalConsent";
 import { toast } from "sonner";
@@ -117,12 +118,12 @@ export const LegalConsentGate = () => {
             <div className="space-y-3 text-sm text-muted-foreground">
               {isUpdate ? (
                 <>
-                  <p>Os Termos agora trazem a nova tabela de planos. O que mudou:</p>
+                  <p>Os Termos agora explicam por quanto tempo as apresentações ficam no ar. O que mudou:</p>
                   <ul className="list-disc pl-5 space-y-1">
-                    <li>PRO por {PLAN_PRICES.mensal}, com {PLAN_MONTHLY_CREDITS.mensal.toLocaleString("pt-BR")} créditos por mês;</li>
-                    <li>MAX com uso justo de até {PLAN_MONTHLY_CREDITS.max_mensal.toLocaleString("pt-BR")} créditos por mês ({MAX_USAGE_MULTIPLIER}x o PRO);</li>
-                    <li>as assinaturas não têm mais bônus de ativação: o trimestral e o anual têm desconto no preço;</li>
-                    <li>a compra avulsa, o custo de cada apresentação, o cancelamento e o arrependimento de 7 dias não mudaram.</li>
+                    <li>com um plano ativo, todas as apresentações continuam no ar;</li>
+                    <li>com créditos avulsos, cada apresentação fica no ar por {SINGLE_HOSTING_MONTHS} meses, e cada nova compra renova o prazo;</li>
+                    <li>cancelamento (no fim do período pago), reembolso ou falha na renovação tiram as apresentações do ar;</li>
+                    <li>fora do ar, você tem {HOSTING_GRACE_DAYS} dias para restaurá-las; depois, elas são excluídas de vez.</li>
                   </ul>
                 </>
               ) : (

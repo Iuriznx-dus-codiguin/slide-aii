@@ -6,12 +6,15 @@
 // 3. Reserva os envios vencidos, reavalia a situação de cada pessoa
 //    (lifecycleRules.shouldSend) e envia. Relacionamento respeita horário
 //    (9 h–20 h de Brasília) e limite de frequência (1/dia, 3/semana).
-// 4. Entrega alertas operacionais pendentes.
+// 4. Hospedagem (no máximo 1x por hora): tira do ar quem perdeu o plano,
+//    restaura quem voltou e exclui o que está fora do ar há mais de 30 dias.
+// 5. Entrega alertas operacionais pendentes.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { decideAndSend } from "../_shared/lifecycle.ts";
 import { frequencyDelay, nextAllowedTime } from "../_shared/lifecycleRules.ts";
 import { type LifecycleTemplate, RELATIONSHIP_TEMPLATES } from "../_shared/lifecycleTemplates.ts";
 import { flushOpsAlerts, hourBucket, raiseOpsAlert } from "../_shared/opsAlerts.ts";
+import { purgeExpiredPresentations } from "../_shared/hosting.ts";
 
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { "Content-Type": "application/json" } });
@@ -27,6 +30,22 @@ Deno.serve(async (req) => {
   const started = Date.now();
   const { data: planned, error: planErr } = await admin.rpc("plan_lifecycle_emails");
   if (planErr) console.error("plan_lifecycle_emails_failed", planErr.message);
+
+  // Hospedagem antes dos envios: os avisos "fora do ar" saem na mesma rodada.
+  let hosting: unknown = null;
+  const { data: hostingRun, error: hostingErr } = await admin.rpc("run_presentation_hosting_if_due");
+  if (hostingErr) console.error("presentation_hosting_failed", hostingErr.message);
+  else if (hostingRun && !(hostingRun as { skipped?: string }).skipped) {
+    const purge = await purgeExpiredPresentations(admin, { limit: 25, deadlineMs: 30_000 });
+    hosting = { ...(hostingRun as Record<string, unknown>), ...purge };
+    if (purge.errors > 0) {
+      await raiseOpsAlert(admin, {
+        kind: "presentation_purge_failures", severity: "warning", dedupeKey: `presentation_purge_failures:${hourBucket()}`,
+        title: `${purge.errors} apresentações expiradas não puderam ser excluídas`,
+        details: { ...purge, observacao: "Veja os logs do email-dispatcher (purge_presentation_failed)." },
+      });
+    }
+  }
 
   const { data: rows, error: claimErr } = await admin.rpc("claim_due_emails", { _limit: 40 });
   if (claimErr) {
@@ -101,5 +120,5 @@ Deno.serve(async (req) => {
   }
   await flushOpsAlerts(admin);
 
-  return json({ ok: true, planned, ...counts, template_types: (rows ?? []).map((r: { template: LifecycleTemplate }) => r.template) });
+  return json({ ok: true, planned, hosting, ...counts, template_types: (rows ?? []).map((r: { template: LifecycleTemplate }) => r.template) });
 });

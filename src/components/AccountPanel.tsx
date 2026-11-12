@@ -56,13 +56,13 @@ export const AccountPanel = () => {
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {isDev && "Acesso desenvolvedor — gerações ilimitadas e bypass de paywall ativo."}
-                {ent.plan === "single" && `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis.`}
+                {ent.plan === "single" && `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis. Cada apresentação fica no ar por 3 meses; comprar créditos renova o prazo de todas.`}
                 {isSubscription && ent.subscription_current && (
                   <>
                     {isMaxPlan(ent.plan)
                       ? "Uso ilimitado dentro da Política de Uso Justo"
                       : `${ent.credits_available.toLocaleString("pt-BR")} créditos disponíveis (${ent.credits_monthly.toLocaleString("pt-BR")} mensais + ${ent.credits_bonus.toLocaleString("pt-BR")} bônus)`}
-                    {accessUntil ? ` — acesso até ${accessUntil}, fim do período pago.` : renews ? ` — renova em ${renews}.` : "."}
+                    {accessUntil ? ` — acesso até ${accessUntil}, fim do período pago. Depois disso, suas apresentações saem do ar (restauráveis por 30 dias).` : renews ? ` — renova em ${renews}.` : "."}
                   </>
                 )}
                 {isSubscription && !ent.subscription_current && (
@@ -105,7 +105,7 @@ export const AccountPanel = () => {
                 </Button>
                 {!accessUntil && (
                   <Button asChild variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                    <a href={cancelHref} title="O acesso continua até o fim do período já pago">Cancelar</a>
+                    <a href={cancelHref} title="O acesso continua até o fim do período já pago; depois, as apresentações saem do ar">Cancelar</a>
                   </Button>
                 )}
               </>

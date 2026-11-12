@@ -789,11 +789,13 @@ export type Database = {
           dynamic_theme: Json | null
           engine_version: number
           font_style: string | null
+          hosting_expires_at: string | null
           id: string
           include_speeches: boolean
           is_paid: boolean
           is_published: boolean
           language: string | null
+          offline_since: string | null
           persona: string | null
           presenters_count: number
           presenters_names: Json | null
@@ -819,11 +821,13 @@ export type Database = {
           dynamic_theme?: Json | null
           engine_version?: number
           font_style?: string | null
+          hosting_expires_at?: string | null
           id?: string
           include_speeches?: boolean
           is_paid?: boolean
           is_published?: boolean
           language?: string | null
+          offline_since?: string | null
           persona?: string | null
           presenters_count?: number
           presenters_names?: Json | null
@@ -849,11 +853,13 @@ export type Database = {
           dynamic_theme?: Json | null
           engine_version?: number
           font_style?: string | null
+          hosting_expires_at?: string | null
           id?: string
           include_speeches?: boolean
           is_paid?: boolean
           is_published?: boolean
           language?: string | null
+          offline_since?: string | null
           persona?: string | null
           presenters_count?: number
           presenters_names?: Json | null
@@ -1370,6 +1376,7 @@ export type Database = {
       email_dispatch_secret_ok: { Args: { _secret: string }; Returns: boolean }
       ensure_email_preferences: { Args: { _uid: string }; Returns: string }
       ensure_monthly_credits: { Args: { _uid: string }; Returns: undefined }
+      extend_presentations_hosting: { Args: { _uid: string }; Returns: number }
       find_user_id_by_email: { Args: { _email: string }; Returns: string }
       generate_ticket_id: { Args: never; Returns: string }
       get_email_preferences_by_token: {
@@ -1449,9 +1456,26 @@ export type Database = {
       increment_own_generations_count: { Args: never; Returns: number }
       increment_profile_generations: { Args: { _uid: string }; Returns: number }
       is_internal_account: { Args: { _uid: string }; Returns: boolean }
+      my_hosting_status: { Args: never; Returns: Json }
+      owner_hosting_active: { Args: { _uid: string }; Returns: boolean }
       plan_lifecycle_emails: { Args: { _now?: string }; Returns: Json }
       plan_monthly_credits: { Args: { _plan: string }; Returns: number }
+      presentation_is_hosted: {
+        Args: { _presentation_id: string }
+        Returns: boolean
+      }
+      presentation_purge_candidates: {
+        Args: { _limit?: number }
+        Returns: {
+          id: string
+          user_id: string
+        }[]
+      }
       purge_expired_data: { Args: never; Returns: Json }
+      purge_offline_presentation: {
+        Args: { _presentation_id: string }
+        Returns: boolean
+      }
       purge_ops_data: { Args: never; Returns: Json }
       record_access: { Args: { _event?: string }; Returns: undefined }
       record_help_feedback: {
@@ -1497,6 +1521,10 @@ export type Database = {
         Args: { _presentation_id: string; _uid: string }
         Returns: Json
       }
+      release_storage_paths: {
+        Args: { _paths: string[]; _uid: string }
+        Returns: string[]
+      }
       request_client_info: { Args: never; Returns: Json }
       reserve_ai_edit: {
         Args: {
@@ -1524,7 +1552,9 @@ export type Database = {
         }
         Returns: Json
       }
+      revoke_presentations_hosting: { Args: { _uid: string }; Returns: Json }
       run_data_retention_if_due: { Args: never; Returns: undefined }
+      run_presentation_hosting_if_due: { Args: never; Returns: Json }
       set_email_preferences_by_token: {
         Args: { _relationship: boolean; _token: string }
         Returns: boolean
@@ -1546,6 +1576,7 @@ export type Database = {
         Args: { _plan: string; _renews_at: string; _status: string }
         Returns: boolean
       }
+      sync_user_presentation_hosting: { Args: { _uid: string }; Returns: Json }
       user_has_purchased: { Args: { _uid: string }; Returns: boolean }
     }
     Enums: {

@@ -223,6 +223,15 @@ Deno.serve(async (req) => {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      {
+        const { data: hosted } = await admin.rpc("presentation_is_hosted", { _presentation_id: pres.id });
+        if (hosted === false) {
+          return new Response(JSON.stringify({
+            error: "Esta apresentação está fora do ar. Reative um plano ou compre créditos para restaurá-la.",
+            reason: "presentation_offline",
+          }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
       presentation = pres;
       // Brief gravado por versões antigas pode ter graus nulos ou em texto:
       // normalizado aqui, um campo inválido não derruba mais toda edição.

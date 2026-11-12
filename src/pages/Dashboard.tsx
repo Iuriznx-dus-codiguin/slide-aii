@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil, Globe, Lock, HelpCircle, UserRound, Settings, SearchX } from "lucide-react";
+import { Plus, Sparkles, Eye, Trash2, ExternalLink, Search, LogOut, Loader2, FileText, Pencil, Globe, Lock, HelpCircle, UserRound, Settings, SearchX, CloudOff, Zap, Clock } from "lucide-react";
 import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,16 @@ import { toast } from "sonner";
 import { SlideRenderer } from "@/components/SlideRenderer";
 import { AccountPanel } from "@/components/AccountPanel";
 import { BrandLogo } from "@/components/BrandLogo";
+import { useHostingStatus } from "@/hooks/useHostingStatus";
+import { deckHosting, fmtDay, HOSTING_GRACE_DAYS, offlineReasonText, RESTORE_URL } from "@/lib/hosting";
 
 interface Pres {
   id: string; title: string; slug: string; slides_count: number; view_count: number;
   created_at: string; theme: string; font_style: string;
   is_published: boolean;
   dynamic_theme?: any;
+  hosting_expires_at?: string | null;
+  offline_since?: string | null;
   cover?: { slide_type: string; layout_template: string; content: any } | null;
 }
 
@@ -57,13 +61,16 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [stats, setStats] = useState({ total: 0, views: 0 });
+  const { status: hostingStatus, loading: hostingLoading } = useHostingStatus();
+  // Enquanto a situação carrega, nada aparece como bloqueado.
+  const ownerActive = hostingLoading || !hostingStatus || hostingStatus.active;
 
   useEffect(() => { document.title = "Dashboard — SlideAI"; }, []);
 
   const load = async () => {
     if (!user) return;
     const { data } = await supabase.from("presentations")
-      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style,is_published,dynamic_theme")
+      .select("id,title,slug,slides_count,view_count,created_at,theme,font_style,is_published,dynamic_theme,hosting_expires_at,offline_since")
       .eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false });
     const items = (data as any[]) ?? [];
 
@@ -104,6 +111,12 @@ const Dashboard = () => {
   };
 
   const filtered = list.filter((p) => p.title.toLowerCase().includes(search.toLowerCase()));
+  const hostingOf = (p: Pres) => deckHosting(p, ownerActive);
+  const offlineDecks = list.filter((p) => !hostingOf(p).online);
+  const nextPurge = offlineDecks
+    .map((p) => hostingOf(p).purgeAt)
+    .filter((d): d is Date => !!d)
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -132,6 +145,24 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <div className="mb-8"><AccountPanel /></div>
+
+        {offlineDecks.length > 0 && (
+          <div role="alert" className="mb-8 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 flex flex-col md:flex-row md:items-center gap-4">
+            <CloudOff className="h-6 w-6 text-destructive shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold">
+                {offlineDecks.length === 1 ? "1 apresentação está fora do ar" : `${offlineDecks.length} apresentações estão fora do ar`}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Isso aconteceu porque {offlineReasonText(hostingStatus?.reason)}. Os links públicos não abrem e você não consegue editar nem exportar.
+                {nextPurge
+                  ? <> Reative um plano ou compre créditos até <strong className="text-foreground">{fmtDay(nextPurge)}</strong> para restaurar tudo; depois disso, elas são excluídas de vez.</>
+                  : <> Reative um plano ou compre créditos em até {HOSTING_GRACE_DAYS} dias para restaurar tudo.</>}
+              </p>
+            </div>
+            <Button asChild variant="hero"><a href={RESTORE_URL}><Zap className="h-4 w-4" /> Restaurar</a></Button>
+          </div>
+        )}
 
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
@@ -179,6 +210,33 @@ const Dashboard = () => {
               // Tema dinâmico vive em presentations.dynamic_theme; o do slide é
               // só fallback de decks antigos (antes as capas saíam com o tema padrão).
               const dyn = p.dynamic_theme ?? p.cover?.content?.dynamic_theme ?? null;
+              const hosting = hostingOf(p);
+              if (!hosting.online) {
+                return (
+                  <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                    className="bg-card border border-dashed border-border rounded-2xl overflow-hidden">
+                    <div className="aspect-video relative bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <CloudOff className="h-10 w-10" />
+                      <span className="text-sm font-medium">Fora do ar</span>
+                    </div>
+                    <div className="p-4">
+                      <h2 className="font-semibold truncate text-base text-muted-foreground">{p.title}</h2>
+                      <p className="mt-2 text-xs text-red-700">
+                        {hosting.purgeAt ? `Excluída em ${fmtDay(hosting.purgeAt)} se não for restaurada` : "Restaure para não perder"}
+                      </p>
+                      <div className="flex gap-1.5 mt-3">
+                        <Button asChild variant="outline" size="sm" className="flex-1">
+                          <a href={RESTORE_URL}><Zap className="h-3 w-3" /> Restaurar</a>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive" aria-label={`Excluir ${p.title}`}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Excluir apresentação</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              }
               return (
                 <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
                   className="group bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-elegant transition-all">
@@ -205,6 +263,11 @@ const Dashboard = () => {
                   </Link>
                   <div className="p-4">
                     <h2 className="font-semibold truncate text-base">{p.title}</h2>
+                    {hosting.expiresAt && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground" title="Créditos avulsos mantêm a apresentação no ar por 3 meses; um plano ativo mantém tudo no ar.">
+                        <Clock className="h-3 w-3" /> No ar até {fmtDay(hosting.expiresAt)}
+                      </p>
+                    )}
                     <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                       <span>{p.slides_count} slides</span>
                       <div className="flex items-center gap-3"><span className="flex items-center gap-1">{p.is_published ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}{p.is_published ? "Pública" : "Privada"}</span><span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {p.view_count}</span></div>

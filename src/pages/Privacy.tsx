@@ -203,7 +203,8 @@ const Privacy = () => {
         <LegalTable
           head={["Dados", "Prazo"]}
           rows={[
-            ["Conta, perfil e apresentações", "Enquanto a conta existir. Após a exclusão da conta, eliminados em até 30 dias, e as cópias de segurança são sobrescritas no ciclo seguinte."],
+            ["Conta e perfil", "Enquanto a conta existir. Após a exclusão da conta, eliminados em até 30 dias, e as cópias de segurança são sobrescritas no ciclo seguinte."],
+            ["Apresentações (slides e imagens)", "No ar enquanto houver assinatura vigente, ou por 3 meses após a geração ou a última compra de créditos. Fora do ar, ficam guardadas por 30 dias para restauração e depois são excluídas definitivamente; as cópias de segurança são sobrescritas no ciclo seguinte. Também são eliminadas em até 30 dias após a exclusão da conta (Termos de Uso, seção 12)."],
             ["Apresentações na lixeira", "Saem do painel e das áreas públicas. Continuam guardadas até a exclusão definitiva, que você pode pedir a qualquer momento, ou até a exclusão da conta."],
             ["Mensagens de suporte", "Enquanto a conta existir."],
             ["Registros de acesso (IP, data e hora)", "6 meses, como exige o Marco Civil da Internet. Depois são eliminados automaticamente."],
