@@ -50,7 +50,7 @@ export const LegalLayout = ({ title, seoTitle, description, path, version, effec
       <Seo title={seoTitle} description={description} path={path} />
       <div className="print:hidden"><Navbar /></div>
       <main className="flex-1 pt-28 pb-20 print:pt-0">
-        <div className="container mx-auto px-6 max-w-6xl">
+        <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
           <header className="max-w-3xl">
             <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">{title}</h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
@@ -60,7 +60,7 @@ export const LegalLayout = ({ title, seoTitle, description, path, version, effec
                 <Printer className="h-4 w-4" /> Imprimir ou salvar em PDF
               </Button>
             </div>
-            {intro && <div className="mt-6 space-y-3 text-muted-foreground leading-relaxed">{intro}</div>}
+            {intro && <div className="mt-6 space-y-3 text-muted-foreground leading-relaxed [&_a]:underline [&_a]:underline-offset-2">{intro}</div>}
           </header>
 
           <div className="mt-10 grid gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -69,14 +69,15 @@ export const LegalLayout = ({ title, seoTitle, description, path, version, effec
               <ol className="space-y-1.5 text-sm">
                 {toc.map((item) => (
                   <li key={item.id}>
-                    <a href={`#${item.id}`} className="text-muted-foreground hover:text-foreground transition-colors leading-snug block">
+                    <a href={`#${item.id}`} className="text-muted-foreground hover:text-foreground transition-colors leading-snug block [@media(pointer:coarse)]:py-2.5">
                       {item.label}
                     </a>
                   </li>
                 ))}
               </ol>
             </nav>
-            <article className="max-w-3xl min-w-0 space-y-12 text-[15px] leading-relaxed">{children}</article>
+            {/* Links do texto sublinhados: só a cor não basta para identificá-los (WCAG 1.4.1). */}
+            <article className="max-w-3xl min-w-0 space-y-12 text-[15px] leading-relaxed [&_p_a]:underline [&_p_a]:underline-offset-2 [&_li_a]:underline [&_li_a]:underline-offset-2">{children}</article>
           </div>
         </div>
       </main>
@@ -117,7 +118,8 @@ export const Callout = ({ title, children, tone = "default" }: { title?: string;
 );
 
 export const LegalTable = ({ head, rows }: { head: string[]; rows: ReactNode[][] }) => (
-  <div className="overflow-x-auto rounded-xl border border-border">
+  // Focável pelo teclado para rolar a tabela no celular (antes só com o dedo/mouse).
+  <div className="overflow-x-auto rounded-xl border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0} role="region" aria-label={`Tabela: ${head.join(", ")}`}>
     <table className="w-full text-sm">
       <thead className="bg-muted/50 text-left">
         <tr>

@@ -17,13 +17,15 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         hero: "bg-gradient-primary text-primary-foreground shadow-glow hover:shadow-elegant hover:-translate-y-0.5 hover:scale-[1.02]",
       },
+      // Em telas de toque (pointer: coarse) a área mínima é 44×44px; com mouse
+      // os tamanhos seguem iguais.
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-lg px-3.5",
+        default: "h-10 px-4 py-2 [@media(pointer:coarse)]:min-h-11",
+        sm: "h-9 rounded-lg px-3.5 [@media(pointer:coarse)]:min-h-11",
         lg: "h-12 rounded-xl px-7 text-base",
         xl: "h-14 rounded-2xl px-9 text-base",
-        icon: "h-10 w-10",
-        "icon-sm": "h-8 w-8 rounded-lg",
+        icon: "h-10 w-10 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
+        "icon-sm": "h-8 w-8 rounded-lg [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
       },
     },
     defaultVariants: {

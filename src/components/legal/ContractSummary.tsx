@@ -75,8 +75,8 @@ export const ContractSummary = ({ className, defaultOpen = false }: { className?
       )}
       <p className="px-3 pb-3 text-[11px] text-muted-foreground">
         Ao clicar em <strong className="text-foreground">Pagar agora</strong>, você declara que leu e concorda com os{" "}
-        <Link to="/termos" target="_blank" className="text-primary hover:underline">Termos de Uso</Link> e a{" "}
-        <Link to="/privacidade" target="_blank" className="text-primary hover:underline">Política de Privacidade</Link>.
+        <Link to="/termos" target="_blank" className="text-primary underline underline-offset-2">Termos de Uso</Link> e a{" "}
+        <Link to="/privacidade" target="_blank" className="text-primary underline underline-offset-2">Política de Privacidade</Link>.
       </p>
     </div>
   );

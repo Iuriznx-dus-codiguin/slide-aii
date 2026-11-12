@@ -115,17 +115,17 @@ const HelpArticle = () => {
         />
       )}
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <BrandLogo size={34} />
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="SlideAI, página inicial">
+            <BrandLogo size={34} wordmarkClassName="hidden min-[360px]:inline" />
           </Link>
-          <Link to="/ajuda">
-            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /> Central de Ajuda</Button>
-          </Link>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/ajuda"><ArrowLeft className="h-4 w-4" /> Central de Ajuda</Link>
+          </Button>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-10 max-w-4xl">
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 max-w-4xl">
         {loading ? (
           <div className="space-y-4">
             <Skeleton className="h-6 w-40" />
@@ -142,7 +142,7 @@ const HelpArticle = () => {
         ) : (
           <>
             {/* Breadcrumb */}
-            <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
+            <nav aria-label="Trilha de navegação" className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground mb-4">
               <Link to="/ajuda" className="hover:text-foreground">Central de Ajuda</Link>
               <ChevronRight className="h-3 w-3" />
               {article.category && (
@@ -151,18 +151,19 @@ const HelpArticle = () => {
                   <ChevronRight className="h-3 w-3" />
                 </>
               )}
-              <span className="text-foreground truncate">{article.title}</span>
+              <span className="text-foreground truncate max-w-full" aria-current="page">{article.title}</span>
             </nav>
 
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div>
+            {/* No celular o botão vai para baixo do título (lado a lado, passava 68px da tela em 320). */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-6">
+              <div className="min-w-0">
                 {article.category && <Badge variant="secondary" className="mb-3">{helpCategoryLabel(article.category)}</Badge>}
                 <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight">{article.title}</h1>
                 <p className="text-xs text-muted-foreground mt-2">
                   Atualizado em {new Date(article.updated_at).toLocaleDateString("pt-BR")}
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={copyLink}>
+              <Button variant="outline" size="sm" onClick={copyLink} className="self-start shrink-0">
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? "Copiado" : "Compartilhar"}
               </Button>

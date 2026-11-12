@@ -138,6 +138,14 @@
     scroll-behavior: smooth;
   }
 
+  /* Quem pediu menos movimento no sistema não recebe rolagem animada
+     (a landing já fazia isso no landing.css; agora vale para todo o site). */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv11", "ss01";

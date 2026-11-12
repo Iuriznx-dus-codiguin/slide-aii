@@ -49,7 +49,6 @@ const Generate = lazyPage(() => import("./pages/Generate.tsx"));
 const SlideViewer = lazyPage(() => import("./pages/SlideViewer.tsx"));
 const Dashboard = lazyPage(() => import("./pages/Dashboard.tsx"));
 const Editor = lazyPage(() => import("./pages/Editor.tsx"));
-const SettingsPage = lazyPage(() => import("./pages/Settings.tsx"));
 const Templates = lazyPage(() => import("./pages/Templates.tsx"));
 const DevDashboard = lazyPage(() => import("./pages/DevDashboard.tsx"));
 const AdminSupport = lazyPage(() => import("./pages/AdminSupport.tsx"));
@@ -95,7 +94,8 @@ const App = () => (
               <Route path="/gerar" element={<ProtectedRoute><Generate /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/editor/:slug" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              {/* Configurações duplicava o Perfil (com outra regra de senha): o endereço antigo leva ao Perfil. */}
+              <Route path="/settings" element={<Navigate to="/perfil" replace />} />
               <Route path="/perfil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="/suporte" element={<ProtectedRoute><Support /></ProtectedRoute>} />
               <Route path="/suporte/:conversationId" element={<ProtectedRoute><Support /></ProtectedRoute>} />

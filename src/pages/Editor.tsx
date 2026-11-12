@@ -1,7 +1,7 @@
 // 3-panel manual editor: draggable thumbnails (left), inline-editable canvas
 // (center), and a tabbed inspector (right). Toolbar with undo/redo/zoom/preview
 // and auto-save every 30s.
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -15,7 +15,7 @@ import {
   ArrowLeft, Save, Undo2, Redo2, Plus, Trash2, ZoomIn, ZoomOut, Play,
   Type, Image as ImageIcon, Wand2, Layout as LayoutIcon, FileText, Loader2,
   GripVertical, Sparkles, Eye, MessageSquare, Send, Pencil, X, Users, Shapes,
-  Globe, Lock,
+  Globe, Lock, MoreHorizontal, Maximize, SlidersHorizontal,
 } from "lucide-react";
 import { PresenterNotesPanel, type PresenterEntry } from "@/components/PresenterNotesPanel";
 import { ensurePresenterSpeeches } from "@/lib/presenterSpeech";
@@ -26,6 +26,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { PresentationOffline } from "@/components/PresentationOffline";
 import { HOSTING_GRACE_DAYS } from "@/lib/hosting";
@@ -108,7 +111,9 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
           {lazyHide ? (
             <div className="absolute inset-0" style={{ background: dynamicTheme?.bg ?? "#0a0a0a" }} />
           ) : (
-            <div className="origin-top-left scale-[0.25] w-[800px] h-[450px]">
+            // 0,155 × 800px = 124px: a largura interna da miniatura do celular (w-32 menos a
+            // borda de 2px); no desktop segue 0,25.
+            <div className="origin-top-left scale-[0.155] lg:scale-[0.25] w-[800px] h-[450px]">
               <SlideRendererWithChoreo
                 slide={{ slide_type: slide.slide_type, layout_template: slide.layout_template, content: slide.content }}
                 themeId={themeId} fontId={fontId} dynamicTheme={dynamicTheme} index={idx} noAnimate
@@ -121,15 +126,15 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
           {idx + 1}
         </div>
       </button>
-      {/* Visíveis também no foco do teclado (antes só no hover do mouse). */}
-      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+      {/* Visíveis também no foco do teclado e sempre em telas de toque (sem hover, ficavam invisíveis). */}
+      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
         <button {...attributes} {...listeners}
           aria-label={`Mover o slide ${idx + 1} (espaço para pegar, setas para mover)`} title="Arrastar para reordenar"
-          className="h-6 w-6 rounded bg-background/90 border border-border flex items-center justify-center cursor-grab active:cursor-grabbing">
+          className="h-6 w-6 [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7 rounded bg-background/90 border border-border flex items-center justify-center cursor-grab active:cursor-grabbing">
           <GripVertical className="h-3 w-3" />
         </button>
         <button onClick={onDelete} aria-label={`Excluir o slide ${idx + 1}`} title="Excluir slide"
-          className="h-6 w-6 rounded bg-background/90 border border-border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground">
+          className="h-6 w-6 [@media(pointer:coarse)]:h-7 [@media(pointer:coarse)]:w-7 rounded bg-background/90 border border-border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground">
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
@@ -137,6 +142,23 @@ const SortableThumbInner = ({ slide, idx, active, onClick, onDelete, themeId, fo
   );
 };
 const SortableThumb = React.memo(SortableThumbInner);
+
+/** Menor zoom do canvas: 20% faz o slide caber inteiro mesmo em 320px. */
+const MIN_ZOOM = 0.2;
+/** Maior zoom dos botões de zoom. */
+const MAX_ZOOM = 1.2;
+/** Teto do "ajustar à tela": 100% (o slide com 1280px de largura). */
+const MAX_FIT_ZOOM = 1;
+
+/**
+ * Zoom que faz o slide (1280×720) caber inteiro na área livre do canvas, como o
+ * "Ajustar" do Google Slides e do Canva. Antes era fixo (70% no desktop): com o
+ * painel de falas aberto entre 1024 e ~1280px o slide ficava estreito ou cortado.
+ */
+const fitZoomFor = (width: number, height: number): number => {
+  const fit = Math.min(width / 1280, height / 720, MAX_FIT_ZOOM);
+  return Math.max(MIN_ZOOM, Math.floor(fit * 100) / 100);
+};
 
 // Cota de edição por IA (espelha MAX_CHAT_MESSAGES/MAX_COMPLEX_EDITS na edge
 // function chat-editor — o backend é a autoridade; aqui é só UX).
@@ -173,7 +195,39 @@ const Editor = () => {
   const [trashed, setTrashed] = useState(false);
   // Fora do ar (plano encerrado ou créditos expirados): não abre para edição.
   const [offline, setOffline] = useState<{ title: string; purgeAt: string | null } | null>(null);
+  // O slide abre inteiro na área livre do canvas e reajusta quando ela muda
+  // (girar o aparelho, abrir a IA, as falas ou a gaveta do celular, redimensionar
+  // a janela), enquanto o usuário não mexer no zoom. "Ajustar à tela" volta ao automático.
   const [zoom, setZoom] = useState(0.7);
+  const zoomTouchedRef = useRef(false);
+  const [canvasEl, setCanvasEl] = useState<HTMLElement | null>(null);
+  const fitToCanvas = useCallback(() => {
+    if (!canvasEl) return;
+    const inner = canvasEl.firstElementChild as HTMLElement | null;
+    const cs = inner ? getComputedStyle(inner) : null;
+    const padX = cs ? parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) : 0;
+    const padY = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 0;
+    const width = canvasEl.clientWidth - padX;
+    const height = canvasEl.clientHeight - padY;
+    if (width <= 0 || height <= 0) return;
+    setZoom(fitZoomFor(width, height));
+  }, [canvasEl]);
+  useLayoutEffect(() => {
+    if (!canvasEl) return;
+    const refit = () => { if (!zoomTouchedRef.current) fitToCanvas(); };
+    refit();
+    const ro = new ResizeObserver(refit);
+    ro.observe(canvasEl);
+    return () => ro.disconnect();
+  }, [canvasEl, fitToCanvas]);
+  const zoomBy = (delta: number) => {
+    zoomTouchedRef.current = true;
+    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((z + delta) * 100) / 100)));
+  };
+  const zoomToFit = () => {
+    zoomTouchedRef.current = false;
+    fitToCanvas();
+  };
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   // Estado único de "há trabalho não gravado": alimenta o indicador do topo, o
@@ -189,6 +243,9 @@ const Editor = () => {
   const [savedMark, setSavedMark] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  // Abaixo de 1024px as propriedades ficam numa gaveta que abre pela barra de
+  // ferramentas (no desktop o painel fica sempre visível à direita).
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -276,7 +333,8 @@ const Editor = () => {
       setSlides(normalized);
       savedSnapshotRef.current = deckSignature(normalized);
       savedRowsRef.current = JSON.parse(JSON.stringify(normalized));
-      if (presLoaded.include_speeches) setNotesOpen(true);
+      // No celular o editor abre com o slide livre (as falas ficam a um toque, na barra de baixo).
+      if (presLoaded.include_speeches && window.matchMedia?.("(min-width: 1024px)").matches) setNotesOpen(true);
       setLoading(false);
     })();
   }, [slug, userId, authLoading, navigate]);
@@ -752,17 +810,55 @@ const Editor = () => {
   const current = slides[activeIdx];
   const c = current?.content || {};
 
+  // Celular e tablet (< 1024px): um painel por vez, numa gaveta abaixo do slide
+  // (ao lado dele com o aparelho deitado), como no Canva e no Google Slides.
+  // O slide continua à vista enquanto se edita.
+  const notesAvailable = !!pres.include_speeches && !!current;
+  type MobilePanel = "inspector" | "chat" | "notes";
+  const mobilePanel: MobilePanel | null =
+    notesOpen && notesAvailable ? "notes" : chatOpen ? "chat" : inspectorOpen ? "inspector" : null;
+  const toggleMobilePanel = (panel: MobilePanel) => {
+    const opening = mobilePanel !== panel;
+    setInspectorOpen(opening && panel === "inspector");
+    setChatOpen(opening && panel === "chat");
+    setNotesOpen(opening && panel === "notes");
+  };
+  /** Gaveta do celular: só o painel ativo aparece, embaixo do slide (ao lado, deitado). */
+  const drawerClass = (panel: MobilePanel) =>
+    `${mobilePanel === panel ? "flex" : "hidden"} basis-[55%] mobile-landscape:basis-1/2 min-h-0 min-w-0 w-full border-t mobile-landscape:border-t-0 mobile-landscape:border-l`;
+  // IA e falas: de 1024 a 1535px ficam embaixo do slide, um por vez (como as notas
+  // do PowerPoint e do Google Slides). Antes, em coluna, com as falas abertas o
+  // slide ficava com ~150px em 1024px e 320px em 1280px. A partir de 1536px voltam a ser colunas.
+  const dockedPanel: "chat" | "notes" | null = notesOpen && notesAvailable ? "notes" : chatOpen ? "chat" : null;
+  const dockedClass = (panel: "chat" | "notes", wideWidth: string) =>
+    `${drawerClass(panel)} ${dockedPanel === panel ? "lg:flex" : "lg:hidden"} lg:basis-[45%] lg:w-full lg:border-t lg:border-l-0 2xl:flex 2xl:basis-auto ${wideWidth} 2xl:border-t-0 2xl:border-l`;
+  const stackedPanels = () => window.matchMedia?.("(max-width: 1535px)").matches === true;
+  const mobileTools: { id: string; icon: typeof Pencil; label: string; name: string; active: boolean; onClick: () => void; controls?: string }[] = [
+    { id: "inspector", icon: SlidersHorizontal, label: "Editar", name: "Editar slide", active: mobilePanel === "inspector", onClick: () => toggleMobilePanel("inspector"), controls: "editor-panel-inspector" },
+    { id: "inline", icon: Pencil, label: "Texto", name: "Texto no slide", active: inlineEdit, onClick: () => setInlineEdit((v) => !v) },
+    { id: "chat", icon: MessageSquare, label: "IA", name: "Assistente IA", active: mobilePanel === "chat", onClick: () => toggleMobilePanel("chat"), controls: "editor-panel-chat" },
+    ...(notesAvailable ? [{ id: "notes", icon: Users, label: "Falas", name: "Falas e notas", active: mobilePanel === "notes", onClick: () => toggleMobilePanel("notes"), controls: "editor-panel-notes" }] : []),
+  ];
+  // Painéis: aria-expanded (+ aria-controls quando aberto); "Texto" é um alternador (aria-pressed).
+  const toolState = (t: (typeof mobileTools)[number]) =>
+    t.controls ? { "aria-expanded": t.active, "aria-controls": t.active ? t.controls : undefined } : { "aria-pressed": t.active };
+
   return (
-    <div className="h-screen flex flex-col bg-background">
+    // 100dvh: no celular, 100vh inclui a área atrás da barra do navegador e escondia o rodapé.
+    <div className="h-screen supports-[height:100dvh]:h-[100dvh] flex flex-col bg-background">
       {/* Toolbar */}
       <header className="border-b border-border flex-shrink-0 bg-card/40 backdrop-blur">
-        <div className="px-3 md:px-4 py-2 flex items-center gap-2 md:gap-3 flex-wrap">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span>
+        {/* Celular: uma linha só (antes eram três). Zoom, publicar e apresentar vão para
+            "Mais opções"; Editar, Texto, IA e Falas, para a barra de baixo. */}
+        <div className="px-3 md:px-4 py-2 flex items-center gap-1 sm:gap-2 md:gap-3 flex-nowrap lg:flex-wrap">
+          <button type="button" onClick={() => navigate("/dashboard")} aria-label="Voltar ao painel"
+            className="flex items-center justify-center gap-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11">
+            <ArrowLeft className="h-4 w-4" /> {/* Some no celular deitado (altura ≤ 500px), onde o cabeçalho divide espaço com as ferramentas. */}
+            <span className="hidden sm:[@media(min-height:501px)]:inline lg:inline">Dashboard</span>
           </button>
-          <div className="h-5 w-px bg-border" />
-          <div className="flex items-center gap-1 min-w-0">
-            <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
+          <div className="h-5 w-px bg-border hidden sm:block" />
+          <div className="hidden min-[360px]:flex items-center gap-1 min-w-0">
+            <Sparkles className="h-4 w-4 text-primary flex-shrink-0 hidden sm:block" />
             <span className="font-display font-semibold truncate text-sm">{pres.title}</span>
             {isDeveloper && (
               <span
@@ -776,7 +872,7 @@ const Editor = () => {
             )}
           </div>
           <div className="h-5 w-px bg-border hidden md:block" />
-          <div className="flex items-center gap-1">
+          <div className="flex flex-shrink-0 items-center gap-1">
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={undo} disabled={!undoStack.current.length} title="Desfazer (Ctrl+Z)" aria-label="Desfazer">
               <Undo2 className="h-4 w-4" />
             </Button>
@@ -784,59 +880,103 @@ const Editor = () => {
               <Redo2 className="h-4 w-4" />
             </Button>
           </div>
-          <div className="h-5 w-px bg-border hidden md:block" />
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))} aria-label="Diminuir zoom" title="Diminuir zoom"><ZoomOut className="h-4 w-4" /></Button>
-            <span className="text-xs font-medium w-10 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))} aria-label="Aumentar zoom" title="Aumentar zoom"><ZoomIn className="h-4 w-4" /></Button>
+          <div className="h-5 w-px bg-border hidden lg:block" />
+          <div className="hidden lg:flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => zoomBy(-0.1)} aria-label="Diminuir zoom" title="Diminuir zoom"><ZoomOut className="h-4 w-4" /></Button>
+            {/* Clicar no percentual volta ao "ajustar à tela" (como no Google Slides). */}
+            <button type="button" onClick={zoomToFit} title="Ajustar à tela" aria-label={`Ajustar à tela (zoom atual ${Math.round(zoom * 100)}%)`}
+              className="h-8 min-w-10 rounded-md px-1 text-xs font-medium tabular-nums hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {Math.round(zoom * 100)}%
+            </button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => zoomBy(0.1)} aria-label="Aumentar zoom" title="Aumentar zoom"><ZoomIn className="h-4 w-4" /></Button>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className={`text-[11px] hidden md:inline ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
+          {/* Celular deitado: as ferramentas cabem aqui em cima (a barra de baixo roubaria altura). */}
+          <div className="hidden mobile-landscape:flex items-center gap-1" role="group" aria-label="Ferramentas do editor">
+            {mobileTools.map((t) => (
+              <Button key={t.id} size="icon" variant={t.active ? "hero" : "ghost"} className="h-8 w-8" onClick={t.onClick} aria-label={t.name} title={t.name} {...toolState(t)}>
+                <t.icon className="h-4 w-4" />
+              </Button>
+            ))}
+          </div>
+          <div className="ml-auto flex flex-shrink-0 items-center justify-end gap-1 md:gap-2 lg:flex-wrap">
+            {/* No celular (retrato ou deitado) o estado vira um ponto no botão Salvar. */}
+            <span className={`hidden sm:[@media(min-height:501px)]:inline lg:inline text-[11px] ${dirty && !saving ? "text-amber-500" : "text-muted-foreground"}`}>
               {saving ? "Salvando..." : dirty ? "Não salvo" : lastSaved ? `Salvo ${lastSaved.toLocaleTimeString()}` : "Salvo"}
             </span>
-            <Button variant={inlineEdit ? "hero" : "ghost"} size="sm" onClick={() => setInlineEdit((v) => !v)} title="Editar texto direto no canvas">
+            <Button variant={inlineEdit ? "hero" : "ghost"} size="sm" className="hidden lg:inline-flex" onClick={() => setInlineEdit((v) => !v)} title="Editar texto direto no canvas" aria-label="Editar texto direto no canvas" aria-pressed={inlineEdit}>
               <Pencil className="h-4 w-4" /> <span className="hidden md:inline">Inline</span>
             </Button>
-            <Button variant={chatOpen ? "hero" : "ghost"} size="sm" onClick={() => setChatOpen((v) => !v)} title="Assistente IA">
+            <Button variant={chatOpen ? "hero" : "ghost"} size="sm" className="hidden lg:inline-flex" onClick={() => { const next = !chatOpen; setChatOpen(next); if (next && stackedPanels()) setNotesOpen(false); }} title="Assistente IA" aria-label="Assistente IA" aria-pressed={chatOpen}>
               <MessageSquare className="h-4 w-4" /> <span className="hidden md:inline">IA</span>
             </Button>
             {pres.include_speeches && (
               <Button
-                variant={notesOpen ? "hero" : "ghost"} size="sm"
-                onClick={() => setNotesOpen((v) => !v)}
+                variant={notesOpen ? "hero" : "ghost"} size="sm" className="hidden lg:inline-flex"
+                onClick={() => { const next = !notesOpen; setNotesOpen(next); if (next && stackedPanels()) setChatOpen(false); }}
                 title="Falas e notas por apresentador"
+                aria-label="Falas e notas por apresentador"
+                aria-pressed={notesOpen}
               >
                 <Users className="h-4 w-4" /> <span className="hidden md:inline">Falas</span>
               </Button>
             )}
             <Button
-              variant="ghost" size="sm" onClick={togglePublished} disabled={publishing}
+              variant="ghost" size="sm" className="hidden lg:inline-flex" onClick={togglePublished} disabled={publishing}
               title={pres.is_published ? "Publicada: quem tiver o link abre. Clique para tornar privada." : "Privada: só você abre. Clique para publicar."}
               aria-label={pres.is_published ? "Tornar apresentação privada" : "Publicar apresentação"}
             >
               {pres.is_published ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               <span className="hidden md:inline">{pres.is_published ? "Publicada" : "Privada"}</span>
             </Button>
-            <Link to={`/slides/${pres.slug}`} target="_blank">
-              <Button variant="ghost" size="sm"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex">
+              <Link to={`/slides/${pres.slug}`} target="_blank" aria-label="Apresentar (abre em nova aba)"><Play className="h-4 w-4" /> <span className="hidden md:inline">Apresentar</span></Link>
+            </Button>
             <ExportMenu presentationId={pres.id} getDeck={getExportDeck} title={pres.title} themeId={pres.theme} fontId={pres.font_style} slug={pres.slug} />
-            <Button variant="hero" size="sm" onClick={() => save()} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
+            {/* Celular e tablet: zoom, publicar e apresentar num menu (como o "⋯" do Canva). */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8 lg:hidden" aria-label="Mais opções" title="Mais opções">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Zoom: {Math.round(zoom * 100)}%</DropdownMenuLabel>
+                <DropdownMenuItem className="gap-2" onSelect={zoomToFit}><Maximize className="h-4 w-4" /> Ajustar à tela</DropdownMenuItem>
+                {/* Ampliar/reduzir não fecham o menu: dá para tocar várias vezes. */}
+                <DropdownMenuItem className="gap-2" onSelect={(e) => { e.preventDefault(); zoomBy(0.1); }}><ZoomIn className="h-4 w-4" /> Ampliar</DropdownMenuItem>
+                <DropdownMenuItem className="gap-2" onSelect={(e) => { e.preventDefault(); zoomBy(-0.1); }}><ZoomOut className="h-4 w-4" /> Reduzir</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="gap-2" disabled={publishing} onSelect={() => { void togglePublished(); }}>
+                  {pres.is_published ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                  {pres.is_published ? "Tornar privada" : "Publicar"}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2" asChild>
+                  <Link to={`/slides/${pres.slug}`} target="_blank"><Play className="h-4 w-4" /> Apresentar (nova aba)</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="hero" size="sm" className="relative [@media(pointer:coarse)]:min-w-11" onClick={() => save()} disabled={saving}
+              aria-label={dirty && !saving ? "Salvar (há alterações não salvas)" : "Salvar"}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} <span className="hidden sm:[@media(min-height:501px)]:inline lg:inline">Salvar</span>
+              {dirty && !saving && <span aria-hidden className="sm:[@media(min-height:501px)]:hidden lg:hidden absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background" />}
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-        {/* Left: thumbnails — vertical em ≥lg, horizontal em <lg */}
-        <aside className="lg:w-44 xl:w-52 border-b lg:border-b-0 lg:border-r border-border bg-card/30 flex lg:flex-col flex-shrink-0">
-          <div className="px-3 py-2 border-b border-border flex items-center justify-between lg:w-auto w-full">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Slides</span>
+      {/* < 1024px: slide fixo no topo, miniaturas numa faixa e um painel por vez numa
+          gaveta embaixo (deitado: miniaturas à esquerda e painel ao lado do slide). */}
+      <div className="flex-1 flex flex-col lg:flex-row mobile-landscape:flex-row overflow-hidden min-h-0">
+        {/* Left: thumbnails — vertical em ≥lg e no celular deitado, horizontal no retrato.
+            Deitado, com um painel aberto, a coluna some para o slide e o painel caberem. */}
+        <aside aria-label="Slides" className={`${mobilePanel ? "mobile-landscape:hidden" : ""} lg:w-44 xl:w-52 mobile-landscape:w-36 border-b lg:border-b-0 lg:border-r mobile-landscape:border-b-0 mobile-landscape:border-r border-border bg-card/30 flex lg:flex-col mobile-landscape:flex-col flex-shrink-0 min-h-0`}>
+          {/* No celular o cabeçalho fica estreito ao lado da faixa (com w-full ele ocupava a linha e escondia as miniaturas). */}
+          <div className="px-2 lg:px-3 py-2 border-r lg:border-r-0 lg:border-b mobile-landscape:border-r-0 mobile-landscape:border-b border-border flex items-center justify-between flex-shrink-0">
+            <span className="hidden lg:inline mobile-landscape:inline text-xs font-semibold uppercase tracking-wide text-muted-foreground">Slides</span>
             <Button size="icon" variant="ghost" className="h-6 w-6" onClick={addSlide} aria-label="Adicionar slide" title="Adicionar slide"><Plus className="h-3.5 w-3.5" /></Button>
           </div>
-          <ScrollArea className="flex-1">
-            <div className="p-2 flex lg:flex-col gap-2 lg:space-y-0">
+          <ScrollArea className="flex-1 min-w-0 min-h-0" scrollbars="both">
+            <div className="p-2 flex lg:flex-col mobile-landscape:flex-col gap-2 lg:space-y-0">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={slides.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   {slides.map((s, i) => (
@@ -855,12 +995,20 @@ const Editor = () => {
           </ScrollArea>
         </aside>
 
+        {/* Slide + painéis. Celular: coluna (deitado, linha) com a gaveta. 1024–1535px: slide
+            com IA/falas embaixo e propriedades à direita. ≥1536px: os invólucros somem
+            (contents) e tudo fica numa linha, como antes. */}
+        <div className="flex flex-1 min-h-0 min-w-0 flex-col mobile-landscape:flex-row lg:flex-row 2xl:contents">
+        <div className="contents lg:flex lg:flex-1 lg:flex-col lg:min-h-0 lg:min-w-0 2xl:contents">
         {/* Center: canvas */}
-        <main className="flex-1 bg-muted/30 overflow-auto min-w-0">
-          <div className="min-h-full flex items-center justify-center p-6">
+        {/* Focável: quando o slide é maior que a área, dá para rolar pelo teclado. */}
+        <main ref={setCanvasEl} tabIndex={0} aria-label="Área do slide" className="flex-1 min-h-0 min-w-0 bg-muted/30 overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+          {/* Centralização "segura" (m-auto): com justify-center, um slide maior que a
+              área ficava cortado à esquerda, sem como rolar até lá. */}
+          <div className="min-h-full min-w-full w-max flex p-3 lg:p-6">
             {current && (
               <div
-                className="shadow-elegant rounded-2xl overflow-hidden bg-black flex-shrink-0 relative"
+                className="m-auto shadow-elegant rounded-2xl overflow-hidden bg-black flex-shrink-0 relative"
                 style={{ width: `${1280 * zoom}px`, height: `${720 * zoom}px` }}
               >
                 {/*
@@ -892,28 +1040,31 @@ const Editor = () => {
 
                 {/* Overlay de edição inline — campos sobrepostos com fundo translúcido */}
                 {inlineEdit && (
-                  <div className="absolute inset-0 flex flex-col p-4 gap-2 bg-black/50 backdrop-blur-sm">
+                  <div className="absolute inset-0 flex flex-col p-2 lg:p-4 gap-2 overflow-y-auto bg-black/50 backdrop-blur-sm">
                     <div className="flex items-center justify-between text-white text-xs mb-1">
                       <span className="flex items-center gap-1.5"><Pencil className="h-3 w-3" /> Edição inline ativa</span>
-                      <button onClick={() => setInlineEdit(false)} className="hover:bg-white/10 rounded p-1" aria-label="Sair da edição direta"><X className="h-3 w-3" /></button>
+                      <button type="button" onClick={() => setInlineEdit(false)} className="hover:bg-white/10 rounded p-1 [@media(pointer:coarse)]:p-2.5" aria-label="Sair da edição direta"><X className="h-3 w-3" /></button>
                     </div>
                     <input
                       value={c.headline || ""}
                       onChange={(e) => updateContent(activeIdx, { headline: e.target.value })}
                       placeholder="Título do slide"
-                      className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-2xl font-bold placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary"
+                      aria-label="Título do slide"
+                      className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-base lg:text-2xl font-bold placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     <input
                       value={c.subtitle || ""}
                       onChange={(e) => updateContent(activeIdx, { subtitle: e.target.value })}
                       placeholder="Subtítulo"
+                      aria-label="Subtítulo"
                       className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-base placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     <textarea
                       value={c.body_text || ""}
                       onChange={(e) => updateContent(activeIdx, { body_text: e.target.value })}
                       placeholder="Texto principal"
-                      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                      aria-label="Texto principal"
+                      className="flex-1 min-h-[3rem] bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-base lg:text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                     />
                   </div>
                 )}
@@ -924,14 +1075,14 @@ const Editor = () => {
 
         {/* AI Assistant drawer (esquerda do inspector) */}
         {chatOpen && (
-          <aside className="w-72 md:w-80 border-l border-border bg-card/40 flex flex-col flex-shrink-0">
+          <aside id="editor-panel-chat" aria-label="Assistente IA" className={`${dockedClass("chat", "2xl:w-80")} border-border bg-card/40 flex-col flex-shrink-0`}>
             <div className="px-3 py-2 border-b border-border flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <MessageSquare className="h-3.5 w-3.5 text-primary" /> Assistente IA
               </span>
-              <button onClick={() => setChatOpen(false)} className="hover:bg-muted rounded p-1" aria-label="Fechar assistente de IA"><X className="h-3 w-3" /></button>
+              <button type="button" onClick={() => setChatOpen(false)} className="hover:bg-muted rounded p-1 [@media(pointer:coarse)]:p-2.5" aria-label="Fechar assistente de IA"><X className="h-3 w-3" /></button>
             </div>
-            <ScrollArea className="flex-1 px-3 py-3">
+            <ScrollArea className="flex-1 min-h-0 px-3 py-3">
               {/* Respostas da IA anunciadas por leitores de tela. */}
               <div className="space-y-3" role="log" aria-live="polite" aria-label="Conversa com o assistente de IA">
                 {chat.length === 0 && (
@@ -973,7 +1124,7 @@ const Editor = () => {
               <div className="flex gap-1.5">
                 <Textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} aria-label="Pedido para a IA"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                  placeholder={`Ex: troque a imagem deste slide (${activeIdx + 1})`} rows={2} className="resize-none text-xs"
+                  placeholder={`Ex: troque a imagem deste slide (${activeIdx + 1})`} rows={2} className="resize-none text-base md:text-xs"
                   disabled={chatBusy || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX} />
                 <Button size="icon" variant="hero" onClick={sendChat} aria-label="Enviar pedido à IA"
                   disabled={chatBusy || !chatInput.trim() || aiUsage.messages >= AI_MAX_MESSAGES || aiUsage.complex >= AI_MAX_COMPLEX}
@@ -1001,63 +1152,73 @@ const Editor = () => {
             regenerating={regeneratingSpeech}
             regensLeft={regensLeft}
             onClose={() => setNotesOpen(false)}
+            id="editor-panel-notes"
+            className={dockedClass("notes", "2xl:w-96")}
           />
 
         )}
+        </div>
 
         {/* Right: inspector */}
-        <aside className="w-72 md:w-80 border-l border-border bg-card/30 flex flex-col flex-shrink-0">
+        <aside id="editor-panel-inspector" aria-label="Propriedades do slide" className={`${drawerClass("inspector")} lg:flex lg:basis-auto lg:w-80 lg:border-t-0 lg:border-l border-border bg-card/30 flex-col flex-shrink-0`}>
+          {/* Cabeçalho da gaveta (só celular/tablet): no desktop o painel é fixo. */}
+          <div className="lg:hidden px-3 py-1.5 border-b border-border flex items-center justify-between flex-shrink-0">
+            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" /> Editar slide {activeIdx + 1}
+            </span>
+            <button type="button" onClick={() => setInspectorOpen(false)} className="hover:bg-muted rounded p-1 [@media(pointer:coarse)]:p-2.5" aria-label="Fechar painel de edição"><X className="h-3 w-3" /></button>
+          </div>
           {current && (
-            <Tabs defaultValue="text" className="flex-1 flex flex-col">
+            <Tabs defaultValue="text" className="flex-1 flex flex-col min-h-0">
               <TabsList className="grid grid-cols-6 m-2">
-                <TabsTrigger value="text" title="Texto"><Type className="h-3.5 w-3.5" /></TabsTrigger>
-                <TabsTrigger value="visual" title="Visual"><Shapes className="h-3.5 w-3.5" /></TabsTrigger>
-                <TabsTrigger value="image" title="Imagem"><ImageIcon className="h-3.5 w-3.5" /></TabsTrigger>
-                <TabsTrigger value="anim" title="Animação"><Wand2 className="h-3.5 w-3.5" /></TabsTrigger>
-                <TabsTrigger value="layout" title="Layout"><LayoutIcon className="h-3.5 w-3.5" /></TabsTrigger>
-                <TabsTrigger value="slide" title="Slide"><FileText className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="text" title="Texto" aria-label="Texto"><Type className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="visual" title="Visual" aria-label="Visual"><Shapes className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="image" title="Imagem" aria-label="Imagem"><ImageIcon className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="anim" title="Animação" aria-label="Animação"><Wand2 className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="layout" title="Layout" aria-label="Layout"><LayoutIcon className="h-3.5 w-3.5" /></TabsTrigger>
+                <TabsTrigger value="slide" title="Slide" aria-label="Slide"><FileText className="h-3.5 w-3.5" /></TabsTrigger>
               </TabsList>
-              <ScrollArea className="flex-1 px-3 pb-4">
+              <ScrollArea className="flex-1 min-h-0 px-3 pb-4">
                 <TabsContent value="text" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Headline</Label>
-                    <Textarea value={c.headline || ""} onChange={(e) => updateContent(activeIdx, { headline: e.target.value })} rows={2} />
+                    <Label htmlFor="insp-headline" className="text-xs">Headline</Label>
+                    <Textarea id="insp-headline" value={c.headline || ""} onChange={(e) => updateContent(activeIdx, { headline: e.target.value })} rows={2} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Subtítulo</Label>
-                    <Textarea value={c.subtitle || ""} onChange={(e) => updateContent(activeIdx, { subtitle: e.target.value })} rows={2} />
+                    <Label htmlFor="insp-subtitle" className="text-xs">Subtítulo</Label>
+                    <Textarea id="insp-subtitle" value={c.subtitle || ""} onChange={(e) => updateContent(activeIdx, { subtitle: e.target.value })} rows={2} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Texto principal</Label>
-                    <Textarea value={c.body_text || ""} onChange={(e) => updateContent(activeIdx, { body_text: e.target.value })} rows={5} />
+                    <Label htmlFor="insp-body" className="text-xs">Texto principal</Label>
+                    <Textarea id="insp-body" value={c.body_text || ""} onChange={(e) => updateContent(activeIdx, { body_text: e.target.value })} rows={5} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Bullets (um por linha)</Label>
-                    <Textarea value={(c.bullets || []).join("\n")}
+                    <Label htmlFor="insp-bullets" className="text-xs">Bullets (um por linha)</Label>
+                    <Textarea id="insp-bullets" value={(c.bullets || []).join("\n")}
                       onChange={(e) => updateContent(activeIdx, { bullets: e.target.value.split("\n").filter(Boolean) })}
                       rows={5} />
                   </div>
                   {(current.layout_template === "stat-highlight") && (
                     <>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Stat (número)</Label>
-                        <Input value={c.stat_value || ""} onChange={(e) => updateContent(activeIdx, { stat_value: e.target.value })} />
+                        <Label htmlFor="insp-stat-value" className="text-xs">Stat (número)</Label>
+                        <Input id="insp-stat-value" value={c.stat_value || ""} onChange={(e) => updateContent(activeIdx, { stat_value: e.target.value })} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Stat (descrição)</Label>
-                        <Input value={c.stat_label || ""} onChange={(e) => updateContent(activeIdx, { stat_label: e.target.value })} />
+                        <Label htmlFor="insp-stat-label" className="text-xs">Stat (descrição)</Label>
+                        <Input id="insp-stat-label" value={c.stat_label || ""} onChange={(e) => updateContent(activeIdx, { stat_label: e.target.value })} />
                       </div>
                     </>
                   )}
                   {(current.slide_type === "quote" || current.layout_template === "quote") && (
                     <>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Citação</Label>
-                        <Textarea value={c.quote_text || ""} onChange={(e) => updateContent(activeIdx, { quote_text: e.target.value })} rows={3} />
+                        <Label htmlFor="insp-quote" className="text-xs">Citação</Label>
+                        <Textarea id="insp-quote" value={c.quote_text || ""} onChange={(e) => updateContent(activeIdx, { quote_text: e.target.value })} rows={3} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Autor</Label>
-                        <Input value={c.quote_author || ""} onChange={(e) => updateContent(activeIdx, { quote_author: e.target.value })} />
+                        <Label htmlFor="insp-quote-author" className="text-xs">Autor</Label>
+                        <Input id="insp-quote-author" value={c.quote_author || ""} onChange={(e) => updateContent(activeIdx, { quote_author: e.target.value })} />
                       </div>
                     </>
                   )}
@@ -1081,18 +1242,18 @@ const Editor = () => {
 
                 <TabsContent value="image" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">URL da imagem</Label>
-                    <Input value={c.image_url || ""} onChange={(e) => updateContent(activeIdx, { image_url: e.target.value })} placeholder="https://..." />
+                    <Label htmlFor="insp-image-url" className="text-xs">URL da imagem</Label>
+                    <Input id="insp-image-url" value={c.image_url || ""} onChange={(e) => updateContent(activeIdx, { image_url: e.target.value })} placeholder="https://..." />
                   </div>
                   {c.image_url && <img src={c.image_url} alt="" className="w-full rounded-lg aspect-video object-cover" />}
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Termo de busca (Pexels) / prompt</Label>
-                    <Input value={c.image_query || ""} onChange={(e) => updateContent(activeIdx, { image_query: e.target.value })} placeholder="ex: spanish flag sunset" />
+                    <Label htmlFor="insp-image-query" className="text-xs">Termo de busca (Pexels) / prompt</Label>
+                    <Input id="insp-image-query" value={c.image_query || ""} onChange={(e) => updateContent(activeIdx, { image_query: e.target.value })} placeholder="ex: spanish flag sunset" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Estratégia</Label>
+                    <Label htmlFor="insp-image-strategy" className="text-xs">Estratégia</Label>
                     <Select value={c.image_strategy || "pexels"} onValueChange={(v) => updateContent(activeIdx, { image_strategy: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="insp-image-strategy"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="pexels">Pexels (foto real)</SelectItem>
                         <SelectItem value="ai">Gerar com IA</SelectItem>
@@ -1102,8 +1263,8 @@ const Editor = () => {
                   </div>
                   {c.image_strategy === "ai" && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Prompt de IA</Label>
-                      <Textarea value={c.ai_image_prompt || ""} onChange={(e) => updateContent(activeIdx, { ai_image_prompt: e.target.value })} rows={3} />
+                      <Label htmlFor="insp-ai-prompt" className="text-xs">Prompt de IA</Label>
+                      <Textarea id="insp-ai-prompt" value={c.ai_image_prompt || ""} onChange={(e) => updateContent(activeIdx, { ai_image_prompt: e.target.value })} rows={3} />
                     </div>
                   )}
                   <Button variant="outline" size="sm" className="w-full" disabled={!c.image_query && !(isSceneContent(c) && c.visual)}
@@ -1148,14 +1309,14 @@ const Editor = () => {
 
                 <TabsContent value="anim" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Animação de entrada (per-elemento)</Label>
+                    <Label htmlFor="insp-motion" className="text-xs">Animação de entrada (per-elemento)</Label>
                     {/* Antes gravava o campo legado `animation`, que sempre perdia
                         para animation_intent — o seletor não tinha efeito visível.
                         Agora grava `motion` (preset em JSON), lido pelo motor de
                         cenas e traduzido para os slides de texto. */}
                     <Select value={c.motion?.preset ?? ""}
                       onValueChange={(v) => updateContent(activeIdx, { motion: { ...(c.motion ?? {}), preset: v } })}>
-                      <SelectTrigger><SelectValue placeholder="automática (pelo papel do slide)" /></SelectTrigger>
+                      <SelectTrigger id="insp-motion"><SelectValue placeholder="automática (pelo papel do slide)" /></SelectTrigger>
                       <SelectContent>
                         {MOTION_PRESETS.map((m) => <SelectItem key={m} value={m}>{MOTION_PRESET_LABELS[m]}</SelectItem>)}
                       </SelectContent>
@@ -1163,7 +1324,7 @@ const Editor = () => {
                   </div>
                   {/* Bloco 1.5: transição cinematográfica do slide */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Transição entre slides</Label>
+                    <Label htmlFor="insp-transition" className="text-xs">Transição entre slides</Label>
                     {/* Toggle proeminente para o modo Dinâmico (magic move) */}
                     <button
                       type="button"
@@ -1186,7 +1347,7 @@ const Editor = () => {
                     </button>
                     <Select value={(c as any).transition || ""}
                       onValueChange={(v) => updateContent(activeIdx, { transition: v })}>
-                      <SelectTrigger><SelectValue placeholder="auto (padrão dinâmico)" /></SelectTrigger>
+                      <SelectTrigger id="insp-transition"><SelectValue placeholder="auto (padrão dinâmico)" /></SelectTrigger>
                       <SelectContent>
                         {TRANSITIONS.map((t) => (
                           <SelectItem key={t} value={t}>{t === "dynamic" ? "dynamic (padrão — magic move)" : t}</SelectItem>
@@ -1197,10 +1358,10 @@ const Editor = () => {
                   {/* Bloco 7.3: cover_variant apenas para title_slide */}
                   {current.slide_type === "title_slide" && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Variação da capa</Label>
+                      <Label htmlFor="insp-cover" className="text-xs">Variação da capa</Label>
                       <Select value={(c as any).cover_variant || ""}
                         onValueChange={(v) => updateContent(activeIdx, { cover_variant: v })}>
-                        <SelectTrigger><SelectValue placeholder="auto" /></SelectTrigger>
+                        <SelectTrigger id="insp-cover"><SelectValue placeholder="auto" /></SelectTrigger>
                         <SelectContent>
                           {COVER_VARIANTS_LIST.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                         </SelectContent>
@@ -1214,18 +1375,18 @@ const Editor = () => {
 
                 <TabsContent value="layout" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Layout</Label>
+                    <Label htmlFor="insp-layout" className="text-xs">Layout</Label>
                     <Select value={current.layout_template} onValueChange={(v) => updateSlide(activeIdx, { layout_template: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="insp-layout"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {layoutsFor(current.content).map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Tipo de slide</Label>
+                    <Label htmlFor="insp-slide-type" className="text-xs">Tipo de slide</Label>
                     <Select value={current.slide_type} onValueChange={(v) => updateSlide(activeIdx, { slide_type: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="insp-slide-type"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {SLIDE_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                       </SelectContent>
@@ -1235,8 +1396,8 @@ const Editor = () => {
 
                 <TabsContent value="slide" className="space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Notas do orador</Label>
-                    <Textarea value={current.speaker_notes || ""}
+                    <Label htmlFor="insp-notes" className="text-xs">Notas do orador</Label>
+                    <Textarea id="insp-notes" value={current.speaker_notes || ""}
                       onChange={(e) => updateSlide(activeIdx, { speaker_notes: e.target.value } as any)} rows={6} />
                   </div>
                   <Button variant="outline" size="sm" className="w-full text-destructive" onClick={() => deleteSlide(activeIdx)}>
@@ -1247,6 +1408,21 @@ const Editor = () => {
             </Tabs>
           )}
         </aside>
+        </div>
+      </div>
+
+      {/* Celular (retrato): ferramentas ao alcance do polegar, como no Canva; cada uma
+          abre (ou fecha) a gaveta correspondente. Deitado, ficam no topo. */}
+      <div role="group" aria-label="Ferramentas do editor" className="lg:hidden mobile-landscape:hidden flex-shrink-0 grid grid-flow-col auto-cols-fr border-t border-border bg-card/80 backdrop-blur">
+        {mobileTools.map((t) => (
+          <button key={t.id} type="button" onClick={t.onClick} aria-label={t.name} title={t.name} {...toolState(t)}
+            className={`flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${t.active ? "text-[hsl(var(--primary-deep))] dark:text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+            <span className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${t.active ? "bg-primary/15" : ""}`}>
+              <t.icon className="h-4 w-4" />
+            </span>
+            {t.label}
+          </button>
+        ))}
       </div>
     </div>
   );

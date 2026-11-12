@@ -165,7 +165,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-background relative overflow-hidden">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8 md:py-0 bg-background relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-glow opacity-40 pointer-events-none" />
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -175,7 +175,7 @@ const Auth = () => {
           <BrandLogo size={40} />
         </Link>
 
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-elegant">
+        <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-elegant">
           {awaitingConfirmation ? (
             <div className="space-y-4 text-center">
               <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -192,7 +192,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={() => { setAwaitingConfirmation(false); setPendingEmail(null); }}
-                className="text-sm text-muted-foreground hover:text-foreground w-full"
+                className="text-sm text-muted-foreground hover:text-foreground w-full [@media(pointer:coarse)]:-my-3 [@media(pointer:coarse)]:py-3"
               >
                 Voltar ao login
               </button>
@@ -204,17 +204,18 @@ const Auth = () => {
               <p className="text-sm text-muted-foreground">Enviaremos um link para redefinir sua senha.</p>
               <div className="space-y-2">
                 <Label htmlFor="reset-email">Email</Label>
-                <Input id="reset-email" name="email" type="email" required />
+                <Input id="reset-email" name="email" type="email" required autoComplete="email" />
               </div>
               <Button type="submit" variant="hero" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} Enviar link
               </Button>
-              <button type="button" onClick={() => setShowReset(false)} className="text-sm text-muted-foreground hover:text-foreground w-full">
+              <button type="button" onClick={() => setShowReset(false)} className="text-sm text-muted-foreground hover:text-foreground w-full [@media(pointer:coarse)]:-my-3 [@media(pointer:coarse)]:py-3">
                 Voltar
               </button>
             </form>
           ) : (
             <Tabs defaultValue="signup">
+              <h1 className="sr-only">Entrar ou criar conta no SlideAI</h1>
               <button
                 type="button"
                 onClick={handleGoogle}
@@ -238,13 +239,13 @@ const Auth = () => {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" name="email" type="email" required />
+                    <Input id="login-email" name="email" type="email" required autoComplete="email" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Senha</Label>
-                    <Input id="login-password" name="password" type="password" required />
+                    <Input id="login-password" name="password" type="password" required autoComplete="current-password" />
                   </div>
-                  <button type="button" onClick={() => setShowReset(true)} className="text-xs text-primary hover:underline">
+                  <button type="button" onClick={() => setShowReset(true)} className="text-xs text-primary hover:underline [@media(pointer:coarse)]:-my-3 [@media(pointer:coarse)]:py-3">
                     Esqueci minha senha
                   </button>
                   <Button type="submit" variant="hero" className="w-full" disabled={loading}>
@@ -257,11 +258,11 @@ const Auth = () => {
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Nome completo</Label>
-                    <Input id="signup-name" name="fullName" required />
+                    <Input id="signup-name" name="fullName" required autoComplete="name" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" name="email" type="email" required />
+                    <Input id="signup-email" name="email" type="email" required autoComplete="email" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Senha (mín. 8 caracteres)</Label>
@@ -271,8 +272,8 @@ const Auth = () => {
                     <Checkbox id="signup-terms" checked={acceptTerms} onCheckedChange={(v) => setAcceptTerms(v === true)} className="mt-0.5" />
                     <span>
                       Li e aceito os{" "}
-                      <Link to="/termos" target="_blank" className="text-primary hover:underline">Termos de Uso</Link> e a{" "}
-                      <Link to="/privacidade" target="_blank" className="text-primary hover:underline">Política de Privacidade</Link>.
+                      <Link to="/termos" target="_blank" className="text-primary underline underline-offset-2">Termos de Uso</Link> e a{" "}
+                      <Link to="/privacidade" target="_blank" className="text-primary underline underline-offset-2">Política de Privacidade</Link>.
                       Declaro ter 18 anos ou mais, ou autorização dos meus pais ou responsáveis.
                     </span>
                   </label>
@@ -289,14 +290,14 @@ const Auth = () => {
 
               <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground">
                 Ao continuar, você concorda com os{" "}
-                <Link to="/termos" className="text-primary hover:underline">Termos de Uso</Link> e a{" "}
-                <Link to="/privacidade" className="text-primary hover:underline">Política de Privacidade</Link>.
+                <Link to="/termos" className="text-primary underline underline-offset-2">Termos de Uso</Link> e a{" "}
+                <Link to="/privacidade" className="text-primary underline underline-offset-2">Política de Privacidade</Link>.
               </p>
             </Tabs>
           )}
         </div>
       </motion.div>
-    </div>
+    </main>
   );
 };
 

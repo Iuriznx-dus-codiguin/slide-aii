@@ -8,7 +8,7 @@
 // Renderizado em posição fixa pelo SlideViewer; animado com Framer Motion.
 // ============================================================
 import { motion, AnimatePresence } from "framer-motion";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { NarrativeActName } from "../../supabase/functions/_shared/sceneCatalog.ts";
 
 // Os atos vêm do catálogo compartilhado com o Story Engine (Deno) — antes esta
@@ -79,6 +79,12 @@ export const CinematicHUD = ({
     [total, acts],
   );
 
+  // No celular a fileira de pontos rola: mantém o slide atual à vista.
+  const activeDotRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeDotRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [current]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -86,15 +92,18 @@ export const CinematicHUD = ({
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       // Só opacidade/posição: o blur animado no elemento fixo era recalculado
       // sobre o slide em movimento a cada quadro.
-      className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+      // Centraliza pelo framer (x: -50%): o transform animado anulava o
+      // -translate-x-1/2 do Tailwind e o HUD ficava deslocado para a direita.
+      style={{ x: "-50%" }}
+      className="pointer-events-none fixed bottom-4 sm:bottom-6 left-1/2 z-50"
       aria-hidden={hidden || undefined}
     >
       <nav
         aria-label="Navegação dos slides"
-        className={`${hidden ? "pointer-events-none" : "pointer-events-auto"} flex items-center gap-4 rounded-full bg-black/70 backdrop-blur-md px-5 py-3 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]`}
+        className={`${hidden ? "pointer-events-none" : "pointer-events-auto"} flex max-w-[calc(100vw-1.5rem)] items-center gap-2 sm:gap-4 rounded-full bg-black/70 backdrop-blur-md px-3 sm:px-5 py-2 sm:py-3 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]`}
       >
         {/* Anel rotativo + número */}
-        <div className="relative h-10 w-10 flex items-center justify-center">
+        <div className="relative h-10 w-10 shrink-0 flex items-center justify-center">
           <svg className="absolute inset-0 -rotate-90" viewBox="0 0 40 40">
             <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
             <motion.circle
@@ -125,21 +134,25 @@ export const CinematicHUD = ({
           </motion.span>
         </div>
 
-        {/* Dots interativos por slide */}
-        <div className="flex items-center gap-1.5">
+        {/* Dots interativos por slide — rolam na horizontal quando não cabem (abaixo de
+            1024px; o py-1 deixa o anel de foco visível dentro da rolagem); no desktop o
+            overflow fica visível para não cortar a dica do hover. */}
+        <div className="-my-1 flex min-w-0 items-center gap-1.5 overflow-x-auto py-1 px-0.5 lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {dots.map((d) => {
             const isActive = d.idx === current;
             const color = ACT_COLOR[d.act];
             return (
               <button
                 key={d.idx}
+                ref={isActive ? activeDotRef : undefined}
                 type="button"
                 onClick={() => onJump(d.idx)}
                 aria-label={`Ir para o slide ${d.idx + 1}${ACT_LABEL[d.act] ? ` (${ACT_LABEL[d.act]})` : ""}`}
                 aria-current={isActive ? "step" : undefined}
                 tabIndex={hidden ? -1 : 0}
-                className="group relative flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                style={{ width: 18, height: 18 }}
+                className="group relative flex shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                // 24px: área mínima de toque (WCAG 2.2); o ponto visível continua com 8px.
+                style={{ width: 24, height: 24 }}
               >
                 <motion.span
                   initial={false}
@@ -167,7 +180,7 @@ export const CinematicHUD = ({
         </div>
 
         {/* Label do ato narrativo */}
-        <div className="flex items-center gap-2 pl-2 border-l border-white/10 min-w-[80px]">
+        <div className="hidden sm:flex shrink-0 items-center gap-2 pl-2 border-l border-white/10 min-w-[80px]">
           <motion.div
             key={`dot-${currentAct}`}
             initial={{ scale: 0, rotate: 45 }}

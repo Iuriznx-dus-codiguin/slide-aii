@@ -4,7 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +58,7 @@ export default function AdminSupport() {
   const [sendingReply, setSendingReply] = useState(false);
   const [historyFor, setHistoryFor] = useState<{ code: string; rows: Hist[] } | null>(null);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
   const [filters, setFilters] = useState<{ code: string; status: string; severity: string }>({ code: "", status: "", severity: "" });
 
   useEffect(() => {
@@ -215,8 +220,9 @@ export default function AdminSupport() {
     load();
   };
 
+  // Confirmação no AlertDialog do app, no lugar do confirm() nativo.
   const deleteArticle = async (id: string) => {
-    if (!confirm("Excluir este artigo?")) return;
+    setArticleToDelete(null);
     const { error } = await supabase.from("help_articles").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     load();
@@ -433,7 +439,7 @@ export default function AdminSupport() {
               </div>
               <div className="flex gap-1 shrink-0">
                 <Button size="sm" variant="outline" onClick={() => setEditingArticle(a)}>Editar</Button>
-                <Button size="sm" variant="ghost" onClick={() => deleteArticle(a.id)}><Trash2 className="h-4 w-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => setArticleToDelete(a)} aria-label={`Excluir ${a.title}`}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </div>
           ))}
@@ -623,6 +629,26 @@ export default function AdminSupport() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!articleToDelete} onOpenChange={(open) => { if (!open) setArticleToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir este artigo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {articleToDelete ? <><strong className="font-semibold text-foreground">“{articleToDelete.title}”</strong> será excluído da central de ajuda. Esta ação não pode ser desfeita.</> : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className={`${buttonVariants({ variant: "destructive" })} bg-red-600 text-white hover:bg-red-700`}
+              onClick={() => { if (articleToDelete) void deleteArticle(articleToDelete.id); }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

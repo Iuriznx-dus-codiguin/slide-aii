@@ -2,13 +2,21 @@ import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export const Navbar = () => {
   const { scrollY } = useScroll();
   const bg = useTransform(scrollY, [0, 80], ["hsl(var(--background) / 0)", "hsl(var(--background) / 0.85)"]);
   const [open, setOpen] = useState(false);
+
+  // Esc fecha o menu do celular.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const links = [
     { href: "#how", label: "Como funciona", to: null },
@@ -38,28 +46,29 @@ export const Navbar = () => {
         </div>
 
         <div className="hidden lg:flex items-center gap-3">
-          <Link to="/auth"><Button variant="ghost" size="sm">Entrar</Button></Link>
-          <Link to="/gerar"><Button variant="hero" size="sm">Criar apresentação</Button></Link>
+          <Button asChild variant="ghost" size="sm"><Link to="/auth">Entrar</Link></Button>
+          <Button asChild variant="hero" size="sm"><Link to="/gerar">Criar apresentação</Link></Button>
         </div>
 
-        <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open} aria-controls="landing-mobile-menu">
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(!open)} aria-label={open ? "Fechar menu" : "Abrir menu"} aria-expanded={open} aria-controls="landing-mobile-menu">
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
       </nav>
 
       {open && (
         <div id="landing-mobile-menu" className="lg:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border/40 bg-background/95 backdrop-blur-md">
-          <div className="container mx-auto px-4 sm:px-6 py-4 flex flex-col gap-4">
+          {/* Itens com 44px de altura (antes 20px: difíceis de tocar). */}
+          <div className="container mx-auto px-4 sm:px-6 py-3 flex flex-col gap-1">
             {links.map((l) => (
               l.to ? (
-                <Link key={l.href} to={l.to} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">{l.label}</Link>
+                <Link key={l.href} to={l.to} onClick={() => setOpen(false)} className="-mx-2 flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground">{l.label}</Link>
               ) : (
-                <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">{l.label}</a>
+                <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="-mx-2 flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground">{l.label}</a>
               )
             ))}
-            <div className="flex flex-col gap-2 pt-2">
-              <Link to="/auth"><Button variant="ghost" size="sm" className="w-full">Entrar</Button></Link>
-              <Link to="/gerar"><Button variant="hero" size="sm" className="w-full">Criar apresentação</Button></Link>
+            <div className="flex flex-col gap-2 pt-3">
+              <Button asChild variant="ghost" className="w-full"><Link to="/auth" onClick={() => setOpen(false)}>Entrar</Link></Button>
+              <Button asChild variant="hero" className="w-full"><Link to="/gerar" onClick={() => setOpen(false)}>Criar apresentação</Link></Button>
             </div>
           </div>
         </div>

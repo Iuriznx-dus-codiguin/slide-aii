@@ -39,7 +39,7 @@ const EmailPreferencesPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle flex items-center justify-center px-4 py-12">
+    <main className="min-h-screen bg-gradient-subtle flex items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-5">
           <Link to="/" className="inline-flex items-center gap-2 font-display font-bold text-lg">
@@ -95,7 +95,7 @@ const EmailPreferencesPage = () => {
           )}
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 };
 

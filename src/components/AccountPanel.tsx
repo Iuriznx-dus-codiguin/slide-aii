@@ -50,7 +50,8 @@ export const AccountPanel = () => {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-display font-bold">Plano atual: {PLAN_LABELS[ent.plan] ?? "Gratuito"}</h3>
+                {/* h2: vem logo abaixo do h1 do Perfil (com h3 a ordem de títulos pulava um nível). */}
+                <h2 className="font-display font-bold">Plano atual: {PLAN_LABELS[ent.plan] ?? "Gratuito"}</h2>
                 {ent.subscription_status === "active" && <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-semibold">Ativa</span>}
                 {ent.subscription_status === "canceled" && <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-destructive/15 text-destructive font-semibold">{accessUntil ? "Cancelada · não renova" : "Encerrada"}</span>}
               </div>

@@ -29,12 +29,12 @@ export const CTA = () => {
               Crie hoje sua primeira apresentação com IA, a partir de {PLAN_PRICES.single}.
             </p>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              <Link to="/gerar">
-                <Button size="xl" className="w-full sm:w-auto px-5 sm:px-9 bg-background text-primary hover:bg-background/90 group">
+              <Button asChild size="xl" className="w-full sm:w-auto px-5 sm:px-9 bg-background text-primary hover:bg-background/90 group">
+                <Link to="/gerar">
                   Criar minha apresentação
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </div>
         </motion.div>

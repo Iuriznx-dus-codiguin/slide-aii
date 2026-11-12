@@ -24,8 +24,8 @@ export const Footer = () => {
           </div>
 
           <div>
-            <h4 className="font-display font-bold mb-4">Produto</h4>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
+            <h2 className="font-display font-bold mb-4 text-base">Produto</h2>
+            <ul className="space-y-2.5 text-sm text-muted-foreground [@media(pointer:coarse)]:space-y-0 [@media(pointer:coarse)]:[&_a]:inline-flex [@media(pointer:coarse)]:[&_a]:min-h-11 [@media(pointer:coarse)]:[&_a]:items-center">
               <li><a href="/#features" className="hover:text-foreground transition-colors">Recursos</a></li>
               <li><a href="/#pricing" className="hover:text-foreground transition-colors">Preços</a></li>
               <li><Link to="/gerar" className="hover:text-foreground transition-colors">Criar apresentação</Link></li>
@@ -34,8 +34,8 @@ export const Footer = () => {
           </div>
 
           <div>
-            <h4 className="font-display font-bold mb-4">Empresa</h4>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
+            <h2 className="font-display font-bold mb-4 text-base">Empresa</h2>
+            <ul className="space-y-2.5 text-sm text-muted-foreground [@media(pointer:coarse)]:space-y-0 [@media(pointer:coarse)]:[&_a]:inline-flex [@media(pointer:coarse)]:[&_a]:min-h-11 [@media(pointer:coarse)]:[&_a]:items-center">
               <li><Link to="/sobre" className="hover:text-foreground transition-colors">Sobre</Link></li>
               <li><Link to="/ajuda" className="hover:text-foreground transition-colors">Central de Ajuda</Link></li>
               <li><Link to="/contato" className="hover:text-foreground transition-colors">Contato</Link></li>
@@ -43,8 +43,8 @@ export const Footer = () => {
           </div>
 
           <div>
-            <h4 className="font-display font-bold mb-4">Legal</h4>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
+            <h2 className="font-display font-bold mb-4 text-base">Legal</h2>
+            <ul className="space-y-2.5 text-sm text-muted-foreground [@media(pointer:coarse)]:space-y-0 [@media(pointer:coarse)]:[&_a]:inline-flex [@media(pointer:coarse)]:[&_a]:min-h-11 [@media(pointer:coarse)]:[&_a]:items-center">
               <li><Link to="/termos" className="hover:text-foreground transition-colors">Termos de Uso</Link></li>
               <li><Link to="/privacidade" className="hover:text-foreground transition-colors">Política de Privacidade</Link></li>
               <li><Link to="/privacidade#cookies" className="hover:text-foreground transition-colors">Cookies</Link></li>

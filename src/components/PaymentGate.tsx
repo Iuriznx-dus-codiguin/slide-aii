@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { X, Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
+import { Check, ExternalLink, Loader2, ShieldCheck, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   CHECKOUT_URLS, PLAN_PREVIOUS_PRICE_CENTS, PLAN_PRICES, proPlanFor, maxPlanFor, PLAN_MONTHLY_CREDITS, SINGLE_PURCHASE_CREDITS,
   MAX_USAGE_MULTIPLIER, cycleDiscountPct, formatBRL, previousPriceDiscountPct, type PaidPlan, type BillingCycle,
@@ -64,8 +64,6 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
     }
   }, [waiting, ent.allowed, ent.loading, ent.credits_available, ent.unlimited]);
 
-  if (!open) return null;
-
   const proId = proPlanFor(cycle);
   const maxId = maxPlanFor(cycle);
 
@@ -93,35 +91,38 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
 
   const cycleButton = (id: BillingCycle, label: string, badge?: string) => (
     <button
+      type="button"
       onClick={() => setCycle(id)}
-      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${cycle === id ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+      aria-pressed={cycle === id}
+      // No celular o selo vai para baixo do rótulo: os três cabem em 320px.
+      className={`min-h-10 px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1.5 ${cycle === id ? "bg-background shadow-sm" : "text-muted-foreground"}`}
     >
       {label}
       {badge && (
-        <span className="text-[9px] px-1 py-0.5 rounded-full bg-primary/15 text-primary font-bold">{badge}</span>
+        <span className="text-[9px] px-1 py-0.5 rounded-full bg-primary/15 text-[hsl(var(--primary-deep))] font-bold">{badge}</span>
       )}
     </button>
   );
 
+  // Dialog do Radix, como os demais modais do app: prende o foco dentro dele,
+  // trava a rolagem da página por trás, fecha com Esc ou clique fora e devolve
+  // o foco a quem abriu.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-card border border-border rounded-3xl p-6 md:p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent
+        className="block gap-0 bg-card rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl shadow-2xl focus:outline-none"
+        // Foco inicial no próprio modal: no primeiro botão ("Mensal") o anel de foco
+        // parecia indicar o ciclo escolhido (o padrão é o trimestral).
+        onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus(); }}
       >
-        <button onClick={onClose} className="absolute top-4 right-4 h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
-          <X className="h-4 w-4" />
-        </button>
-
         <div className="text-center mb-5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3">
             <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro · Cakto
           </div>
-          <h2 className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</h2>
-          <p className="text-sm text-muted-foreground mt-2">
+          <DialogTitle className="font-display text-2xl md:text-3xl font-bold">Escolha seu plano</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-2">
             Sua configuração está salva. Após pagar, a geração inicia automaticamente.
-          </p>
+          </DialogDescription>
         </div>
 
         {/* Toggle para assinaturas — trimestral é o predefinido */}
@@ -208,7 +209,7 @@ export const PaymentGate = ({ open, onClose, onUnlocked }: Props) => {
         <p className="text-center text-[11px] text-muted-foreground mt-3">
           Após o pagamento, retorne a esta janela. A geração começa sozinha assim que o pagamento for confirmado.
         </p>
-      </motion.div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

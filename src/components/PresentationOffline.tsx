@@ -5,7 +5,7 @@ import { fmtDay, HOSTING_GRACE_DAYS, RESTORE_URL } from "@/lib/hosting";
 
 /** Tela de apresentação fora do ar: o dono vê como restaurar; visitantes, só o aviso. */
 export const PresentationOffline = ({ isOwner, title, purgeAt }: { isOwner: boolean; title?: string | null; purgeAt?: string | Date | null }) => (
-  <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+  <main className="min-h-screen flex items-center justify-center p-6 bg-background">
     <div className="max-w-md text-center">
       <div className="inline-flex h-14 w-14 rounded-2xl bg-muted items-center justify-center mb-4">
         <CloudOff className="h-7 w-7 text-muted-foreground" />
@@ -35,5 +35,5 @@ export const PresentationOffline = ({ isOwner, title, purgeAt }: { isOwner: bool
         </>
       )}
     </div>
-  </div>
+  </main>
 );

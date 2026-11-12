@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { Download, Printer, Users, X, FileDown, FileText, Sparkles, Loader2 } from "lucide-react";
 
 export interface PresenterEntry {
@@ -41,6 +42,9 @@ interface PresenterNotesPanelProps {
   regenerating?: "slide" | "all" | null;
   regensLeft?: number | null;
   onClose: () => void;
+  /** Id e classes extras do painel (o editor usa para a gaveta do celular). */
+  id?: string;
+  className?: string;
 }
 
 
@@ -132,6 +136,8 @@ export const PresenterNotesPanel = ({
   regenerating = null,
   regensLeft = null,
   onClose,
+  id,
+  className,
 }: PresenterNotesPanelProps) => {
   const current = slides[activeIdx];
   // Garantir que todos os apresentadores configurados tenham entrada
@@ -160,7 +166,8 @@ export const PresenterNotesPanel = ({
   };
 
   return (
-    <aside className="w-80 md:w-96 border-l border-border bg-card/40 flex flex-col flex-shrink-0">
+    // < 1024px o editor mostra o painel numa gaveta abaixo do slide (largura total).
+    <aside id={id} aria-label="Falas dos apresentadores" className={cn("w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-border bg-card/40 flex flex-col flex-shrink-0", className)}>
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Users className="h-3.5 w-3.5 text-primary" /> Falas dos apresentadores
@@ -194,7 +201,7 @@ export const PresenterNotesPanel = ({
           >
             <Printer className="h-3.5 w-3.5" />
           </Button>
-          <button onClick={onClose} className="hover:bg-muted rounded p-1">
+          <button type="button" onClick={onClose} aria-label="Fechar painel de falas" title="Fechar" className="hover:bg-muted rounded p-1 [@media(pointer:coarse)]:p-2.5">
             <X className="h-3 w-3" />
           </button>
         </div>
@@ -255,46 +262,48 @@ export const PresenterNotesPanel = ({
               const speaks = (p.exact_speech || "").trim().length > 0;
               return (
                 <TabsTrigger key={i} value={String(i)} className="text-[11px] truncate gap-1">
-                  <span className="opacity-60">{i + 1}.</span> {p.name || "Apresentador"}
+                  <span>{i + 1}.</span> {p.name || "Apresentador"}
                   {speaks && <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" title="Fala neste slide" />}
                 </TabsTrigger>
               );
             })}
           </TabsList>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             {presenters.map((p, i) => {
               const wordCount = (p.exact_speech || "").trim().split(/\s+/).filter(Boolean).length;
               const wordOk = wordCount === 0 || (wordCount >= 20 && wordCount <= 100);
               return (
                 <TabsContent key={i} value={String(i)} className="px-3 py-3 space-y-3 mt-0">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] flex items-center gap-1">
+                    <Label htmlFor={`notes-anchor-${i}`} className="text-[11px] flex items-center gap-1">
                       Âncora de transição
                       <span className="text-muted-foreground font-normal">(handoff entre apresentadores)</span>
                     </Label>
                     <Textarea
+                      id={`notes-anchor-${i}`}
                       value={p.transition_anchor || ""}
                       onChange={(e) => updatePresenter(p.id, { transition_anchor: e.target.value })}
                       rows={2}
                       placeholder='Ex: "Agora, Maria explicará a parte técnica."'
-                      className="text-xs"
+                      className="text-base md:text-xs"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label className="text-[11px] flex items-center gap-1">
+                      <Label htmlFor={`notes-speech-${i}`} className="text-[11px] flex items-center gap-1">
                         🎤 Fala (40-80 palavras)
                       </Label>
-                      <span className={`text-[10px] font-mono ${wordOk ? "text-muted-foreground" : "text-destructive"}`}>
+                      <span className={`text-[10px] font-mono ${wordOk ? "text-muted-foreground" : "text-red-700"}`}>
                         {wordCount} palavras
                       </span>
                     </div>
                     <Textarea
+                      id={`notes-speech-${i}`}
                       value={p.exact_speech || ""}
                       onChange={(e) => updatePresenter(p.id, { exact_speech: e.target.value })}
                       rows={8}
                       placeholder="Abertura curta → ponto principal → gancho para o próximo slide..."
-                      className="text-xs leading-relaxed font-medium"
+                      className="text-base md:text-xs leading-relaxed font-medium"
                     />
                   </div>
                 </TabsContent>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperRole } from "@/hooks/useDeveloperRole";
@@ -23,6 +24,7 @@ import { TEMPLATES } from "@/lib/templates";
 import { PRESENTATION_TYPES, toUiPresentationType } from "@/lib/presentationTypes";
 import { defaultsForRole } from "@/lib/personaDefaults";
 import { PaymentGate } from "@/components/PaymentGate";
+import { BrandLogo } from "@/components/BrandLogo";
 import { reasonMessage, needsRenewal } from "@/hooks/useEntitlement";
 import { CreditCard, RefreshCw, AlertTriangle, Coins, Cpu } from "lucide-react";
 
@@ -452,14 +454,13 @@ const Generate = () => {
       <div className="absolute inset-0 bg-gradient-glow opacity-30 pointer-events-none" />
 
       <header className="relative border-b border-border">
-        <div className="container mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <div className="container mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+          <button type="button" onClick={() => navigate("/dashboard")} aria-label="Voltar ao painel"
+            className="-ml-2 inline-flex items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11">
             <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span>
           </button>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center"><Sparkles className="h-4 w-4 text-primary-foreground" /></div>
-            <span className="font-display font-bold">SlideAI</span>
-          </div>
+          {/* Mesmo logotipo do resto do app (antes: o antigo quadrado com Sparkles). */}
+          <BrandLogo size={28} />
         </div>
       </header>
 
@@ -561,7 +562,9 @@ const Generate = () => {
             );
           })()}
 
-          {canGenerate && devSettings.showCostOverlay && (() => {
+          {/* Estimativa interna (custo em USD, motor, teto): só para desenvolvedores —
+              aparecia para qualquer usuário com saldo, porque showCostOverlay nasce ligado. */}
+          {isDeveloper && canGenerate && devSettings.showCostOverlay && (() => {
             const est = estimateGenerationCost(slidesCount, includeImages, devSettings.maxBudgetUsd, devSettings.engine);
             const overBudget = est.totalUsd > devSettings.maxBudgetUsd;
             return (
@@ -599,7 +602,7 @@ const Generate = () => {
                 </div>
                 <span className="text-sm font-semibold text-primary">{slidesCount}</span>
               </div>
-              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} />
+              <Slider value={[slidesCount]} onValueChange={([v]) => setSlidesCount(v)} min={5} max={20} step={1} aria-label="Número de slides" />
               <p className="text-xs text-muted-foreground">De 5 a 20 slides — recomendado entre 8 e 14 para máxima coesão narrativa.</p>
               {!unlimitedCredits && hasBalance && slidesCount > maxAffordableSlides && (
                 <p className="text-xs text-destructive font-medium">
@@ -615,9 +618,9 @@ const Generate = () => {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo</Label>
+                <Label htmlFor="gen-type">Tipo</Label>
                 <Select value={type} onValueChange={setType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="gen-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PRESENTATION_TYPES.map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -626,9 +629,9 @@ const Generate = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Idioma</Label>
+                <Label htmlFor="gen-language">Idioma</Label>
                 <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="gen-language"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pt-BR">Português</SelectItem>
                     <SelectItem value="en">English</SelectItem>
@@ -661,33 +664,34 @@ const Generate = () => {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
-              <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              {/* Linha inteira clicável (label): alvo de toque maior e nome acessível no switch. */}
+              <label htmlFor="gen-charts" className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <div className="font-medium text-sm">Gráficos & dados</div>
                   <div className="text-[11px] text-muted-foreground">A IA cria visualizações</div>
                 </div>
-                <Switch checked={includeCharts} onCheckedChange={setIncludeCharts} />
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                <Switch id="gen-charts" checked={includeCharts} onCheckedChange={setIncludeCharts} />
+              </label>
+              <label htmlFor="gen-images" className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border p-3">
                 <div className="min-w-0">
                   <div className="font-medium text-sm">Imagens reais</div>
                   <div className="text-[11px] text-muted-foreground">Pexels + IA (OpenAI)</div>
                 </div>
-                <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-primary/40 bg-primary/5 p-3 sm:col-span-2">
+                <Switch id="gen-images" checked={includeImages} onCheckedChange={setIncludeImages} />
+              </label>
+              <label htmlFor="gen-dynamic" className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3 sm:col-span-2">
                 <div className="min-w-0">
                   <div className="font-medium text-sm flex items-center gap-2">
                     <Sparkles className="h-3.5 w-3.5 text-primary" /> Slide Dinâmico (magic move)
                   </div>
                   <div className="text-[11px] text-muted-foreground">Título e imagem-hero migram entre slides — em vez de troca abrupta.</div>
                 </div>
-                <Switch checked={preferDynamic} onCheckedChange={setPreferDynamic} />
-              </div>
+                <Switch id="gen-dynamic" checked={preferDynamic} onCheckedChange={setPreferDynamic} />
+              </label>
               <div className="rounded-xl border border-border p-3 sm:col-span-2">
                 <div className="min-w-0 mb-2 flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium text-sm flex items-center gap-2">
+                    <div id="gen-depth-label" className="font-medium text-sm flex items-center gap-2">
                       <Sparkles className="h-3.5 w-3.5 text-primary" /> Profundidade dos textos
                     </div>
                     <div className="text-[11px] text-muted-foreground">
@@ -697,7 +701,7 @@ const Generate = () => {
                   {!unlimitedCredits && <CreditTag value={depthCost} title="Custo da profundidade escolhida" />}
                 </div>
                 <Select value={textDepth} onValueChange={(v) => setTextDepth(v as typeof textDepth)}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm" aria-labelledby="gen-depth-label"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="short">Curto — uma ideia afiada por slide (+10 créditos)</SelectItem>
                     <SelectItem value="balanced">Equilibrado — clareza com substância (+20 créditos)</SelectItem>
@@ -710,9 +714,9 @@ const Generate = () => {
 
             {/* DNA narrativo (Fase 2.5) — profundidade fica implícita ("high-level") */}
             <div className="pt-2 border-t border-border space-y-2">
-              <Label>Persona do orador</Label>
+              <Label htmlFor="gen-persona">Persona do orador</Label>
               <Select value={persona} onValueChange={setPersona}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="gen-persona"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="educator">Educador (didático)</SelectItem>
                   <SelectItem value="technical-authority">Autoridade técnica</SelectItem>
@@ -734,11 +738,11 @@ const Generate = () => {
                   while (next.length < v) next.push(`Apresentador ${next.length + 1}`);
                   return next.slice(0, v);
                 });
-              }} min={1} max={8} step={1} />
+              }} min={1} max={8} step={1} aria-label="Número de apresentadores" />
               {presentersCount > 1 && (
                 <div className="grid sm:grid-cols-2 gap-2">
                   {Array.from({ length: presentersCount }).map((_, i) => (
-                    <Input key={i} value={presentersNames[i] ?? ""} placeholder={`Nome ${i + 1}`}
+                    <Input key={i} value={presentersNames[i] ?? ""} placeholder={`Nome ${i + 1}`} aria-label={`Nome do apresentador ${i + 1}`}
                       onChange={(e) => setPresentersNames((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })} />
                   ))}
                 </div>
@@ -748,7 +752,7 @@ const Generate = () => {
                   || ent.credits_available >= slidesCost + depthCost + SPEECHES_CREDITS;
                 return (
                   <div className="rounded-xl border border-border p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="gen-speeches" className="flex cursor-pointer items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-medium text-sm flex items-center gap-2">
                           Gerar falas dos apresentadores
@@ -757,11 +761,12 @@ const Generate = () => {
                         <div className="text-[11px] text-muted-foreground">Script conciso (40-80 palavras) por slide, distribuído em blocos</div>
                       </div>
                       <Switch
+                        id="gen-speeches"
                         checked={includeSpeeches}
                         disabled={!canAffordSpeeches && !includeSpeeches}
                         onCheckedChange={setIncludeSpeeches}
                       />
-                    </div>
+                    </label>
                     {!canAffordSpeeches && !includeSpeeches && (
                       <p className="text-[11px] text-destructive">
                         Saldo insuficiente para incluir as falas nesta configuração.
@@ -808,10 +813,11 @@ const Generate = () => {
               </div>
             )}
 
-            {/* No mobile o CTA fica fixo ao alcance do polegar. */}
+            {/* No mobile o CTA fica fixo ao alcance do polegar — exceto em telas baixas
+                (celular deitado), onde cobriria os campos: lá fica no fim do formulário. */}
 
             <Button variant="hero" size="xl"
-              className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant"
+              className="w-full sticky bottom-3 z-20 shadow-glow md:static md:shadow-elegant [@media(max-height:500px)]:static"
               onClick={handleGenerate} disabled={ent.loading}>
               <Sparkles className="h-4 w-4" /> {unlimitedCredits || (canGenerate && !insufficientCredits) ? "Gerar apresentação" : "Continuar para pagamento"}
             </Button>
@@ -820,24 +826,23 @@ const Generate = () => {
         </motion.div>
       </main>
 
-      {/* Modal de limite (apenas free) — escondido para usuários pagos */}
-      {showLimitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowLimitModal(false)}>
-          <div className="bg-card border border-border rounded-3xl p-8 max-w-md w-full shadow-elegant" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-primary mx-auto mb-4">
-              <Sparkles className="h-7 w-7 text-primary-foreground" />
-            </div>
-            <h3 className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</h3>
-            <p className="text-center text-muted-foreground mt-2 text-sm">
-              Você atingiu o limite de testes gratuitos. Assine um plano PRO ou MAX para gerar apresentações completas.
-            </p>
-            <div className="flex gap-2 mt-6">
-              <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>
-              <Button variant="hero" className="flex-1" onClick={() => navigate("/#pricing")}>Ver planos</Button>
-            </div>
+      {/* Modal de limite (apenas free) — escondido para usuários pagos. Dialog do
+          Radix: foco preso no modal, Esc/clique fora fecham, rolagem travada. */}
+      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
+        <DialogContent className="block gap-0 bg-card rounded-3xl p-6 sm:p-8 max-w-md shadow-elegant">
+          <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-primary mx-auto mb-4">
+            <Sparkles className="h-7 w-7 text-primary-foreground" />
           </div>
-        </div>
-      )}
+          <DialogTitle className="font-display text-2xl font-bold text-center">Faça upgrade para continuar</DialogTitle>
+          <DialogDescription className="text-center text-muted-foreground mt-2 text-sm">
+            Você atingiu o limite de testes gratuitos. Assine um plano PRO ou MAX para gerar apresentações completas.
+          </DialogDescription>
+          <div className="flex gap-2 mt-6">
+            <Button variant="outline" className="flex-1" onClick={() => setShowLimitModal(false)}>Agora não</Button>
+            <Button variant="hero" className="flex-1" onClick={() => navigate("/#pricing")}>Ver planos</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PaymentGate
         open={showPayment}

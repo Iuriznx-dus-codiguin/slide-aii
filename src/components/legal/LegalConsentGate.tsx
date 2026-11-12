@@ -139,8 +139,8 @@ export const LegalConsentGate = () => {
           <Checkbox checked={checked} onCheckedChange={(v) => setChecked(v === true)} className="mt-0.5" aria-label="Aceitar os Termos de Uso e a Política de Privacidade" />
           <span>
             Li e aceito os{" "}
-            <Link to="/termos" target="_blank" className="text-primary hover:underline">Termos de Uso</Link> e a{" "}
-            <Link to="/privacidade" target="_blank" className="text-primary hover:underline">Política de Privacidade</Link>{" "}
+            <Link to="/termos" target="_blank" className="text-primary underline underline-offset-2">Termos de Uso</Link> e a{" "}
+            <Link to="/privacidade" target="_blank" className="text-primary underline underline-offset-2">Política de Privacidade</Link>{" "}
             <span className="text-muted-foreground">(versão {LEGAL.termsVersion})</span>.
           </span>
         </label>
