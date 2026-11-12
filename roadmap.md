@@ -1,7 +1,7 @@
 # Presentation hosting retention (cost reduction)
 - [x] Database: hosting rules, offline marking, restore on purchase, purge after 30 days, access checks (shared link, portfolio, slides, views).
 - [x] Payment events: refund takes decks offline now; credit purchase restores; renewal failure / cancel end-of-period / pause follow the rule.
-- [x] Daily maintenance: mark offline, schedule notices, delete expired decks and their images.
+- [x] Hourly maintenance: mark offline, schedule notices, delete expired decks and their images.
 - [x] Edge functions: block AI edit, speech regeneration and link previews for offline decks.
 - [x] App: locked cards and restore banner in the dashboard, unavailable screen in viewer/editor, account notice.
 - [x] Emails: new offline / deletion-soon notices; fix copy that promised decks stay forever.
