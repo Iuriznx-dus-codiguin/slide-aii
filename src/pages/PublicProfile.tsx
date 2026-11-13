@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { Seo } from "@/components/Seo";
+import { absoluteUrl, truncateDescription } from "@/lib/seo";
 
 type AccessState = "granted" | "anonymous" | "none" | "pending" | "approved" | "denied";
 
@@ -30,13 +32,42 @@ const safeExternalUrl = (value: string | null | undefined) => {
   try { const url = new URL(value.startsWith("http") ? value : `https://${value}`); return ["http:", "https:"].includes(url.protocol) ? url.href : null; } catch { return null; }
 };
 
-const setRobots = (content: string | null) => {
-  const existing = document.querySelector<HTMLMetaElement>('meta[name="robots"][data-dynamic="true"]');
-  if (!content) { existing?.remove(); return; }
-  const tag = existing ?? Object.assign(document.createElement("meta"), { name: "robots" });
-  tag.setAttribute("data-dynamic", "true");
-  tag.content = content;
-  if (!existing) document.head.appendChild(tag);
+/**
+ * Título, canonical e robots do portfólio. Só o portfólio público (e com
+ * acesso liberado) entra no índice; privado, pendente ou inexistente fica
+ * com noindex.
+ */
+const ProfileSeo = ({ profile, username, count }: { profile: ViewerProfile | null; username: string; count: number }) => {
+  if (!profile) return <Seo title="Portfólio não encontrado | SlideAI" description="Este perfil não existe ou não está disponível." path={`/u/${username}`} noindex />;
+  const name = profile.full_name || `@${profile.username}`;
+  const path = `/u/${profile.username}`;
+  if (profile.access_state !== "granted" || !profile.is_public) {
+    return <Seo title={`@${profile.username}: portfólio privado | SlideAI`} description="O conteúdo deste portfólio só fica visível para pessoas com acesso aprovado." path={path} noindex />;
+  }
+  const description = truncateDescription(profile.bio?.trim() || `Portfólio de ${name} no SlideAI, com ${count} ${count === 1 ? "apresentação publicada" : "apresentações publicadas"}.`);
+  const avatar = safeExternalUrl(profile.avatar_url);
+  const sameAs = [safeExternalUrl(profile.website), ...Object.values(profile.social_links ?? {}).map((v) => safeExternalUrl(v))].filter(Boolean);
+  return (
+    <Seo
+      title={`${name} (@${profile.username}): portfólio | SlideAI`}
+      description={description}
+      path={path}
+      image={avatar ?? undefined}
+      jsonLd={{
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        url: absoluteUrl(path),
+        mainEntity: {
+          "@type": "Person",
+          name,
+          alternateName: `@${profile.username}`,
+          ...(profile.bio ? { description: profile.bio } : {}),
+          ...(avatar ? { image: avatar } : {}),
+          ...(sameAs.length ? { sameAs } : {}),
+        },
+      }}
+    />
+  );
 };
 
 export default function PublicProfile() {
@@ -56,20 +87,13 @@ export default function PublicProfile() {
     if (found?.access_state === "granted") {
       const { data: items } = await supabase.rpc("get_portfolio_presentations", { _owner: found.id });
       setPresentations((items as PresentationData[]) ?? []);
-      document.title = `${found.full_name || `@${found.username}`} — SlideAI`;
-      setRobots(found.is_public ? null : "noindex, follow");
     } else if (found) {
       setPresentations([]);
-      document.title = `@${found.username} — portfólio privado — SlideAI`;
-      setRobots("noindex, follow");
-    } else {
-      document.title = "Portfólio não encontrado — SlideAI";
-      setRobots("noindex, follow");
     }
     setLoading(false);
   }, [username]);
 
-  useEffect(() => { load(); return () => setRobots(null); }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const requestAccess = async () => {
     if (!profile || !user) return;
@@ -89,8 +113,11 @@ export default function PublicProfile() {
 
   if (loading) return <div className="container mx-auto max-w-6xl space-y-6 px-6 py-16"><Skeleton className="h-24 w-24 rounded-full" /><Skeleton className="h-10 w-80" /><Skeleton className="h-56 w-full" /></div>;
 
+  const seo = <ProfileSeo profile={profile} username={username ?? ""} count={presentations.length} />;
+
   if (!profile) return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      {seo}
       <Presentation className="h-12 w-12 text-muted-foreground" />
       <h1 className="text-2xl font-bold">Portfólio não encontrado</h1>
       <p className="text-muted-foreground">Este perfil não existe ou não está disponível.</p>
@@ -111,6 +138,7 @@ export default function PublicProfile() {
     const state = profile.access_state;
     return (
       <div className="min-h-screen bg-background">
+        {seo}
         {header}
         <main className="container mx-auto flex max-w-xl flex-col items-center gap-5 px-6 py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted"><Lock className="h-7 w-7 text-muted-foreground" /></div>
@@ -162,6 +190,7 @@ export default function PublicProfile() {
 
   return (
     <div className="min-h-screen bg-background">
+      {seo}
       {header}
       <main>
         <section className="border-b border-border bg-muted/30">

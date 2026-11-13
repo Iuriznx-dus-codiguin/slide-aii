@@ -1,14 +1,52 @@
 # SlideAI
 
-> SlideAI gera apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis com design, imagens e gráficos.
+> SlideAI (slideai.com.br) é uma plataforma brasileira que cria apresentações profissionais com inteligência artificial. O usuário descreve o tema em português, inglês ou espanhol e recebe, em cerca de um minuto, de 5 a 20 slides editáveis com roteiro, layout, imagens e gráficos, prontos para apresentar por link ou exportar em PowerPoint (.pptx), PDF e PNG.
 
-## Pages
+## O produto
 
-- [Home](/): Visão geral do produto, recursos, preços e FAQ.
-- [Gerar apresentação](/gerar): Fluxo principal para descrever um tema e gerar slides com IA.
-- [Templates](/templates): Modelos pré-estruturados como ponto de partida.
-- [Entrar](/auth): Login e cadastro de usuários.
-- [Central de Ajuda](/ajuda): Guias sobre créditos, planos, geração, edição, exportação, conta e privacidade.
-- [Termos de Uso](/termos): Créditos, planos, renovação, cancelamento, arrependimento (7 dias), uso justo, conteúdo gerado por IA e responsabilidades.
-- [Política de Privacidade](/privacidade): Dados tratados, bases legais da LGPD, fornecedores, retenção, cookies e direitos do titular.
-- [Contato](/contato): Canais de atendimento.
+- Geração com IA: estrutura, textos, imagens (Pexels ou geradas por IA) e gráficos a partir dos dados do tema.
+- Tipos de apresentação: acadêmico, escolar, corporativo, marketing, criativo, científico e pitch de negócios; persona do orador (educador, autoridade técnica, líder inspiracional, vendedor) e de 1 a 8 apresentadores.
+- Falas dos apresentadores e notas do orador, exportáveis em PDF, Word (.docx) ou texto.
+- Editor visual com assistente de edição por IA em linguagem natural.
+- Link público com modo tela cheia e contagem de visualizações; portfólio público opcional.
+- Créditos: 10 por slide, mais 10, 20 ou 30 pela profundidade do texto e 50 pelas falas. O custo aparece antes de gerar e volta se a geração falhar por problema da plataforma.
+- Preços (BRL): geração única R$ 14,90 (500 créditos permanentes); PRO a partir de R$ 34,90/mês (1.700 créditos por mês); MAX a partir de R$ 147,00/mês (uso ilimitado para uma pessoa, dentro da Política de Uso Justo). Cancelamento a qualquer momento e 7 dias para desistir com reembolso integral.
+- Privacidade: dados tratados conforme a LGPD; as apresentações não são usadas para treinar modelos de IA e ficam privadas até o usuário publicar.
+
+## Páginas principais
+
+- [Home](https://slideai.com.br/): visão geral do produto, recursos, casos de uso, preços e perguntas frequentes.
+- [Modelos de apresentação](https://slideai.com.br/templates): templates com estrutura slide a slide para começar mais rápido.
+- [Central de Ajuda](https://slideai.com.br/ajuda): guias sobre geração, edição, exportação, créditos, planos, conta e privacidade.
+- [Sobre](https://slideai.com.br/sobre): quem somos, como usamos a IA e nossos compromissos.
+- [Contato](https://slideai.com.br/contato): canais de atendimento.
+- [Termos de Uso](https://slideai.com.br/termos): créditos, planos, cancelamento, arrependimento, uso justo e conteúdo gerado por IA.
+- [Política de Privacidade](https://slideai.com.br/privacidade): dados tratados, bases legais da LGPD, fornecedores, retenção, cookies e direitos do titular.
+
+## Modelos de apresentação
+
+- [Pitch de Startup](https://slideai.com.br/templates/pitch-startup): Modelo de pitch deck para startup: estrutura de 12 slides.
+- [Apresentação Comercial SaaS](https://slideai.com.br/templates/vendas-saas): Apresentação comercial SaaS: modelo de 10 slides para reunião de vendas.
+- [Relatório Trimestral](https://slideai.com.br/templates/relatorio-trimestral): Apresentação de resultados trimestrais: modelo de relatório em 10 slides.
+- [Aula Expositiva](https://slideai.com.br/templates/aula-historia): Slides para aula: modelo de aula expositiva em 12 slides.
+- [Defesa de TCC/Tese](https://slideai.com.br/templates/tcc-defesa): Apresentação de TCC: modelo de slides para a defesa em 14 slides.
+- [Lançamento de Produto](https://slideai.com.br/templates/marketing-lancamento): Plano de lançamento de produto: modelo de apresentação go-to-market.
+- [Estratégia de Redes Sociais](https://slideai.com.br/templates/marketing-redes): Estratégia de redes sociais: modelo de apresentação do plano editorial.
+- [Workshop / Treinamento](https://slideai.com.br/templates/evento-workshop): Apresentação de workshop ou treinamento: modelo de 10 slides.
+- [Portfólio Profissional](https://slideai.com.br/templates/pessoal-portfolio): Portfólio profissional em slides: modelo de apresentação de carreira.
+- [Plano de Negócios](https://slideai.com.br/templates/negocios-plano): Plano de negócios em apresentação: modelo de 14 slides.
+- [Palestra / Keynote](https://slideai.com.br/templates/evento-palestra): Palestra ou keynote: modelo de apresentação inspiracional em 10 slides.
+- [CV Visual](https://slideai.com.br/templates/pessoal-curriculo): Currículo em slides (CV visual): modelo de 8 slides para entrevistas.
+
+## Guias mais úteis
+
+- [Como gerar uma apresentação, passo a passo](https://slideai.com.br/ajuda/como-gerar-apresentacao)
+- [Como escrever um bom tema](https://slideai.com.br/ajuda/escrever-bom-prompt)
+- [Quanto custa cada apresentação](https://slideai.com.br/ajuda/custo-por-apresentacao)
+- [Planos e preços](https://slideai.com.br/ajuda/planos-e-precos)
+- [Exportar em PDF ou PPTX](https://slideai.com.br/ajuda/exportar-pdf-pptx)
+- [Editar com o assistente de IA](https://slideai.com.br/ajuda/editar-com-ia-chat)
+
+## Optional
+
+- [Mapa do site](https://slideai.com.br/sitemap.xml): todas as páginas públicas, incluindo os artigos da Central de Ajuda.

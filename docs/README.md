@@ -10,6 +10,7 @@
 | [motor-v2/](motor-v2/) | Motor de geração v2: auditoria, prompt de implantação, resumo e como testar pelo Dev Mode |
 | [central-de-ajuda/](central-de-ajuda/README.md) | Como escrever, revisar e publicar artigos de ajuda |
 | [produto/plano-de-avisos-por-email.md](produto/plano-de-avisos-por-email.md) | Plano de avisos por e-mail: jornadas, catálogo, tom por perfil, links de pagamento e fases |
+| [seo/auditoria-2026-11.md](seo/auditoria-2026-11.md) | SEO: pré-renderização das páginas públicas, guias de templates, dados estruturados, resultados medidos e plano fora do código |
 
 ## Conformidade legal
 

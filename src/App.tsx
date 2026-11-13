@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { Loader2 } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +16,8 @@ import { SupportWidget } from "./components/SupportWidget";
 import { PaymentNotifications } from "./components/PaymentNotifications";
 import { LegalConsentGate } from "./components/legal/LegalConsentGate";
 import { AnalyticsTracker } from "./components/AnalyticsTracker";
+import { prerenderSnapshotFor } from "./lib/prerender";
+import { NoIndex } from "./components/NoIndex";
 
 // Páginas sob demanda: o pacote inicial levava as 25 páginas (editor,
 // exportações, gráficos, chat) até para quem só abria a home.
@@ -50,6 +52,7 @@ const SlideViewer = lazyPage(() => import("./pages/SlideViewer.tsx"));
 const Dashboard = lazyPage(() => import("./pages/Dashboard.tsx"));
 const Editor = lazyPage(() => import("./pages/Editor.tsx"));
 const Templates = lazyPage(() => import("./pages/Templates.tsx"));
+const TemplateGuide = lazyPage(() => import("./pages/TemplateGuide.tsx"));
 const DevDashboard = lazyPage(() => import("./pages/DevDashboard.tsx"));
 const AdminSupport = lazyPage(() => import("./pages/AdminSupport.tsx"));
 const HelpCenter = lazyPage(() => import("./pages/HelpCenter.tsx"));
@@ -66,11 +69,19 @@ const NotFound = lazyPage(() => import("./pages/NotFound.tsx"));
 const EmailPreferences = lazyPage(() => import("./pages/EmailPreferences.tsx"));
 const Success = lazyPage(() => import("./pages/Success.tsx"));
 
-const PageFallback = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Carregando" />
-  </div>
-);
+const PageFallback = () => {
+  // Primeira visita a uma página pública: mostra o HTML pré-renderizado (o
+  // mesmo que já estava na tela) enquanto o código da página carrega, em vez
+  // de trocar o conteúdo por um spinner.
+  const { pathname } = useLocation();
+  const prerendered = prerenderSnapshotFor(pathname);
+  if (prerendered) return <div data-prerender dangerouslySetInnerHTML={{ __html: prerendered }} />;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Carregando" />
+    </div>
+  );
+};
 
 const queryClient = new QueryClient();
 
@@ -88,8 +99,8 @@ const App = () => (
             <Suspense fallback={<PageFallback />}>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/auth" element={<><NoIndex /><Auth /></>} />
+              <Route path="/reset-password" element={<><NoIndex /><ResetPassword /></>} />
               <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
               <Route path="/gerar" element={<ProtectedRoute><Generate /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -103,19 +114,20 @@ const App = () => (
               <Route path="/ajuda" element={<HelpCenter />} />
               <Route path="/ajuda/:slug" element={<HelpArticle />} />
               <Route path="/templates" element={<Templates />} />
+              <Route path="/templates/:id" element={<TemplateGuide />} />
               <Route path="/sobre" element={<About />} />
               <Route path="/contato" element={<Contact />} />
               <Route path="/privacidade" element={<Privacy />} />
               <Route path="/termos" element={<Terms />} />
               <Route path="/termos-de-uso" element={<Navigate to="/termos" replace />} />
-              <Route path="/emails/preferencias" element={<EmailPreferences />} />
+              <Route path="/emails/preferencias" element={<><NoIndex /><EmailPreferences /></>} />
               <Route path="/sucesso" element={<Success />} />
               <Route path="/suceso" element={<Navigate to="/sucesso" replace />} />
               <Route path="/cookies" element={<Navigate to={{ pathname: "/privacidade", hash: "#cookies" }} replace />} />
               <Route path="/__dev" element={<ProtectedRoute><DevDashboard /></ProtectedRoute>} />
               <Route path="/admin/suporte" element={<ProtectedRoute><AdminSupport /></ProtectedRoute>} />
               <Route path="/slides/:slug" element={<SlideViewer />} />
-              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+              <Route path="/.lovable/oauth/consent" element={<><NoIndex /><OAuthConsent /></>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

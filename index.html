@@ -3,156 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
-    <title>SlideAI</title>
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="shortcut icon" href="/favicon.ico" />
-    <meta name="description" content="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis com design, imagens e gráficos, prontos para PowerPoint e PDF." />
+    <!--
+      Tags de SEO da página. No build, scripts/prerender.ts troca o bloco
+      seo:start/seo:end pelas tags do <Seo> de cada rota pública (título,
+      descrição, canonical, Open Graph e JSON-LD). No navegador, o Helmet
+      assume as tags marcadas com data-rh e as atualiza a cada navegação.
+      Estes valores são os da home e valem só no modo de desenvolvimento.
+    -->
+    <!--seo:start-->
+    <title data-rh="true">SlideAI: Gerador de Apresentações e Slides com IA</title>
+    <meta data-rh="true" name="description" content="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis, prontos para PowerPoint e PDF." />
+    <meta data-rh="true" property="og:site_name" content="SlideAI" />
+    <meta data-rh="true" property="og:locale" content="pt_BR" />
+    <meta data-rh="true" property="og:type" content="website" />
+    <meta data-rh="true" property="og:title" content="SlideAI: Gerador de Apresentações e Slides com IA" />
+    <meta data-rh="true" property="og:description" content="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis, prontos para PowerPoint e PDF." />
+    <meta data-rh="true" property="og:url" content="https://slideai.com.br/" />
+    <meta data-rh="true" property="og:image" content="https://slideai.com.br/og-image.png" />
+    <meta data-rh="true" property="og:image:width" content="1200" />
+    <meta data-rh="true" property="og:image:height" content="630" />
+    <meta data-rh="true" property="og:image:alt" content="SlideAI: crie apresentações com IA" />
+    <meta data-rh="true" name="twitter:card" content="summary_large_image" />
+    <meta data-rh="true" name="twitter:title" content="SlideAI: Gerador de Apresentações e Slides com IA" />
+    <meta data-rh="true" name="twitter:description" content="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis, prontos para PowerPoint e PDF." />
+    <meta data-rh="true" name="twitter:image" content="https://slideai.com.br/og-image.png" />
+    <!--seo:end-->
     <meta name="author" content="SlideAI" />
+    <meta name="application-name" content="SlideAI" />
+    <meta name="theme-color" content="#6C47FF" />
     <!-- Fallback: o host aplica os cabeçalhos reais via public/_headers. -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="google-site-verification" content="1lQ8meS7qWcDLrU-KDBjP4yE5KOum5GwXjbvtXO52wQ" />
 
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!--
+      Fontes da interface (Plus Jakarta Sans e Inter) direto no <head>: antes
+      vinham por @import no CSS, uma requisição encadeada que atrasava a
+      primeira pintura. As fontes dos temas de slide carregam só quando um
+      slide é renderizado (src/lib/slideFonts.ts).
+    -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- Prévia de links (WhatsApp, LinkedIn, X). Imagem própria em public/og-image.png (1200×630). -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="SlideAI" />
-    <meta property="og:locale" content="pt_BR" />
-    <meta property="og:url" content="https://slideai.com.br/" />
-    <meta property="og:title" content="SlideAI" />
-    <meta property="og:description" content="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis com design, imagens e gráficos, prontos para PowerPoint e PDF." />
-    <meta property="og:image" content="https://slideai.com.br/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="SlideAI: crie apresentações com IA" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SlideAI" />
-    <meta name="twitter:description" content="Crie apresentações profissionais com inteligência artificial em cerca de um minuto. Descreva o tema e receba slides editáveis com design, imagens e gráficos, prontos para PowerPoint e PDF." />
-    <meta name="twitter:image" content="https://slideai.com.br/og-image.png" />
-
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "WebSite",
-            "@id": "https://slideai.com.br/#website",
-            "name": "SlideAI",
-            "url": "https://slideai.com.br/",
-            "description": "Gerador de apresentações com inteligência artificial em português.",
-            "inLanguage": "pt-BR",
-            "publisher": {
-              "@id": "https://slideai.com.br/#organization"
-            }
-          },
-          {
-            "@type": "Organization",
-            "@id": "https://slideai.com.br/#organization",
-            "name": "SlideAI",
-            "url": "https://slideai.com.br/",
-            "logo": {
-              "@type": "ImageObject",
-              "url": "https://slideai.com.br/logo.png"
-            }
-          }
-        ]
-      }
-    </script>
-    <!-- Igual a src/components/landing/faqContent.ts (src/test/landingSeo.test.ts confere). -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "@id": "https://slideai.com.br/#faq",
-        "inLanguage": "pt-BR",
-        "isPartOf": {
-          "@id": "https://slideai.com.br/#website"
-        },
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Como a IA gera as apresentações?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Você descreve o tema e algumas preferências (número de slides, tipo, idioma, profundidade do texto). A IA estrutura a narrativa, escreve cada slide, escolhe imagens e cria gráficos quando o conteúdo tem dados. Revise sempre o resultado: textos gerados por IA podem conter imprecisões."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso editar as apresentações depois?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sim. O editor permite mudar textos, imagens, layout, elementos visuais, animações e a ordem dos slides, além de adicionar ou remover slides. Você também pode pedir ajustes em linguagem natural ao assistente de edição."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Em quais formatos posso exportar?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "PowerPoint (.pptx), PDF, imagem PNG do slide exibido e link público para apresentar em qualquer dispositivo. Com as falas dos apresentadores ativadas, o roteiro também sai em PDF, Word (.docx) ou texto."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Como funcionam os créditos?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Cada apresentação custa 10 créditos por slide, mais a profundidade do texto (curto 10, equilibrado 20, longo 30) e 50 se você ativar as falas dos apresentadores. O custo aparece antes de gerar, e se a geração falhar por um problema nosso os créditos voltam automaticamente."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso cancelar a assinatura quando quiser?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sim, sem multa. Os planos PRO e MAX podem ser cancelados a qualquer momento: a renovação para e você mantém o acesso até o fim do período já pago. Depois disso, suas apresentações saem do ar e podem ser restauradas por 30 dias, reativando um plano ou comprando créditos."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Por quanto tempo minhas apresentações ficam no ar?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Com um plano PRO ou MAX ativo, todas ficam no ar enquanto o plano durar. Com créditos avulsos, cada apresentação fica no ar por 3 meses depois de gerada, e cada nova compra renova o prazo de todas. Se o plano terminar, for reembolsado ou a renovação não for paga, elas saem do ar (links e portfólio deixam de abrir) e podem ser restauradas por 30 dias; depois disso, são excluídas de vez."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "E se eu me arrepender da compra?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Você tem 7 dias corridos, contados da compra, para desistir e receber o reembolso integral, como prevê o Código de Defesa do Consumidor. Basta falar com o suporte; os créditos daquela compra são cancelados."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "O plano MAX é mesmo ilimitado?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "É de uso ilimitado para uma pessoa, dentro da Política de Uso Justo: até 8.500 créditos por ciclo mensal (5x o PRO, cerca de 50 apresentações de 10 slides com falas) e 12 gerações por hora. Os detalhes estão nos Termos de Uso."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "De quem é o conteúdo das apresentações?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "O conteúdo que você envia continua seu, e você pode usar livremente o que gerar, inclusive comercialmente, respeitando os Termos de Uso e os direitos de terceiros. Suas apresentações são privadas até você decidir publicá-las."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Meus dados estão protegidos?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sim. Tratamos os dados conforme a LGPD, não vendemos dados pessoais e não usamos suas apresentações para treinar modelos de IA. Você pode pedir acesso, correção ou exclusão dos seus dados a qualquer momento. Veja a Política de Privacidade."
-            }
-          }
-        ]
-      }
-    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" />
   </head>
 
   <body>

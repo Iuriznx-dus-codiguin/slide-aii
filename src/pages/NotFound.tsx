@@ -2,22 +2,19 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
+import { Seo } from "@/components/Seo";
 
 const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-    document.title = "Página não encontrada — SlideAI";
-    const meta = Object.assign(document.createElement("meta"), { name: "robots", content: "noindex, follow" });
-    meta.setAttribute("data-dynamic", "true");
-    document.head.appendChild(meta);
-    return () => meta.remove();
   }, [location.pathname]);
 
   // Mesma identidade visual do restante do site, com saídas claras.
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-subtle px-4 py-12">
+      <Seo title="Página não encontrada | SlideAI" description="O endereço pode estar incorreto ou a página foi movida." path={location.pathname} noindex />
       <div className="w-full max-w-md text-center">
         <Link to="/" className="mb-8 inline-flex" aria-label="SlideAI, página inicial">
           <BrandLogo size={40} />

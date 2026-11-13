@@ -4,21 +4,27 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent } from "@/components/ui/card";
+import { ORGANIZATION_ID, absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
 
 const SUPPORT_EMAIL = "suporte@slideai.com.br";
 
 const Contact = () => (
   <div className="min-h-screen flex flex-col bg-background">
     <Seo
-      title="Contato — fale com o time do SlideAI"
+      title="Contato e Suporte | SlideAI"
       description="Precisa de ajuda com o SlideAI? Fale com o suporte por e-mail, pelo chat com IA dentro da plataforma ou consulte a Central de Ajuda."
       path="/contato"
-      jsonLd={{
-        "@context": "https://schema.org",
-        "@type": "ContactPage",
-        name: "Contato SlideAI",
-        url: "https://slideai.com.br/contato",
-      }}
+      jsonLd={[
+        {
+          "@context": "https://schema.org",
+          "@type": "ContactPage",
+          name: "Contato SlideAI",
+          url: absoluteUrl("/contato"),
+          inLanguage: "pt-BR",
+          about: { "@id": ORGANIZATION_ID },
+        },
+        { "@context": "https://schema.org", ...breadcrumbJsonLd([{ name: "Contato", path: "/contato" }]) },
+      ]}
     />
     <Navbar />
     <main className="flex-1 pt-28 pb-20">

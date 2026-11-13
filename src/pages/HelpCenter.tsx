@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Search, ArrowLeft, BookOpen, LifeBuoy, ChevronRight, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { Seo } from "@/components/Seo";
 import { FEATURED_HELP_SLUGS, HELP_CATEGORY_META, HELP_CATEGORY_ORDER, helpCategoryLabel } from "@/lib/helpCategories";
 import { FileText, ShieldCheck, Scale } from "lucide-react";
+import { usePrerenderData } from "@/lib/prerender";
+import { absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
 
 interface Article {
   id: string;
@@ -19,12 +21,24 @@ interface Article {
   category: string | null;
   content_md: string;
   keywords: string[] | null;
-  updated_at: string;
+  updated_at?: string | null;
+}
+
+/**
+ * Dados embutidos no HTML pré-renderizado da Central (scripts/prerender.ts):
+ * a lista de artigos com o começo do texto (para os resumos dos cards).
+ */
+export interface HelpCenterSeed {
+  articles: Article[];
 }
 
 const HelpCenter = () => {
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { pathname } = useLocation();
+  // Primeira visita vinda do HTML pré-renderizado: a lista já aparece pronta e
+  // a versão publicada (com o texto completo, para a busca) chega em seguida.
+  const seed = usePrerenderData<HelpCenterSeed>("helpCenter", pathname);
+  const [articles, setArticles] = useState<Article[]>(seed?.articles ?? []);
+  const [loading, setLoading] = useState(!seed);
   const [search, setSearch] = useState("");
   const [isTouch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const [category, setCategory] = useState<string>("all");
@@ -38,7 +52,8 @@ const HelpCenter = () => {
         .eq("is_published", true)
         .order("category", { ascending: true })
         .order("title", { ascending: true });
-      setArticles((data as Article[]) ?? []);
+      // Falha de rede: mantém a lista pré-renderizada, se houver.
+      setArticles((prev) => (data as Article[] | null) ?? prev);
       setLoading(false);
     })();
   }, []);
@@ -80,9 +95,29 @@ const HelpCenter = () => {
   return (
     <div className="min-h-screen bg-background">
       <Seo
-        title="Central de Ajuda do SlideAI — tutoriais e guias"
-        description="Tutoriais, guias e respostas sobre créditos, geração de slides, edição com IA, exportação e assinatura do SlideAI."
+        title="Central de Ajuda do SlideAI: Tutoriais e Guias"
+        description="Tutoriais, guias e respostas sobre como criar slides com IA no SlideAI: geração, edição, exportação em PowerPoint e PDF, créditos, planos e conta."
         path="/ajuda"
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            name: "Central de Ajuda do SlideAI",
+            url: absoluteUrl("/ajuda"),
+            inLanguage: "pt-BR",
+            mainEntity: {
+              "@type": "ItemList",
+              numberOfItems: articles.length,
+              itemListElement: articles.map((a, i) => ({
+                "@type": "ListItem",
+                position: i + 1,
+                name: a.title,
+                url: absoluteUrl(`/ajuda/${a.slug}`),
+              })),
+            },
+          },
+          { "@context": "https://schema.org", ...breadcrumbJsonLd([{ name: "Central de Ajuda", path: "/ajuda" }]) },
+        ]}
       />
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">

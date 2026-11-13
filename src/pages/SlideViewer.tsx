@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Share2, Copy, Sparkles
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SlideRenderer } from "@/components/SlideRenderer";
+import { Seo } from "@/components/Seo";
+import { absoluteUrl, truncateDescription } from "@/lib/seo";
 import { SlideStage } from "@/components/SlideStage";
 import { ExportMenu, type ExportDeck } from "@/components/ExportMenu";
 import { CinematicHUD, actForSlide, type NarrativeAct } from "@/components/CinematicHUD";
@@ -57,7 +59,6 @@ const SlideViewer = () => {
       const unavailable = data as unknown as { unavailable?: boolean; is_owner?: boolean; presentation?: { title?: string; purge_at?: string } | null } | null;
       if (unavailable?.unavailable) {
         setOffline({ isOwner: !!unavailable.is_owner, title: unavailable.presentation?.title, purgeAt: unavailable.presentation?.purge_at });
-        document.title = "Apresentação indisponível — SlideAI";
         setLoading(false);
         return;
       }
@@ -65,7 +66,6 @@ const SlideViewer = () => {
       const p = deck?.presentation;
       if (!p) { setLoading(false); return; }
       setPres({ ...p, presenters_names: Array.isArray(p.presenters_names) ? p.presenters_names : [] });
-      document.title = `${p.title} — SlideAI`;
       setSlides((deck.slides ?? []).map((row) => ({ ...row, presenters_data: Array.isArray(row.presenters_data) ? row.presenters_data : [] })));
       setLoading(false);
       // O servidor só conta deck publicado, sem o dono e sem repetir o visitante.
@@ -244,9 +244,16 @@ const SlideViewer = () => {
   }, [autoPrint, loading, slides.length]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-  if (offline) return <PresentationOffline isOwner={offline.isOwner} title={offline.title} purgeAt={offline.purgeAt} />;
+  // Fora do ar ou inexistente: noindex (a página não tem conteúdo para os buscadores).
+  if (offline) return (
+    <>
+      <Seo title="Apresentação indisponível | SlideAI" description="Esta apresentação está fora do ar no momento." path={`/slides/${slug ?? ""}`} noindex />
+      <PresentationOffline isOwner={offline.isOwner} title={offline.title} purgeAt={offline.purgeAt} />
+    </>
+  );
   if (!pres) return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-background">
+      <Seo title="Apresentação não encontrada | SlideAI" description="O link pode estar incorreto, ou o autor deixou a apresentação privada." path={`/slides/${slug ?? ""}`} noindex />
       <div className="text-center">
         <h1 className="font-display text-3xl font-bold">Apresentação não encontrada</h1>
         <p className="text-muted-foreground mt-2">O link pode estar incorreto, ou o autor deixou a apresentação privada.</p>
@@ -260,8 +267,28 @@ const SlideViewer = () => {
   // Bloco 12: dynamic_theme vive em pres.dynamic_theme; fallback p/ slides legados
   const dynamicTheme = pres?.dynamic_theme ?? current?.content?.dynamic_theme ?? slides[0]?.content?.dynamic_theme ?? null;
 
+  // Publicada: pode ser indexada (Termos, cláusula 12.1). Privada (o dono vendo a própria): noindex.
+  const seoDescription = truncateDescription(
+    pres.description?.trim() || `Apresentação "${pres.title}" com ${slides.length} slides, criada com o SlideAI. Assista online em qualquer dispositivo.`,
+  );
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col select-none">
+      <Seo
+        title={`${pres.title} | SlideAI`}
+        description={seoDescription}
+        path={`/slides/${pres.slug || slug}`}
+        type="article"
+        noindex={!pres.is_published}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "PresentationDigitalDocument",
+          name: pres.title,
+          description: seoDescription,
+          url: absoluteUrl(`/slides/${pres.slug || slug}`),
+          inLanguage: "pt-BR",
+        }}
+      />
       {/* Progress bar */}
       <div
         className={`fixed top-0 left-0 right-0 h-1 bg-white/10 z-50 transition-opacity ${hideUI ? "opacity-0" : "opacity-100"}`}

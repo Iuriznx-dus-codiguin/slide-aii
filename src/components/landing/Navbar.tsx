@@ -18,11 +18,14 @@ export const Navbar = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // Âncoras com "/" na frente: a Navbar também aparece em /templates, /sobre e
+  // nas páginas legais, onde "#how" sozinho apontava para uma seção inexistente.
   const links = [
-    { href: "#how", label: "Como funciona", to: null },
-    { href: "#features", label: "Recursos", to: null },
-    { href: "#pricing", label: "Preços", to: null },
-    { href: "#faq", label: "FAQ", to: null },
+    { href: "/#how", label: "Como funciona", to: null },
+    { href: "/#features", label: "Recursos", to: null },
+    { href: "/templates", label: "Templates", to: "/templates" },
+    { href: "/#pricing", label: "Preços", to: null },
+    { href: "/ajuda", label: "Ajuda", to: "/ajuda" },
   ];
 
   return (
@@ -31,7 +34,7 @@ export const Navbar = () => {
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-border/40"
     >
       <nav className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-        <Link to="/" className="group transition-transform group-hover:scale-105">
+        <Link to="/" className="group transition-transform group-hover:scale-105" aria-label="SlideAI, página inicial">
           <BrandLogo size={36} />
         </Link>
 

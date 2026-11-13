@@ -47,6 +47,8 @@ npm run lint       # eslint
 npm run build      # build de produção
 ```
 
+O build também pré-renderiza as páginas públicas (home, templates, Central de Ajuda, páginas institucionais) em HTML estático para buscadores e prévias de redes sociais: veja [docs/seo/auditoria-2026-11.md](docs/seo/auditoria-2026-11.md).
+
 Depois de `npm run build`, confira se `supabase/functions/mcp/index.ts` mudou: o build o regenera com a versão instalada de `@lovable.dev/mcp-js`. Se a versão local for diferente da do lockfile, descarte a alteração (`git checkout -- supabase/functions/mcp/index.ts`).
 
 Suítes que protegem regras de negócio e conformidade:
@@ -59,7 +61,9 @@ Suítes que protegem regras de negócio e conformidade:
 | `src/test/catalogParity.test.ts` | Paridade de catálogos entre o motor (Deno) e o renderizador (Vite) |
 | `src/test/editorIntegrity.test.tsx` | Editor com Supabase simulado: saves em fila, erro de exclusão, lixeira, troca de apresentação |
 | `src/test/aiEditMerge.test.ts` | Resposta do chat de edição aplicada só nos slides alterados, sobre o deck atual |
-| `src/test/landingSeo.test.tsx` | FAQ do `index.html` igual ao da página; estimativa do PRO derivada (AGENTS.md) |
+| `src/test/landingSeo.test.tsx` | Sem promessas antigas na home; estimativa do PRO derivada (AGENTS.md) |
+| `src/test/prerender.test.tsx` | Páginas públicas pré-renderizadas: título, descrição, canonical, um h1, JSON-LD válido, FAQ igual ao da página, títulos e descrições únicos |
+| `src/test/templateGuides.test.ts`, `src/test/seoFiles.test.ts` | Guias dos templates (estrutura = número de slides, limites de título e descrição); `robots.txt`, `sitemap.xml` e `llms.txt` |
 | `src/test/safeRedirect.test.ts`, `src/test/analyticsSafePage.test.ts` | Destino pós-login só no próprio site; nada pessoal na URL enviada ao Google |
 
 Os dois `*.e2e.test.ts` dependem de variáveis de ambiente de um projeto real e rodam só com `npm run test:e2e`.

@@ -59,8 +59,8 @@ const Terms = () => {
   return (
     <LegalLayout
       title="Termos de Uso"
-      seoTitle="Termos de Uso — SlideAI"
-      description="Condições de uso do SlideAI: créditos, planos, renovação, cancelamento, direito de arrependimento, uso justo, conteúdo gerado por IA, propriedade intelectual e responsabilidades."
+      seoTitle="Termos de Uso | SlideAI"
+      description="Termos de Uso do SlideAI: créditos, planos, renovação, cancelamento, direito de arrependimento, uso justo, conteúdo gerado por IA e responsabilidades."
       path="/termos"
       version={LEGAL.termsVersion}
       effectiveDate={LEGAL.termsEffectiveDateLabel}

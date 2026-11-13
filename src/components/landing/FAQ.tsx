@@ -25,7 +25,8 @@ export const FAQ = () => {
                 <AccordionTrigger className="text-left font-display font-semibold text-base hover:no-underline py-4">
                   {f.q}
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground leading-relaxed pb-5">
+                {/* forceMount: as respostas ficam no HTML (fechadas com o atributo hidden) para buscadores e leitores sem JavaScript. */}
+                <AccordionContent forceMount className="text-muted-foreground leading-relaxed pb-5">
                   {f.a}
                 </AccordionContent>
               </AccordionItem>

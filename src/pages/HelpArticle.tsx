@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowLeft, BookOpen, LifeBuoy, Copy, Check, AlertTriangle, ChevronRight } from "lucide-react";
@@ -12,16 +12,25 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Seo } from "@/components/Seo";
 import { helpCategoryLabel } from "@/lib/helpCategories";
+import { usePrerenderData } from "@/lib/prerender";
+import { LOGO_URL, ORGANIZATION_ID, SITE_NAME, absoluteUrl, breadcrumbJsonLd, summarizeMarkdown } from "@/lib/seo";
 import creationFormAsset from "@/assets/guide-creation-form.png.asset.json";
 
-interface Article {
+export interface Article {
   id: string;
   slug: string;
   title: string;
   category: string | null;
   content_md: string;
   keywords: string[] | null;
-  updated_at: string;
+  /** Ausente no HTML pré-renderizado quando o build não sabe a data. */
+  updated_at?: string | null;
+}
+
+/** Dados embutidos no HTML pré-renderizado do artigo (scripts/prerender.ts). */
+export interface HelpArticleSeed {
+  article: Article;
+  related: Article[];
 }
 
 interface RelatedError {
@@ -33,11 +42,15 @@ interface RelatedError {
 
 const HelpArticle = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [article, setArticle] = useState<Article | null>(null);
-  const [related, setRelated] = useState<Article[]>([]);
+  // Primeira visita vinda do HTML pré-renderizado: começa com o artigo já na
+  // tela e busca a versão publicada em seguida (sem esqueleto piscando).
+  const seed = usePrerenderData<HelpArticleSeed>("helpArticle", pathname);
+  const [article, setArticle] = useState<Article | null>(seed?.article ?? null);
+  const [related, setRelated] = useState<Article[]>(seed?.related ?? []);
   const [errors, setErrors] = useState<RelatedError[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!seed);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   // Voto anônimo (um por pessoa, artigo e dia); a equipe vê o resumo no /__dev.
@@ -48,16 +61,18 @@ const HelpArticle = () => {
 
   useEffect(() => {
     if (!slug) return;
-    setLoading(true);
+    if (!seed) setLoading(true);
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("help_articles")
         .select("*")
         .eq("slug", slug)
         .eq("is_published", true)
         .maybeSingle();
 
-      if (!data) { setLoading(false); return; }
+      // Falha de rede: mantém o artigo pré-renderizado (se for o desta rota).
+      // Resposta vazia: o artigo não está publicado, então "não encontrado".
+      if (!data) { if (!(error && seed)) setArticle(null); setLoading(false); return; }
       setArticle(data as Article);
 
       // Buscar erros que referenciam esse artigo
@@ -76,11 +91,13 @@ const HelpArticle = () => {
           .eq("is_published", true)
           .eq("category", data.category)
           .neq("slug", slug)
+          .order("title", { ascending: true })
           .limit(5);
         setRelated((rel as Article[]) ?? []);
       }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- o seed só vale para a primeira rota
   }, [slug]);
 
   const copyLink = async () => {
@@ -90,29 +107,45 @@ const HelpArticle = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const summary = article ? stripMd(article.content_md).slice(0, 155) : "";
+  const summary = article ? summarizeMarkdown(article.content_md, 155) : "";
+  const articlePath = article ? `/ajuda/${article.slug}` : `/ajuda/${slug ?? ""}`;
 
   return (
     <div className="min-h-screen bg-background">
       {article && (
         <Seo
-          title={`${article.title} — Central de Ajuda SlideAI`}
+          title={`${article.title} | Central de Ajuda SlideAI`}
           description={summary}
-          path={`/ajuda/${article.slug}`}
+          path={articlePath}
           type="article"
-          jsonLd={{
-            "@context": "https://schema.org",
-            "@type": "Article",
-            headline: article.title,
-            description: summary,
-            articleSection: article.category ? helpCategoryLabel(article.category) : undefined,
-            dateModified: article.updated_at,
-            inLanguage: "pt-BR",
-            mainEntityOfPage: `https://slideai.com.br/ajuda/${article.slug}`,
-            author: { "@type": "Organization", name: "SlideAI" },
-            publisher: { "@type": "Organization", name: "SlideAI" },
-          }}
+          modifiedTime={article.updated_at ?? undefined}
+          jsonLd={[
+            {
+              "@context": "https://schema.org",
+              "@type": "Article",
+              headline: article.title,
+              description: summary,
+              articleSection: article.category ? helpCategoryLabel(article.category) : undefined,
+              keywords: article.keywords?.join(", ") || undefined,
+              ...(article.updated_at ? { dateModified: article.updated_at } : {}),
+              inLanguage: "pt-BR",
+              image: absoluteUrl("/og-image.png"),
+              mainEntityOfPage: absoluteUrl(articlePath),
+              author: { "@type": "Organization", "@id": ORGANIZATION_ID, name: SITE_NAME },
+              publisher: { "@type": "Organization", "@id": ORGANIZATION_ID, name: SITE_NAME, logo: { "@type": "ImageObject", url: LOGO_URL } },
+            },
+            {
+              "@context": "https://schema.org",
+              ...breadcrumbJsonLd([
+                { name: "Central de Ajuda", path: "/ajuda" },
+                { name: article.title, path: articlePath },
+              ]),
+            },
+          ]}
         />
+      )}
+      {!loading && !article && (
+        <Seo title="Artigo não encontrado | SlideAI" description="O artigo pode ter sido movido ou removido da Central de Ajuda do SlideAI." path={articlePath} noindex />
       )}
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
@@ -159,9 +192,11 @@ const HelpArticle = () => {
               <div className="min-w-0">
                 {article.category && <Badge variant="secondary" className="mb-3">{helpCategoryLabel(article.category)}</Badge>}
                 <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight">{article.title}</h1>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Atualizado em {new Date(article.updated_at).toLocaleDateString("pt-BR")}
-                </p>
+                {article.updated_at && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Atualizado em <time dateTime={article.updated_at}>{new Date(article.updated_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</time>
+                  </p>
+                )}
               </div>
               <Button variant="outline" size="sm" onClick={copyLink} className="self-start shrink-0">
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -265,9 +300,5 @@ const HelpArticle = () => {
     </div>
   );
 };
-
-function stripMd(md: string): string {
-  return md.replace(/[#*_`>\-]/g, "").replace(/\s+/g, " ").trim();
-}
 
 export default HelpArticle;
