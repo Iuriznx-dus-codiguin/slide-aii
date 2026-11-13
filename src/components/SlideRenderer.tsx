@@ -45,6 +45,10 @@ import { INTENT_FOR_MOTION, LEGACY_PRESET_FOR_MOTION, type MotionSpec } from "..
 import {
   chartHighlight, chartSummary, formatChartValue, sanitizeChart, type ChartSpec,
 } from "../../supabase/functions/_shared/chartSpec.ts";
+import { ensureSlideFonts } from "@/lib/slideFonts";
+
+// Fontes dos temas: carregam junto com o renderizador, antes do primeiro slide.
+ensureSlideFonts();
 
 /** Espelha o enum image_style da tool create_presentation (generate-presentation). */
 export type ImageStyle =

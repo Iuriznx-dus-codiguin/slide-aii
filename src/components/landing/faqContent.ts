@@ -1,8 +1,7 @@
-// Perguntas frequentes da home. O index.html repete estas perguntas no
-// JSON-LD (FAQPage) para buscadores que não executam JavaScript; o teste
-// src/test/landingSeo.test.ts garante que os dois textos sejam iguais — e,
-// como os números vêm das constantes de cobrança, falha se um preço ou limite
-// mudar sem o index.html acompanhar.
+// Perguntas frequentes da home. O JSON-LD (FAQPage) da home é gerado a partir
+// desta lista (src/pages/Index.tsx) e sai no HTML pré-renderizado, então
+// página e dados estruturados nunca divergem; os números vêm das constantes
+// de cobrança.
 import {
   CREDITS_PER_SLIDE, DEPTH_CREDITS, MAX_USAGE_MULTIPLIER, PLAN_MONTHLY_CREDITS, SPEECHES_CREDITS, estimatedDecks,
 } from "@/lib/cakto";
@@ -12,6 +11,10 @@ const fmt = (n: number) => n.toLocaleString("pt-BR");
 const MAX_CREDITS = PLAN_MONTHLY_CREDITS.max_mensal;
 
 export const LANDING_FAQS: { q: string; a: string }[] = [
+  {
+    q: "O que é o SlideAI?",
+    a: "O SlideAI é uma plataforma brasileira que cria apresentações com inteligência artificial. Você descreve o tema em português, inglês ou espanhol e recebe, em cerca de um minuto, de 5 a 20 slides com roteiro, layout, imagens e gráficos, prontos para editar, apresentar por link ou exportar em PowerPoint e PDF.",
+  },
   {
     q: "Como a IA gera as apresentações?",
     a: "Você descreve o tema e algumas preferências (número de slides, tipo, idioma, profundidade do texto). A IA estrutura a narrativa, escreve cada slide, escolhe imagens e cria gráficos quando o conteúdo tem dados. Revise sempre o resultado: textos gerados por IA podem conter imprecisões.",

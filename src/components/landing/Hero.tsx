@@ -15,42 +15,36 @@ export const Hero = () => {
 
       <div className="container relative mx-auto px-4 sm:px-6">
         <div className="mx-auto max-w-4xl text-center">
-          <motion.div
-            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+          {/*
+            Textos do topo sem animação de entrada: a página chega pré-renderizada
+            (scripts/prerender.ts) e o título é o maior elemento da primeira tela
+            (LCP). Com opacity 0 no início, ele só aparecia depois do JavaScript.
+          */}
+          <div
             className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-6"
           >
             <Sparkles className="h-3.5 w-3.5" />
             Powered By GPT-6 Astra
-          </motion.div>
+          </div>
 
-          <motion.h1
-            initial={reducedMotion ? false : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+          <h1
             className="font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.05]"
           >
             Crie apresentações{" "}
             <span className="text-gradient">incríveis</span>
             <br />
             com IA
-          </motion.h1>
+          </h1>
 
-          <motion.p
-            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.2 }}
+          <p
             className="mt-4 text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
           >
-            Descreva seu tema e deixe a inteligência artificial gerar slides profissionais,
-            com design impecável, gráficos e imagens. Pronto em cerca de um minuto.
-          </motion.p>
+            Descreva seu tema em português e deixe a inteligência artificial gerar slides profissionais,
+            com design impecável, gráficos e imagens. Pronto em cerca de um minuto para editar,
+            apresentar ou exportar em PowerPoint e PDF.
+          </p>
 
-          <motion.div
-            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
+          <div
             className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center"
           >
             {/* asChild: o link é o próprio botão (antes <a><button>, dois alvos de foco aninhados). */}
@@ -63,22 +57,18 @@ export const Hero = () => {
             <Button asChild variant="outline" size="xl" className="w-full sm:w-auto px-5 sm:px-9">
               <a href="#how">Ver como funciona</a>
             </Button>
-          </motion.div>
+          </div>
 
-          <motion.p
-            initial={reducedMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-            className="mt-4 text-xs text-muted-foreground"
-          >
+          <p className="mt-4 text-xs text-muted-foreground">
             Pagamento seguro · Cancele quando quiser · 7 dias para desistir
-          </motion.p>
+          </p>
         </div>
 
         {/* Hero mockup */}
         <motion.div
-          initial={reducedMotion ? false : { opacity: 0, y: 24, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          // Só movimento (sem opacity 0): a imagem do mockup também conta para o LCP.
+          initial={reducedMotion ? false : { y: 24, scale: 0.98 }}
+          animate={{ y: 0, scale: 1 }}
           transition={{ duration: 0.55, delay: 0.15, ease: [0.19, 1, 0.22, 1] }}
           className="relative mt-8 sm:mt-10 lg:mt-12 mx-auto max-w-5xl"
         >

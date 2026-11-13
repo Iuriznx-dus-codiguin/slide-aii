@@ -2,13 +2,23 @@ import { Link } from "react-router-dom";
 import { BrandLogo } from "@/components/BrandLogo";
 import { LEGAL, supplierLines } from "@/lib/legal";
 
+// Links para os guias de modelo mais buscados: ajudam visitantes e buscadores
+// a chegar às páginas de cada template a partir de qualquer página.
+const POPULAR_TEMPLATES = [
+  { to: "/templates/tcc-defesa", label: "Apresentação de TCC" },
+  { to: "/templates/pitch-startup", label: "Pitch deck" },
+  { to: "/templates/aula-historia", label: "Slides para aula" },
+  { to: "/templates/negocios-plano", label: "Plano de negócios" },
+  { to: "/templates/vendas-saas", label: "Apresentação comercial" },
+];
+
 export const Footer = () => {
   const supplier = supplierLines();
   return (
     <footer className="border-t border-border bg-card/50">
       <div className="container mx-auto px-4 sm:px-6 py-10 sm:py-12">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8">
-          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-8">
+          <div className="col-span-2 sm:col-span-4 lg:col-span-2">
             <div className="mb-4">
               <BrandLogo size={36} />
             </div>
@@ -30,6 +40,15 @@ export const Footer = () => {
               <li><a href="/#pricing" className="hover:text-foreground transition-colors">Preços</a></li>
               <li><Link to="/gerar" className="hover:text-foreground transition-colors">Criar apresentação</Link></li>
               <li><Link to="/templates" className="hover:text-foreground transition-colors">Templates</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="font-display font-bold mb-4 text-base">Modelos</h2>
+            <ul className="space-y-2.5 text-sm text-muted-foreground [@media(pointer:coarse)]:space-y-0 [@media(pointer:coarse)]:[&_a]:inline-flex [@media(pointer:coarse)]:[&_a]:min-h-11 [@media(pointer:coarse)]:[&_a]:items-center">
+              {POPULAR_TEMPLATES.map((t) => (
+                <li key={t.to}><Link to={t.to} className="hover:text-foreground transition-colors">{t.label}</Link></li>
+              ))}
             </ul>
           </div>
 

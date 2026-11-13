@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
+import { prerenderPlugin } from "./scripts/prerender";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -13,7 +14,8 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger(), mcpPlugin()].filter(Boolean),
+  // prerenderPlugin: HTML estático das páginas públicas no build (SEO); veja scripts/prerender.ts.
+  plugins: [react(), mode === "development" && componentTagger(), mcpPlugin(), prerenderPlugin()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

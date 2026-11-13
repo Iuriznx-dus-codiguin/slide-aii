@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
@@ -12,6 +14,7 @@ const cases = [
     title: "Defesas e seminários impecáveis",
     desc: "TCC, dissertações e artigos viram apresentações estruturadas, com gráficos de dados e narrativa clara.",
     bullets: ["Estrutura acadêmica automática", "Falas do apresentador", "Gráficos a partir de dados"],
+    link: { to: "/templates/tcc-defesa", label: "Modelo de apresentação de TCC" },
   },
   {
     id: "school",
@@ -20,6 +23,7 @@ const cases = [
     title: "Trabalhos escolares em minutos",
     desc: "Estudantes e professores criam aulas e trabalhos visuais e divertidos sem perder horas no PowerPoint.",
     bullets: ["Linguagem adaptada à idade", "Imagens ilustrativas", "Layouts coloridos"],
+    link: { to: "/templates/aula-historia", label: "Modelo de slides para aula" },
   },
   {
     id: "corporate",
@@ -28,6 +32,7 @@ const cases = [
     title: "Reuniões corporativas afiadas",
     desc: "Relatórios, kickoffs e revisões trimestrais com dados, KPIs e visual profissional e consistente.",
     bullets: ["Tom executivo", "Dashboards integrados", "Paleta corporativa"],
+    link: { to: "/templates/relatorio-trimestral", label: "Modelo de relatório trimestral" },
   },
   {
     id: "marketing",
@@ -36,6 +41,7 @@ const cases = [
     title: "Campanhas que convertem",
     desc: "Planos de campanha, relatórios de mídia e propostas comerciais com storytelling persuasivo e design vibrante.",
     bullets: ["Storytelling de vendas", "Métricas em destaque", "CTAs claros"],
+    link: { to: "/templates/marketing-lancamento", label: "Modelo de plano de lançamento" },
   },
   {
     id: "creative",
@@ -44,6 +50,7 @@ const cases = [
     title: "Portfólios e ideias com identidade",
     desc: "Portfólios, moodboards e apresentações autorais com composições ousadas, texturas e estilos visuais variados.",
     bullets: ["Estilos visuais variados", "Composições ousadas", "Temas inteligentes"],
+    link: { to: "/templates/pessoal-portfolio", label: "Modelo de portfólio profissional" },
   },
   {
     id: "scientific",
@@ -52,6 +59,7 @@ const cases = [
     title: "Pesquisas com rigor visual",
     desc: "Congressos, pôsteres e resultados de pesquisa com dados organizados, citações e leitura objetiva.",
     bullets: ["Dados e gráficos claros", "Estrutura científica", "Leitura objetiva"],
+    link: { to: "/ajuda/graficos-e-dados", label: "Como usar gráficos e dados nos slides" },
   },
   {
     id: "pitch",
@@ -60,6 +68,7 @@ const cases = [
     title: "Pitches que conquistam investidores",
     desc: "Decks de captação e propostas com narrativa enxuta: problema, solução, mercado, tração e pedido.",
     bullets: ["Narrativa de captação", "Métricas de tração", "Fechamento com CTA"],
+    link: { to: "/templates/pitch-startup", label: "Modelo de pitch deck para startup" },
   },
 ];
 
@@ -156,6 +165,11 @@ export const UseCases = () => {
                     </motion.li>
                   ))}
                 </ul>
+                <motion.div variants={itemVariants} className="mt-6">
+                  <Link to={current.link.to} className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline underline-offset-4 [@media(pointer:coarse)]:min-h-11">
+                    {current.link.label} <ArrowRight className="h-4 w-4" aria-hidden />
+                  </Link>
+                </motion.div>
               </div>
 
               <motion.div variants={cardVariants} className="relative aspect-video rounded-2xl bg-gradient-card border border-border overflow-hidden p-5 sm:p-8 flex flex-col justify-center shadow-elegant">

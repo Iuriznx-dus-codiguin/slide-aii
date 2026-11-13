@@ -1,16 +1,33 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# robots.txt do SlideAI
+#
+# Um único grupo para todos os robôs: um grupo com nome próprio (ex.:
+# "User-agent: Googlebot") faria esse robô ignorar as regras de "*".
+#
+# Bloqueadas: áreas logadas, de pagamento e de conta, que não têm conteúdo
+# público (e já levam noindex). Liberadas: a home, os templates, a Central de
+# Ajuda, as páginas institucionais e o que o usuário publica (/slides/… e
+# /u/…), que os Termos de Uso preveem que pode ser indexado.
+#
+# Buscadores de IA (OAI-SearchBot e ChatGPT-User, Claude-SearchBot,
+# PerplexityBot, Google-Extended) seguem este mesmo grupo: o site aparece nas
+# respostas desses assistentes. Para não ceder conteúdo ao treinamento de
+# modelos, acrescente um grupo "Disallow: /" para GPTBot, ClaudeBot ou CCBot.
 
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /editor/
+Disallow: /gerar
+Disallow: /onboarding
+Disallow: /perfil
+Disallow: /settings
+Disallow: /suporte
+Disallow: /sucesso
+Disallow: /suceso
+Disallow: /reset-password
+Disallow: /emails/
+Disallow: /admin/
+Disallow: /__dev
+Disallow: /.lovable/
 
 Sitemap: https://slideai.com.br/sitemap.xml

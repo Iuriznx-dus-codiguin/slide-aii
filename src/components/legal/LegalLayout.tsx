@@ -13,6 +13,7 @@ import { Footer } from "@/components/landing/Footer";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ORGANIZATION_ID, absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
 
 export interface TocItem {
   id: string;
@@ -47,7 +48,24 @@ export const LegalLayout = ({ title, seoTitle, description, path, version, effec
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Seo title={seoTitle} description={description} path={path} />
+      <Seo
+        title={seoTitle}
+        description={description}
+        path={path}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            name: title,
+            description,
+            url: absoluteUrl(path),
+            inLanguage: "pt-BR",
+            dateModified: version,
+            publisher: { "@id": ORGANIZATION_ID },
+          },
+          { "@context": "https://schema.org", ...breadcrumbJsonLd([{ name: title, path }]) },
+        ]}
+      />
       <div className="print:hidden"><Navbar /></div>
       <main className="flex-1 pt-28 pb-20 print:pt-0">
         <div className="container mx-auto px-4 sm:px-6 max-w-6xl">

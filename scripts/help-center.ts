@@ -22,6 +22,8 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TEMPLATES } from "../src/lib/templates.ts";
+import { TEMPLATE_GUIDES_UPDATED } from "../src/lib/templateGuides.ts";
 
 export const HELP_CATEGORIES = [
   "comecar",
@@ -113,8 +115,10 @@ export const MIGRATION_FILES = [
   join(ROOT, "drizzle/migrations/0018_help_center_pricing_2026_10.sql"),
 ];
 
-// Sitemap: páginas fixas + um endereço por artigo publicado. Gerado junto
-// com a migração para que um artigo novo já entre na busca do Google.
+// Sitemap: páginas fixas + guias dos templates + um endereço por artigo
+// publicado. Gerado junto com a migração para que um artigo novo já entre na
+// busca do Google. Só as páginas públicas e indexáveis (as mesmas que
+// scripts/prerender.ts pré-renderiza); rotas privadas ficam no robots.txt.
 export const SITEMAP_FILE = join(ROOT, "public/sitemap.xml");
 const SITE = "https://slideai.com.br";
 const STATIC_PAGES: [path: string, changefreq: string, priority: string][] = [
@@ -128,10 +132,11 @@ const STATIC_PAGES: [path: string, changefreq: string, priority: string][] = [
 ];
 
 export function buildSitemap(articles: HelpArticleSource[]): string {
-  const url = (path: string, changefreq: string, priority: string) =>
-    `  <url><loc>${SITE}${path}</loc><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`;
+  const url = (path: string, changefreq: string, priority: string, lastmod?: string) =>
+    `  <url><loc>${SITE}${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ""}<changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`;
   const lines = [
     ...STATIC_PAGES.map(([path, freq, prio]) => url(path, freq, prio)),
+    ...TEMPLATES.map((t) => url(`/templates/${t.id}`, "monthly", "0.7", TEMPLATE_GUIDES_UPDATED)),
     ...[...articles].sort((a, b) => a.slug.localeCompare(b.slug)).map((a) => url(`/ajuda/${a.slug}`, "monthly", "0.5")),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join("\n")}\n</urlset>\n`;

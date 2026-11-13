@@ -25,7 +25,7 @@ const Privacy = () => {
   return (
     <LegalLayout
       title="Política de Privacidade"
-      seoTitle="Política de Privacidade — SlideAI"
+      seoTitle="Política de Privacidade (LGPD) | SlideAI"
       description="Como o SlideAI coleta, usa, compartilha, guarda e protege dados pessoais, com bases legais, prazos de retenção, fornecedores e como exercer seus direitos pela LGPD."
       path="/privacidade"
       version={LEGAL.privacyVersion}
