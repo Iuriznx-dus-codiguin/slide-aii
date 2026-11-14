@@ -1,0 +1,34 @@
+{
+  "name": "slideai-youtube-ad",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Comercial de 40s do SlideAI com narração (16:9 para YouTube e 9:16 para Shorts/Reels), feito em Remotion.",
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio",
+    "still": "remotion still SlideAIComercial --scale=0.5",
+    "render": "remotion render SlideAIComercial out/slideai-comercial-40s-16x9-4k.mp4 --scale=2 --codec=h264 --crf=14 --x264-preset=slow --image-format=png --color-space=bt709 --audio-bitrate=320k",
+    "render:vertical": "remotion render SlideAIComercialVertical out/slideai-comercial-40s-9x16-4k.mp4 --scale=2 --codec=h264 --crf=14 --x264-preset=slow --image-format=png --color-space=bt709 --audio-bitrate=320k",
+    "render:preview": "remotion render SlideAIComercial out/preview-16x9.mp4 --codec=h264 --crf=20",
+    "landing": "remotion render LandingHeroLoop out/landing-hero-loop.mp4 --scale=2 --codec=h264 --crf=16 --x264-preset=slow --image-format=png --color-space=bt709 --muted",
+    "landing:webm": "remotion render LandingHeroLoop out/landing-hero-loop.webm --scale=2 --codec=vp9 --crf=24 --image-format=png --pixel-format=yuva420p --muted --props='{\"transparent\":true}'",
+    "landing:poster": "remotion still LandingHeroLoop out/landing-hero-poster.png --frame=0 --scale=2 --image-format=png",
+    "music": "node scripts/make-music.mjs",
+    "voice:lines": "node scripts/export-voice-lines.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.540",
+    "@remotion/fonts": "4.0.540",
+    "@remotion/media": "4.0.540",
+    "@remotion/transitions": "4.0.540",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.540",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.23",
+    "typescript": "5.8.3"
+  }
+}
