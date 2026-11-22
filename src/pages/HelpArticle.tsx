@@ -51,6 +51,9 @@ const HelpArticle = () => {
   const [related, setRelated] = useState<Article[]>(seed?.related ?? []);
   const [errors, setErrors] = useState<RelatedError[]>([]);
   const [loading, setLoading] = useState(!seed);
+  // Falha de conexão (banco fora do ar, rede): diferente de "não encontrado".
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   // Voto anônimo (um por pessoa, artigo e dia); a equipe vê o resumo no /__dev.
@@ -61,7 +64,13 @@ const HelpArticle = () => {
 
   useEffect(() => {
     if (!slug) return;
-    if (!seed) setLoading(true);
+    let cancelled = false;
+    setLoadError(false);
+    if (!seed) {
+      setLoading(true);
+      setErrors([]);
+      setRelated([]);
+    }
     (async () => {
       const { data, error } = await supabase
         .from("help_articles")
@@ -69,36 +78,51 @@ const HelpArticle = () => {
         .eq("slug", slug)
         .eq("is_published", true)
         .maybeSingle();
+      if (cancelled) return;
 
-      // Falha de rede: mantém o artigo pré-renderizado (se for o desta rota).
-      // Resposta vazia: o artigo não está publicado, então "não encontrado".
-      if (!data) { if (!(error && seed)) setArticle(null); setLoading(false); return; }
-      setArticle(data as Article);
-
-      // Buscar erros que referenciam esse artigo
-      const { data: errs } = await supabase
-        .from("error_catalog")
-        .select("code, title, user_description, severity")
-        .contains("related_articles", [slug])
-        .limit(6);
-      setErrors((errs as RelatedError[]) ?? []);
-
-      // Buscar artigos relacionados (mesma categoria)
-      if (data.category) {
-        const { data: rel } = await supabase
-          .from("help_articles")
-          .select("id, slug, title, category, content_md, keywords, updated_at")
-          .eq("is_published", true)
-          .eq("category", data.category)
-          .neq("slug", slug)
-          .order("title", { ascending: true })
-          .limit(5);
-        setRelated((rel as Article[]) ?? []);
+      // Falha de conexão: mantém o artigo pré-renderizado (se for o desta
+      // rota) ou mostra um aviso com "Tentar novamente" — sem noindex, para
+      // que um robô que passe durante uma queda do banco não tire a página do
+      // índice. Resposta vazia sem erro: o artigo não está publicado.
+      if (error) {
+        if (!seed) { setArticle(null); setLoadError(true); }
+        setLoading(false);
+        return;
       }
+      if (!data) { setArticle(null); setLoading(false); return; }
+
+      // O artigo aparece já. Códigos de erro e artigos relacionados chegam
+      // depois, em paralelo: antes a página esperava as duas consultas, e o
+      // renderizador que a Lovable usa para robôs às vezes copiava a página
+      // nesse intervalo (título certo e corpo vazio).
+      setArticle(data as Article);
       setLoading(false);
+
+      const [errsRes, relRes] = await Promise.all([
+        supabase
+          .from("error_catalog")
+          .select("code, title, user_description, severity")
+          .contains("related_articles", [slug])
+          .limit(6),
+        data.category
+          ? supabase
+            .from("help_articles")
+            .select("id, slug, title, category, content_md, keywords, updated_at")
+            .eq("is_published", true)
+            .eq("category", data.category)
+            .neq("slug", slug)
+            .order("title", { ascending: true })
+            .limit(5)
+          : Promise.resolve({ data: [] as Article[] }),
+      ]);
+      if (cancelled) return;
+      setErrors((errsRes.data as RelatedError[] | null) ?? []);
+      // Sem resposta: mantém os relacionados que já estão na tela (pré-renderizados).
+      if (relRes.data) setRelated(relRes.data as Article[]);
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- o seed só vale para a primeira rota
-  }, [slug]);
+  }, [slug, reloadKey]);
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(window.location.href);
@@ -144,7 +168,7 @@ const HelpArticle = () => {
           ]}
         />
       )}
-      {!loading && !article && (
+      {!loading && !article && !loadError && (
         <Seo title="Artigo não encontrado | SlideAI" description="O artigo pode ter sido movido ou removido da Central de Ajuda do SlideAI." path={articlePath} noindex />
       )}
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur z-30">
@@ -164,6 +188,13 @@ const HelpArticle = () => {
             <Skeleton className="h-6 w-40" />
             <Skeleton className="h-10 w-3/4" />
             <Skeleton className="h-64" />
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-20" role="alert">
+            <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+            <h1 className="font-display text-2xl font-bold mb-2">Não foi possível carregar o artigo</h1>
+            <p className="text-muted-foreground mb-6">Verifique a sua conexão e tente de novo em instantes.</p>
+            <Button onClick={() => setReloadKey((k) => k + 1)}>Tentar novamente</Button>
           </div>
         ) : !article ? (
           <div className="text-center py-20">

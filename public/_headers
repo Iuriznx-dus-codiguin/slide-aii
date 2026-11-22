@@ -1,4 +1,8 @@
-# Cabeçalhos de segurança aplicados pelo host estático (Lovable/Netlify-style).
+# Cabeçalhos de segurança no formato _headers (Netlify, Cloudflare Pages).
+# ATENÇÃO: a hospedagem da Lovable NÃO aplica este arquivo (verificado em
+# 22/11/2026: /_headers é servido como arquivo comum e as respostas não trazem
+# CSP nem X-Frame-Options). Ele vale se o front for publicado num host que
+# leia _headers; veja docs/seo/auditoria-2026-11.md.
 # Objetivo: reduzir a superfície de exploração via navegador — clickjacking,
 # injeção de script, vazamento de referrer e downgrade para HTTP.
 #
