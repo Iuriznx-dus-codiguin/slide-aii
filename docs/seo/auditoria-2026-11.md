@@ -26,6 +26,7 @@ Nenhuma alteração de código garante a primeira posição: o ranking depende t
 - No build, o plugin `scripts/prerender.ts` compila `src/entry-server.tsx` para Node e renderiza cada rota pública com React. Grava `dist/index.html` para `/` e `dist/<rota>.html` para as demais (`dist/sobre.html`, `dist/ajuda/<slug>.html`), o formato que hosts estáticos servem em URLs sem extensão.
 - No navegador o React monta por cima (`src/lib/prerender.ts`): enquanto o código da página carrega, o fallback mostra o mesmo HTML em vez do spinner, e a Central de Ajuda começa com os dados embutidos e busca a versão publicada no banco em seguida.
 - O `index.html` da home também é o fallback da SPA em rotas não pré-renderizadas (`/slides/…`, `/u/…`, área logada). Por isso ele não leva canonical, e um script no `<head>` esconde o conteúdo da home nessas rotas até o React montar a rota certa.
+- Na hospedagem da Lovable, só a home é servida a partir desse HTML; as demais páginas chegam aos robôs verificados pela renderização da própria Lovable (veja a seção seguinte).
 - Se a pré-renderização falhar, o build continua como SPA e avisa no log (`SLIDEAI_PRERENDER_STRICT=1` faz o build falhar). `src/test/prerender.test.tsx` renderiza todas as rotas nos testes.
 
 ## Resultados medidos (Lighthouse local, celular, com gzip)
@@ -38,21 +39,26 @@ Nenhuma alteração de código garante a primeira posição: o ranking depende t
 | Home: peso total | 1.693 KiB | 1.240 KiB |
 | SEO (Lighthouse) | 100 | 100 |
 | Palavras visíveis sem JavaScript na home | 0 | ~1.300 |
-| Páginas indexáveis com HTML próprio | 0 | 103 |
+| Páginas com HTML próprio gerado no build | 0 | 103 (na Lovable, só a home é servida assim; veja a seção seguinte) |
 
 O Lighthouse executa JavaScript, por isso já dava 100 em SEO antes: o ganho principal aparece para quem não executa (buscadores de IA, redes sociais) e na velocidade com que o Google processa as páginas.
 
-## Validar depois da publicação
+## Como a hospedagem da Lovable serve as páginas (verificado no ar em 22/11/2026)
+
+- **Pessoas e robôs não verificados:** toda URL sem extensão recebe o `index.html`. Só a home (`/`) chega com o HTML pré-renderizado do build; em `/sobre`, `/templates/…` e `/ajuda/…` o conteúdo da home vem escondido (script de fallback) e o React monta a página certa. Os arquivos `<rota>.html` do build ficam acessíveis só pelo endereço com `.html` (cada um com canonical para a URL limpa) e serviriam numa hospedagem que resolva URLs limpas.
+- **Robôs verificados** (Google, Bing, ChatGPT, Perplexity, Claude, Gemini e prévias de redes sociais): a Lovable renderiza cada página na hora e entrega o HTML resultante (documentação de SEO da Lovable). O que carrega depois desse momento pode ficar de fora. Foi assim que se descobriu o problema dos artigos da Central: o artigo só aparecia depois de três consultas ao banco, e a cópia saía com o título certo e o corpo vazio. Corrigido: o artigo aparece logo após a primeira consulta.
+- **Banco pausado:** sem o banco, os artigos viravam "não encontrado" com `noindex`, e o renderizador da Lovable guarda essas cópias por um tempo. Agora uma falha de conexão mostra um aviso com "Tentar novamente", sem `noindex`. Depois de uma pausa do banco, peça nova indexação dos artigos no Search Console.
+- **`public/_headers` não é aplicado pela Lovable:** o arquivo é servido como arquivo comum. Os arquivos de `/assets` já recebem cache longo da própria Lovable, mas os cabeçalhos de segurança listados ali (CSP, X-Frame-Options, Permissions-Policy) não estão ativos no site.
+
+### Como conferir o que os robôs recebem
+
+A Lovable entrega a versão em Markdown da página renderizada a quem pede, o mesmo conteúdo que um robô verificado lê:
 
 ```sh
-curl -s https://slideai.com.br/templates/tcc-defesa | grep -o '<h1[^>]*>[^<]*'
-curl -s https://slideai.com.br/sobre | grep -o '<title[^>]*>[^<]*'
-curl -s https://slideai.com.br/ | grep -c 'application/ld+json'
+curl -s -H "Accept: text/markdown" https://slideai.com.br/ajuda/reembolso | head -40
 ```
 
-Se `/sobre` devolver o título da home, o host não está servindo os arquivos `<rota>.html` em URLs sem extensão: o site continua funcionando como antes, mas só a home tem HTML pré-renderizado. Nesse caso, peça ao host (Lovable) suporte a "pretty URLs" ou uma regra de reescrita de `/<rota>` para `/<rota>.html`.
-
-Também vale testar no [Teste de pesquisa aprimorada](https://search.google.com/test/rich-results) e na Inspeção de URL do Search Console.
+O título deve ser o do artigo e o texto do artigo deve aparecer abaixo do cabeçalho. Também vale usar a Inspeção de URL do Search Console ("Testar URL publicado") e o [Teste de pesquisa aprimorada](https://search.google.com/test/rich-results).
 
 ## O que falta fazer fora do código
 

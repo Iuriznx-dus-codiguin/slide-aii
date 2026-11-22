@@ -44,19 +44,28 @@ const HelpCenter = () => {
   const [category, setCategory] = useState<string>("all");
 
 
+  // Falha de conexão (banco fora do ar, rede) sem lista pré-renderizada.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
+    let cancelled = false;
+    setLoadError(false);
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("help_articles")
         .select("id, slug, title, category, content_md, keywords, updated_at")
         .eq("is_published", true)
         .order("category", { ascending: true })
         .order("title", { ascending: true });
+      if (cancelled) return;
       // Falha de rede: mantém a lista pré-renderizada, se houver.
       setArticles((prev) => (data as Article[] | null) ?? prev);
+      setLoadError(!!error && !data);
       setLoading(false);
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [reloadKey]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -223,7 +232,15 @@ const HelpCenter = () => {
         )}
 
         {/* Lista agrupada */}
-        {!loading && filtered.length === 0 && (
+        {!loading && loadError && articles.length === 0 && (
+          <div className="text-center py-16" role="alert">
+            <LifeBuoy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-4">Não foi possível carregar os artigos agora. Verifique a sua conexão.</p>
+            <Button variant="outline" onClick={() => { setLoading(true); setReloadKey((k) => k + 1); }}>Tentar novamente</Button>
+          </div>
+        )}
+
+        {!loading && !(loadError && articles.length === 0) && filtered.length === 0 && (
           <div className="text-center py-16">
             <LifeBuoy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground mb-2">Nenhum artigo encontrado para "{search}".</p>
@@ -291,7 +308,7 @@ const HelpCenter = () => {
 };
 
 function stripMd(md: string): string {
-  return md.replace(/[#*_`>\-]/g, "").replace(/\s+/g, " ").trim();
+  return md.replace(/[#*_`>-]/g, "").replace(/\s+/g, " ").trim();
 }
 
 export default HelpCenter;
